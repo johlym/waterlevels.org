@@ -4,94 +4,223 @@
 <% measurements = Array(@snapshot[:measurements]) %>
 
 <div
-  class="flex min-h-dvh flex-col"
+  class="app-shell"
   data-controller="parameter-toggle temperature-unit hydrograph"
   data-hydrograph-url-value="<%= api_gauge_observations_path(@snapshot[:site_number]) %>"
   data-hydrograph-measurements-value="<%= ERB::Util.json_escape(measurements.to_json) %>"
   data-temperature-unit-url-value="<%= temperature_unit_path %>"
 >
   <%= render Navigation::BarComponent.new %>
-  <main class="mx-auto w-full max-w-7xl flex-1 px-4 py-10 sm:px-6 lg:px-8">
-    <div class="flex flex-col gap-3">
-      <nav aria-label="Breadcrumb">
-        <ol role="list" class="flex flex-wrap items-center gap-2 text-base text-rolling-stone-600 dark:text-rolling-stone-400 sm:text-sm">
-          <li><%= link_to "Map", root_path, class: "hover:text-rolling-stone-950 dark:hover:text-white" %></li>
-          <li aria-hidden="true" class="text-rolling-stone-300 dark:text-rolling-stone-600">/</li>
+  <main class="page-main">
+    <header class="gauge-header">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <ol role="list">
+          <li><%= link_to "Map", root_path %></li>
+          <li class="sep" aria-hidden="true">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+            </svg>
+          </li>
           <li>
-            <%= link_to @snapshot[:state_name].presence || @snapshot[:state_code].upcase, state_gauges_path(@snapshot[:state_code]), class: "hover:text-rolling-stone-950 dark:hover:text-white" %>
+            <%= link_to @snapshot[:state_name].presence || @snapshot[:state_code].upcase, state_gauges_path(@snapshot[:state_code]) %>
           </li>
           <% if @snapshot[:county_name].present? %>
-            <li aria-hidden="true" class="text-rolling-stone-300 dark:text-rolling-stone-600">/</li>
-            <li><%= @snapshot[:county_name].to_s.sub(/\s+County\z/i, "") %></li>
+            <li class="sep" aria-hidden="true">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+              </svg>
+            </li>
+            <li class="current"><%= @snapshot[:county_name].to_s.sub(/\s+County\z/i, "") %></li>
           <% end %>
         </ol>
       </nav>
 
-      <div class="flex flex-wrap items-start justify-between gap-4">
-        <div class="max-w-3xl">
-          <h1 class="text-balance text-3xl font-semibold tracking-tight text-rolling-stone-950 dark:text-white sm:text-4xl"><%= location_name %></h1>
-          <p class="mt-2 text-base text-pretty text-rolling-stone-600 dark:text-rolling-stone-400 sm:text-sm">
-            Updated <%= display_timestamp(@snapshot[:latest_observed_at]) %>
-            <% approval = measurements.dig(0, :approval_status) || measurements.dig(0, "approval_status") %>
-            <% if approval.present? %>
-              · <%= approval %>
-            <% end %>
-            · Site <%= @snapshot[:site_number] %>
-          </p>
-        </div>
-        <% if @snapshot[:stale] %>
-          <div class="rounded-full bg-amber-50 px-3 py-1 text-base font-medium text-amber-800 outline outline-amber-600/15 dark:bg-amber-400/10 dark:text-amber-200 dark:outline-amber-400/20 sm:text-sm">
-            Stale — older than 1 week
+      <div class="title-row">
+        <div class="identity">
+          <div class="icon" aria-hidden="true">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
           </div>
-        <% end %>
+          <div>
+            <div class="badges">
+              <% if @snapshot[:stale] %>
+                <span class="badge warn">Stale — older than 1 week</span>
+              <% else %>
+                <span class="badge live"><span class="dot" aria-hidden="true"></span> Active</span>
+              <% end %>
+              <span class="badge muted">USGS</span>
+            </div>
+            <h1><%= location_name %></h1>
+            <p class="meta">
+              Updated <%= display_timestamp(@snapshot[:latest_observed_at]) %>
+              <% approval = measurements.dig(0, :approval_status) || measurements.dig(0, "approval_status") %>
+              <% if approval.present? %>
+                · <%= approval %>
+              <% end %>
+              · Site <%= @snapshot[:site_number] %>
+            </p>
+          </div>
+        </div>
+
+        <aside class="station-meta">
+          <div class="meta-grid">
+            <div>
+              <p class="label">Station ID</p>
+              <p class="value"><%= @snapshot[:site_number] %></p>
+            </div>
+            <div>
+              <p class="label">Coordinates</p>
+              <p class="value">
+                <% lat = @snapshot[:latitude].to_f %>
+                <% lon = @snapshot[:longitude].to_f %>
+                <%= number_with_precision(lat.abs, precision: 4) %>° <%= lat >= 0 ? "N" : "S" %>,
+                <%= number_with_precision(lon.abs, precision: 4) %>° <%= lon >= 0 ? "E" : "W" %>
+              </p>
+            </div>
+            <% if @snapshot[:county_name].present? %>
+              <div>
+                <p class="label">County</p>
+                <p class="value"><%= @snapshot[:county_name] %></p>
+              </div>
+            <% end %>
+            <div>
+              <p class="label">Last updated</p>
+              <p class="value"><%= display_timestamp(@snapshot[:latest_observed_at]) %></p>
+            </div>
+          </div>
+        </aside>
       </div>
-    </div>
+    </header>
 
     <%= render Gauges::MeasurementsComponent.new(measurements: measurements) %>
 
-    <section id="graph-panel" class="mt-12" aria-labelledby="graph-heading">
-      <div class="flex flex-wrap items-center justify-between gap-4">
-        <h2 id="graph-heading" class="text-base font-semibold text-rolling-stone-950 dark:text-white">History</h2>
-        <div class="inline-flex rounded-lg bg-rolling-stone-950/5 p-1 dark:bg-white/5" role="group" aria-label="Time range">
+    <section id="graph-panel" class="section-block" aria-labelledby="graph-heading">
+      <div class="section-head">
+        <h2 id="graph-heading">Historical trends</h2>
+        <div class="segmented" role="group" aria-label="Time range">
           <% %w[24h 7d 30d 1y].each do |range| %>
             <button
               type="button"
-              class="rounded-md px-3 py-1.5 text-base font-medium text-rolling-stone-600 hover:text-rolling-stone-950 aria-pressed:bg-white aria-pressed:text-rolling-stone-950 aria-pressed:shadow-sm dark:text-rolling-stone-300 dark:hover:text-white dark:aria-pressed:bg-rolling-stone-800 dark:aria-pressed:text-white sm:text-sm"
               data-action="hydrograph#setRange"
               data-hydrograph-range-param="<%= range %>"
               data-hydrograph-target="rangeButton"
               aria-pressed="<%= range == "7d" %>"
-            ><%= range %></button>
+            ><%= range == "7d" ? "7 Days" : (range == "30d" ? "30 Days" : (range == "1y" ? "1 Year" : range)) %></button>
           <% end %>
         </div>
       </div>
-      <div class="mt-4 overflow-hidden rounded-xl border border-rolling-stone-300 bg-white dark:border-rolling-stone-700 dark:bg-rolling-stone-900">
-        <div class="p-4 sm:p-6">
-          <div class="relative h-72 w-full sm:h-80">
-            <canvas class="absolute inset-0 size-full" data-hydrograph-target="canvas"></canvas>
+      <div class="chart-panel">
+        <div class="pad">
+          <div class="chart-legend" data-hydrograph-target="legend"></div>
+          <div class="canvas-wrap">
+            <canvas data-hydrograph-target="canvas"></canvas>
           </div>
+          <div class="period-stats" data-hydrograph-target="stats"></div>
         </div>
       </div>
     </section>
 
-    <section class="mt-12" aria-labelledby="history-heading">
-      <h2 id="history-heading" class="text-base font-semibold text-rolling-stone-950 dark:text-white">Recent observations</h2>
-      <div
-        data-hydrograph-target="history"
-        class="mt-4 divide-y divide-rolling-stone-950/5 overflow-hidden rounded-xl outline outline-rolling-stone-950/10 dark:divide-white/5 dark:outline-white/10"
-      ></div>
+    <section class="section-block" aria-labelledby="history-heading">
+      <div class="section-head">
+        <div>
+          <h2 id="history-heading">Hourly measurements</h2>
+          <p class="aside">Detailed readings by hour, organized by day</p>
+        </div>
+        <div class="history-toolbar">
+          <label class="sr-only" for="history-day-select">Day</label>
+          <select
+            id="history-day-select"
+            class="day-select"
+            data-hydrograph-target="daySelect"
+            data-action="change->hydrograph#selectDay"
+          ></select>
+          <button type="button" class="toolbar-btn" data-action="hydrograph#exportCsv">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+            </svg>
+            Export CSV
+          </button>
+        </div>
+      </div>
+      <div class="measurements-table" data-hydrograph-target="history"></div>
     </section>
 
     <% nearby = Array(@snapshot[:nearby]) %>
     <% if nearby.any? %>
-      <section class="mt-12" aria-labelledby="nearby-heading">
-        <h2 id="nearby-heading" class="text-base font-semibold text-rolling-stone-950 dark:text-white">Nearby locations</h2>
-        <ul role="list" class="mt-4 divide-y divide-rolling-stone-950/5 rounded-xl outline outline-rolling-stone-950/10 dark:divide-white/5 dark:outline-white/10">
+      <section class="section-block" aria-labelledby="nearby-heading">
+        <div class="section-head">
+          <div>
+            <h2 id="nearby-heading">Nearby stations</h2>
+            <p class="aside">Other monitoring locations nearby</p>
+          </div>
+          <%= link_to root_path, class: "section-link" do %>
+            View all on map
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+            </svg>
+          <% end %>
+        </div>
+        <ul role="list" class="nearby-grid">
           <% nearby.each do |n| %>
+            <%
+              stale = n[:stale] || n["stale"]
+              distance = n[:distance_mi] || n["distance_mi"]
+              site = n[:site_number] || n["site_number"]
+              primary = n[:primary] || n["primary"]
+              primary_kind = primary && (primary[:kind] || primary["kind"])
+              primary_label = primary && (primary[:label] || primary["label"])
+              primary_value = primary && (primary[:value] || primary["value"])
+              primary_unit = primary && (primary[:unit] || primary["unit"])
+              primary_precision = (primary && (primary[:precision] || primary["precision"])) || 2
+            %>
             <li>
-              <%= link_to n[:path] || n["path"], class: "flex items-center justify-between gap-4 px-4 py-4 hover:bg-rolling-stone-50 dark:hover:bg-white/5 sm:px-6" do %>
-                <div class="text-base font-medium text-rolling-stone-950 dark:text-white sm:text-sm"><%= display_location_name(n[:name] || n["name"]) %></div>
-                <div class="text-base text-smalt-700 dark:text-smalt-300 sm:text-sm">View</div>
+              <%= link_to n[:path] || n["path"], class: "nearby-card" do %>
+                <div class="card-top">
+                  <% if stale %>
+                    <span class="status offline">
+                      <span class="dot" aria-hidden="true"></span>
+                      Offline
+                    </span>
+                  <% else %>
+                    <span class="status active">
+                      <span class="dot" aria-hidden="true"></span>
+                      Active
+                    </span>
+                  <% end %>
+                  <% if distance.present? %>
+                    <span class="distance"><%= number_with_precision(distance, precision: 1) %> mi</span>
+                  <% end %>
+                </div>
+                <h3 class="name-scroll">
+                  <span><%= display_location_name(n[:name] || n["name"]) %></span>
+                </h3>
+                <p class="site-id">ID: <%= site %></p>
+                <div class="card-foot">
+                  <% if primary.present? && primary_value.present? %>
+                    <% if primary_kind == "temperature" %>
+                      <span
+                        data-temperature-unit-target="display"
+                        data-temp-c="<%= primary_value %>"
+                        data-temp-prefix="Temp: "
+                      ></span>
+                    <% else %>
+                      <span>
+                        <%= primary_label %>:
+                        <%= number_with_precision(primary_value, precision: primary_precision) %>
+                        <%= primary_unit %>
+                      </span>
+                    <% end %>
+                  <% elsif stale && (n[:latest_observed_at] || n["latest_observed_at"]).blank? %>
+                    <span class="muted">No recent data</span>
+                  <% else %>
+                    <span class="muted">View station</span>
+                  <% end %>
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                  </svg>
+                </div>
               <% end %>
             </li>
           <% end %>
@@ -99,9 +228,9 @@
       </section>
     <% end %>
 
-    <p class="mt-12 text-base text-rolling-stone-500 dark:text-rolling-stone-400 sm:text-sm">
+    <p class="usgs-note">
       Official USGS page:
-      <%= link_to @snapshot[:usgs_url], @snapshot[:usgs_url], class: "font-medium text-smalt-700 underline hover:text-smalt-800 dark:text-smalt-300 dark:hover:text-smalt-200", rel: "noopener noreferrer", target: "_blank" %>
+      <%= link_to @snapshot[:usgs_url], @snapshot[:usgs_url], rel: "noopener noreferrer", target: "_blank" %>
       (may include cooperator information)
     </p>
   </main>

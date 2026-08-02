@@ -8,24 +8,18 @@ export default class extends Controller {
   }
 
   toggle() {
-    if (this.panelTarget.classList.contains("hidden")) {
-      this.open()
-    } else {
+    if (this.element.hasAttribute("data-open")) {
       this.close()
+    } else {
+      this.open()
     }
   }
 
   open() {
-    this.panelTarget.classList.remove("hidden")
     this.element.setAttribute("data-open", "true")
-    if (this.hasOpenIconTarget) this.openIconTarget.classList.add("hidden")
-    if (this.hasCloseIconTarget) this.closeIconTarget.classList.remove("hidden")
   }
 
   close() {
-    this.panelTarget.classList.add("hidden")
     this.element.removeAttribute("data-open")
-    if (this.hasOpenIconTarget) this.openIconTarget.classList.remove("hidden")
-    if (this.hasCloseIconTarget) this.closeIconTarget.classList.add("hidden")
   }
 }

@@ -1,12 +1,109 @@
 <% content_for :title, "WaterLevels.org — USGS Water Gauges" %>
 <% content_for :meta_description, "Interactive map of USGS water levels, streamflow, and water temperature across the United States." %>
 
-<div class="relative flex h-dvh flex-col" data-controller="map" data-map-stations-url-value="<%= api_map_stations_path %>">
-  <%= render Navigation::BarComponent.new(map_controls: true, overlay: true) %>
-  <main class="relative min-h-0 flex-1">
-    <div data-map-target="canvas" class="absolute inset-0 bg-rolling-stone-100 dark:bg-rolling-stone-900" aria-label="Water gauges map"></div>
+<div class="map-shell" data-controller="map" data-map-stations-url-value="<%= api_map_stations_path %>">
+  <%= render Navigation::BarComponent.new %>
+
+  <main class="map-main">
+    <div class="map-surface">
+      <div data-map-target="canvas" class="map-canvas" aria-label="Water gauges map"></div>
+    </div>
+
+    <div class="map-chrome">
+      <div class="map-veil" aria-hidden="true"></div>
+
+      <aside class="map-sidebar">
+        <div class="map-search">
+          <div class="field">
+            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+            <input
+              type="search"
+              placeholder="Search stations, rivers, locations…"
+              autocomplete="off"
+              data-map-target="search"
+              data-action="input->map#search"
+              aria-label="Search stations"
+            >
+          </div>
+          <div class="results" data-map-target="results" data-action="click->map#selectResult" hidden></div>
+        </div>
+
+        <div class="map-filters">
+          <h2>Data layers</h2>
+          <div class="layers" role="group" aria-label="Measurement filters">
+            <label>
+              <input
+                type="checkbox"
+                checked
+                data-map-target="filter"
+                data-map-layer-param="discharge"
+                data-action="change->map#filterChanged"
+              >
+              <span class="name">Streamflow</span>
+              <span class="count" data-map-target="dischargeCount" data-zero>0</span>
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked
+                data-map-target="filter"
+                data-map-layer-param="water_level"
+                data-action="change->map#filterChanged"
+              >
+              <span class="name">Water levels</span>
+              <span class="count" data-map-target="waterLevelCount" data-zero>0</span>
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked
+                data-map-target="filter"
+                data-map-layer-param="temperature"
+                data-action="change->map#filterChanged"
+              >
+              <span class="name">Temperature</span>
+              <span class="count" data-map-target="temperatureCount" data-zero>0</span>
+            </label>
+          </div>
+        </div>
+      </aside>
+
+      <div class="map-tools">
+        <button type="button" data-action="map#zoomIn" aria-label="Zoom in">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+          </svg>
+        </button>
+        <button type="button" data-action="map#zoomOut" aria-label="Zoom out">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+          </svg>
+        </button>
+        <div class="divider" aria-hidden="true"></div>
+        <button type="button" data-action="map#locate" aria-label="Use my location">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          </svg>
+        </button>
+      </div>
+
+      <div class="map-legend">
+        <div class="item">
+          <span class="swatch active" aria-hidden="true"></span>
+          <span class="label">Active</span>
+        </div>
+        <div class="item">
+          <span class="swatch inactive" aria-hidden="true"></span>
+          <span class="label">Inactive</span>
+        </div>
+      </div>
+    </div>
   </main>
-  <div class="relative z-20">
+
+  <div class="map-footer">
     <%= render Footer::ThinComponent.new %>
   </div>
 </div>

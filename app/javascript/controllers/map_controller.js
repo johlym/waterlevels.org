@@ -3,15 +3,30 @@ import L from "leaflet"
 import "leaflet.markercluster"
 
 export default class extends Controller {
-  static targets = ["canvas"]
+  static targets = [
+    "canvas",
+    "search",
+    "results",
+    "filter",
+    "dischargeCount",
+    "waterLevelCount",
+    "temperatureCount"
+  ]
   static values = { stationsUrl: String }
 
   connect() {
-    this.map = L.map(this.canvasTarget, { zoomControl: true }).setView([39.5, -98.35], 4)
-    const tiles = window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-      : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-    L.tileLayer(tiles, {
+    this.stations = []
+    this.markersById = new Map()
+    this.query = ""
+    this.layers = {
+      discharge: true,
+      water_level: true,
+      temperature: true
+    }
+
+    this.map = L.map(this.canvasTarget, { zoomControl: false, attributionControl: false }).setView([39.5, -98.35], 4)
+    L.control.attribution({ position: "bottomleft" }).addTo(this.map)
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
       maxZoom: 18
     }).addTo(this.map)
@@ -26,17 +41,63 @@ export default class extends Controller {
     if (this.map) this.map.remove()
   }
 
+  zoomIn() {
+    this.map?.zoomIn()
+  }
+
+  zoomOut() {
+    this.map?.zoomOut()
+  }
+
   locate() {
-    if (!navigator.geolocation) return
+    if (!navigator.geolocation || !this.map) return
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords
-        this.map.setView([latitude, longitude], 9)
-        L.circleMarker([latitude, longitude], { radius: 6, color: "#2f4ea8" }).addTo(this.map)
+        this.map.setView([latitude, longitude], 12)
+        if (this.locationMarker) this.map.removeLayer(this.locationMarker)
+        this.locationMarker = L.circleMarker([latitude, longitude], {
+          radius: 7,
+          color: "#34d399",
+          fillColor: "#10b981",
+          fillOpacity: 0.95,
+          weight: 2
+        }).addTo(this.map)
       },
       () => {},
       { enableHighAccuracy: true, timeout: 10000 }
     )
+  }
+
+  filterChanged() {
+    this.layers = {
+      discharge: false,
+      water_level: false,
+      temperature: false
+    }
+    this.filterTargets.forEach((input) => {
+      const layer = input.dataset.mapLayerParam
+      if (layer) this.layers[layer] = input.checked
+    })
+    this.renderStations()
+    this.renderSearchResults()
+  }
+
+  search() {
+    this.query = (this.searchTarget.value || "").trim().toLowerCase()
+    this.renderStations()
+    this.renderSearchResults()
+  }
+
+  selectResult(event) {
+    const button = event.target.closest("[data-station-id]")
+    if (!button || !this.resultsTarget.contains(button)) return
+    const id = button.dataset.stationId
+    const station = this.stations.find((item) => item.id === id)
+    if (!station) return
+    this.map.setView([station.lat, station.lon], Math.max(this.map.getZoom(), 10))
+    const marker = this.markersById.get(id)
+    if (marker) marker.openPopup()
   }
 
   async loadStations() {
@@ -46,39 +107,133 @@ export default class extends Controller {
     const response = await fetch(url, { headers: { Accept: "application/json" } })
     if (!response.ok) return
     const data = await response.json()
+    this.stations = data.stations || []
+    this.updateCounts()
+    this.renderStations()
+    this.renderSearchResults()
+  }
+
+  updateCounts() {
+    const counts = { discharge: 0, water_level: 0, temperature: 0 }
+    this.stations.forEach((station) => {
+      if (station.has_discharge) counts.discharge += 1
+      if (station.has_water_level) counts.water_level += 1
+      if (station.has_temperature) counts.temperature += 1
+    })
+
+    this.setCount(this.dischargeCountTarget, counts.discharge)
+    this.setCount(this.waterLevelCountTarget, counts.water_level)
+    this.setCount(this.temperatureCountTarget, counts.temperature)
+  }
+
+  setCount(target, value) {
+    target.textContent = String(value)
+    if (value === 0) target.setAttribute("data-zero", "")
+    else target.removeAttribute("data-zero")
+  }
+
+  matchesLayers(station) {
+    const anyLayerOn = this.layers.discharge || this.layers.water_level || this.layers.temperature
+    if (!anyLayerOn) return false
+
+    const matches =
+      (this.layers.discharge && station.has_discharge) ||
+      (this.layers.water_level && station.has_water_level) ||
+      (this.layers.temperature && station.has_temperature)
+
+    return Boolean(matches)
+  }
+
+  matchesSearch(station) {
+    if (!this.query) return true
+    const haystack = [station.name, station.id, station.state].filter(Boolean).join(" ").toLowerCase()
+    return haystack.includes(this.query)
+  }
+
+  visibleStations() {
+    return this.stations.filter((station) => this.matchesLayers(station) && this.matchesSearch(station))
+  }
+
+  renderStations() {
     this.cluster.clearLayers()
-    ;(data.stations || []).forEach((station) => {
+    this.markersById.clear()
+
+    this.visibleStations().forEach((station) => {
+      const active = !station.stale
       const marker = L.circleMarker([station.lat, station.lon], {
         radius: 6,
-        color: station.stale ? "#6b7280" : "#2f4ea8",
-        fillColor: station.stale ? "#9ca3af" : "#3b6fd9",
-        fillOpacity: 0.85
+        color: active ? "#22d3ee" : "#71717a",
+        fillColor: active ? "#06b6d4" : "#a1a1aa",
+        fillOpacity: 0.85,
+        weight: 2
       })
       marker.bindPopup(this.popupHtml(station))
+      this.markersById.set(station.id, marker)
       this.cluster.addLayer(marker)
     })
   }
 
+  renderSearchResults() {
+    if (!this.hasResultsTarget) return
+
+    if (!this.query) {
+      this.resultsTarget.innerHTML = ""
+      this.resultsTarget.setAttribute("data-empty", "")
+      this.resultsTarget.hidden = true
+      return
+    }
+
+    const matches = this.stations
+      .filter((station) => this.matchesLayers(station) && this.matchesSearch(station))
+      .slice(0, 8)
+
+    this.resultsTarget.hidden = false
+    this.resultsTarget.removeAttribute("data-empty")
+
+    if (!matches.length) {
+      this.resultsTarget.innerHTML = `<p class="empty">No matching stations in view.</p>`
+      return
+    }
+
+    this.resultsTarget.innerHTML = matches.map((station) => {
+      const status = station.stale ? "Inactive" : "Active"
+      const layers = [
+        station.has_discharge ? "Streamflow" : null,
+        station.has_water_level ? "Water level" : null,
+        station.has_temperature ? "Temperature" : null
+      ].filter(Boolean).join(" · ")
+
+      return `
+        <button type="button" class="result" data-station-id="${station.id}">
+          <span class="name">${this.escapeHtml(station.name)}</span>
+          <span class="meta">${this.escapeHtml(station.id)} · ${status}${layers ? ` · ${layers}` : ""}</span>
+        </button>
+      `
+    }).join("")
+  }
+
   popupHtml(station) {
     const rows = []
+    const status = station.stale ? "Inactive" : "Active"
+    rows.push(`<div class="popup-meta">Status: <strong>${status}</strong></div>`)
+
     if (station.water_level != null) {
       const label = station.water_level_label || "Water level"
-      rows.push(`<div class="wl-popup-meta">${label}: <strong>${station.water_level} ${station.water_level_unit || ""}</strong></div>`)
+      rows.push(`<div class="popup-meta">${label}: <strong>${station.water_level} ${station.water_level_unit || ""}</strong></div>`)
     }
     if (station.discharge != null) {
-      rows.push(`<div class="wl-popup-meta">Flow: <strong>${station.discharge} ${station.discharge_unit || ""}</strong></div>`)
+      rows.push(`<div class="popup-meta">Streamflow: <strong>${station.discharge} ${station.discharge_unit || ""}</strong></div>`)
     }
     if (station.temperature_c != null) {
       const unit = this.tempUnit()
       const value = unit === "c" ? station.temperature_c : (station.temperature_c * 9) / 5 + 32
-      rows.push(`<div class="wl-popup-meta">Temp: <strong>${value.toFixed(1)} °${unit.toUpperCase()}</strong></div>`)
+      rows.push(`<div class="popup-meta">Temp: <strong>${value.toFixed(1)} °${unit.toUpperCase()}</strong></div>`)
     }
-    if (station.stale) rows.push(`<div class="wl-popup-meta">Status: Stale</div>`)
     if (station.observed_at) {
-      rows.push(`<div class="wl-popup-meta">Updated: ${this.formatTimestamp(station.observed_at)}</div>`)
+      rows.push(`<div class="popup-meta">Updated: ${this.formatTimestamp(station.observed_at)}</div>`)
     }
-    rows.push(`<div style="margin-top:0.5rem"><a href="${station.path}">View station</a></div>`)
-    return `<div class="wl-popup-title">${station.name}</div>${rows.join("")}`
+    rows.push(`<div class="popup-link"><a href="${station.path}">View station</a></div>`)
+    return `<div class="popup-title">${this.escapeHtml(station.name)}</div>${rows.join("")}`
   }
 
   formatTimestamp(value) {
@@ -97,5 +252,13 @@ export default class extends Controller {
   tempUnit() {
     const match = document.cookie.match(/(?:^|; )temperature_unit=([^;]*)/)
     return match && match[1] === "c" ? "c" : "f"
+  }
+
+  escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
   }
 }

@@ -1,24 +1,24 @@
-<div class="overflow-hidden rounded-xl outline outline-rolling-stone-950/10 dark:outline-white/10">
-  <div class="overflow-x-auto">
-    <table class="w-full table-fixed text-left text-base sm:text-sm">
+<div class="locations-table">
+  <div class="scroll">
+    <table>
       <colgroup>
-        <col class="w-[58%]" />
-        <col class="w-[42%]" />
+        <col class="name" />
+        <col class="measures" />
       </colgroup>
-      <thead class="bg-rolling-stone-50 dark:bg-white/5">
+      <thead>
         <tr>
-          <th class="px-4 py-3 font-medium text-rolling-stone-600 dark:text-rolling-stone-300 sm:px-6">Location</th>
-          <th class="px-4 py-3 font-medium text-rolling-stone-600 dark:text-rolling-stone-300 sm:px-6">Measurements</th>
+          <th>Location</th>
+          <th>Measurements</th>
         </tr>
       </thead>
-      <tbody class="bg-white dark:bg-rolling-stone-950">
+      <tbody>
         <% counties.each do |county_name, locations| %>
-          <tr class="border-t border-rolling-stone-950/10 dark:border-white/10">
+          <tr>
             <th
               id="<%= county_dom_id(county_name) %>"
               colspan="2"
               scope="colgroup"
-              class="bg-rolling-stone-50 px-4 py-3 text-base font-semibold text-rolling-stone-950 dark:bg-white/5 dark:text-white sm:px-6 sm:text-sm"
+              class="county"
             >
               <%= county_name %>
             </th>
@@ -28,20 +28,20 @@
               name = loc[:name] || loc["name"]
               path = loc[:path] || loc["path"]
             %>
-            <tr class="border-t border-rolling-stone-950/5 hover:bg-rolling-stone-50/80 dark:border-white/5 dark:hover:bg-white/5">
-              <td class="px-4 py-4 sm:px-6">
-                <%= link_to helpers.display_location_name(name), path, class: "font-medium text-smalt-700 hover:text-smalt-800 dark:text-smalt-300 dark:hover:text-smalt-200" %>
+            <tr class="row">
+              <td>
+                <%= link_to helpers.display_location_name(name), path %>
               </td>
-              <td class="px-4 py-4 sm:px-6">
-                <div class="flex flex-wrap gap-2">
+              <td>
+                <div class="chips">
                   <% if loc[:has_water_level] || loc["has_water_level"] %>
-                    <div class="rounded-md bg-rolling-stone-950/5 px-2 py-1 text-rolling-stone-700 dark:bg-white/5 dark:text-rolling-stone-200">Water level</div>
+                    <div class="chip">Water level</div>
                   <% end %>
                   <% if loc[:has_discharge] || loc["has_discharge"] %>
-                    <div class="rounded-md bg-rolling-stone-950/5 px-2 py-1 text-rolling-stone-700 dark:bg-white/5 dark:text-rolling-stone-200">Flow</div>
+                    <div class="chip">Flow</div>
                   <% end %>
                   <% if loc[:has_temperature] || loc["has_temperature"] %>
-                    <div class="rounded-md bg-rolling-stone-950/5 px-2 py-1 text-rolling-stone-700 dark:bg-white/5 dark:text-rolling-stone-200">Temperature</div>
+                    <div class="chip">Temperature</div>
                   <% end %>
                 </div>
               </td>

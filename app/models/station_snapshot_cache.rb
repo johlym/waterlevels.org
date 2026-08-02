@@ -1,6 +1,7 @@
 class StationSnapshotCache
-  PREFIX = "station_snapshot:v4".freeze
+  PREFIX = "station_snapshot:v5".freeze
   TTL = 2.hours
+  MILES_PER_KM = 0.621371
 
   def self.key_for(location)
     "#{PREFIX}:#{location.site_number}"
@@ -64,18 +65,7 @@ class StationSnapshotCache
       extremes[kind] = m[:extremes]
     end
 
-    nearby = MonitoringLocation.where(id: location.nearby_station_ids).map do |n|
-      {
-        site_number: n.site_number,
-        name: n.name,
-        state_code: n.state_code,
-        slug: n.slug,
-        has_water_level: n.has_water_level,
-        has_discharge: n.has_discharge,
-        has_temperature: n.has_temperature,
-        path: "/gauges/#{n.path_state}/#{n.to_param}"
-      }
-    end
+    nearby = nearby_payload(location)
 
     {
       site_number: location.site_number,
@@ -188,5 +178,68 @@ class StationSnapshotCache
   def self.kind_order(kind)
     { "water_level" => 0, "discharge" => 1, "temperature" => 2 }[kind] || 9
   end
-  private_class_method :measurement_payload, :denormalized_measurements, :kind_order
+
+  def self.nearby_payload(location)
+    ids = Array(location.nearby_station_ids)
+    return [] if ids.empty?
+
+    stations = MonitoringLocation.where(id: ids).index_by(&:id)
+    origin_lat = location.latitude.to_f
+    origin_lon = location.longitude.to_f
+
+    ids.filter_map do |id|
+      n = stations[id]
+      next unless n
+
+      distance_mi = NearbyStations.haversine_km(
+        origin_lat, origin_lon, n.latitude.to_f, n.longitude.to_f
+      ) * MILES_PER_KM
+
+      {
+        site_number: n.site_number,
+        name: n.name,
+        state_code: n.state_code,
+        slug: n.slug,
+        has_water_level: n.has_water_level,
+        has_discharge: n.has_discharge,
+        has_temperature: n.has_temperature,
+        path: "/gauges/#{n.path_state}/#{n.to_param}",
+        distance_mi: distance_mi.round(1),
+        stale: n.stale?,
+        latest_observed_at: n.latest_observed_at&.iso8601,
+        primary: nearby_primary_reading(n)
+      }
+    end
+  end
+
+  def self.nearby_primary_reading(location)
+    if location.latest_discharge_value.present?
+      {
+        kind: "discharge",
+        label: "Flow",
+        value: location.latest_discharge_value.to_f,
+        unit: location.latest_discharge_unit.presence || "ft³/s",
+        precision: 0
+      }
+    elsif location.latest_water_level_value.present?
+      {
+        kind: "water_level",
+        label: "Level",
+        value: location.latest_water_level_value.to_f,
+        unit: location.latest_water_level_unit.presence || "ft",
+        precision: 2
+      }
+    elsif location.latest_temperature_c.present?
+      {
+        kind: "temperature",
+        label: "Temp",
+        value: location.latest_temperature_c.to_f,
+        unit: "°C",
+        precision: 1
+      }
+    end
+  end
+
+  private_class_method :measurement_payload, :denormalized_measurements, :kind_order,
+                       :nearby_payload, :nearby_primary_reading
 end

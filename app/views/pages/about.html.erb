@@ -1,12 +1,48 @@
 <% content_for :title, "About | WaterLevels.org" %>
-<div class="flex min-h-dvh flex-col">
+<div class="app-shell">
   <%= render Navigation::BarComponent.new %>
-  <main class="mx-auto w-full max-w-3xl flex-1 px-4 py-12 sm:px-6 lg:px-8">
-    <h1 class="text-balance text-3xl font-semibold tracking-tight text-rolling-stone-950 dark:text-white sm:text-4xl">About WaterLevels.org</h1>
-    <div class="mt-6 space-y-4 text-base text-pretty text-rolling-stone-600 dark:text-rolling-stone-300">
-      <p>WaterLevels.org maps USGS monitoring locations and shows current water level, streamflow, and water temperature with recent history.</p>
-      <p>Data is U.S. government work from the USGS Water Data APIs. Provisional values can change as USGS reviews and approves observations.</p>
+
+  <section class="page-hero">
+    <div class="glow" aria-hidden="true">
+      <div class="blob-a"></div>
+      <div class="blob-b"></div>
+    </div>
+    <div class="inner">
+      <span class="eyebrow"><span class="dot" aria-hidden="true"></span> About WaterLevels.org</span>
+      <h1>
+        Making water data
+        <span class="accent">accessible</span>
+        to everyone
+      </h1>
+      <p class="lede">
+        WaterLevels.org maps USGS monitoring locations and turns streamflow, water level, and temperature readings into clear, usable views for anyone who needs them.
+      </p>
+    </div>
+  </section>
+
+  <main class="page-main narrow">
+    <div class="prose-page">
+      <section aria-labelledby="mission-heading">
+        <h2 id="mission-heading">Our mission</h2>
+        <p>
+          USGS collects invaluable hydrological data, but the raw feeds can be hard to browse. WaterLevels.org bridges that gap with an interactive map, station pages, and recent history drawn directly from official monitoring stations.
+        </p>
+        <p>
+          Whether you are checking a local river, comparing nearby gauges, or exploring conditions across a state, the goal is the same: clear access to public water data with full attribution.
+        </p>
+      </section>
+
+      <section aria-labelledby="data-heading">
+        <h2 id="data-heading">Data sources</h2>
+        <p>
+          Nearly all values come from the USGS Water Data APIs. Provisional readings can change as USGS reviews and approves observations. For the authoritative record at any station, use the official USGS page linked from each gauge.
+        </p>
+        <p>
+          <%= link_to "Read our full data disclosures", disclosures_path %> for what we show, how we cache updates, and important limitations.
+        </p>
+      </section>
     </div>
   </main>
+
   <%= render Footer::ThinComponent.new %>
 </div>

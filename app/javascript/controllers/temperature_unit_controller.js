@@ -38,7 +38,8 @@ export default class extends Controller {
       const c = parseFloat(el.dataset.tempC)
       if (Number.isNaN(c)) return
       const value = unit === "c" ? c : (c * 9) / 5 + 32
-      el.textContent = `${value.toFixed(1)} °${unit.toUpperCase()}`
+      const prefix = el.dataset.tempPrefix || ""
+      el.textContent = `${prefix}${value.toFixed(1)} °${unit.toUpperCase()}`
     })
   }
 

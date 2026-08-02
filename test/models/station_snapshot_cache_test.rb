@@ -88,4 +88,28 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
     assert_equal 12.5, snapshot[:measurements].first[:value]
     assert_equal "Gage height", snapshot[:measurements].first[:label]
   end
+
+  test "build_payload includes nearby distance and primary reading" do
+    nearby = create(
+      :monitoring_location,
+      site_number: "99999001",
+      usgs_monitoring_location_id: "usgs-99999001",
+      latitude: @location.latitude.to_f + 0.05,
+      longitude: @location.longitude,
+      latest_discharge_value: 120,
+      latest_discharge_unit: "ft3/s",
+      has_discharge: true,
+      latest_observed_at: Time.current
+    )
+    @location.update!(nearby_station_ids: [ nearby.id ])
+
+    snapshot = StationSnapshotCache.build_payload(@location.reload)
+    card = snapshot[:nearby].first
+
+    assert_equal nearby.site_number, card[:site_number]
+    assert card[:distance_mi].positive?
+    assert_equal false, card[:stale]
+    assert_equal "Flow", card[:primary][:label]
+    assert_equal 120.0, card[:primary][:value]
+  end
 end

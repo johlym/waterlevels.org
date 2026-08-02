@@ -1,8 +1,16 @@
 import { Controller } from "@hotwired/stimulus"
 import Chart from "chart.js/auto"
 
+const SERIES_COLORS = {
+  discharge: { border: "#22d3ee", fill: "rgba(34, 211, 238, 0.18)", legend: "bg-cyan" },
+  water_level: { border: "#60a5fa", fill: "rgba(96, 165, 250, 0.12)", legend: "bg-blue" },
+  temperature: { border: "#2dd4bf", fill: "rgba(45, 212, 191, 0.12)", legend: "bg-teal" }
+}
+
+const PAGE_SIZE = 8
+
 export default class extends Controller {
-  static targets = ["canvas", "history", "rangeButton"]
+  static targets = ["canvas", "history", "rangeButton", "legend", "stats", "daySelect"]
   static values = { url: String, measurements: Array }
 
   connect() {
@@ -10,18 +18,20 @@ export default class extends Controller {
     this.kind = first.kind
     this.parameterCode = first.parameter_code
     this.range = "7d"
+    this.selectedDayKey = null
+    this.pageOffset = 0
+    this.seriesByKey = {}
     this.load()
     this.element.addEventListener("parameter-toggle:changed", (event) => {
       this.kind = event.detail.kind
       this.parameterCode = event.detail.parameterCode
-      this.load()
+      this.render()
     })
     this.element.addEventListener("temperature-unit:changed", () => this.render())
   }
 
   disconnect() {
     this.destroyChart()
-    this.unbindHistoryAccordion()
   }
 
   setRange(event) {
@@ -29,147 +39,387 @@ export default class extends Controller {
     this.rangeButtonTargets.forEach((button) => {
       button.setAttribute("aria-pressed", button.dataset.hydrographRangeParam === this.range ? "true" : "false")
     })
+    this.selectedDayKey = null
+    this.pageOffset = 0
     this.load()
   }
 
+  selectDay() {
+    if (!this.hasDaySelectTarget) return
+    this.selectedDayKey = this.daySelectTarget.value
+    this.pageOffset = 0
+    this.renderHistory()
+  }
+
+  loadMore() {
+    this.pageOffset += PAGE_SIZE
+    this.renderHistory()
+  }
+
+  loadPrevious() {
+    this.pageOffset = Math.max(0, this.pageOffset - PAGE_SIZE)
+    this.renderHistory()
+  }
+
+  exportCsv() {
+    const day = this.currentDay()
+    if (!day) return
+
+    const columns = this.tableColumns()
+    const header = ["Time", ...columns.map((c) => c.header), "Status"]
+    const rows = day.rows.map((row) => {
+      const cells = columns.map((col) => {
+        const value = row.values[col.key]
+        return value == null ? "" : this.formatCellValue(value, col.kind)
+      })
+      return [this.formatClock(row.t), ...cells, row.status]
+    })
+
+    const csv = [header, ...rows]
+      .map((line) => line.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(","))
+      .join("\n")
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `waterlevels-${day.key}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   async load() {
-    if (!this.parameterCode && !this.kind) return
-    const params = new URLSearchParams({ range: this.range })
-    if (this.parameterCode) params.set("parameter_code", this.parameterCode)
-    if (this.kind) params.set("kind", this.kind)
-    const url = `${this.urlValue}?${params.toString()}`
-    const response = await fetch(url, { headers: { Accept: "application/json" } })
-    if (!response.ok) return
-    // Avoid `this.data` — Stimulus Controllers expose a read-only `data` getter.
-    this.series = await response.json()
+    const measurements = this.uniqueMeasurements()
+    if (!measurements.length) return
+
+    const results = await Promise.all(
+      measurements.map(async (measurement) => {
+        const params = new URLSearchParams({ range: this.range })
+        if (measurement.parameter_code) params.set("parameter_code", measurement.parameter_code)
+        if (measurement.kind) params.set("kind", measurement.kind)
+        const response = await fetch(`${this.urlValue}?${params.toString()}`, {
+          headers: { Accept: "application/json" }
+        })
+        if (!response.ok) return null
+        return response.json()
+      })
+    )
+
+    this.seriesByKey = {}
+    results.filter(Boolean).forEach((series) => {
+      const key = series.parameter_code || series.kind
+      this.seriesByKey[key] = series
+    })
+
     this.render()
   }
 
   render() {
-    if (!this.series) return
-    const points = this.series.points || []
-    this.renderHistory(points)
-    this.renderChart(points)
+    const primary = this.primarySeries()
+    if (!primary) return
+
+    this.series = primary
+    this.renderLegend()
+    this.renderStats(primary.points || [])
+    this.renderChart()
+    this.renderDaySelect()
+    this.renderHistory()
   }
 
-  renderHistory(points) {
-    if (!this.hasHistoryTarget) return
-    this.unbindHistoryAccordion()
+  uniqueMeasurements() {
+    const seen = new Set()
+    return (this.measurementsValue || []).filter((measurement) => {
+      const key = measurement.parameter_code || measurement.kind
+      if (!key || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }
 
-    if (!points.length) {
-      this.historyTarget.innerHTML = `<p class="bg-white px-4 py-8 text-center text-base text-rolling-stone-600 dark:bg-rolling-stone-950 dark:text-rolling-stone-400 sm:px-6 sm:text-sm">No observations for this range yet.</p>`
+  primarySeries() {
+    const byCode = this.parameterCode && this.seriesByKey[this.parameterCode]
+    if (byCode) return byCode
+    const byKind = Object.values(this.seriesByKey).find((series) => series.kind === this.kind)
+    return byKind || Object.values(this.seriesByKey)[0]
+  }
+
+  companionSeries(primary) {
+    if (!primary) return null
+    if (primary.kind === "discharge") {
+      return Object.values(this.seriesByKey).find((series) => series.kind === "water_level") || null
+    }
+    if (primary.kind === "water_level") {
+      return Object.values(this.seriesByKey).find((series) => series.kind === "discharge") || null
+    }
+    return null
+  }
+
+  renderLegend() {
+    if (!this.hasLegendTarget) return
+    const primary = this.primarySeries()
+    const companion = this.companionSeries(primary)
+    const items = [primary, companion].filter(Boolean)
+
+    if (!items.length) {
+      this.legendTarget.innerHTML = ""
       return
     }
 
-    const days = this.groupPointsByDay(points)
-    this.historyTarget.innerHTML = days.map((day) => {
-      const rows = day.points.map((p) => `
-        <tr>
-          <td class="whitespace-nowrap px-4 py-3 text-rolling-stone-700 dark:text-rolling-stone-300 sm:px-6">${this.formatTime(p.t)}</td>
-          <td class="whitespace-nowrap px-4 py-3 font-medium text-rolling-stone-950 tabular-nums dark:text-white sm:px-6">${this.displayValue(p.v)}</td>
-        </tr>
-      `).join("")
-
-      return `
-        <details class="group bg-white dark:bg-rolling-stone-950" data-day-key="${day.key}">
-          <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-3 text-base marker:content-none [&::-webkit-details-marker]:hidden hover:bg-rolling-stone-50 dark:hover:bg-white/5 sm:px-6 sm:text-sm">
-            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-5 shrink-0 text-rolling-stone-400 transition group-open:rotate-180 dark:text-rolling-stone-500">
-              <path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
-            </svg>
-            <span class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-              <span class="font-medium text-rolling-stone-950 dark:text-white">${day.label}</span>
-              <span class="text-rolling-stone-600 dark:text-rolling-stone-400">${day.points.length} ${day.points.length === 1 ? "reading" : "readings"}</span>
-            </span>
-          </summary>
-          <div class="overflow-x-auto border-t border-rolling-stone-950/5 dark:border-white/5">
-            <table class="min-w-full text-left text-base sm:text-sm">
-              <thead class="bg-rolling-stone-50 dark:bg-white/5">
-                <tr>
-                  <th class="px-4 py-3 font-medium text-rolling-stone-600 dark:text-rolling-stone-300 sm:px-6">Time</th>
-                  <th class="px-4 py-3 font-medium text-rolling-stone-600 dark:text-rolling-stone-300 sm:px-6">Value</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-rolling-stone-950/5 dark:divide-white/5">${rows}</tbody>
-            </table>
+    this.legendTarget.innerHTML = `
+      ${items.map((series) => {
+        const colors = SERIES_COLORS[series.kind] || SERIES_COLORS.discharge
+        const unit = this.unitLabel(series)
+        return `
+          <div class="item">
+            <span class="swatch ${colors.legend}" aria-hidden="true"></span>
+            <span>${this.escapeHtml(series.label || series.kind)}${unit ? ` (${this.escapeHtml(unit)})` : ""}</span>
           </div>
-        </details>
+        `
+      }).join("")}
+      <div class="hint">Hover for details</div>
+    `
+  }
+
+  renderStats(points) {
+    if (!this.hasStatsTarget) return
+
+    if (!points.length) {
+      this.statsTarget.innerHTML = `<p class="empty">No observations for this range yet.</p>`
+      return
+    }
+
+    let high = points[0]
+    let low = points[0]
+    let sum = 0
+    points.forEach((point) => {
+      if (point.v > high.v) high = point
+      if (point.v < low.v) low = point
+      sum += point.v
+    })
+    const average = sum / points.length
+    const unit = this.unitLabel(this.series)
+
+    this.statsTarget.innerHTML = `
+      <div>
+        <p class="label">Period high</p>
+        <p class="value">${this.escapeHtml(this.displayValue(high.v, this.series.kind))} ${this.escapeHtml(unit || "")}</p>
+        <p class="meta">${this.escapeHtml(this.formatTimestamp(high.t))}</p>
+      </div>
+      <div>
+        <p class="label">Period low</p>
+        <p class="value">${this.escapeHtml(this.displayValue(low.v, this.series.kind))} ${this.escapeHtml(unit || "")}</p>
+        <p class="meta">${this.escapeHtml(this.formatTimestamp(low.t))}</p>
+      </div>
+      <div>
+        <p class="label">Period average</p>
+        <p class="value">${this.escapeHtml(this.displayValue(average, this.series.kind))} ${this.escapeHtml(unit || "")}</p>
+        <p class="meta">Based on ${points.length} ${points.length === 1 ? "reading" : "readings"}</p>
+      </div>
+      <div>
+        <p class="label">Historical median</p>
+        <p class="value">—</p>
+        <p class="meta">Not available yet</p>
+      </div>
+    `
+  }
+
+  renderDaySelect() {
+    if (!this.hasDaySelectTarget) return
+    const days = this.groupedDays()
+
+    if (!days.length) {
+      this.daySelectTarget.innerHTML = `<option value="">No days available</option>`
+      this.daySelectTarget.disabled = true
+      return
+    }
+
+    this.daySelectTarget.disabled = false
+    if (!this.selectedDayKey || !days.some((day) => day.key === this.selectedDayKey)) {
+      this.selectedDayKey = days[0].key
+      this.pageOffset = 0
+    }
+
+    const now = new Date()
+    const todayKey = this.dayKeyFromDate(now)
+    const yesterday = new Date(now)
+    yesterday.setDate(yesterday.getDate() - 1)
+    const yesterdayKey = this.dayKeyFromDate(yesterday)
+
+    this.daySelectTarget.innerHTML = days.map((day) => {
+      const prefix = day.key === todayKey ? "Today — " : (day.key === yesterdayKey ? "Yesterday — " : "")
+      return `<option value="${day.key}" ${day.key === this.selectedDayKey ? "selected" : ""}>${prefix}${day.shortLabel}</option>`
+    }).join("")
+  }
+
+  dayKeyFromDate(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+  }
+
+  renderHistory() {
+    if (!this.hasHistoryTarget) return
+    const day = this.currentDay()
+
+    if (!day) {
+      this.historyTarget.innerHTML = `<p class="empty">No observations for this range yet.</p>`
+      return
+    }
+
+    const columns = this.tableColumns()
+    const visible = day.rows.slice(this.pageOffset, this.pageOffset + PAGE_SIZE)
+    const showingEnd = Math.min(day.rows.length, this.pageOffset + visible.length)
+
+    const head = columns.map((col) => `<th class="num">${this.escapeHtml(col.header)}</th>`).join("")
+    const body = visible.map((row) => {
+      const cells = columns.map((col) => {
+        const value = row.values[col.key]
+        return `<td class="num">${value == null ? "—" : this.escapeHtml(this.formatCellValue(value, col.kind))}</td>`
+      }).join("")
+      return `
+        <tr>
+          <td class="time">${this.escapeHtml(this.formatClock(row.t))}</td>
+          ${cells}
+          <td class="status">
+            <span class="dot ${row.status === "ok" ? "ok" : "warn"}" aria-label="${row.status === "ok" ? "Complete" : "Partial"}"></span>
+          </td>
+        </tr>
       `
     }).join("")
 
-    this.bindHistoryAccordion()
+    this.historyTarget.innerHTML = `
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              ${head}
+              <th class="center">Status</th>
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+      <div class="table-foot">
+        <p>Showing ${showingEnd ? this.pageOffset + 1 : 0}–${showingEnd} of ${day.rows.length} readings</p>
+        <div class="pager">
+          <button type="button" class="toolbar-btn" data-action="hydrograph#loadPrevious" ${this.pageOffset === 0 ? "disabled" : ""}>Previous</button>
+          <button type="button" class="toolbar-btn" data-action="hydrograph#loadMore" ${this.pageOffset + PAGE_SIZE >= day.rows.length ? "disabled" : ""}>Load more</button>
+        </div>
+      </div>
+    `
   }
 
-  groupPointsByDay(points) {
-    const groups = new Map()
+  currentDay() {
+    return this.groupedDays().find((day) => day.key === this.selectedDayKey) || null
+  }
 
-    points.forEach((point) => {
-      const date = new Date(point.t)
-      if (Number.isNaN(date.getTime())) return
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
-      if (!groups.has(key)) {
-        groups.set(key, {
-          key,
-          label: date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }),
-          sort: date.setHours(0, 0, 0, 0),
-          points: []
-        })
+  tableColumns() {
+    return this.uniqueMeasurements().map((measurement) => {
+      const series = this.seriesByKey[measurement.parameter_code] || this.seriesByKey[measurement.kind]
+      const label = series?.label || measurement.label || measurement.kind
+      const unit = this.unitLabel(series || measurement)
+      return {
+        key: measurement.parameter_code || measurement.kind,
+        kind: measurement.kind,
+        header: unit ? `${label} (${unit})` : label
       }
-      groups.get(key).points.push(point)
+    })
+  }
+
+  groupedDays() {
+    const columns = this.uniqueMeasurements()
+    const buckets = new Map()
+
+    columns.forEach((measurement) => {
+      const key = measurement.parameter_code || measurement.kind
+      const series = this.seriesByKey[key]
+      ;(series?.points || []).forEach((point) => {
+        const date = new Date(point.t)
+        if (Number.isNaN(date.getTime())) return
+        const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+        if (!buckets.has(dayKey)) {
+          buckets.set(dayKey, {
+            key: dayKey,
+            sort: new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime(),
+            shortLabel: date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+            rowsByMinute: new Map()
+          })
+        }
+        const day = buckets.get(dayKey)
+        const minuteKey = date.toISOString().slice(0, 16)
+        if (!day.rowsByMinute.has(minuteKey)) {
+          day.rowsByMinute.set(minuteKey, { t: point.t, values: {}, sort: date.getTime() })
+        }
+        day.rowsByMinute.get(minuteKey).values[key] = point.v
+      })
     })
 
-    return Array.from(groups.values())
+    return Array.from(buckets.values())
       .sort((a, b) => b.sort - a.sort)
-      .map((day) => ({
-        ...day,
-        points: day.points.slice().sort((a, b) => new Date(b.t) - new Date(a.t))
-      }))
-  }
-
-  bindHistoryAccordion() {
-    this.historyToggleHandler = (event) => {
-      const details = event.target
-      if (!(details instanceof HTMLDetailsElement) || !details.open) return
-      this.historyTarget.querySelectorAll("details[open]").forEach((other) => {
-        if (other !== details) other.open = false
+      .map((day) => {
+        const rows = Array.from(day.rowsByMinute.values())
+          .sort((a, b) => b.sort - a.sort)
+          .map((row) => {
+            const present = columns.filter((col) => row.values[col.parameter_code || col.kind] != null).length
+            return {
+              ...row,
+              status: present === columns.length ? "ok" : "warn"
+            }
+          })
+        return { key: day.key, shortLabel: day.shortLabel, rows }
       })
-    }
-    this.historyTarget.addEventListener("toggle", this.historyToggleHandler, true)
   }
 
-  unbindHistoryAccordion() {
-    if (!this.historyToggleHandler || !this.hasHistoryTarget) return
-    this.historyTarget.removeEventListener("toggle", this.historyToggleHandler, true)
-    this.historyToggleHandler = null
-  }
-
-  renderChart(points) {
+  renderChart() {
     if (!this.hasCanvasTarget) return
 
     this.destroyChart()
 
-    const labels = points.map((p) => this.formatTimestamp(p.t))
-    const values = points.map((p) => p.v)
-    const chartLabel = this.series.label || this.series.kind
-    const dark = window.matchMedia("(prefers-color-scheme: dark)").matches
-    const grid = dark ? "rgba(255,255,255,0.08)" : "rgba(24, 24, 27, 0.08)"
-    const tick = dark ? "#a1a1aa" : "#52525b"
+    const primary = this.primarySeries()
+    const companion = this.companionSeries(primary)
+    if (!primary) return
+
+    const primaryPoints = primary.points || []
+    const labels = primaryPoints.map((point) => this.formatAxisLabel(point.t))
+    const colors = SERIES_COLORS[primary.kind] || SERIES_COLORS.discharge
+    const grid = "rgba(255,255,255,0.08)"
+    const tick = "#a1a1aa"
+
+    const datasets = [{
+      label: primary.label || primary.kind,
+      data: primaryPoints.map((point) => point.v),
+      borderColor: colors.border,
+      backgroundColor: colors.fill,
+      fill: true,
+      tension: 0.25,
+      pointRadius: 0,
+      borderWidth: 2,
+      yAxisID: "y"
+    }]
+
+    if (companion && (companion.points || []).length) {
+      const companionColors = SERIES_COLORS[companion.kind] || SERIES_COLORS.water_level
+      const companionByMinute = new Map(
+        (companion.points || []).map((point) => [String(point.t).slice(0, 16), point.v])
+      )
+      datasets.push({
+        label: companion.label || companion.kind,
+        data: primaryPoints.map((point) => companionByMinute.get(String(point.t).slice(0, 16)) ?? null),
+        borderColor: companionColors.border,
+        backgroundColor: "transparent",
+        borderDash: [4, 4],
+        fill: false,
+        tension: 0.25,
+        pointRadius: 0,
+        borderWidth: 2,
+        yAxisID: "y1",
+        spanGaps: true
+      })
+    }
 
     try {
       this.chart = new Chart(this.canvasTarget.getContext("2d"), {
         type: "line",
-        data: {
-          labels,
-          datasets: [{
-            label: chartLabel,
-            data: values,
-            borderColor: "#2f4ea8",
-            backgroundColor: "rgba(47, 78, 168, 0.10)",
-            fill: true,
-            tension: 0.25,
-            pointRadius: 0,
-            borderWidth: 2
-          }]
-        },
+        data: { labels, datasets },
         options: {
           responsive: true,
           maintainAspectRatio: false,
@@ -177,15 +427,17 @@ export default class extends Controller {
           plugins: {
             legend: { display: false },
             tooltip: {
-              backgroundColor: dark ? "#18181b" : "#ffffff",
-              titleColor: dark ? "#fafafa" : "#18181b",
-              bodyColor: dark ? "#d4d4d8" : "#3f3f46",
-              borderColor: dark ? "rgba(255,255,255,0.12)" : "rgba(24,24,27,0.1)",
+              backgroundColor: "#18181b",
+              titleColor: "#fafafa",
+              bodyColor: "#d4d4d8",
+              borderColor: "rgba(255,255,255,0.12)",
               borderWidth: 1,
               callbacks: {
                 label: (context) => {
+                  const series = context.datasetIndex === 0 ? primary : companion
                   const raw = context.parsed.y
-                  return `${chartLabel}: ${this.displayValue(raw)}`
+                  if (raw == null) return `${context.dataset.label}: —`
+                  return `${context.dataset.label}: ${this.displayValue(raw, series.kind)} ${this.unitLabel(series) || ""}`.trim()
                 }
               }
             }
@@ -197,7 +449,7 @@ export default class extends Controller {
               grid: { color: grid },
               ticks: {
                 color: tick,
-                maxTicksLimit: 4,
+                maxTicksLimit: 5,
                 maxRotation: 0,
                 autoSkip: true
               }
@@ -208,9 +460,21 @@ export default class extends Controller {
               grid: { color: grid },
               ticks: {
                 color: tick,
-                callback: (value) => this.displayValue(value)
+                callback: (value) => this.displayValue(value, primary.kind)
               }
-            }
+            },
+            ...(companion ? {
+              y1: {
+                display: true,
+                position: "right",
+                border: { display: false },
+                grid: { drawOnChartArea: false },
+                ticks: {
+                  color: tick,
+                  callback: (value) => this.displayValue(value, companion.kind)
+                }
+              }
+            } : {})
           }
         }
       })
@@ -228,31 +492,70 @@ export default class extends Controller {
   formatTimestamp(value) {
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return value || "—"
-    const day = date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
-    return `${day} at ${this.formatTime(value)}`
+    const day = date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    return `${day} at ${this.formatClock(value)}`
   }
 
-  formatTime(value) {
+  formatAxisLabel(value) {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value || "—"
+    if (this.range === "24h") {
+      return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })
+    }
+    if (this.range === "1y") {
+      return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    }
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+  }
+
+  formatClock(value) {
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return value || "—"
     return date.toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
-      second: "2-digit",
-      hour12: true
+      hour12: false
     })
   }
 
-  displayValue(value) {
+  formatCellValue(value, kind) {
     if (value == null || Number.isNaN(value)) return "—"
-    if (this.series?.kind !== "temperature") return value
-    const unit = this.tempUnit()
-    const converted = unit === "c" ? value : (value * 9) / 5 + 32
-    return `${converted.toFixed(1)} °${unit.toUpperCase()}`
+    if (kind === "temperature") {
+      const unit = this.tempUnit()
+      const converted = unit === "c" ? value : (value * 9) / 5 + 32
+      return converted.toFixed(1)
+    }
+    if (kind === "discharge") return Math.round(value).toLocaleString("en-US")
+    return Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 })
+  }
+
+  displayValue(value, kind = this.series?.kind) {
+    if (value == null || Number.isNaN(value)) return "—"
+    if (kind === "temperature") {
+      const unit = this.tempUnit()
+      const converted = unit === "c" ? value : (value * 9) / 5 + 32
+      return converted.toFixed(1)
+    }
+    if (kind === "discharge") return Math.round(value).toLocaleString("en-US")
+    return Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 })
+  }
+
+  unitLabel(series) {
+    if (!series) return ""
+    if (series.kind === "temperature") return `°${this.tempUnit().toUpperCase()}`
+    return series.unit || ""
   }
 
   tempUnit() {
     const match = document.cookie.match(/(?:^|; )temperature_unit=([^;]*)/)
     return match && match[1] === "c" ? "c" : "f"
+  }
+
+  escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
   }
 }
