@@ -18,19 +18,26 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
 
     get "/gauges/#{@location.state_code}/#{@location.to_param}"
     assert_response :success
-    assert_includes response.body, @location.name
+    assert_includes response.body, "Example River Near Town"
     assert_includes response.body, "Gage height"
     assert_includes response.body, "role=\"tablist\""
+    assert_includes response.body, ">King<"
+    assert_not_includes response.body, "King County"
     assert_includes response.headers["Cache-Tag"], "gauge:#{@location.site_number}"
   end
 
-  test "renders state listing sorted by county then name" do
-    create(:monitoring_location, site_number: "100", usgs_monitoring_location_id: "USGS-100", county_name: "Yakima", name: "Z River", state_code: "wa")
-    create(:monitoring_location, site_number: "101", usgs_monitoring_location_id: "USGS-101", county_name: "Adams", name: "A Creek", state_code: "wa")
+  test "renders state listing grouped by county with titlecased locations" do
+    create(:monitoring_location, site_number: "100", usgs_monitoring_location_id: "USGS-100", county_name: "Yakima", name: "Z RIVER NEAR TOWN, WA", state_code: "wa")
+    create(:monitoring_location, site_number: "101", usgs_monitoring_location_id: "USGS-101", county_name: "Adams", name: "A CREEK NEAR TOWN, WA", state_code: "wa")
 
     get "/gauges/wa"
     assert_response :success
-    assert_operator response.body.index("A Creek"), :<, response.body.index("Z River")
+    assert_includes response.body, "Adams"
+    assert_includes response.body, "Yakima"
+    assert_includes response.body, "A Creek Near Town, WA"
+    assert_includes response.body, "Z River Near Town, WA"
+    assert_operator response.body.index("Adams"), :<, response.body.index("Yakima")
+    assert_operator response.body.index("A Creek Near Town, WA"), :<, response.body.index("Z River Near Town, WA")
   end
 
   test "returns map stations for a bbox" do

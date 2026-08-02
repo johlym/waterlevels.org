@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["display"]
+  static targets = ["display", "button"]
   static values = { url: String }
 
   connect() {
@@ -30,6 +30,10 @@ export default class extends Controller {
 
   render() {
     const unit = this.unit()
+    this.buttonTargets.forEach((button) => {
+      const selected = button.dataset.temperatureUnitUnitParam === unit
+      button.setAttribute("aria-pressed", selected ? "true" : "false")
+    })
     this.displayTargets.forEach((el) => {
       const c = parseFloat(el.dataset.tempC)
       if (Number.isNaN(c)) return

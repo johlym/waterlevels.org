@@ -74,9 +74,24 @@ export default class extends Controller {
       rows.push(`<div class="wl-popup-meta">Temp: <strong>${value.toFixed(1)} °${unit.toUpperCase()}</strong></div>`)
     }
     if (station.stale) rows.push(`<div class="wl-popup-meta">Status: Stale</div>`)
-    if (station.observed_at) rows.push(`<div class="wl-popup-meta">Updated: ${station.observed_at}</div>`)
+    if (station.observed_at) {
+      rows.push(`<div class="wl-popup-meta">Updated: ${this.formatTimestamp(station.observed_at)}</div>`)
+    }
     rows.push(`<div style="margin-top:0.5rem"><a href="${station.path}">View station</a></div>`)
     return `<div class="wl-popup-title">${station.name}</div>${rows.join("")}`
+  }
+
+  formatTimestamp(value) {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value || "—"
+    const day = date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+    const time = date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true
+    })
+    return `${day} at ${time}`
   }
 
   tempUnit() {

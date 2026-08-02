@@ -1,12 +1,13 @@
-<% content_for :title, "#{@snapshot[:name]} Water Level & Flow | #{@snapshot[:state_code].upcase} | WaterLevels.org" %>
-<% content_for :meta_description, "Current water level, flow, and temperature for #{@snapshot[:name]} from USGS monitoring data." %>
+<% location_name = display_location_name(@snapshot[:name]) %>
+<% content_for :title, "#{location_name} Water Level & Flow | #{@snapshot[:state_code].upcase} | WaterLevels.org" %>
+<% content_for :meta_description, "Current water level, flow, and temperature for #{location_name} from USGS monitoring data." %>
 <% measurements = Array(@snapshot[:measurements]) %>
 
 <div
   class="flex min-h-dvh flex-col"
   data-controller="parameter-toggle temperature-unit hydrograph"
   data-hydrograph-url-value="<%= api_gauge_observations_path(@snapshot[:site_number]) %>"
-  data-hydrograph-measurements-value="<%= measurements.to_json %>"
+  data-hydrograph-measurements-value="<%= ERB::Util.json_escape(measurements.to_json) %>"
   data-temperature-unit-url-value="<%= temperature_unit_path %>"
 >
   <%= render Navigation::BarComponent.new %>
@@ -21,16 +22,16 @@
           </li>
           <% if @snapshot[:county_name].present? %>
             <li aria-hidden="true" class="text-rolling-stone-300 dark:text-rolling-stone-600">/</li>
-            <li><%= @snapshot[:county_name] %> County</li>
+            <li><%= @snapshot[:county_name].to_s.sub(/\s+County\z/i, "") %></li>
           <% end %>
         </ol>
       </nav>
 
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="max-w-3xl">
-          <h1 class="text-balance text-3xl font-semibold tracking-tight text-rolling-stone-950 dark:text-white sm:text-4xl"><%= @snapshot[:name] %></h1>
+          <h1 class="text-balance text-3xl font-semibold tracking-tight text-rolling-stone-950 dark:text-white sm:text-4xl"><%= location_name %></h1>
           <p class="mt-2 text-base text-pretty text-rolling-stone-600 dark:text-rolling-stone-400 sm:text-sm">
-            Updated <%= @snapshot[:latest_observed_at] || "—" %>
+            Updated <%= display_timestamp(@snapshot[:latest_observed_at]) %>
             <% approval = measurements.dig(0, :approval_status) || measurements.dig(0, "approval_status") %>
             <% if approval.present? %>
               · <%= approval %>
@@ -64,28 +65,21 @@
           <% end %>
         </div>
       </div>
-      <div class="mt-4 overflow-hidden rounded-xl bg-white outline outline-rolling-stone-950/10 dark:bg-rolling-stone-950 dark:outline-white/10">
-        <div class="h-80 p-4 sm:p-6">
-          <canvas class="size-full" data-hydrograph-target="canvas"></canvas>
+      <div class="mt-4 overflow-hidden rounded-xl border border-rolling-stone-300 bg-white dark:border-rolling-stone-700 dark:bg-rolling-stone-900">
+        <div class="p-4 sm:p-6">
+          <div class="relative h-72 w-full sm:h-80">
+            <canvas class="absolute inset-0 size-full" data-hydrograph-target="canvas"></canvas>
+          </div>
         </div>
       </div>
     </section>
 
     <section class="mt-12" aria-labelledby="history-heading">
       <h2 id="history-heading" class="text-base font-semibold text-rolling-stone-950 dark:text-white">Recent observations</h2>
-      <div class="mt-4 overflow-hidden rounded-xl outline outline-rolling-stone-950/10 dark:outline-white/10">
-        <div class="overflow-x-auto">
-          <table class="min-w-full text-left text-base sm:text-sm">
-            <thead class="bg-rolling-stone-50 dark:bg-white/5">
-              <tr>
-                <th class="px-4 py-3 font-medium text-rolling-stone-600 dark:text-rolling-stone-300 sm:px-6">Time</th>
-                <th class="px-4 py-3 font-medium text-rolling-stone-600 dark:text-rolling-stone-300 sm:px-6">Value</th>
-              </tr>
-            </thead>
-            <tbody data-hydrograph-target="tableBody" class="divide-y divide-rolling-stone-950/5 bg-white dark:divide-white/5 dark:bg-rolling-stone-950"></tbody>
-          </table>
-        </div>
-      </div>
+      <div
+        data-hydrograph-target="history"
+        class="mt-4 divide-y divide-rolling-stone-950/5 overflow-hidden rounded-xl outline outline-rolling-stone-950/10 dark:divide-white/5 dark:outline-white/10"
+      ></div>
     </section>
 
     <% nearby = Array(@snapshot[:nearby]) %>
@@ -96,7 +90,7 @@
           <% nearby.each do |n| %>
             <li>
               <%= link_to n[:path] || n["path"], class: "flex items-center justify-between gap-4 px-4 py-4 hover:bg-rolling-stone-50 dark:hover:bg-white/5 sm:px-6" do %>
-                <div class="text-base font-medium text-rolling-stone-950 dark:text-white sm:text-sm"><%= n[:name] || n["name"] %></div>
+                <div class="text-base font-medium text-rolling-stone-950 dark:text-white sm:text-sm"><%= display_location_name(n[:name] || n["name"]) %></div>
                 <div class="text-base text-smalt-700 dark:text-smalt-300 sm:text-sm">View</div>
               <% end %>
             </li>

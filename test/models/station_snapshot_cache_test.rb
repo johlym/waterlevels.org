@@ -54,6 +54,23 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
     assert_equal "Gage height", snapshot[:measurements].first[:label]
   end
 
+  test "fetch rebuilds when cache has fewer measurements than selected series" do
+    Rails.cache.write(
+      StationSnapshotCache.key_for(@location),
+      {
+        site_number: @location.site_number,
+        measurements: [ { parameter_code: "00065", label: "Gage height", value: 541.24, kind: "water_level" } ],
+        current: { "water_level" => { value: 541.24 } }
+      },
+      expires_in: 2.hours
+    )
+
+    snapshot = StationSnapshotCache.fetch(@location)
+
+    assert_equal 2, snapshot[:measurements].size
+    assert_equal [ "00065", "62614" ], snapshot[:measurements].map { |m| m[:parameter_code] }
+  end
+
   test "build_payload includes both gage height and NGVD measurements with gage first" do
     snapshot = StationSnapshotCache.build_payload(@location.reload)
     labels = snapshot[:measurements].map { |m| m[:label] }

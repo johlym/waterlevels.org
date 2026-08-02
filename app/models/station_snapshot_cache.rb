@@ -1,5 +1,5 @@
 class StationSnapshotCache
-  PREFIX = "station_snapshot:v3".freeze
+  PREFIX = "station_snapshot:v4".freeze
   TTL = 2.hours
 
   def self.key_for(location)
@@ -23,21 +23,25 @@ class StationSnapshotCache
 
   def self.fetch(location)
     cached = read(location)
-    return warm(location) if cached.nil? || empty_while_location_has_readings?(cached, location)
+    return warm(location) if cached.nil? || stale_snapshot?(cached, location)
 
     cached
   end
 
-  # Memory-store (and Redis) can keep an empty snapshot from before catalog/latest
-  # sync finished; map/listings read denormalized columns and look fine meanwhile.
-  def self.empty_while_location_has_readings?(cached, location)
-    return false if Array(cached[:measurements]).any?
+  # Rebuild when empty, or when selected series outnumber cached measurement cards
+  # (e.g. after reselect added gage height + elevation).
+  def self.stale_snapshot?(cached, location)
+    measurements = Array(cached[:measurements])
+    selected_count = location.time_series.selected.count
+    return true if selected_count.positive? && measurements.size < selected_count
+
+    return false if measurements.any?
     current = cached[:current] || {}
     return false if current.present?
 
     location.has_water_level? || location.has_discharge? || location.has_temperature?
   end
-  private_class_method :empty_while_location_has_readings?
+  private_class_method :stale_snapshot?
 
   def self.build_payload(location)
     selected = location.time_series.selected
