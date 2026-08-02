@@ -108,18 +108,27 @@ class LatestObservationSync
         latest_approval_status: nil
       }
 
+      selected = location.time_series.select(&:selected_for_display?)
+      water_levels = selected
+        .select { |s| s.measurement_kind == "water_level" && s.latest_observation }
+        .sort_by { |s| Usgs::ParameterCodes.preference_rank(s.parameter_code) }
+      preferred_water_level = water_levels.first
+
+      if preferred_water_level
+        obs = preferred_water_level.latest_observation
+        attrs[:latest_water_level_value] = obs.value
+        attrs[:latest_water_level_parameter_code] = preferred_water_level.parameter_code
+        attrs[:latest_water_level_unit] = obs.unit_of_measure
+        attrs[:latest_approval_status] = obs.approval_status
+      end
+
       times = []
-      location.time_series.select(&:selected_for_display?).each do |series|
+      selected.each do |series|
         obs = series.latest_observation
         next unless obs
 
         times << obs.observed_at
         case series.measurement_kind
-        when "water_level"
-          attrs[:latest_water_level_value] = obs.value
-          attrs[:latest_water_level_parameter_code] = series.parameter_code
-          attrs[:latest_water_level_unit] = obs.unit_of_measure
-          attrs[:latest_approval_status] ||= obs.approval_status
         when "discharge"
           attrs[:latest_discharge_value] = obs.value
           attrs[:latest_discharge_unit] = obs.unit_of_measure

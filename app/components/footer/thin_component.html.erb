@@ -1,12 +1,14 @@
-<footer class="relative z-20 border-t border-rolling-stone-200 bg-rolling-stone-50 px-4 py-2 text-xs text-rolling-stone-600 dark:border-rolling-stone-800 dark:bg-rolling-stone-950 dark:text-rolling-stone-300 dark:shadow-none">
-  <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2">
-    <p>© <%= @year %> WaterLevels.org · Data from USGS (U.S. government work)</p>
-    <nav class="flex flex-wrap gap-3" aria-label="Footer">
-      <%= link_to "About", about_path, class: "hover:text-smalt-700 dark:hover:text-smalt-300" %>
-      <%= link_to "Contact", contact_path, class: "hover:text-smalt-700 dark:hover:text-smalt-300" %>
-      <%= link_to "Privacy", privacy_path, class: "hover:text-smalt-700 dark:hover:text-smalt-300" %>
-      <%= link_to "Terms", terms_path, class: "hover:text-smalt-700 dark:hover:text-smalt-300" %>
-      <span>Map © <a class="underline" href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · <a class="underline" href="https://carto.com/attributions">CARTO</a></span>
+<footer class="relative z-20 border-t border-rolling-stone-950/5 bg-white dark:border-white/10 dark:bg-rolling-stone-950 dark:shadow-none">
+  <div class="flex w-full items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+    <p class="text-base text-rolling-stone-600 dark:text-rolling-stone-400 sm:text-sm">
+      © <%= @year %> WaterLevels.org ·
+      <%= link_to "Data from USGS", disclosures_path, class: "underline hover:text-rolling-stone-950 dark:hover:text-white" %>
+    </p>
+    <nav class="flex flex-wrap justify-end gap-x-5 gap-y-1" aria-label="Footer">
+      <%= link_to "About", about_path, class: "text-base text-rolling-stone-600 hover:text-rolling-stone-950 dark:text-rolling-stone-400 dark:hover:text-white sm:text-sm" %>
+      <%= link_to "Contact", contact_path, class: "text-base text-rolling-stone-600 hover:text-rolling-stone-950 dark:text-rolling-stone-400 dark:hover:text-white sm:text-sm" %>
+      <%= link_to "Privacy", privacy_path, class: "text-base text-rolling-stone-600 hover:text-rolling-stone-950 dark:text-rolling-stone-400 dark:hover:text-white sm:text-sm" %>
+      <%= link_to "Terms", terms_path, class: "text-base text-rolling-stone-600 hover:text-rolling-stone-950 dark:text-rolling-stone-400 dark:hover:text-white sm:text-sm" %>
     </nav>
   </div>
 </footer>

@@ -1,18 +1,45 @@
-<header class="relative z-20 flex items-center justify-between gap-4 border-b border-rolling-stone-200/80 bg-rolling-stone-50/90 px-4 py-3 backdrop-blur dark:border-rolling-stone-800 dark:bg-rolling-stone-950/90 dark:shadow-none">
-  <a href="/" class="text-xl font-semibold tracking-tight text-smalt-800 dark:text-smalt-300">
-    <%= @brand %>
-  </a>
+<header class="<%= shell_classes %>" data-controller="mobile-nav">
+  <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+    <a href="/" aria-label="Homepage" class="<%= brand_classes %>">
+      <%= @brand %>
+    </a>
 
-  <nav class="flex items-center gap-3 text-sm text-rolling-stone-700 dark:text-rolling-stone-200" aria-label="Primary">
-    <% if @map_controls %>
-      <button
-        type="button"
-        class="rounded-md bg-smalt-700 px-3 py-2 text-smalt-50 hover:bg-smalt-800 dark:bg-smalt-400 dark:text-rolling-stone-950 dark:hover:bg-smalt-300"
-        data-action="map#locate"
-      >
-        Use my location
-      </button>
-    <% end %>
-    <%= link_to "About", about_path, class: "hover:text-smalt-700 dark:hover:text-smalt-300" %>
-  </nav>
+    <nav class="hidden items-center gap-1 lg:flex" aria-label="Primary">
+      <% if @map_controls %>
+        <button type="button" class="<%= locate_classes %>" data-action="map#locate">
+          Use my location
+        </button>
+      <% end %>
+      <%= link_to "Map", root_path, class: link_classes %>
+      <%= link_to "About", about_path, class: link_classes %>
+      <%= link_to "Contact", contact_path, class: link_classes %>
+    </nav>
+
+    <button
+      type="button"
+      class="<%= menu_button_classes %>"
+      data-action="mobile-nav#toggle"
+      aria-label="Open main menu"
+    >
+      <svg data-mobile-nav-target="openIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+      </svg>
+      <svg data-mobile-nav-target="closeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="hidden size-6" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+      </svg>
+    </button>
+  </div>
+
+  <div class="<%= mobile_panel_classes %> hidden" data-mobile-nav-target="panel">
+    <nav class="flex flex-col gap-1" aria-label="Mobile primary">
+      <% if @map_controls %>
+        <button type="button" class="<%= locate_classes %> w-full text-left" data-action="map#locate mobile-nav#close">
+          Use my location
+        </button>
+      <% end %>
+      <%= link_to "Map", root_path, class: link_classes, data: { action: "mobile-nav#close" } %>
+      <%= link_to "About", about_path, class: link_classes, data: { action: "mobile-nav#close" } %>
+      <%= link_to "Contact", contact_path, class: link_classes, data: { action: "mobile-nav#close" } %>
+    </nav>
+  </div>
 </header>

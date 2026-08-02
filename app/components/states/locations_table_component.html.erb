@@ -1,28 +1,36 @@
-<div class="overflow-x-auto">
-  <table class="min-w-full text-left text-sm">
-    <thead class="border-b border-rolling-stone-200 text-rolling-stone-600 dark:border-rolling-stone-800 dark:text-rolling-stone-300">
-      <tr>
-        <th class="px-3 py-2 font-medium">Location</th>
-        <th class="px-3 py-2 font-medium">County</th>
-        <th class="px-3 py-2 font-medium">Measurements</th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-rolling-stone-200 dark:divide-rolling-stone-800">
-      <% @locations.each do |loc| %>
+<div class="overflow-hidden rounded-xl outline outline-rolling-stone-950/10 dark:outline-white/10">
+  <div class="overflow-x-auto">
+    <table class="min-w-full text-left text-base sm:text-sm">
+      <thead class="bg-rolling-stone-50 dark:bg-white/5">
         <tr>
-          <td class="px-3 py-2">
-            <%= link_to loc[:name], loc[:path], class: "font-medium text-smalt-800 hover:underline dark:text-smalt-300" %>
-          </td>
-          <td class="px-3 py-2 text-rolling-stone-700 dark:text-rolling-stone-200"><%= loc[:county_name].presence || "—" %></td>
-          <td class="px-3 py-2">
-            <span class="flex flex-wrap gap-2 text-xs">
-              <% if loc[:has_water_level] %><span class="text-rolling-stone-700 dark:text-rolling-stone-200">Water level</span><% end %>
-              <% if loc[:has_discharge] %><span class="text-rolling-stone-700 dark:text-rolling-stone-200">Flow</span><% end %>
-              <% if loc[:has_temperature] %><span class="text-rolling-stone-700 dark:text-rolling-stone-200">Temperature</span><% end %>
-            </span>
-          </td>
+          <th class="px-4 py-3 font-medium text-rolling-stone-600 dark:text-rolling-stone-300 sm:px-6">Location</th>
+          <th class="px-4 py-3 font-medium text-rolling-stone-600 dark:text-rolling-stone-300 sm:px-6">County</th>
+          <th class="px-4 py-3 font-medium text-rolling-stone-600 dark:text-rolling-stone-300 sm:px-6">Measurements</th>
         </tr>
-      <% end %>
-    </tbody>
-  </table>
+      </thead>
+      <tbody class="divide-y divide-rolling-stone-950/5 bg-white dark:divide-white/5 dark:bg-rolling-stone-950">
+        <% @locations.each do |loc| %>
+          <tr class="hover:bg-rolling-stone-50/80 dark:hover:bg-white/5">
+            <td class="px-4 py-4 sm:px-6">
+              <%= link_to loc[:name], loc[:path], class: "font-medium text-smalt-700 hover:text-smalt-800 dark:text-smalt-300 dark:hover:text-smalt-200" %>
+            </td>
+            <td class="px-4 py-4 text-rolling-stone-600 dark:text-rolling-stone-300 sm:px-6"><%= loc[:county_name].presence || "—" %></td>
+            <td class="px-4 py-4 sm:px-6">
+              <div class="flex flex-wrap gap-2">
+                <% if loc[:has_water_level] %>
+                  <div class="rounded-md bg-rolling-stone-950/5 px-2 py-1 text-rolling-stone-700 dark:bg-white/5 dark:text-rolling-stone-200">Water level</div>
+                <% end %>
+                <% if loc[:has_discharge] %>
+                  <div class="rounded-md bg-rolling-stone-950/5 px-2 py-1 text-rolling-stone-700 dark:bg-white/5 dark:text-rolling-stone-200">Flow</div>
+                <% end %>
+                <% if loc[:has_temperature] %>
+                  <div class="rounded-md bg-rolling-stone-950/5 px-2 py-1 text-rolling-stone-700 dark:bg-white/5 dark:text-rolling-stone-200">Temperature</div>
+                <% end %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
 </div>

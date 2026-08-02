@@ -32,9 +32,10 @@ class GaugesController < ApplicationController
   end
 
   def needs_series_backfill?(location)
-    series = location.time_series.selected.first
-    return true unless series
+    series = location.time_series.selected
+    return true if series.none?
 
-    series.continuous_observations.where("observed_at >= ?", 7.days.ago).none?
+    series.any? { |s| s.continuous_observations.where("observed_at >= ?", 7.days.ago).none? }
   end
 end
+

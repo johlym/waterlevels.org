@@ -6,9 +6,21 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "renders the canonical gauge page" do
+    series = create(:time_series, monitoring_location: @location, parameter_code: "00065")
+    LatestObservation.create!(
+      time_series: series,
+      value: 12.34,
+      unit_of_measure: "ft",
+      observed_at: 1.hour.ago,
+      synced_at: Time.current
+    )
+    @location.update!(latest_water_level_value: 12.34, latest_water_level_unit: "ft", latest_water_level_parameter_code: "00065")
+
     get "/gauges/#{@location.state_code}/#{@location.to_param}"
     assert_response :success
     assert_includes response.body, @location.name
+    assert_includes response.body, "Gage height"
+    assert_includes response.body, "role=\"tablist\""
     assert_includes response.headers["Cache-Tag"], "gauge:#{@location.site_number}"
   end
 

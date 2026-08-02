@@ -36,4 +36,20 @@ class MonitoringLocation < ApplicationRecord
   def self.slug_for(name)
     name.to_s.parameterize.presence || "gauge"
   end
+
+  # Hard-delete locations and dependent rows without AR callbacks (fast purge).
+  def self.purge_ids!(ids)
+    ids = Array(ids).compact.uniq
+    return 0 if ids.empty?
+
+    ts_ids = TimeSeries.where(monitoring_location_id: ids).pluck(:id)
+    if ts_ids.any?
+      LatestObservation.where(time_series_id: ts_ids).delete_all
+      ContinuousObservation.where(time_series_id: ts_ids).delete_all
+      DailyObservation.where(time_series_id: ts_ids).delete_all
+      PeakObservation.where(time_series_id: ts_ids).delete_all
+      TimeSeries.where(id: ts_ids).delete_all
+    end
+    where(id: ids).delete_all
+  end
 end

@@ -5,13 +5,26 @@ module Api
 
       def index
         location = MonitoringLocation.find_by!(site_number: params[:gauge_id])
-        kind = params[:kind].presence || location.measurement_kinds.first
+        parameter_code = params[:parameter_code].presence
+        kind = params[:kind].presence
+        if parameter_code.blank? && kind.blank?
+          preferred = location.time_series.selected
+            .min_by { |s| [ kind_order(s.measurement_kind), Usgs::ParameterCodes.preference_rank(s.parameter_code) ] }
+          parameter_code = preferred&.parameter_code
+          kind = preferred&.measurement_kind || location.measurement_kinds.first
+        end
         range = params[:range].presence || "7d"
         range = "7d" unless HydrographSeries::RANGES.key?(range)
 
-        payload = HydrographSeries.for(location: location, kind: kind, range: range)
+        payload = HydrographSeries.for(location: location, kind: kind, parameter_code: parameter_code, range: range)
         cache_public!(tags: [ "gauge:#{location.site_number}" ])
         render json: payload
+      end
+
+      private
+
+      def kind_order(kind)
+        { "water_level" => 0, "discharge" => 1, "temperature" => 2 }[kind] || 9
       end
     end
   end

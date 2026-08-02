@@ -45,4 +45,38 @@ namespace :usgs do
 
     puts "USGS history backfill finished"
   end
+
+  desc "Re-apply display series selection and warm snapshots (optional STATE=wa)"
+  task reselect: :environment do
+    state = ENV["STATE"]
+    scope = MonitoringLocation.includes(time_series: :latest_observation)
+    scope = scope.in_state(Usgs::StateCodes.normalize_postal(state)) if state.present?
+    total = scope.count
+    progress = SyncProgress.new("usgs:reselect")
+    progress.step("locations=#{total}#{" state=#{state}" if state.present?}")
+
+    scope.find_each do |location|
+      DisplaySeriesSelection.apply!(location)
+      StationSnapshotCache.warm(location)
+      progress.increment
+    end
+
+    progress.finish("locations=#{total}")
+  end
+
+  desc "Delete inactive/stale catalog rows (STATE=wa required; use ALL=1 to wipe the state)"
+  task purge: :environment do
+    state = ENV.fetch("STATE") { raise "STATE is required, e.g. STATE=wa bin/rails usgs:purge" }
+    scope = MonitoringLocation.in_state(Usgs::StateCodes.normalize_postal(state))
+    ids = if ENV["ALL"] == "1"
+      scope.pluck(:id)
+    else
+      scope.where(latest_observed_at: nil)
+        .or(scope.where("latest_observed_at < ?", MonitoringLocation::STALE_AFTER.ago))
+        .pluck(:id)
+    end
+
+    deleted = MonitoringLocation.purge_ids!(ids)
+    puts "Purged #{deleted} locations for STATE=#{state}"
+  end
 end

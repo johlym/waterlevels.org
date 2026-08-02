@@ -60,18 +60,23 @@ export default class extends Controller {
   }
 
   popupHtml(station) {
-    const lines = [`<strong>${station.name}</strong>`]
-    if (station.water_level != null) lines.push(`Water level: <strong>${station.water_level} ${station.water_level_unit || ""}</strong>`)
-    if (station.discharge != null) lines.push(`Flow: <strong>${station.discharge} ${station.discharge_unit || ""}</strong>`)
+    const rows = []
+    if (station.water_level != null) {
+      const label = station.water_level_label || "Water level"
+      rows.push(`<div class="wl-popup-meta">${label}: <strong>${station.water_level} ${station.water_level_unit || ""}</strong></div>`)
+    }
+    if (station.discharge != null) {
+      rows.push(`<div class="wl-popup-meta">Flow: <strong>${station.discharge} ${station.discharge_unit || ""}</strong></div>`)
+    }
     if (station.temperature_c != null) {
       const unit = this.tempUnit()
       const value = unit === "c" ? station.temperature_c : (station.temperature_c * 9) / 5 + 32
-      lines.push(`Temp: <strong>${value.toFixed(1)} °${unit.toUpperCase()}</strong>`)
+      rows.push(`<div class="wl-popup-meta">Temp: <strong>${value.toFixed(1)} °${unit.toUpperCase()}</strong></div>`)
     }
-    if (station.stale) lines.push("Status: Stale")
-    if (station.observed_at) lines.push(`Updated: ${station.observed_at}`)
-    lines.push(`<a href="${station.path}">View station history</a>`)
-    return lines.join("<br>")
+    if (station.stale) rows.push(`<div class="wl-popup-meta">Status: Stale</div>`)
+    if (station.observed_at) rows.push(`<div class="wl-popup-meta">Updated: ${station.observed_at}</div>`)
+    rows.push(`<div style="margin-top:0.5rem"><a href="${station.path}">View station</a></div>`)
+    return `<div class="wl-popup-title">${station.name}</div>${rows.join("")}`
   }
 
   tempUnit() {

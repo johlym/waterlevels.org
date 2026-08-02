@@ -21,9 +21,12 @@ cp .env.example .env   # add USGS_API_KEY
 bin/dev
 ```
 
-Bootstrap USGS data (rate-limit aware; prints progress). Prefer a single state while testing:
+Bootstrap USGS data (rate-limit aware; prints progress). Catalog sync keeps **active continuous water-body sites only** (streams/lakes/estuaries with current `latest-continuous` data — not the full USGS well archive).
+
+Prefer a single state while testing:
 
 ```bash
+STATE=wa bin/rails usgs:purge ALL=1   # wipe a bad/partial import
 STATE=wa bin/rails usgs:bootstrap
 ```
 
@@ -32,6 +35,7 @@ Optional history backfill after bootstrap:
 ```bash
 STATE=wa RANGE=7d LIMIT=25 bin/rails usgs:backfill
 ```
+
 
 National bootstrap (slow):
 

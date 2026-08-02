@@ -35,15 +35,19 @@ class HistoryIngestion
     %w[1y 30d].include?(range) || range == "por"
   end
 
+  # USGS continuous rejects bare ISO-8601 durations (P7D/PT24H) despite docs;
+  # use an explicit RFC3339 interval instead.
   def datetime_param
-    case range
-    when "24h" then "PT24H"
-    when "7d" then "P7D"
-    when "30d" then "P30D"
-    when "1y" then "P1Y"
+    ends = Time.current.utc
+    starts = case range
+    when "24h" then 24.hours.ago.utc
+    when "7d" then 7.days.ago.utc
+    when "30d" then 30.days.ago.utc
+    when "1y" then 1.year.ago.utc
     else
-      "#{1.year.ago.iso8601}/#{Time.current.iso8601}"
+      1.year.ago.utc
     end
+    "#{starts.iso8601}/#{ends.iso8601}"
   end
 
   def ingest_continuous(series)

@@ -3,15 +3,18 @@
 
 <div class="flex min-h-dvh flex-col">
   <%= render Navigation::BarComponent.new %>
-  <main class="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
-    <h1 class="text-3xl font-semibold tracking-tight">Contact</h1>
-    <p class="mt-4 text-rolling-stone-700 dark:text-rolling-stone-300">Send a message about WaterLevels.org. You can also email <a class="text-smalt-800 underline dark:text-smalt-300" href="mailto:hello@waterlevels.org">hello@waterlevels.org</a>.</p>
+  <main class="mx-auto w-full max-w-xl flex-1 px-4 py-12 sm:px-6 lg:px-8">
+    <h1 class="text-balance text-3xl font-semibold tracking-tight text-rolling-stone-950 dark:text-white sm:text-4xl">Contact</h1>
+    <p class="mt-3 text-base text-pretty text-rolling-stone-600 dark:text-rolling-stone-300">
+      Send a message about WaterLevels.org, or email
+      <a class="font-medium text-smalt-700 underline hover:text-smalt-800 dark:text-smalt-300" href="mailto:hello@waterlevels.org">hello@waterlevels.org</a>.
+    </p>
 
     <% if flash[:notice].present? %>
-      <p class="mt-6 text-sm font-medium text-smalt-800 dark:text-smalt-300" role="status"><%= flash[:notice] %></p>
+      <div class="mt-6 rounded-lg bg-smalt-50 px-4 py-3 text-base text-smalt-900 outline outline-smalt-600/15 dark:bg-smalt-400/10 dark:text-smalt-100 dark:outline-smalt-400/20 sm:text-sm" role="status"><%= flash[:notice] %></div>
     <% end %>
     <% if flash[:alert].present? %>
-      <p class="mt-6 text-sm font-medium text-red-700 dark:text-red-300" role="alert"><%= flash[:alert] %></p>
+      <div class="mt-6 rounded-lg bg-red-50 px-4 py-3 text-base text-red-900 outline outline-red-600/15 dark:bg-red-400/10 dark:text-red-100 dark:outline-red-400/20 sm:text-sm" role="alert"><%= flash[:alert] %></div>
     <% end %>
 
     <%= render Contact::FormComponent.new(contact_message: @contact_message) %>

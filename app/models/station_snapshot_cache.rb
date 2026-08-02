@@ -1,5 +1,5 @@
 class StationSnapshotCache
-  PREFIX = "station_snapshot:v1".freeze
+  PREFIX = "station_snapshot:v3".freeze
   TTL = 2.hours
 
   def self.key_for(location)
@@ -14,7 +14,7 @@ class StationSnapshotCache
   def self.warm(location)
     payload = build_payload(location)
     Rails.cache.write(key_for(location), payload, expires_in: TTL)
-    payload
+    payload.with_indifferent_access
   end
 
   def self.warm_stale_batch
@@ -22,41 +22,42 @@ class StationSnapshotCache
   end
 
   def self.fetch(location)
-    read(location) || warm(location)
+    cached = read(location)
+    return warm(location) if cached.nil? || empty_while_location_has_readings?(cached, location)
+
+    cached
   end
 
+  # Memory-store (and Redis) can keep an empty snapshot from before catalog/latest
+  # sync finished; map/listings read denormalized columns and look fine meanwhile.
+  def self.empty_while_location_has_readings?(cached, location)
+    return false if Array(cached[:measurements]).any?
+    current = cached[:current] || {}
+    return false if current.present?
+
+    location.has_water_level? || location.has_discharge? || location.has_temperature?
+  end
+  private_class_method :empty_while_location_has_readings?
+
   def self.build_payload(location)
-    series_by_kind = location.time_series.selected.includes(:latest_observation, :peak_observations, :daily_observations, :continuous_observations).index_by(&:measurement_kind)
+    selected = location.time_series.selected
+      .includes(:latest_observation, :peak_observations, :daily_observations)
+      .to_a
+      .sort_by { |s| [ kind_order(s.measurement_kind), Usgs::ParameterCodes.preference_rank(s.parameter_code) ] }
+
+    measurements = selected.filter_map { |series| measurement_payload(series) }
+    measurements = denormalized_measurements(location) if measurements.empty?
+
     current = {}
-    extremes = {}
     trends = {}
+    extremes = {}
+    measurements.each do |m|
+      kind = m[:kind]
+      next if current[kind]
 
-    series_by_kind.each do |kind, series|
-      obs = series.latest_observation
-      next unless obs
-
-      current[kind] = {
-        value: obs.value.to_f,
-        unit: obs.unit_of_measure,
-        observed_at: obs.observed_at.iso8601,
-        approval_status: obs.approval_status,
-        parameter_code: series.parameter_code,
-        parameter_description: series.parameter_description
-      }
-
-      trend_24h = TrendComparison.for_series(series, current_value: obs.value, observed_at: obs.observed_at)
-      yoy = TrendComparison.yoy_for_series(series, current_value: obs.value, observed_at: obs.observed_at)
-      trends[kind] = {
-        change_24h: trend_24h.delta,
-        yoy: yoy.prior_value.nil? ? nil : yoy.delta
-      }
-
-      high = series.peak_observations.where(peak_kind: "high").order(value: :desc).first
-      low_daily = series.daily_observations.order(:value).first
-      extremes[kind] = {
-        high: high && { value: high.value.to_f, water_year: high.water_year, observed_at: high.observed_at&.iso8601 },
-        low: low_daily && { value: low_daily.value.to_f, observed_on: low_daily.observed_on.iso8601 }
-      }
+      current[kind] = m.slice(:value, :unit, :observed_at, :approval_status, :parameter_code, :parameter_description)
+      trends[kind] = m[:trends]
+      extremes[kind] = m[:extremes]
     end
 
     nearby = MonitoringLocation.where(id: location.nearby_station_ids).map do |n|
@@ -83,7 +84,8 @@ class StationSnapshotCache
       longitude: location.longitude.to_f,
       stale: location.stale?,
       latest_observed_at: location.latest_observed_at&.iso8601,
-      measurement_kinds: location.measurement_kinds,
+      measurement_kinds: measurements.map { |m| m[:kind] }.uniq,
+      measurements: measurements,
       current: current,
       trends: trends,
       extremes: extremes,
@@ -92,4 +94,95 @@ class StationSnapshotCache
       agency_name: location.agency_code
     }
   end
+
+  def self.measurement_payload(series)
+    obs = series.latest_observation
+    return unless obs
+
+    trend_24h = TrendComparison.for_series(series, current_value: obs.value, observed_at: obs.observed_at)
+    yoy = TrendComparison.yoy_for_series(series, current_value: obs.value, observed_at: obs.observed_at)
+    high = series.peak_observations.where(peak_kind: "high").order(value: :desc).first
+    low_daily = series.daily_observations.order(:value).first
+    label = Usgs::ParameterCodes.label_for(series.parameter_code, fallback: series.parameter_description)
+
+    {
+      key: series.parameter_code,
+      kind: series.measurement_kind,
+      label: label,
+      parameter_code: series.parameter_code,
+      parameter_description: series.parameter_description,
+      value: obs.value.to_f,
+      unit: obs.unit_of_measure,
+      observed_at: obs.observed_at.iso8601,
+      approval_status: obs.approval_status,
+      precision: series.measurement_kind == "discharge" ? 0 : 2,
+      trends: {
+        change_24h: trend_24h.delta,
+        yoy: yoy.prior_value.nil? ? nil : yoy.delta
+      },
+      extremes: {
+        high: high && { value: high.value.to_f, water_year: high.water_year, observed_at: high.observed_at&.iso8601 },
+        low: low_daily && { value: low_daily.value.to_f, observed_on: low_daily.observed_on.iso8601 }
+      }
+    }
+  end
+
+  def self.denormalized_measurements(location)
+    measurements = []
+    if location.latest_water_level_value.present?
+      code = location.latest_water_level_parameter_code
+      measurements << {
+        key: code.presence || "water_level",
+        kind: "water_level",
+        label: Usgs::ParameterCodes.label_for(code, fallback: "Water level"),
+        parameter_code: code,
+        parameter_description: nil,
+        value: location.latest_water_level_value.to_f,
+        unit: location.latest_water_level_unit,
+        observed_at: location.latest_observed_at&.iso8601,
+        approval_status: location.latest_approval_status,
+        precision: 2,
+        trends: { change_24h: nil, yoy: nil },
+        extremes: { high: nil, low: nil }
+      }
+    end
+    if location.latest_discharge_value.present?
+      measurements << {
+        key: Usgs::ParameterCodes::DISCHARGE,
+        kind: "discharge",
+        label: "Flow",
+        parameter_code: Usgs::ParameterCodes::DISCHARGE,
+        parameter_description: nil,
+        value: location.latest_discharge_value.to_f,
+        unit: location.latest_discharge_unit,
+        observed_at: location.latest_observed_at&.iso8601,
+        approval_status: location.latest_approval_status,
+        precision: 0,
+        trends: { change_24h: nil, yoy: nil },
+        extremes: { high: nil, low: nil }
+      }
+    end
+    if location.latest_temperature_c.present?
+      measurements << {
+        key: Usgs::ParameterCodes::TEMPERATURE,
+        kind: "temperature",
+        label: "Temperature",
+        parameter_code: Usgs::ParameterCodes::TEMPERATURE,
+        parameter_description: nil,
+        value: location.latest_temperature_c.to_f,
+        unit: "°C",
+        observed_at: location.latest_observed_at&.iso8601,
+        approval_status: location.latest_approval_status,
+        precision: 1,
+        trends: { change_24h: nil, yoy: nil },
+        extremes: { high: nil, low: nil }
+      }
+    end
+    measurements
+  end
+
+  def self.kind_order(kind)
+    { "water_level" => 0, "discharge" => 1, "temperature" => 2 }[kind] || 9
+  end
+  private_class_method :measurement_payload, :denormalized_measurements, :kind_order
 end
