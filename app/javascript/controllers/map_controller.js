@@ -10,7 +10,8 @@ export default class extends Controller {
     "filter",
     "dischargeCount",
     "waterLevelCount",
-    "temperatureCount"
+    "temperatureCount",
+    "layersPanel"
   ]
   static values = { stationsUrl: String }
 
@@ -35,10 +36,21 @@ export default class extends Controller {
     this.map.addLayer(this.cluster)
     this.map.on("moveend", () => this.loadStations())
     this.loadStations()
+
+    this.layersMediaQuery = window.matchMedia("(min-width: 640px)")
+    this.syncLayersPanel = this.syncLayersPanel.bind(this)
+    this.syncLayersPanel()
+    this.layersMediaQuery.addEventListener("change", this.syncLayersPanel)
   }
 
   disconnect() {
+    this.layersMediaQuery?.removeEventListener("change", this.syncLayersPanel)
     if (this.map) this.map.remove()
+  }
+
+  syncLayersPanel() {
+    if (!this.hasLayersPanelTarget) return
+    this.layersPanelTarget.open = this.layersMediaQuery.matches
   }
 
   zoomIn() {

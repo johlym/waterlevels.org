@@ -30,8 +30,13 @@
           <div class="results" data-map-target="results" data-action="click->map#selectResult" hidden></div>
         </div>
 
-        <div class="map-filters">
-          <h2>Data layers</h2>
+        <details class="map-filters" data-map-target="layersPanel">
+          <summary>
+            <h2>Data layers</h2>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+          </summary>
           <div class="layers" role="group" aria-label="Measurement filters">
             <label>
               <input
@@ -67,7 +72,7 @@
               <span class="count" data-map-target="temperatureCount" data-zero>0</span>
             </label>
           </div>
-        </div>
+        </details>
       </aside>
 
       <div class="map-tools">

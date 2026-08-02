@@ -102,12 +102,34 @@
 .map-filters {
   @apply map-panel p-4;
 
+  summary {
+    @apply flex cursor-pointer list-none items-center justify-between gap-3 marker:content-none [&::-webkit-details-marker]:hidden;
+  }
+
   h2 {
-    @apply mb-3 text-sm font-semibold tracking-wide text-zinc-400 uppercase;
+    @apply text-sm font-semibold tracking-wide text-zinc-400 uppercase;
+  }
+
+  .chevron {
+    @apply size-4 shrink-0 text-zinc-500 transition sm:hidden;
+  }
+
+  &[open] summary .chevron {
+    @apply rotate-180;
   }
 
   .layers {
-    @apply space-y-2;
+    @apply mt-3 space-y-2;
+  }
+
+  @media (min-width: 640px) {
+    summary {
+      @apply pointer-events-none;
+    }
+
+    .layers {
+      @apply mt-3;
+    }
   }
 
   label {
