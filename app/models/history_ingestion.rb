@@ -155,9 +155,13 @@ class HistoryIngestion
     end
 
     code = item["parameter_code"].to_s.presence
-    return unless code
+    if code
+      match = series_list.find { |series| series.parameter_code == code }
+      return match if match
+    end
 
-    series_list.find { |series| series.parameter_code == code }
+    # Single-series requests (or sparse USGS payloads) can omit identifiers.
+    series_list.first if series_list.size == 1
   end
 
   def ingest_continuous_for(series_list)

@@ -25,6 +25,8 @@ class HistoryIngestionTest < ActiveSupport::TestCase
               {
                 id: "1",
                 properties: {
+                  time_series_id: @series.usgs_time_series_id,
+                  parameter_code: "62614",
                   time: "2026-08-01T12:00:00Z",
                   value: 540.1,
                   approval_status: "Provisional"
@@ -62,6 +64,8 @@ class HistoryIngestionTest < ActiveSupport::TestCase
               {
                 id: "1",
                 properties: {
+                  time_series_id: @series.usgs_time_series_id,
+                  parameter_code: "62614",
                   time: 1.day.ago.utc.iso8601,
                   value: 540.1,
                   approval_status: "Provisional"
@@ -84,6 +88,8 @@ class HistoryIngestionTest < ActiveSupport::TestCase
               {
                 id: "d1",
                 properties: {
+                  time_series_id: @series.usgs_time_series_id,
+                  parameter_code: "62614",
                   time: 11.months.ago.to_date.iso8601,
                   value: 538.0,
                   approval_status: "Approved"

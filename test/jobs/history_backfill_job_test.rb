@@ -112,6 +112,8 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
             {
               id: "d1",
               properties: {
+                time_series_id: series.usgs_time_series_id,
+                parameter_code: series.parameter_code,
                 time: 11.months.ago.to_date.iso8601,
                 value: 2.5,
                 approval_status: "Approved"
@@ -120,6 +122,8 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
             {
               id: "d2",
               properties: {
+                time_series_id: series.usgs_time_series_id,
+                parameter_code: series.parameter_code,
                 time: Date.current.iso8601,
                 value: 2.6,
                 approval_status: "Provisional"
