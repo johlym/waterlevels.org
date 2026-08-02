@@ -75,7 +75,7 @@
   }
 
   input {
-    @apply w-full rounded-lg border border-zinc-700/50 bg-zinc-800/80 py-2.5 pr-4 pl-10 text-sm text-white outline-none transition-all placeholder:text-zinc-500 focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20;
+    @apply w-full rounded-lg border border-zinc-700/50 bg-zinc-800/80 py-2.5 pr-4 pl-10 text-base text-white outline-none transition-all placeholder:text-zinc-500 focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 sm:text-sm;
   }
 
   .results {
@@ -646,7 +646,7 @@
 }
 
 .day-select {
-  @apply rounded-lg border border-zinc-800 bg-zinc-900/80 px-4 py-2 text-sm text-white outline-none focus:border-cyan-500/50;
+  @apply rounded-lg border border-zinc-800 bg-zinc-900/80 px-4 py-2 text-base text-white outline-none focus:border-cyan-500/50 sm:text-sm;
 }
 
 .toolbar-btn {
@@ -1051,7 +1051,7 @@
     }
 
     input {
-      @apply w-full rounded-lg border border-zinc-800 bg-zinc-950/80 py-2.5 pr-4 pl-10 text-sm text-white outline-none transition-all placeholder:text-zinc-600 focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20;
+      @apply w-full rounded-lg border border-zinc-800 bg-zinc-950/80 py-2.5 pr-4 pl-10 text-base text-white outline-none transition-all placeholder:text-zinc-600 focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 sm:text-sm;
     }
   }
 
