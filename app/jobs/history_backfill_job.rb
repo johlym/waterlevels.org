@@ -41,4 +41,3 @@ class HistoryBackfillJob < ApplicationJob
     end
   end
 end
-

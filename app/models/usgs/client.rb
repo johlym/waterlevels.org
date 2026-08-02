@@ -65,7 +65,6 @@ module Usgs
       raise RateLimitError, "USGS rate limit circuit open"
     end
 
-
     def default_request_pause_ms
       return 0 if Rails.env.test?
 
