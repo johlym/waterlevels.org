@@ -8,6 +8,7 @@ Gaps between the Shuffle/HydroTrace mockups (`shuffle 2`) and what WaterLevels.o
 - [ ] Top-nav **Stations** and **Data** destinations (map + About only today)
 - [ ] Public API docs link and product API surface
 - [ ] Footer **API** / **Documentation** links from the mockup
+- [x] Branded static error pages (`public/404`, `403`, `500`, `400`, `422`) from HydroTrace mockup
 
 ## Gauge detail page (`detail.html`)
 
