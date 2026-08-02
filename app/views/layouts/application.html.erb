@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title><%= content_for?(:title) ? yield(:title) : "WaterLevels.org" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <% if content_for?(:meta_description) %>
+      <meta name="description" content="<%= yield(:meta_description) %>">
+    <% end %>
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
+    <%= javascript_include_tag "application", "data-turbo-track": "reload", type: "module" %>
+    <%= yield :head %>
+  </head>
+  <body class="min-h-screen bg-rolling-stone-50 text-rolling-stone-900 dark:bg-rolling-stone-950 dark:text-rolling-stone-100">
+    <%= yield %>
+  </body>
+</html>

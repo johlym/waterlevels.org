@@ -1,0 +1,19 @@
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+
+development:
+  <<: *default
+  database: waterlevels_development
+
+test:
+  <<: *default
+  database: waterlevels_test
+  <% if ENV["DATABASE_URL"].present? %>
+  url: <%= ENV["DATABASE_URL"] %>
+  <% end %>
+
+production:
+  <<: *default
+  url: <%= ENV["DATABASE_URL"] %>
