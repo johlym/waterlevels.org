@@ -1,10 +1,11 @@
 class StationCatalogSync
   include ActiveModel::Model
 
-  attr_accessor :client
+  attr_accessor :client, :state
 
-  def initialize(client: Usgs::Client.new)
+  def initialize(client: Usgs::Client.new, state: nil)
     @client = client
+    @state = state.presence
   end
 
   def perform
@@ -18,16 +19,35 @@ class StationCatalogSync
 
   private
 
+  def postal_code
+    @postal_code ||= state && Usgs::StateCodes.normalize_postal(state)
+  end
+
+  def location_query
+    return {} unless postal_code
+
+    { state_code: Usgs::StateCodes.fips_for(postal_code) }
+  end
+
+  def time_series_query(parameter_code)
+    query = { parameter_code: parameter_code }
+    query[:state_name] = Usgs::StateCodes.name_for(postal_code) if postal_code
+    query
+  end
+
   def upsert_locations
-    client.each_collection_item("monitoring-locations") do |item|
+    client.each_collection_item("monitoring-locations", location_query) do |item|
       site_number = item["monitoring_location_number"].presence || item["id"].to_s.split("-").last
       next if site_number.blank?
       lat = item["latitude"] || item["dec_lat_va"]
       lon = item["longitude"] || item["dec_long_va"]
       next if lat.blank? || lon.blank?
 
-      state = item["state_code"].to_s.downcase
-      next if state.blank?
+      raw_state = item["state_code"].to_s
+      next if raw_state.blank?
+
+      state_code = Usgs::StateCodes.normalize_postal(raw_state)
+      next if postal_code && state_code != postal_code
 
       name = item["monitoring_location_name"].presence || "Site #{site_number}"
       usgs_id = item["id"].presence || "USGS-#{site_number}"
@@ -43,8 +63,8 @@ class StationCatalogSync
           site_type_name: item["site_type"],
           latitude: lat,
           longitude: lon,
-          state_code: state,
-          state_name: item["state_name"],
+          state_code: state_code,
+          state_name: item["state_name"].presence || Usgs::StateCodes.name_for(state_code),
           county_code: item["county_code"],
           county_name: item["county_name"],
           hydrologic_unit_code: item["hydrologic_unit_code"],
@@ -62,10 +82,11 @@ class StationCatalogSync
 
   def upsert_time_series
     Usgs::ParameterCodes::ALL.each do |parameter_code|
-      client.each_collection_item("time-series-metadata", parameter_code: parameter_code) do |item|
+      client.each_collection_item("time-series-metadata", time_series_query(parameter_code)) do |item|
         location_id = item["monitoring_location_id"]
         location = MonitoringLocation.find_by(usgs_monitoring_location_id: location_id)
         next unless location
+        next if postal_code && location.state_code != postal_code
 
         kind = Usgs::ParameterCodes.measurement_kind_for(parameter_code)
         next unless kind
@@ -87,8 +108,8 @@ class StationCatalogSync
             measurement_kind: kind,
             primary_series: primary,
             selected_for_display: false,
-            begins_at: item["begin_date"] || item["begins_at"],
-            ends_at: item["end_date"] || item["ends_at"],
+            begins_at: item["begin_date"] || item["begins_at"] || item["begin"],
+            ends_at: item["end_date"] || item["ends_at"] || item["end"],
             metadata_synced_at: Time.current,
             created_at: Time.current,
             updated_at: Time.current
@@ -100,7 +121,10 @@ class StationCatalogSync
   end
 
   def select_display_series
-    MonitoringLocation.find_each do |location|
+    scope = MonitoringLocation.all
+    scope = scope.in_state(postal_code) if postal_code
+
+    scope.find_each do |location|
       series = location.time_series.to_a
       location.time_series.update_all(selected_for_display: false)
 
@@ -127,7 +151,9 @@ class StationCatalogSync
       )
     end
 
-    # Drop locations with no selected measurements
-    MonitoringLocation.where(has_water_level: false, has_discharge: false, has_temperature: false).delete_all
+    # Drop locations with no selected measurements (scoped when STATE is set)
+    empty = MonitoringLocation.where(has_water_level: false, has_discharge: false, has_temperature: false)
+    empty = empty.in_state(postal_code) if postal_code
+    empty.delete_all
   end
 end

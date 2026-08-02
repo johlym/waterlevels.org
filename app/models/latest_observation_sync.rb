@@ -1,10 +1,11 @@
 class LatestObservationSync
   include ActiveModel::Model
 
-  attr_accessor :client
+  attr_accessor :client, :state
 
-  def initialize(client: Usgs::Client.new)
+  def initialize(client: Usgs::Client.new, state: nil)
     @client = client
+    @state = state.presence
   end
 
   def perform
@@ -19,11 +20,22 @@ class LatestObservationSync
 
   private
 
+  def postal_code
+    @postal_code ||= state && Usgs::StateCodes.normalize_postal(state)
+  end
+
+  def latest_query(parameter_code)
+    query = { parameter_code: parameter_code }
+    query[:state_code] = Usgs::StateCodes.fips_for(postal_code) if postal_code
+    query
+  end
+
   def sync_parameter(parameter_code)
-    client.each_collection_item("latest-continuous", parameter_code: parameter_code) do |item|
+    client.each_collection_item("latest-continuous", latest_query(parameter_code)) do |item|
       ts_id = item["time_series_id"] || item["id"]
       series = TimeSeries.find_by(usgs_time_series_id: ts_id.to_s)
       next unless series&.selected_for_display?
+      next if postal_code && series.monitoring_location.state_code != postal_code
 
       observed_at = parse_time(item["time"] || item["observed_at"] || item["datetime"])
       value = item["value"] || item["observation_value"]
@@ -48,7 +60,10 @@ class LatestObservationSync
   end
 
   def denormalize_locations
-    MonitoringLocation.includes(time_series: :latest_observation).find_each do |location|
+    scope = MonitoringLocation.includes(time_series: :latest_observation)
+    scope = scope.in_state(postal_code) if postal_code
+
+    scope.find_each do |location|
       attrs = {
         latest_water_level_value: nil,
         latest_water_level_parameter_code: nil,

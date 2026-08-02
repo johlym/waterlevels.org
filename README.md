@@ -21,7 +21,13 @@ cp .env.example .env   # add USGS_API_KEY
 bin/dev
 ```
 
-Bootstrap USGS data (rate-limit aware; may take a long time nationally):
+Bootstrap USGS data (rate-limit aware). Prefer a single state while testing:
+
+```bash
+STATE=wa bin/rails usgs:bootstrap
+```
+
+National bootstrap (slow):
 
 ```bash
 bin/rails usgs:bootstrap
