@@ -31,4 +31,3 @@ class GaugesController < ApplicationController
     redirect_to expected, status: :moved_permanently
   end
 end
-
