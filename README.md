@@ -52,8 +52,7 @@ bundle exec rspec
 
 Set in `.env`:
 
-- `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` (provision with turnstile-spin)
-- Optional `TURNSTILE_SITEVERIFY_URL` (managed Worker from spin)
+- `TURNSTILE_SITE_KEY` (defaults to the existing widget) / `TURNSTILE_SECRET`
 - `CONTACT_TO_EMAIL` / `MAIL_FROM`
 - `BENTO_SITE_UUID`, `BENTO_PUBLISHABLE_KEY`, `BENTO_SECRET_KEY` (Action Mailer via `bento-actionmailer` + `premailer-rails`)
 

@@ -7,6 +7,7 @@ class ContactMessage
   attribute :subject, :string
   attribute :message, :string
   attribute :turnstile_token, :string
+  attribute :remote_ip, :string
 
   validates :name, :email, :subject, :message, presence: true
   validates :email, format: { with: URI::MailTo::EMAIL_REGEXP }
@@ -30,8 +31,9 @@ class ContactMessage
   private
 
   def turnstile_must_pass
-    return if TurnstileVerification.new(token: turnstile_token).success?
+    return if TurnstileVerification.new(token: turnstile_token, remote_ip: remote_ip).success?
 
     errors.add(:base, "Please complete the bot check and try again.")
   end
 end
+

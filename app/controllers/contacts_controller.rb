@@ -4,6 +4,7 @@ class ContactsController < ApplicationController
   def create
     @contact_message = ContactMessage.new(contact_params)
     @contact_message.turnstile_token = params["cf-turnstile-response"]
+    @contact_message.remote_ip = request.remote_ip
 
     if @contact_message.deliver
       redirect_to contact_path, notice: "Thanks — your message has been sent."
