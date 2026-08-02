@@ -1,5 +1,5 @@
 class StationSnapshotCache
-  PREFIX = "station_snapshot:v7".freeze
+  PREFIX = "station_snapshot:v8".freeze
   TTL = 2.hours
   MILES_PER_KM = 0.621371
 
@@ -218,30 +218,33 @@ class StationSnapshotCache
         distance_mi: distance_mi.round(1),
         stale: n.stale?,
         latest_observed_at: n.latest_observed_at&.iso8601,
-        primary: nearby_primary_reading(n)
+        measurements: nearby_readings(n)
       }
     end
   end
 
-  def self.nearby_primary_reading(location)
+  def self.nearby_readings(location)
+    readings = []
     if location.latest_discharge_value.present?
-      {
+      readings << {
         kind: "discharge",
         label: "Flow",
         value: location.latest_discharge_value.to_f,
         unit: UnitLabel.format(location.latest_discharge_unit.presence || "ft³/s"),
         precision: 0
       }
-    elsif location.latest_water_level_value.present?
-      {
+    end
+    if location.latest_water_level_value.present?
+      readings << {
         kind: "water_level",
         label: "Level",
         value: location.latest_water_level_value.to_f,
         unit: UnitLabel.format(location.latest_water_level_unit.presence || "ft"),
         precision: 2
       }
-    elsif location.latest_temperature_c.present?
-      {
+    end
+    if location.latest_temperature_c.present?
+      readings << {
         kind: "temperature",
         label: "Temp",
         value: location.latest_temperature_c.to_f,
@@ -249,8 +252,9 @@ class StationSnapshotCache
         precision: 1
       }
     end
+    readings
   end
 
   private_class_method :measurement_payload, :denormalized_measurements, :kind_order,
-                       :nearby_payload, :nearby_primary_reading
+                       :nearby_payload, :nearby_readings
 end

@@ -170,12 +170,12 @@
               stale = n[:stale] || n["stale"]
               distance = n[:distance_mi] || n["distance_mi"]
               site = n[:site_number] || n["site_number"]
-              primary = n[:primary] || n["primary"]
-              primary_kind = primary && (primary[:kind] || primary["kind"])
-              primary_label = primary && (primary[:label] || primary["label"])
-              primary_value = primary && (primary[:value] || primary["value"])
-              primary_unit = display_unit(primary && (primary[:unit] || primary["unit"]))
-              primary_precision = (primary && (primary[:precision] || primary["precision"])) || 2
+              readings = Array(n[:measurements] || n["measurements"])
+              # Fallback for snapshots cached before multi-metric nearby readings.
+              if readings.empty?
+                primary = n[:primary] || n["primary"]
+                readings = primary.present? ? [primary] : []
+              end
             %>
             <li>
               <%= link_to n[:path] || n["path"], class: "nearby-card" do %>
@@ -200,20 +200,32 @@
                 </h3>
                 <p class="site-id">ID: <%= site %></p>
                 <div class="card-foot">
-                  <% if primary.present? && primary_value.present? %>
-                    <% if primary_kind == "temperature" %>
-                      <span
-                        data-temperature-unit-target="display"
-                        data-temp-c="<%= primary_value %>"
-                        data-temp-prefix="Temp: "
-                      ></span>
-                    <% else %>
-                      <span>
-                        <%= primary_label %>:
-                        <%= number_with_precision(primary_value, precision: primary_precision, delimiter: ",") %>
-                        <%= primary_unit %>
-                      </span>
-                    <% end %>
+                  <% if readings.any? %>
+                    <div class="readings">
+                      <% readings.each do |reading| %>
+                        <%
+                          kind = reading[:kind] || reading["kind"]
+                          label = reading[:label] || reading["label"]
+                          value = reading[:value] || reading["value"]
+                          unit = display_unit(reading[:unit] || reading["unit"])
+                          precision = (reading[:precision] || reading["precision"]) || 2
+                          next if value.blank?
+                        %>
+                        <% if kind == "temperature" %>
+                          <span
+                            data-temperature-unit-target="display"
+                            data-temp-c="<%= value %>"
+                            data-temp-prefix="Temp: "
+                          ></span>
+                        <% else %>
+                          <span>
+                            <%= label %>:
+                            <%= number_with_precision(value, precision: precision, delimiter: ",") %>
+                            <%= unit %>
+                          </span>
+                        <% end %>
+                      <% end %>
+                    </div>
                   <% elsif stale && (n[:latest_observed_at] || n["latest_observed_at"]).blank? %>
                     <span class="muted">No recent data</span>
                   <% else %>
