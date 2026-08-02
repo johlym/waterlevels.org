@@ -38,4 +38,3 @@ class GaugesController < ApplicationController
     series.any? { |s| s.continuous_observations.where("observed_at >= ?", 7.days.ago).none? }
   end
 end
-

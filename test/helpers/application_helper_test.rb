@@ -10,4 +10,3 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_equal "August 2, 2026 at 04:30:00 AM", display_timestamp(time)
   end
 end
-
