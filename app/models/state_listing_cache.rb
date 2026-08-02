@@ -1,5 +1,5 @@
 class StateListingCache
-  PREFIX = "state_listing:v2".freeze
+  PREFIX = "state_listing:v3".freeze
   TTL = 6.hours
 
   def self.key_for(state_code)
@@ -23,9 +23,9 @@ class StateListingCache
         has_discharge: loc.has_discharge,
         has_temperature: loc.has_temperature,
         latest_water_level_value: loc.latest_water_level_value&.to_f,
-        latest_water_level_unit: loc.latest_water_level_unit,
+        latest_water_level_unit: UnitLabel.format(loc.latest_water_level_unit),
         latest_discharge_value: loc.latest_discharge_value&.to_f,
-        latest_discharge_unit: loc.latest_discharge_unit,
+        latest_discharge_unit: UnitLabel.format(loc.latest_discharge_unit),
         latest_temperature_c: loc.latest_temperature_c&.to_f,
         latest_observed_at: loc.latest_observed_at&.iso8601,
         stale: loc.stale?,

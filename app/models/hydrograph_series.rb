@@ -58,7 +58,7 @@ class HydrographSeries
       kind: time_series.measurement_kind,
       label: Usgs::ParameterCodes.label_for(time_series.parameter_code, fallback: time_series.parameter_description),
       range: range,
-      unit: time_series.unit_of_measure,
+      unit: UnitLabel.format(time_series.unit_of_measure),
       parameter_code: time_series.parameter_code,
       points: points,
       peaks: peaks

@@ -519,14 +519,7 @@ export default class extends Controller {
   }
 
   formatCellValue(value, kind) {
-    if (value == null || Number.isNaN(value)) return "—"
-    if (kind === "temperature") {
-      const unit = this.tempUnit()
-      const converted = unit === "c" ? value : (value * 9) / 5 + 32
-      return converted.toFixed(1)
-    }
-    if (kind === "discharge") return Math.round(value).toLocaleString("en-US")
-    return Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 })
+    return this.displayValue(value, kind)
   }
 
   displayValue(value, kind = this.series?.kind) {
@@ -534,16 +527,29 @@ export default class extends Controller {
     if (kind === "temperature") {
       const unit = this.tempUnit()
       const converted = unit === "c" ? value : (value * 9) / 5 + 32
-      return converted.toFixed(1)
+      return converted.toLocaleString("en-US", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
+      })
     }
-    if (kind === "discharge") return Math.round(value).toLocaleString("en-US")
-    return Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 })
+    if (kind === "discharge") {
+      return Math.round(value).toLocaleString("en-US")
+    }
+    return Number(value).toLocaleString("en-US", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    })
   }
 
   unitLabel(series) {
     if (!series) return ""
     if (series.kind === "temperature") return `°${this.tempUnit().toUpperCase()}`
-    return series.unit || ""
+    return this.formatUnit(series.unit)
+  }
+
+  formatUnit(unit) {
+    if (!unit) return ""
+    return String(unit).replace(/ft\^?3/gi, "ft³")
   }
 
   tempUnit() {

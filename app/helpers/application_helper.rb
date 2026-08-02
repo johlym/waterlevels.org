@@ -21,6 +21,19 @@ module ApplicationHelper
     "Latitude #{degrees_to_dms(lat, "N", "S")}, Longitude #{degrees_to_dms(lon, "E", "W")}"
   end
 
+  # e.g. "ft3/s" / "ft^3/s" → "ft³/s"
+  def display_unit(unit)
+    UnitLabel.format(unit)
+  end
+
+  # e.g. +1,234.50 / -12
+  def signed_number(value, precision:)
+    return if value.nil?
+
+    formatted = number_with_precision(value, precision: precision, delimiter: ",")
+    value.to_f.positive? ? "+#{formatted}" : formatted
+  end
+
   private
 
   def degrees_to_dms(value, positive_hemisphere, negative_hemisphere)

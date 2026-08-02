@@ -231,10 +231,10 @@ export default class extends Controller {
 
     if (station.water_level != null) {
       const label = station.water_level_label || "Water level"
-      rows.push(`<div class="popup-meta">${label}: <strong>${station.water_level} ${station.water_level_unit || ""}</strong></div>`)
+      rows.push(`<div class="popup-meta">${label}: <strong>${station.water_level} ${this.formatUnit(station.water_level_unit)}</strong></div>`)
     }
     if (station.discharge != null) {
-      rows.push(`<div class="popup-meta">Streamflow: <strong>${station.discharge} ${station.discharge_unit || ""}</strong></div>`)
+      rows.push(`<div class="popup-meta">Streamflow: <strong>${station.discharge} ${this.formatUnit(station.discharge_unit)}</strong></div>`)
     }
     if (station.temperature_c != null) {
       const unit = this.tempUnit()
@@ -264,6 +264,11 @@ export default class extends Controller {
   tempUnit() {
     const match = document.cookie.match(/(?:^|; )temperature_unit=([^;]*)/)
     return match && match[1] === "c" ? "c" : "f"
+  }
+
+  formatUnit(unit) {
+    if (!unit) return ""
+    return String(unit).replace(/ft\^?3/gi, "ft³")
   }
 
   escapeHtml(value) {

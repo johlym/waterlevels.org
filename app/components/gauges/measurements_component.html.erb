@@ -32,7 +32,7 @@
         kind = m[:kind] || m["kind"]
         label = m[:label] || m["label"]
         value = m[:value] || m["value"]
-        unit = m[:unit] || m["unit"]
+        unit = helpers.display_unit(m[:unit] || m["unit"])
         code = m[:parameter_code] || m["parameter_code"]
         precision = m[:precision] || m["precision"] || 2
         trends = m[:trends] || m["trends"] || {}
@@ -66,22 +66,22 @@
         <% else %>
           <div class="value-row">
             <div class="value">
-              <%= number_with_precision(value, precision: precision) %>
+              <%= number_with_precision(value, precision: precision, delimiter: ",") %>
             </div>
             <div class="unit"><%= unit %></div>
           </div>
         <% end %>
         <div class="trends">
           <% if change_24h %>
-            <p>24h <%= format(precision.zero? ? "%+.0f" : "%+.2f", change_24h) %> <%= unit %></p>
+            <p>24h <%= helpers.signed_number(change_24h, precision: precision) %> <%= unit %></p>
           <% end %>
           <% if yoy %>
-            <p>YoY <%= format(precision.zero? ? "%+.0f" : "%+.2f", yoy) %> <%= unit %></p>
+            <p>YoY <%= helpers.signed_number(yoy, precision: precision) %> <%= unit %></p>
           <% end %>
           <% if high || low %>
             <p>
-              High <%= high ? number_with_precision(high, precision: precision) : "—" %>
-              · Low <%= low ? number_with_precision(low, precision: precision) : "—" %>
+              High <%= high ? number_with_precision(high, precision: precision, delimiter: ",") : "—" %>
+              · Low <%= low ? number_with_precision(low, precision: precision, delimiter: ",") : "—" %>
             </p>
           <% end %>
         </div>

@@ -18,11 +18,11 @@ module Api
             has_discharge: loc.has_discharge,
             has_temperature: loc.has_temperature,
             water_level: loc.latest_water_level_value&.to_f,
-            water_level_unit: loc.latest_water_level_unit,
+            water_level_unit: UnitLabel.format(loc.latest_water_level_unit),
             water_level_parameter_code: loc.latest_water_level_parameter_code,
             water_level_label: Usgs::ParameterCodes.label_for(loc.latest_water_level_parameter_code, fallback: "Water level"),
             discharge: loc.latest_discharge_value&.to_f,
-            discharge_unit: loc.latest_discharge_unit,
+            discharge_unit: UnitLabel.format(loc.latest_discharge_unit),
             temperature_c: loc.latest_temperature_c&.to_f,
             observed_at: loc.latest_observed_at&.iso8601,
             approval_status: loc.latest_approval_status

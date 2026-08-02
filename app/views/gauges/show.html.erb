@@ -172,7 +172,7 @@
               primary_kind = primary && (primary[:kind] || primary["kind"])
               primary_label = primary && (primary[:label] || primary["label"])
               primary_value = primary && (primary[:value] || primary["value"])
-              primary_unit = primary && (primary[:unit] || primary["unit"])
+              primary_unit = display_unit(primary && (primary[:unit] || primary["unit"]))
               primary_precision = (primary && (primary[:precision] || primary["precision"])) || 2
             %>
             <li>
@@ -208,7 +208,7 @@
                     <% else %>
                       <span>
                         <%= primary_label %>:
-                        <%= number_with_precision(primary_value, precision: primary_precision) %>
+                        <%= number_with_precision(primary_value, precision: primary_precision, delimiter: ",") %>
                         <%= primary_unit %>
                       </span>
                     <% end %>

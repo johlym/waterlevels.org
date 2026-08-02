@@ -101,9 +101,9 @@
               lon = loc[:longitude] || loc["longitude"]
               tokens = type_tokens(loc)
               discharge = loc[:latest_discharge_value] || loc["latest_discharge_value"]
-              discharge_unit = loc[:latest_discharge_unit] || loc["latest_discharge_unit"] || "cfs"
+              discharge_unit = helpers.display_unit(loc[:latest_discharge_unit] || loc["latest_discharge_unit"] || "ft³/s")
               stage = loc[:latest_water_level_value] || loc["latest_water_level_value"]
-              stage_unit = loc[:latest_water_level_unit] || loc["latest_water_level_unit"] || "ft"
+              stage_unit = helpers.display_unit(loc[:latest_water_level_unit] || loc["latest_water_level_unit"] || "ft")
               temp_c = loc[:latest_temperature_c] || loc["latest_temperature_c"]
               offline = stale?(loc)
             %>

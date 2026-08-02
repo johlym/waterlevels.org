@@ -39,7 +39,11 @@ export default class extends Controller {
       if (Number.isNaN(c)) return
       const value = unit === "c" ? c : (c * 9) / 5 + 32
       const prefix = el.dataset.tempPrefix || ""
-      el.textContent = `${prefix}${value.toFixed(1)} °${unit.toUpperCase()}`
+      const formatted = value.toLocaleString("en-US", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
+      })
+      el.textContent = `${prefix}${formatted} °${unit.toUpperCase()}`
     })
   }
 

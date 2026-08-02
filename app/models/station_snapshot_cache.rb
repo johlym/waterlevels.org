@@ -1,5 +1,5 @@
 class StationSnapshotCache
-  PREFIX = "station_snapshot:v5".freeze
+  PREFIX = "station_snapshot:v6".freeze
   TTL = 2.hours
   MILES_PER_KM = 0.621371
 
@@ -115,7 +115,7 @@ class StationSnapshotCache
       parameter_code: series.parameter_code,
       parameter_description: series.parameter_description,
       value: obs.value.to_f,
-      unit: obs.unit_of_measure,
+      unit: UnitLabel.format(obs.unit_of_measure),
       observed_at: obs.observed_at.iso8601,
       approval_status: obs.approval_status,
       precision: series.measurement_kind == "discharge" ? 0 : 2,
@@ -141,7 +141,7 @@ class StationSnapshotCache
         parameter_code: code,
         parameter_description: nil,
         value: location.latest_water_level_value.to_f,
-        unit: location.latest_water_level_unit,
+        unit: UnitLabel.format(location.latest_water_level_unit),
         observed_at: location.latest_observed_at&.iso8601,
         approval_status: location.latest_approval_status,
         precision: 2,
@@ -157,7 +157,7 @@ class StationSnapshotCache
         parameter_code: Usgs::ParameterCodes::DISCHARGE,
         parameter_description: nil,
         value: location.latest_discharge_value.to_f,
-        unit: location.latest_discharge_unit,
+        unit: UnitLabel.format(location.latest_discharge_unit),
         observed_at: location.latest_observed_at&.iso8601,
         approval_status: location.latest_approval_status,
         precision: 0,
@@ -227,7 +227,7 @@ class StationSnapshotCache
         kind: "discharge",
         label: "Flow",
         value: location.latest_discharge_value.to_f,
-        unit: location.latest_discharge_unit.presence || "ft³/s",
+        unit: UnitLabel.format(location.latest_discharge_unit.presence || "ft³/s"),
         precision: 0
       }
     elsif location.latest_water_level_value.present?
@@ -235,7 +235,7 @@ class StationSnapshotCache
         kind: "water_level",
         label: "Level",
         value: location.latest_water_level_value.to_f,
-        unit: location.latest_water_level_unit.presence || "ft",
+        unit: UnitLabel.format(location.latest_water_level_unit.presence || "ft"),
         precision: 2
       }
     elsif location.latest_temperature_c.present?
