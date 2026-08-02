@@ -1,10 +1,23 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["search", "type", "card", "county", "countyCount", "empty", "listings"]
+  static targets = ["search", "type", "card", "county", "countyCount", "empty", "listings", "countyJump"]
 
   connect() {
     this.filter()
+    this.mediaQuery = window.matchMedia("(min-width: 1024px)")
+    this.syncCountyJump = this.syncCountyJump.bind(this)
+    this.syncCountyJump()
+    this.mediaQuery.addEventListener("change", this.syncCountyJump)
+  }
+
+  disconnect() {
+    this.mediaQuery?.removeEventListener("change", this.syncCountyJump)
+  }
+
+  syncCountyJump() {
+    if (!this.hasCountyJumpTarget) return
+    this.countyJumpTarget.open = this.mediaQuery.matches
   }
 
   filter() {

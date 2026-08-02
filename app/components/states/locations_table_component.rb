@@ -12,7 +12,7 @@ module States
     end
 
     def county_dom_id(county_name)
-      "county-#{county_name.to_s.parameterize.presence || "unspecified"}"
+      county_name.to_s.parameterize.presence || "unspecified"
     end
 
     def county_jump_links

@@ -55,14 +55,19 @@
       </div>
 
       <% if county_jump_links.any? %>
-        <div class="filter-block">
-          <span class="filter-label">Quick county jump</span>
+        <details class="filter-block county-jump" data-state-directory-target="countyJump">
+          <summary>
+            <span class="filter-label">Quick county jump</span>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+          </summary>
           <div class="county-jumps">
             <% county_jump_links.each do |name, count, dom_id| %>
               <a href="#<%= dom_id %>"><%= name.sub(/\s+County\z/i, "") %> (<%= count %>)</a>
             <% end %>
           </div>
-        </div>
+        </details>
       <% end %>
     </div>
   </aside>

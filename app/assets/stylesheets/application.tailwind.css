@@ -1053,8 +1053,32 @@
     }
   }
 
+  .county-jump {
+    summary {
+      @apply flex cursor-pointer list-none items-center justify-between gap-3 marker:content-none [&::-webkit-details-marker]:hidden;
+
+      .filter-label {
+        @apply mb-0;
+      }
+
+      .chevron {
+        @apply size-4 shrink-0 text-zinc-500 transition lg:hidden;
+      }
+    }
+
+    &[open] summary .chevron {
+      @apply rotate-180;
+    }
+
+    @media (min-width: 1024px) {
+      summary {
+        @apply pointer-events-none;
+      }
+    }
+  }
+
   .county-jumps {
-    @apply flex flex-wrap gap-2;
+    @apply mt-3 flex flex-wrap gap-2;
 
     a {
       @apply rounded-full bg-zinc-800 px-3 py-1 text-xs text-zinc-300 no-underline transition-colors hover:bg-zinc-700 hover:text-white;
