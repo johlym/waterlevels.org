@@ -7,6 +7,18 @@ class ApplicationHelperTest < ActionView::TestCase
 
   test "formats timestamps as Month Day, Year at HH:MM:SS AM/PM" do
     time = Time.utc(2026, 8, 2, 4, 30, 0)
-    assert_equal "August 2, 2026 at 04:30:00 AM", display_timestamp(time)
+    assert_equal "August 2, 2026 at 04:30:00 AM UTC", display_timestamp(time)
+  end
+
+  test "formats timestamps in the station local time zone" do
+    time = Time.utc(2026, 8, 2, 4, 30, 0)
+    assert_equal "August 1, 2026 at 11:30:00 PM CDT", display_timestamp(time, time_zone: "CST")
+    assert_equal "August 1, 2026 at 09:30:00 PM PDT", display_timestamp(time, time_zone: "America/Los_Angeles")
+  end
+
+  test "maps Arizona MST without daylight saving" do
+    time = Time.utc(2026, 8, 2, 4, 30, 0)
+    assert_equal "August 1, 2026 at 09:30:00 PM MST",
+      display_timestamp(time, time_zone: "MST", state_code: "az")
   end
 end

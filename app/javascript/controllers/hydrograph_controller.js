@@ -11,7 +11,12 @@ const PAGE_SIZE = 8
 
 export default class extends Controller {
   static targets = ["canvas", "history", "rangeButton", "legend", "stats", "daySelect"]
-  static values = { url: String, measurements: Array }
+  static values = {
+    url: String,
+    measurements: Array,
+    timeZone: { type: String, default: "" },
+    timeZoneLabel: { type: String, default: "" }
+  }
 
   connect() {
     const first = (this.measurementsValue || [])[0] || {}
@@ -66,7 +71,7 @@ export default class extends Controller {
     if (!day) return
 
     const columns = this.tableColumns()
-    const header = ["Time", ...columns.map((c) => c.header), "Status"]
+    const header = [this.timeColumnLabel(), ...columns.map((c) => c.header), "Status"]
     const rows = day.rows.map((row) => {
       const cells = columns.map((col) => {
         const value = row.values[col.key]
@@ -241,8 +246,7 @@ export default class extends Controller {
 
     const now = new Date()
     const todayKey = this.dayKeyFromDate(now)
-    const yesterday = new Date(now)
-    yesterday.setDate(yesterday.getDate() - 1)
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
     const yesterdayKey = this.dayKeyFromDate(yesterday)
 
     this.daySelectTarget.innerHTML = days.map((day) => {
@@ -252,7 +256,28 @@ export default class extends Controller {
   }
 
   dayKeyFromDate(date) {
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+    const { year, month, day } = this.dayParts(date)
+    return `${year}-${month}-${day}`
+  }
+
+  dayParts(date) {
+    const parts = new Intl.DateTimeFormat("en-US", this.localeOptions({
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    })).formatToParts(date)
+    const value = (type) => parts.find((part) => part.type === type)?.value
+    return { year: value("year"), month: value("month"), day: value("day") }
+  }
+
+  localeOptions(options = {}) {
+    if (this.timeZoneValue) return { ...options, timeZone: this.timeZoneValue }
+    return options
+  }
+
+  timeColumnLabel() {
+    const label = (this.timeZoneLabelValue || "").trim()
+    return label ? `Time (${label})` : "Time"
   }
 
   renderHistory() {
@@ -290,7 +315,7 @@ export default class extends Controller {
         <table>
           <thead>
             <tr>
-              <th>Time</th>
+              <th>${this.escapeHtml(this.timeColumnLabel())}</th>
               ${head}
               <th class="center">Status</th>
             </tr>
@@ -335,12 +360,16 @@ export default class extends Controller {
       ;(series?.points || []).forEach((point) => {
         const date = new Date(point.t)
         if (Number.isNaN(date.getTime())) return
-        const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+        const dayKey = this.dayKeyFromDate(date)
         if (!buckets.has(dayKey)) {
           buckets.set(dayKey, {
             key: dayKey,
-            sort: new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime(),
-            shortLabel: date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+            sort: Date.parse(`${dayKey}T00:00:00Z`),
+            shortLabel: date.toLocaleDateString("en-US", this.localeOptions({
+              month: "short",
+              day: "numeric",
+              year: "numeric"
+            })),
             rowsByMinute: new Map()
           })
         }
@@ -492,7 +521,7 @@ export default class extends Controller {
   formatTimestamp(value) {
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return value || "—"
-    const day = date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    const day = date.toLocaleDateString("en-US", this.localeOptions({ month: "short", day: "numeric" }))
     return `${day} at ${this.formatClock(value)}`
   }
 
@@ -500,22 +529,31 @@ export default class extends Controller {
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return value || "—"
     if (this.range === "24h") {
-      return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })
+      return date.toLocaleTimeString("en-US", this.localeOptions({
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      }))
     }
     if (this.range === "1y") {
-      return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+      return date.toLocaleDateString("en-US", this.localeOptions({ month: "short", day: "numeric" }))
     }
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    return date.toLocaleDateString("en-US", this.localeOptions({
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    }))
   }
 
   formatClock(value) {
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return value || "—"
-    return date.toLocaleTimeString("en-US", {
+    return date.toLocaleTimeString("en-US", this.localeOptions({
       hour: "2-digit",
       minute: "2-digit",
       hour12: false
-    })
+    }))
   }
 
   formatCellValue(value, kind) {

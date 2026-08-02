@@ -9,6 +9,7 @@ FactoryBot.define do
     state_code { "wa" }
     state_name { "Washington" }
     county_name { "King" }
+    time_zone { "PST" }
     has_water_level { true }
     has_discharge { true }
     has_temperature { false }

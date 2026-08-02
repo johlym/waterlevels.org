@@ -231,21 +231,30 @@ export default class extends Controller {
       rows.push(`<div class="popup-meta">Temp: <strong>${value.toFixed(1)} °${unit.toUpperCase()}</strong></div>`)
     }
     if (station.observed_at) {
-      rows.push(`<div class="popup-meta">Updated: ${this.formatTimestamp(station.observed_at)}</div>`)
+      rows.push(`<div class="popup-meta">Updated: ${this.formatTimestamp(station.observed_at, station)}</div>`)
     }
     rows.push(`<div class="popup-link"><a href="${station.path}">View station</a></div>`)
     return `<div class="popup-title">${this.escapeHtml(station.name)}</div>${rows.join("")}`
   }
 
-  formatTimestamp(value) {
+  formatTimestamp(value, station = {}) {
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return value || "—"
-    const day = date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+    const options = {}
+    if (station.time_zone_identifier) options.timeZone = station.time_zone_identifier
+    const day = date.toLocaleDateString("en-US", {
+      ...options,
+      month: "long",
+      day: "numeric",
+      year: "numeric"
+    })
     const time = date.toLocaleTimeString("en-US", {
+      ...options,
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
-      hour12: true
+      hour12: true,
+      timeZoneName: station.time_zone_identifier ? "short" : undefined
     })
     return `${day} at ${time}`
   }

@@ -1,5 +1,5 @@
 class StationSnapshotCache
-  PREFIX = "station_snapshot:v6".freeze
+  PREFIX = "station_snapshot:v7".freeze
   TTL = 2.hours
   MILES_PER_KM = 0.621371
 
@@ -85,6 +85,8 @@ class StationSnapshotCache
       county_name: location.county_name,
       latitude: location.latitude.to_f,
       longitude: location.longitude.to_f,
+      time_zone: location.time_zone,
+      time_zone_identifier: location.time_zone_identifier,
       stale: location.stale?,
       latest_observed_at: location.latest_observed_at&.iso8601,
       measurement_kinds: measurements.map { |m| m[:kind] }.uniq,
