@@ -27,6 +27,30 @@ namespace :usgs do
     puts "USGS bootstrap finished"
   end
 
+  desc "Enqueue staggered per-state bootstrap jobs (optional STATE=wa, DELAY_SECONDS=120)"
+  task enqueue_bootstrap: :environment do
+    delay = ENV.fetch("DELAY_SECONDS", "120").to_i
+    delay = 0 if delay.negative?
+
+    states = if ENV["STATE"].present?
+      [ Usgs::StateCodes.normalize_postal(ENV["STATE"]) ]
+    else
+      Usgs::StateCodes::STATES.keys.sort
+    end
+
+    states.each_with_index do |state, index|
+      wait = index * delay
+      if wait.positive?
+        BootstrapStateJob.set(wait: wait.seconds).perform_later(state)
+      else
+        BootstrapStateJob.perform_later(state)
+      end
+    end
+
+    puts "Enqueued #{states.size} BootstrapStateJob(s) delay_seconds=#{delay}"
+    puts "States: #{states.join(", ")}"
+  end
+
   desc "Backfill history for locations (STATE=wa RANGE=7d, optional LIMIT=n)"
   task backfill: :environment do
     state = ENV.fetch("STATE") { raise "STATE is required, e.g. STATE=wa bin/rails usgs:backfill" }

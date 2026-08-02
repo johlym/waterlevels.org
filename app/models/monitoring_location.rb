@@ -12,9 +12,22 @@ class MonitoringLocation < ApplicationRecord
   scope :in_bbox, lambda { |west, south, east, north|
     where(latitude: south..north, longitude: west..east)
   }
+  scope :needing_history_backfill, lambda { |since: 7.days.ago|
+    selected_without_recent = TimeSeries.selected.where.not(
+      id: ContinuousObservation.where(observed_at: since..).select(:time_series_id)
+    )
+    where(id: selected_without_recent.select(:monitoring_location_id)).distinct
+  }
 
   def stale?
     latest_observed_at.blank? || latest_observed_at < STALE_AFTER.ago
+  end
+
+  def needs_history_backfill?(since: 7.days.ago)
+    series = time_series.selected
+    return false if series.none?
+
+    series.any? { |s| s.continuous_observations.where(observed_at: since..).none? }
   end
 
   def to_param

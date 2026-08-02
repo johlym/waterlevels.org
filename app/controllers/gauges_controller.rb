@@ -5,7 +5,7 @@ class GaugesController < ApplicationController
     @location = find_location!
     ensure_canonical_path!(@location)
     @snapshot = StationSnapshotCache.fetch(@location)
-    HistoryBackfillJob.perform_later(@location.id, "7d") if needs_series_backfill?(@location)
+    HistoryBackfillJob.enqueue(@location.id, "7d") if @location.needs_history_backfill?
     cache_public!(tags: [ "gauge:#{@location.site_number}" ])
   end
 
@@ -30,11 +30,5 @@ class GaugesController < ApplicationController
 
     redirect_to expected, status: :moved_permanently
   end
-
-  def needs_series_backfill?(location)
-    series = location.time_series.selected
-    return true if series.none?
-
-    series.any? { |s| s.continuous_observations.where("observed_at >= ?", 7.days.ago).none? }
-  end
 end
+

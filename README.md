@@ -23,7 +23,18 @@ bin/dev
 
 Bootstrap USGS data (rate-limit aware; prints progress). Catalog sync keeps **active continuous water-body sites only** (streams/lakes/estuaries with current `latest-continuous` data — not the full USGS well archive).
 
-Prefer a single state while testing:
+### Production (preferred)
+
+With the Sidekiq worker running, enqueue staggered per-state catalog+latest jobs:
+
+```bash
+bin/rails usgs:enqueue_bootstrap
+# optional: STATE=wa DELAY_SECONDS=120
+```
+
+Hourly `LatestObservationSyncJob` keeps readings fresh. Hourly `HistoryBackfillBatchJob` fills 7-day continuous history in batches (gauge page views also enqueue a station when charts are empty). Prefer this over a national one-off `usgs:bootstrap` on a small dyno.
+
+### Local / single-state
 
 ```bash
 STATE=wa bin/rails usgs:purge ALL=1   # wipe a bad/partial import
@@ -36,18 +47,7 @@ Optional history backfill after bootstrap:
 STATE=wa RANGE=7d LIMIT=25 bin/rails usgs:backfill
 ```
 
-
-National bootstrap (slow):
-
-```bash
-bin/rails usgs:bootstrap
-```
-
-Or enqueue:
-
-```bash
-bin/rails runner "StationCatalogSyncJob.perform_later"
-```
+Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_BACKFILL_BATCH` (default `40`).
 
 ## Tests
 
@@ -60,6 +60,8 @@ bin/rails test
 - Dynos: `web`, `worker`
 - Add-ons: Postgres, Redis
 - Set `USGS_API_KEY`, `REDIS_URL`, `DATABASE_URL`
+- After deploy: `heroku run bin/rails usgs:enqueue_bootstrap -a <app>`
+- Optional: `MALLOC_ARENA_MAX=2` if worker RSS climbs
 - Put Cloudflare in front; honor `Cache-Control` / `Cache-Tag` from the app
 
 ## Contact form

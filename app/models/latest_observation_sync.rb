@@ -15,8 +15,6 @@ class LatestObservationSync
       sync_parameter(parameter_code)
     end
     denormalize_locations
-    progress&.step("warming stale station snapshots")
-    StationSnapshotCache.warm_stale_batch
     progress&.step("warming state listing caches")
     StateListingCache.warm_all
     progress&.finish("latest_observations=#{latest_scope.count}")

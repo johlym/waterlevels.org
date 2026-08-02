@@ -18,8 +18,17 @@ class StationSnapshotCache
     payload.with_indifferent_access
   end
 
-  def self.warm_stale_batch
-    MonitoringLocation.find_each { |location| warm(location) }
+  def self.warm_stale_batch(limit: nil)
+    warmed = 0
+    MonitoringLocation.includes(:time_series).find_each do |location|
+      cached = read(location)
+      next unless cached.nil? || stale_snapshot?(cached, location)
+
+      warm(location)
+      warmed += 1
+      break if limit&.positive? && warmed >= limit
+    end
+    warmed
   end
 
   def self.fetch(location)

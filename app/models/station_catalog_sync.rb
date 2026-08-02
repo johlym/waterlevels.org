@@ -1,3 +1,5 @@
+require "set"
+
 class StationCatalogSync
   include ActiveModel::Model
 
@@ -13,17 +15,23 @@ class StationCatalogSync
 
   def perform
     progress&.step(scope_label)
-    active_rows = discover_active_series
-    progress&.step("active continuous series discovered=#{active_rows.size}")
+    kept_location_ids = Set.new
 
-    kept_location_ids = upsert_locations_for(active_rows)
+    Usgs::ParameterCodes::ALL.each do |parameter_code|
+      rows = discover_active_series_for(parameter_code)
+      progress&.step("parameter=#{parameter_code} active series=#{rows.size}")
+
+      kept = upsert_locations_for(rows)
+      kept_location_ids.merge(kept)
+
+      rows.select! { |row| kept.include?(row[:monitoring_location_id]) }
+      upsert_time_series_for(rows)
+      upsert_latest_observations(rows)
+    end
+
     progress&.step("water-body locations kept=#{kept_location_ids.size}")
-
-    active_rows.select! { |row| kept_location_ids.include?(row[:monitoring_location_id]) }
-    upsert_time_series_for(active_rows)
-    upsert_latest_observations(active_rows)
     select_display_series
-    prune_inactive_locations!(kept_location_ids)
+    prune_inactive_locations!(kept_location_ids.to_a)
 
     progress&.step("refreshing nearby stations")
     NearbyStations.refresh_all
@@ -61,37 +69,32 @@ class StationCatalogSync
     query
   end
 
-  def discover_active_series
+  def discover_active_series_for(parameter_code)
+    progress&.step("discovering latest-continuous parameter=#{parameter_code}")
     rows = []
-    Usgs::ParameterCodes::ALL.each do |parameter_code|
-      progress&.step("discovering latest-continuous parameter=#{parameter_code}")
-      count = 0
-      client.each_collection_item("latest-continuous", latest_query(parameter_code)) do |item|
-        location_id = item["monitoring_location_id"]
-        ts_id = item["time_series_id"] || item["id"]
-        next if location_id.blank? || ts_id.blank?
+    client.each_collection_item("latest-continuous", latest_query(parameter_code)) do |item|
+      location_id = item["monitoring_location_id"]
+      ts_id = item["time_series_id"] || item["id"]
+      next if location_id.blank? || ts_id.blank?
 
-        kind = Usgs::ParameterCodes.measurement_kind_for(parameter_code)
-        next unless kind
+      kind = Usgs::ParameterCodes.measurement_kind_for(parameter_code)
+      next unless kind
 
-        rows << {
-          monitoring_location_id: location_id.to_s,
-          time_series_id: ts_id.to_s,
-          parameter_code: parameter_code,
-          measurement_kind: kind,
-          value: item["value"] || item["observation_value"],
-          observed_at: item["time"] || item["observed_at"] || item["datetime"],
-          unit_of_measure: item["unit_of_measure"],
-          approval_status: item["approval_status"] || item["approval"],
-          qualifier: item["qualifier"],
-          last_modified: item["last_modified"],
-          longitude: item["longitude"],
-          latitude: item["latitude"]
-        }
-        count += 1
-        progress&.increment
-      end
-      progress&.step("parameter=#{parameter_code} active series=#{count}")
+      rows << {
+        monitoring_location_id: location_id.to_s,
+        time_series_id: ts_id.to_s,
+        parameter_code: parameter_code,
+        measurement_kind: kind,
+        value: item["value"] || item["observation_value"],
+        observed_at: item["time"] || item["observed_at"] || item["datetime"],
+        unit_of_measure: item["unit_of_measure"],
+        approval_status: item["approval_status"] || item["approval"],
+        qualifier: item["qualifier"],
+        last_modified: item["last_modified"],
+        longitude: item["longitude"],
+        latitude: item["latitude"]
+      }
+      progress&.increment
     end
     rows.uniq { |row| row[:time_series_id] }
   end
@@ -211,6 +214,8 @@ class StationCatalogSync
   end
 
   def upsert_latest_observations(active_rows)
+    return if active_rows.empty?
+
     progress&.step("upserting latest observations from discovery")
     series_ids = TimeSeries.where(usgs_time_series_id: active_rows.map { |r| r[:time_series_id] })
       .pluck(:usgs_time_series_id, :id, :unit_of_measure)
