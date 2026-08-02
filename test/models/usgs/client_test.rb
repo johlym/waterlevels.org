@@ -2,6 +2,15 @@ require "test_helper"
 
 module Usgs
   class ClientTest < ActiveSupport::TestCase
+    setup do
+      @previous_cache = Rails.cache
+      Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    end
+
+    teardown do
+      Rails.cache = @previous_cache
+    end
+
     test "requests collection items under the ogcapi base path" do
       stub_request(:get, %r{\Ahttps://api\.waterdata\.usgs\.gov/ogcapi/v0/collections/monitoring-locations/items})
         .with(query: hash_including("f" => "json", "limit" => "1", "state_code" => "53"))
@@ -38,6 +47,29 @@ module Usgs
       client.each_collection_item("monitoring-locations", limit: 1) { }
 
       assert_equal [ 0.05 ], slept
+    end
+
+    test "429 opens the rate limit circuit and fails without retrying" do
+      stub = stub_request(:get, %r{\Ahttps://api\.waterdata\.usgs\.gov/ogcapi/v0/collections/monitoring-locations/items})
+        .to_return(status: 429, body: "rate limited", headers: { "Content-Type" => "text/plain" })
+
+      assert_raises(Client::RateLimitError) do
+        Client.new(api_key: nil).each_collection_item("monitoring-locations", limit: 1) { }
+      end
+
+      assert RateLimitCircuit.open?
+      assert_requested(stub, times: 1)
+    end
+
+    test "does not call USGS while the rate limit circuit is open" do
+      RateLimitCircuit.open!(ttl: 1.minute)
+      stub = stub_request(:get, %r{api\.waterdata\.usgs\.gov})
+
+      assert_raises(Client::RateLimitError) do
+        Client.new(api_key: nil).each_collection_item("monitoring-locations", limit: 1) { }
+      end
+
+      assert_not_requested(stub)
     end
   end
 end

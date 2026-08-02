@@ -39,6 +39,7 @@ module Usgs
     end
 
     def get(path, params = {})
+      raise_if_circuit_open!
       response = @connection.get(path) do |req|
         req.params.update(stringify_params(params))
         req.headers["Accept"] = "application/geo+json, application/json"
@@ -48,6 +49,7 @@ module Usgs
     end
 
     def get_absolute(url)
+      raise_if_circuit_open!
       response = @connection.get(url) do |req|
         req.headers["Accept"] = "application/geo+json, application/json"
         req.headers["X-Api-Key"] = @api_key if @api_key.present?
@@ -56,6 +58,12 @@ module Usgs
     end
 
     private
+
+    def raise_if_circuit_open!
+      return unless RateLimitCircuit.open?
+
+      raise RateLimitError, "USGS rate limit circuit open"
+    end
 
     def default_request_pause_ms
       return 0 if Rails.env.test?
@@ -81,7 +89,8 @@ module Usgs
           interval_randomness: 0.5,
           backoff_factor: 2,
           max_interval: 60,
-          retry_statuses: [ 429, 500, 502, 503, 504 ]
+          # Do not retry 429 — that burns the remaining hourly budget and feeds job backlogs.
+          retry_statuses: [ 500, 502, 503, 504 ]
         f.options.timeout = 60
         f.options.open_timeout = 10
         f.response :json, content_type: /\bjson$/
@@ -95,6 +104,7 @@ module Usgs
 
     def handle_response(response)
       if response.status == 429
+        RateLimitCircuit.open!
         raise RateLimitError, "USGS rate limited"
       end
       unless response.success?
