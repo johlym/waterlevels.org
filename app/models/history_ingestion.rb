@@ -24,12 +24,13 @@ class HistoryIngestion
 
   def perform
     progress&.step("site=#{monitoring_location.site_number} range=#{range}")
-    monitoring_location.time_series.selected.find_each do |series|
-      progress&.step("series=#{series.usgs_time_series_id} kind=#{series.measurement_kind} parameter=#{series.parameter_code}")
-      ingest_continuous(series) if continuous_range? && needs_continuous?(series)
-      ingest_daily(series) if daily_range? && needs_daily?(series)
-      ingest_peaks(series) if needs_peaks?(series)
-    end
+    series_list = monitoring_location.time_series.selected.to_a
+    progress&.step("selected_series=#{series_list.size}")
+
+    ingest_continuous_for(series_list.select { |s| needs_continuous?(s) }) if continuous_range?
+    ingest_daily_for(series_list.select { |s| needs_daily?(s) }) if daily_range?
+    ingest_peaks_for(series_list.select { |s| needs_peaks?(s) })
+
     StationSnapshotCache.warm(monitoring_location)
     progress&.finish("site=#{monitoring_location.site_number}")
     true
@@ -81,19 +82,27 @@ class HistoryIngestion
     end
   end
 
+  def parameter_codes_param(series_list)
+    series_list.map(&:parameter_code).uniq.join(",")
+  end
+
   # USGS continuous rejects bare ISO-8601 durations (P7D/PT24H) despite docs;
   # use an explicit RFC3339 interval instead.
-  # Start from the newest local tip when present so we do not re-download history.
-  def continuous_datetime_param(series)
-    ends = Time.current.utc
+  # For a location batch, use the earliest gap start among series that need data.
+  def continuous_start_for(series)
     window_start = continuous_window_start
     newest = series.continuous_observations.maximum(:observed_at)&.utc
-    starts = if newest && newest > window_start
+    if newest && newest > window_start
       [ newest - CONTINUOUS_OVERLAP, window_start ].max
     else
       window_start
     end
-    return if starts >= ends
+  end
+
+  def continuous_datetime_param(series_list)
+    ends = Time.current.utc
+    starts = series_list.map { |series| continuous_start_for(series) }.min
+    return if starts.blank? || starts >= ends
 
     "#{starts.iso8601}/#{ends.iso8601}"
   end
@@ -108,13 +117,11 @@ class HistoryIngestion
     if oldest.nil?
       ranges << [ window_start, today ]
     else
-      # Fill older gap down to the year/window start without re-fetching days we have.
       if oldest > window_start
         gap_end = oldest - 1
         ranges << [ window_start, gap_end ] if window_start <= gap_end
       end
 
-      # Extend the tip when daily values are stale.
       if newest.nil? || newest < DAILY_FRESHNESS.ago.to_date
         tip_start = newest || window_start
         ranges << [ tip_start, today ] if tip_start <= today
@@ -124,20 +131,59 @@ class HistoryIngestion
     ranges
   end
 
-  def ingest_continuous(series)
-    datetime = continuous_datetime_param(series)
+  # Cover every series gap with as few location-level requests as possible.
+  def coalesced_daily_ranges(series_list)
+    ranges = series_list.flat_map { |series| daily_datetime_ranges(series) }
+    return [] if ranges.empty?
+
+    merged = []
+    ranges.sort_by(&:first).each do |start_date, end_date|
+      if merged.empty? || start_date > merged.last[1] + 1
+        merged << [ start_date, end_date ]
+      else
+        merged.last[1] = [ merged.last[1], end_date ].max
+      end
+    end
+    merged
+  end
+
+  def resolve_series(item, series_list)
+    ts_id = item["time_series_id"].to_s.presence
+    if ts_id
+      match = series_list.find { |series| series.usgs_time_series_id == ts_id }
+      return match if match
+    end
+
+    code = item["parameter_code"].to_s.presence
+    return unless code
+
+    series_list.find { |series| series.parameter_code == code }
+  end
+
+  def ingest_continuous_for(series_list)
+    if series_list.empty?
+      progress&.step("continuous skipped (already covered)")
+      return
+    end
+
+    datetime = continuous_datetime_param(series_list)
     unless datetime
       progress&.step("continuous skipped (already covered)")
       return
     end
 
+    codes = parameter_codes_param(series_list)
+    progress&.step("continuous location batch parameters=#{codes} datetime=#{datetime}")
     count = 0
     client.each_collection_item(
       "continuous",
       monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
-      parameter_code: series.parameter_code,
+      parameter_code: codes,
       datetime: datetime
     ) do |item|
+      series = resolve_series(item, series_list)
+      next unless series
+
       observed_at = Time.zone.parse(item["time"] || item["datetime"].to_s) rescue nil
       value = item["value"]
       next if observed_at.blank? || value.blank?
@@ -157,24 +203,34 @@ class HistoryIngestion
       count += 1
       progress&.increment
     end
-    progress&.step("continuous upserted=#{count} datetime=#{datetime}")
+    progress&.step("continuous upserted=#{count}")
   end
 
-  def ingest_daily(series)
-    ranges = daily_datetime_ranges(series)
+  def ingest_daily_for(series_list)
+    if series_list.empty?
+      progress&.step("daily skipped (already covered)")
+      return
+    end
+
+    ranges = coalesced_daily_ranges(series_list)
     if ranges.empty?
       progress&.step("daily skipped (already covered)")
       return
     end
 
+    codes = parameter_codes_param(series_list)
+    progress&.step("daily location batch parameters=#{codes} ranges=#{ranges.size}")
     count = 0
     ranges.each do |start_date, end_date|
       client.each_collection_item(
         "daily",
         monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
-        parameter_code: series.parameter_code,
+        parameter_code: codes,
         datetime: "#{start_date.iso8601}/#{end_date.iso8601}"
       ) do |item|
+        series = resolve_series(item, series_list)
+        next unless series
+
         day = Date.parse(item["time"] || item["date"] || item["datetime"].to_s) rescue nil
         value = item["value"]
         next if day.blank? || value.blank?
@@ -195,16 +251,26 @@ class HistoryIngestion
         progress&.increment
       end
     end
-    progress&.step("daily upserted=#{count} ranges=#{ranges.size}")
+    progress&.step("daily upserted=#{count}")
   end
 
-  def ingest_peaks(series)
+  def ingest_peaks_for(series_list)
+    if series_list.empty?
+      progress&.step("peaks skipped (already covered)")
+      return
+    end
+
+    codes = parameter_codes_param(series_list)
+    progress&.step("peaks location batch parameters=#{codes}")
     count = 0
     client.each_collection_item(
       "peaks",
       monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
-      parameter_code: series.parameter_code
+      parameter_code: codes
     ) do |item|
+      series = resolve_series(item, series_list)
+      next unless series
+
       value = item["value"]
       observed_at = Time.zone.parse(item["time"] || item["datetime"].to_s) rescue nil
       next if value.blank?

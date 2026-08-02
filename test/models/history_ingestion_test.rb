@@ -177,4 +177,58 @@ class HistoryIngestionTest < ActiveSupport::TestCase
       refute_match(%r{datetime=2025-08-03/2026-08-03}, captured)
     end
   end
+
+  test "coalesces multiple parameter codes into one continuous request per location" do
+    discharge = create(
+      :time_series,
+      monitoring_location: @location,
+      parameter_code: "00060",
+      measurement_kind: "discharge",
+      usgs_time_series_id: "ts-discharge"
+    )
+
+    continuous_requests = []
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/continuous/items})
+      .to_return do |request|
+        continuous_requests << CGI.unescape(request.uri.query.to_s)
+        {
+          status: 200,
+          headers: { "Content-Type" => "application/geo+json" },
+          body: {
+            features: [
+              {
+                id: "1",
+                properties: {
+                  time_series_id: @series.usgs_time_series_id,
+                  parameter_code: "62614",
+                  time: 1.hour.ago.utc.iso8601,
+                  value: 10.0
+                }
+              },
+              {
+                id: "2",
+                properties: {
+                  time_series_id: discharge.usgs_time_series_id,
+                  parameter_code: "00060",
+                  time: 1.hour.ago.utc.iso8601,
+                  value: 100.0
+                }
+              }
+            ],
+            links: []
+          }.to_json
+        }
+      end
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/daily/items})
+      .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/peaks/items})
+      .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+
+    HistoryIngestion.new(monitoring_location: @location, range: "1y").perform
+
+    assert_equal 1, continuous_requests.size
+    assert_match(/parameter_code=62614,00060|parameter_code=00060,62614/, continuous_requests.first)
+    assert_equal 1, @series.continuous_observations.count
+    assert_equal 1, discharge.continuous_observations.count
+  end
 end
