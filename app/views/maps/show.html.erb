@@ -1,7 +1,12 @@
 <% content_for :title, "WaterLevels.org — USGS Water Gauges" %>
 <% content_for :meta_description, "Interactive map of USGS water levels, streamflow, and water temperature across the United States." %>
 
-<div class="map-shell" data-controller="map" data-map-stations-url-value="<%= api_map_stations_path %>">
+<div
+  class="map-shell"
+  data-controller="map"
+  data-map-stations-url-value="<%= api_map_stations_path %>"
+  data-map-search-url-value="<%= search_api_map_stations_path %>"
+>
   <%= render Navigation::BarComponent.new %>
 
   <main class="map-main">
