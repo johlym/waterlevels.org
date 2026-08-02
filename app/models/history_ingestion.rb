@@ -1,23 +1,27 @@
 class HistoryIngestion
   include ActiveModel::Model
 
-  attr_accessor :client, :monitoring_location, :range
+  attr_accessor :client, :monitoring_location, :range, :progress
 
   CONTINUOUS_RETENTION = 90.days
 
-  def initialize(monitoring_location:, range: "7d", client: Usgs::Client.new)
+  def initialize(monitoring_location:, range: "7d", client: Usgs::Client.new, progress: nil)
     @monitoring_location = monitoring_location
     @range = range
     @client = client
+    @progress = progress
   end
 
   def perform
+    progress&.step("site=#{monitoring_location.site_number} range=#{range}")
     monitoring_location.time_series.selected.find_each do |series|
+      progress&.step("series=#{series.usgs_time_series_id} kind=#{series.measurement_kind} parameter=#{series.parameter_code}")
       ingest_continuous(series) if continuous_range?
       ingest_daily(series) if daily_range?
       ingest_peaks(series)
     end
     StationSnapshotCache.warm(monitoring_location)
+    progress&.finish("site=#{monitoring_location.site_number}")
     true
   end
 
@@ -43,6 +47,7 @@ class HistoryIngestion
   end
 
   def ingest_continuous(series)
+    count = 0
     client.each_collection_item(
       "continuous",
       monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
@@ -65,11 +70,15 @@ class HistoryIngestion
         },
         unique_by: %i[time_series_id observed_at]
       )
+      count += 1
+      progress&.increment
     end
+    progress&.step("continuous upserted=#{count}")
   end
 
   def ingest_daily(series)
     start_date = range == "1y" ? 1.year.ago.to_date : 30.days.ago.to_date
+    count = 0
     client.each_collection_item(
       "daily",
       monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
@@ -92,12 +101,16 @@ class HistoryIngestion
         },
         unique_by: %i[time_series_id observed_on]
       )
+      count += 1
+      progress&.increment
     end
+    progress&.step("daily upserted=#{count}")
   end
 
   def ingest_peaks(series)
     return unless series.measurement_kind.in?(%w[water_level discharge])
 
+    count = 0
     client.each_collection_item(
       "peaks",
       monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
@@ -123,7 +136,10 @@ class HistoryIngestion
         },
         unique_by: %i[time_series_id water_year peak_kind]
       )
+      count += 1
+      progress&.increment
     end
+    progress&.step("peaks upserted=#{count}")
   end
 
   def water_year_for(time)

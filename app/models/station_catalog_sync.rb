@@ -1,23 +1,32 @@
 class StationCatalogSync
   include ActiveModel::Model
 
-  attr_accessor :client, :state
+  attr_accessor :client, :state, :progress
 
-  def initialize(client: Usgs::Client.new, state: nil)
+  def initialize(client: Usgs::Client.new, state: nil, progress: nil)
     @client = client
     @state = state.presence
+    @progress = progress
   end
 
   def perform
+    progress&.step(scope_label)
     upsert_locations
     upsert_time_series
     select_display_series
+    progress&.step("refreshing nearby stations")
     NearbyStations.refresh_all
+    progress&.step("warming state listing caches")
     StateListingCache.warm_all
+    progress&.finish("locations=#{location_scope.count} time_series=#{time_series_scope.count}")
     true
   end
 
   private
+
+  def scope_label
+    postal_code ? "state=#{postal_code}" : "national"
+  end
 
   def postal_code
     @postal_code ||= state && Usgs::StateCodes.normalize_postal(state)
@@ -35,7 +44,19 @@ class StationCatalogSync
     query
   end
 
+  def location_scope
+    scope = MonitoringLocation.all
+    postal_code ? scope.in_state(postal_code) : scope
+  end
+
+  def time_series_scope
+    scope = TimeSeries.joins(:monitoring_location)
+    postal_code ? scope.merge(MonitoringLocation.in_state(postal_code)) : scope
+  end
+
   def upsert_locations
+    progress&.step("upserting monitoring locations")
+    count = 0
     client.each_collection_item("monitoring-locations", location_query) do |item|
       site_number = item["monitoring_location_number"].presence || item["id"].to_s.split("-").last
       next if site_number.blank?
@@ -77,11 +98,16 @@ class StationCatalogSync
         },
         unique_by: :usgs_monitoring_location_id
       )
+      count += 1
+      progress&.increment
     end
+    progress&.step("locations upserted=#{count}")
   end
 
   def upsert_time_series
     Usgs::ParameterCodes::ALL.each do |parameter_code|
+      progress&.step("upserting time-series metadata parameter=#{parameter_code}")
+      count = 0
       client.each_collection_item("time-series-metadata", time_series_query(parameter_code)) do |item|
         location_id = item["monitoring_location_id"]
         location = MonitoringLocation.find_by(usgs_monitoring_location_id: location_id)
@@ -116,15 +142,19 @@ class StationCatalogSync
           },
           unique_by: :usgs_time_series_id
         )
+        count += 1
+        progress&.increment
       end
+      progress&.step("parameter=#{parameter_code} time_series upserted=#{count}")
     end
   end
 
   def select_display_series
-    scope = MonitoringLocation.all
-    scope = scope.in_state(postal_code) if postal_code
+    progress&.step("selecting display series")
+    kept = 0
+    dropped = 0
 
-    scope.find_each do |location|
+    location_scope.find_each do |location|
       series = location.time_series.to_a
       location.time_series.update_all(selected_for_display: false)
 
@@ -144,16 +174,23 @@ class StationCatalogSync
         ts.update!(selected_for_display: true)
       end
 
+      has_any = water_level.present? || discharge.present? || temperature.present?
       location.update!(
         has_water_level: water_level.present?,
         has_discharge: discharge.present?,
         has_temperature: temperature.present?
       )
+      if has_any
+        kept += 1
+      else
+        dropped += 1
+      end
+      progress&.increment
     end
 
-    # Drop locations with no selected measurements (scoped when STATE is set)
     empty = MonitoringLocation.where(has_water_level: false, has_discharge: false, has_temperature: false)
     empty = empty.in_state(postal_code) if postal_code
-    empty.delete_all
+    deleted = empty.delete_all
+    progress&.step("display series selected kept=#{kept} empty=#{dropped} deleted=#{deleted}")
   end
 end

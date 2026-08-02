@@ -21,10 +21,16 @@ cp .env.example .env   # add USGS_API_KEY
 bin/dev
 ```
 
-Bootstrap USGS data (rate-limit aware). Prefer a single state while testing:
+Bootstrap USGS data (rate-limit aware; prints progress). Prefer a single state while testing:
 
 ```bash
 STATE=wa bin/rails usgs:bootstrap
+```
+
+Optional history backfill after bootstrap:
+
+```bash
+STATE=wa RANGE=7d LIMIT=25 bin/rails usgs:backfill
 ```
 
 National bootstrap (slow):

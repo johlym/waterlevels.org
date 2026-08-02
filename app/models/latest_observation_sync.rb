@@ -1,24 +1,33 @@
 class LatestObservationSync
   include ActiveModel::Model
 
-  attr_accessor :client, :state
+  attr_accessor :client, :state, :progress
 
-  def initialize(client: Usgs::Client.new, state: nil)
+  def initialize(client: Usgs::Client.new, state: nil, progress: nil)
     @client = client
     @state = state.presence
+    @progress = progress
   end
 
   def perform
+    progress&.step(scope_label)
     Usgs::ParameterCodes::ALL.each do |parameter_code|
       sync_parameter(parameter_code)
     end
     denormalize_locations
+    progress&.step("warming stale station snapshots")
     StationSnapshotCache.warm_stale_batch
+    progress&.step("warming state listing caches")
     StateListingCache.warm_all
+    progress&.finish("latest_observations=#{latest_scope.count}")
     true
   end
 
   private
+
+  def scope_label
+    postal_code ? "state=#{postal_code}" : "national"
+  end
 
   def postal_code
     @postal_code ||= state && Usgs::StateCodes.normalize_postal(state)
@@ -30,16 +39,34 @@ class LatestObservationSync
     query
   end
 
+  def latest_scope
+    scope = LatestObservation.joins(time_series: :monitoring_location)
+    postal_code ? scope.merge(MonitoringLocation.in_state(postal_code)) : scope
+  end
+
   def sync_parameter(parameter_code)
+    progress&.step("syncing latest-continuous parameter=#{parameter_code}")
+    count = 0
+    skipped = 0
+
     client.each_collection_item("latest-continuous", latest_query(parameter_code)) do |item|
       ts_id = item["time_series_id"] || item["id"]
       series = TimeSeries.find_by(usgs_time_series_id: ts_id.to_s)
-      next unless series&.selected_for_display?
-      next if postal_code && series.monitoring_location.state_code != postal_code
+      unless series&.selected_for_display?
+        skipped += 1
+        next
+      end
+      if postal_code && series.monitoring_location.state_code != postal_code
+        skipped += 1
+        next
+      end
 
       observed_at = parse_time(item["time"] || item["observed_at"] || item["datetime"])
       value = item["value"] || item["observation_value"]
-      next if observed_at.blank? || value.blank?
+      if observed_at.blank? || value.blank?
+        skipped += 1
+        next
+      end
 
       LatestObservation.upsert(
         {
@@ -56,12 +83,18 @@ class LatestObservationSync
         },
         unique_by: :time_series_id
       )
+      count += 1
+      progress&.increment
     end
+
+    progress&.step("parameter=#{parameter_code} latest upserted=#{count} skipped=#{skipped}")
   end
 
   def denormalize_locations
+    progress&.step("denormalizing location latest values")
     scope = MonitoringLocation.includes(time_series: :latest_observation)
     scope = scope.in_state(postal_code) if postal_code
+    count = 0
 
     scope.find_each do |location|
       attrs = {
@@ -99,7 +132,11 @@ class LatestObservationSync
       attrs[:latest_observed_at] = times.compact.max
       location.update!(attrs)
       StationSnapshotCache.warm(location)
+      count += 1
+      progress&.increment
     end
+
+    progress&.step("locations denormalized=#{count}")
   end
 
   def parse_time(value)

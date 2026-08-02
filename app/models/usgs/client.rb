@@ -2,7 +2,9 @@ require "faraday/retry"
 
 module Usgs
   class Client
-    BASE_URL = "https://api.waterdata.usgs.gov/ogcapi/v0".freeze
+    # Trailing slash matters: Faraday treats paths that start with "/" as
+    # host-absolute and would drop "/ogcapi/v0" from the base URL.
+    BASE_URL = "https://api.waterdata.usgs.gov/ogcapi/v0/".freeze
     DEFAULT_LIMIT = 1000
 
     Error = Class.new(StandardError)
@@ -21,7 +23,7 @@ module Usgs
         body = if next_url
           get_absolute(next_url)
         else
-          get("/collections/#{collection}/items", query)
+          get("collections/#{collection}/items", query)
         end
 
         Array(body["features"] || body["items"]).each { |feature| yield normalize_feature(feature) }
@@ -33,7 +35,8 @@ module Usgs
 
     def get(path, params = {})
       response = @connection.get(path) do |req|
-        req.params.update(params)
+        req.params.update(stringify_params(params))
+        req.headers["Accept"] = "application/geo+json, application/json"
         req.headers["X-Api-Key"] = @api_key if @api_key.present?
       end
       handle_response(response)
@@ -41,6 +44,7 @@ module Usgs
 
     def get_absolute(url)
       response = @connection.get(url) do |req|
+        req.headers["Accept"] = "application/geo+json, application/json"
         req.headers["X-Api-Key"] = @api_key if @api_key.present?
       end
       handle_response(response)
@@ -56,6 +60,10 @@ module Usgs
         f.response :json, content_type: /\bjson$/
         f.adapter Faraday.default_adapter
       end
+    end
+
+    def stringify_params(params)
+      params.transform_keys(&:to_s).transform_values { |v| v.is_a?(Symbol) ? v.to_s : v }
     end
 
     def handle_response(response)
