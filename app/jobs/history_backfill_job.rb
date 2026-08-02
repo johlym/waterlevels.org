@@ -8,6 +8,7 @@ class HistoryBackfillJob < ApplicationJob
 
   def self.enqueue(monitoring_location_id, range = HistoryIngestion::DEFAULT_RANGE)
     return false if paused_for_catalog_sync?
+    return false if Usgs::RateLimitCircuit.open?
     return false unless HistoryBackfillLock.claim!(monitoring_location_id)
 
     perform_later(monitoring_location_id, range)
@@ -17,6 +18,10 @@ class HistoryBackfillJob < ApplicationJob
   def perform(monitoring_location_id, range = HistoryIngestion::DEFAULT_RANGE)
     if self.class.paused_for_catalog_sync?
       Rails.logger.info("HistoryBackfillJob skipped: Sunday catalog sync window id=#{monitoring_location_id}")
+      return
+    end
+    if Usgs::RateLimitCircuit.open?
+      Rails.logger.info("HistoryBackfillJob skipped: USGS rate limit circuit open id=#{monitoring_location_id}")
       return
     end
 
@@ -36,3 +41,4 @@ class HistoryBackfillJob < ApplicationJob
     end
   end
 end
+

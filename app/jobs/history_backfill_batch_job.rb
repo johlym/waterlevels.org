@@ -9,6 +9,10 @@ class HistoryBackfillBatchJob < ApplicationJob
       Rails.logger.info("HistoryBackfillBatchJob skipped: Sunday catalog sync window")
       return 0
     end
+    if Usgs::RateLimitCircuit.open?
+      Rails.logger.info("HistoryBackfillBatchJob skipped: USGS rate limit circuit open")
+      return 0
+    end
 
     batch_size = (limit || ENV.fetch("HISTORY_BACKFILL_BATCH", "40")).to_i
     batch_size = 40 if batch_size <= 0
