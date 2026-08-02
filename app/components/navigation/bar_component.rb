@@ -6,7 +6,7 @@ module Navigation
     end
 
     def shell_classes
-      classes = ["site-header"]
+      classes = [ "site-header" ]
       classes << "is-overlay" if @overlay
       classes.join(" ")
     end
