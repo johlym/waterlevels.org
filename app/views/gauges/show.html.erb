@@ -1,0 +1,156 @@
+<% content_for :title, "#{@snapshot[:name]} Water Level & Flow | #{@snapshot[:state_code].upcase} | WaterLevels.org" %>
+<% content_for :meta_description, "Current water level, flow, and temperature for #{@snapshot[:name]} from USGS monitoring data." %>
+
+<div
+  class="flex min-h-dvh flex-col"
+  data-controller="parameter-toggle temperature-unit hydrograph"
+  data-hydrograph-url-value="<%= api_gauge_observations_path(@snapshot[:site_number]) %>"
+  data-hydrograph-kinds-value="<%= @snapshot[:measurement_kinds].to_json %>"
+  data-temperature-unit-url-value="<%= temperature_unit_path %>"
+>
+  <%= render Navigation::BarComponent.new %>
+  <main class="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+    <p class="text-sm text-rolling-stone-600 dark:text-rolling-stone-400">
+      <%= link_to @snapshot[:state_name].presence || @snapshot[:state_code].upcase, state_gauges_path(@snapshot[:state_code]), class: "hover:underline" %>
+      <% if @snapshot[:county_name].present? %> · <%= @snapshot[:county_name] %> County<% end %>
+    </p>
+    <h1 class="mt-2 text-3xl font-semibold tracking-tight text-rolling-stone-900 dark:text-rolling-stone-50"><%= @snapshot[:name] %></h1>
+    <% if @snapshot[:stale] %>
+      <p class="mt-2 inline-block text-sm font-medium text-rolling-stone-700 dark:text-rolling-stone-200">Stale — latest observation older than 1 week</p>
+    <% end %>
+
+    <section class="mt-10" aria-labelledby="current-heading">
+      <div class="flex flex-wrap items-end justify-between gap-4">
+        <h2 id="current-heading" class="text-xl font-semibold text-rolling-stone-900 dark:text-rolling-stone-50">Current conditions</h2>
+        <% if Array(@snapshot[:measurement_kinds]).include?("temperature") || @snapshot.dig(:current, "temperature") || @snapshot.dig(:current, :temperature) %>
+          <div class="flex items-center gap-2 text-sm">
+            <span class="text-rolling-stone-600 dark:text-rolling-stone-300">Temp units</span>
+            <button type="button" data-action="temperature-unit#setF" class="rounded px-2 py-1 text-smalt-800 underline dark:text-smalt-300">°F</button>
+            <button type="button" data-action="temperature-unit#setC" class="rounded px-2 py-1 text-smalt-800 underline dark:text-smalt-300">°C</button>
+          </div>
+        <% end %>
+      </div>
+
+      <dl class="mt-4 grid gap-6 sm:grid-cols-3">
+        <% current = @snapshot[:current] || {} %>
+        <% if (wl = current[:water_level] || current["water_level"]) %>
+          <div>
+            <dt class="text-sm text-rolling-stone-600 dark:text-rolling-stone-300">Water level</dt>
+            <dd class="mt-1 text-2xl font-semibold tabular-nums"><%= number_with_precision(wl[:value] || wl["value"], precision: 2) %> <%= wl[:unit] || wl["unit"] %></dd>
+            <% if (t = @snapshot.dig(:trends, :water_level) || @snapshot.dig(:trends, "water_level")) && t[:change_24h] || t && t["change_24h"] %>
+              <% delta = t[:change_24h] || t["change_24h"] %>
+              <p class="mt-1 text-sm text-rolling-stone-600 dark:text-rolling-stone-300">24h: <%= delta && format("%+.2f", delta) %></p>
+            <% end %>
+            <% yoy = (@snapshot.dig(:trends, :water_level) || @snapshot.dig(:trends, "water_level") || {}) %>
+            <% if (yoy[:yoy] || yoy["yoy"]) %>
+              <p class="text-sm text-rolling-stone-600 dark:text-rolling-stone-300">YoY: <%= format("%+.2f", yoy[:yoy] || yoy["yoy"]) %></p>
+            <% end %>
+            <% ext = @snapshot.dig(:extremes, :water_level) || @snapshot.dig(:extremes, "water_level") %>
+            <% if ext %>
+              <p class="mt-2 text-sm text-rolling-stone-600 dark:text-rolling-stone-300">
+                High: <%= ext.dig(:high, :value) || ext.dig("high", "value") || "—" %>
+                · Low: <%= ext.dig(:low, :value) || ext.dig("low", "value") || "—" %>
+              </p>
+            <% end %>
+          </div>
+        <% end %>
+
+        <% if (flow = current[:discharge] || current["discharge"]) %>
+          <div>
+            <dt class="text-sm text-rolling-stone-600 dark:text-rolling-stone-300">Flow</dt>
+            <dd class="mt-1 text-2xl font-semibold tabular-nums"><%= number_with_precision(flow[:value] || flow["value"], precision: 0) %> <%= flow[:unit] || flow["unit"] %></dd>
+            <% t = @snapshot.dig(:trends, :discharge) || @snapshot.dig(:trends, "discharge") %>
+            <% if t && (t[:change_24h] || t["change_24h"]) %>
+              <p class="mt-1 text-sm text-rolling-stone-600 dark:text-rolling-stone-300">24h: <%= format("%+.0f", t[:change_24h] || t["change_24h"]) %></p>
+            <% end %>
+            <% if t && (t[:yoy] || t["yoy"]) %>
+              <p class="text-sm text-rolling-stone-600 dark:text-rolling-stone-300">YoY: <%= format("%+.0f", t[:yoy] || t["yoy"]) %></p>
+            <% end %>
+            <% ext = @snapshot.dig(:extremes, :discharge) || @snapshot.dig(:extremes, "discharge") %>
+            <% if ext %>
+              <p class="mt-2 text-sm text-rolling-stone-600 dark:text-rolling-stone-300">
+                High: <%= ext.dig(:high, :value) || ext.dig("high", "value") || "—" %>
+                · Low: <%= ext.dig(:low, :value) || ext.dig("low", "value") || "—" %>
+              </p>
+            <% end %>
+          </div>
+        <% end %>
+
+        <% if (temp = current[:temperature] || current["temperature"]) %>
+          <div>
+            <dt class="text-sm text-rolling-stone-600 dark:text-rolling-stone-300">Temperature</dt>
+            <dd
+              class="mt-1 text-2xl font-semibold tabular-nums"
+              data-temperature-unit-target="display"
+              data-temp-c="<%= temp[:value] || temp["value"] %>"
+            ></dd>
+          </div>
+        <% end %>
+      </dl>
+      <p class="mt-4 text-sm text-rolling-stone-600 dark:text-rolling-stone-300">
+        Updated: <%= @snapshot[:latest_observed_at] || "—" %>
+        <% if @snapshot.dig(:current)&.values&.first %>
+          · Status: <%= (@snapshot[:current].values.first[:approval_status] rescue nil) || (@snapshot[:current].values.first["approval_status"] rescue "—") %>
+        <% end %>
+      </p>
+    </section>
+
+    <section class="mt-12" aria-labelledby="graph-heading" data-parameter-toggle-target="panel">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <h2 id="graph-heading" class="text-xl font-semibold text-rolling-stone-900 dark:text-rolling-stone-50">Graph</h2>
+        <% kinds = @snapshot[:measurement_kinds] %>
+        <% if kinds.length > 1 %>
+          <div class="flex flex-wrap gap-2" role="group" aria-label="Measurement">
+            <% kinds.each do |kind| %>
+              <button
+                type="button"
+                class="rounded-md border border-rolling-stone-300 px-3 py-1.5 text-sm dark:border-rolling-stone-700"
+                data-action="parameter-toggle#select"
+                data-parameter-toggle-kind-param="<%= kind %>"
+              ><%= kind.tr("_", " ").titleize %></button>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <% %w[24h 7d 30d 1y].each do |range| %>
+          <button type="button" class="text-sm text-smalt-800 underline dark:text-smalt-300" data-action="hydrograph#setRange" data-hydrograph-range-param="<%= range %>"><%= range %></button>
+        <% end %>
+      </div>
+      <canvas class="mt-4 h-72 w-full" data-hydrograph-target="canvas"></canvas>
+    </section>
+
+    <section class="mt-12" aria-labelledby="history-heading">
+      <h2 id="history-heading" class="text-xl font-semibold text-rolling-stone-900 dark:text-rolling-stone-50">Historical table</h2>
+      <div class="mt-4 overflow-x-auto">
+        <table class="min-w-full text-left text-sm">
+          <thead class="border-b border-rolling-stone-200 dark:border-rolling-stone-800">
+            <tr>
+              <th class="px-3 py-2">Time</th>
+              <th class="px-3 py-2">Value</th>
+            </tr>
+          </thead>
+          <tbody data-hydrograph-target="tableBody" class="divide-y divide-rolling-stone-200 dark:divide-rolling-stone-800"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="mt-12" aria-labelledby="nearby-heading">
+      <h2 id="nearby-heading" class="text-xl font-semibold text-rolling-stone-900 dark:text-rolling-stone-50">Nearby locations</h2>
+      <ul class="mt-4 space-y-2">
+        <% Array(@snapshot[:nearby]).each do |n| %>
+          <li>
+            <%= link_to n[:name] || n["name"], n[:path] || n["path"], class: "text-smalt-800 hover:underline dark:text-smalt-300" %>
+          </li>
+        <% end %>
+      </ul>
+    </section>
+
+    <p class="mt-12 text-sm text-rolling-stone-600 dark:text-rolling-stone-400">
+      Official USGS page:
+      <%= link_to @snapshot[:usgs_url], @snapshot[:usgs_url], class: "underline", rel: "noopener noreferrer", target: "_blank" %>
+      (may include cooperator information)
+    </p>
+  </main>
+  <%= render Footer::ThinComponent.new %>
+</div>

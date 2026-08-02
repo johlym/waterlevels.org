@@ -1,0 +1,20 @@
+:concurrency: 5
+:queues:
+  - default
+  - sync
+  - backfill
+
+:scheduler:
+  :schedule:
+    station_catalog_sync:
+      cron: "0 3 * * 0"
+      class: StationCatalogSyncJob
+      queue: sync
+    latest_observation_sync:
+      cron: "0 * * * *"
+      class: LatestObservationSyncJob
+      queue: sync
+    continuous_prune:
+      cron: "15 4 * * *"
+      class: ContinuousPruneJob
+      queue: default

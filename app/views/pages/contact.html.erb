@@ -1,0 +1,20 @@
+<% content_for :title, "Contact | WaterLevels.org" %>
+<% @contact_message ||= ContactMessage.new %>
+
+<div class="flex min-h-dvh flex-col">
+  <%= render Navigation::BarComponent.new %>
+  <main class="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
+    <h1 class="text-3xl font-semibold tracking-tight">Contact</h1>
+    <p class="mt-4 text-rolling-stone-700 dark:text-rolling-stone-300">Send a message about WaterLevels.org. You can also email <a class="text-smalt-800 underline dark:text-smalt-300" href="mailto:hello@waterlevels.org">hello@waterlevels.org</a>.</p>
+
+    <% if flash[:notice].present? %>
+      <p class="mt-6 text-sm font-medium text-smalt-800 dark:text-smalt-300" role="status"><%= flash[:notice] %></p>
+    <% end %>
+    <% if flash[:alert].present? %>
+      <p class="mt-6 text-sm font-medium text-red-700 dark:text-red-300" role="alert"><%= flash[:alert] %></p>
+    <% end %>
+
+    <%= render Contact::FormComponent.new(contact_message: @contact_message) %>
+  </main>
+  <%= render Footer::ThinComponent.new %>
+</div>
