@@ -101,17 +101,6 @@ export default class extends Controller {
     this.renderSearchResults()
   }
 
-  selectResult(event) {
-    const button = event.target.closest("[data-station-id]")
-    if (!button || !this.resultsTarget.contains(button)) return
-    const id = button.dataset.stationId
-    const station = this.stations.find((item) => item.id === id)
-    if (!station) return
-    this.map.setView([station.lat, station.lon], Math.max(this.map.getZoom(), 10))
-    const marker = this.markersById.get(id)
-    if (marker) marker.openPopup()
-  }
-
   async loadStations() {
     const bounds = this.map.getBounds()
     const bbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()].join(",")
@@ -216,10 +205,10 @@ export default class extends Controller {
       ].filter(Boolean).join(" · ")
 
       return `
-        <button type="button" class="result" data-station-id="${station.id}">
+        <a href="${this.escapeHtml(station.path)}" class="result">
           <span class="name">${this.escapeHtml(station.name)}</span>
           <span class="meta">${this.escapeHtml(station.id)} · ${status}${layers ? ` · ${layers}` : ""}</span>
-        </button>
+        </a>
       `
     }).join("")
   }
