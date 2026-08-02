@@ -108,4 +108,74 @@ class HistoryIngestionTest < ActiveSupport::TestCase
       assert_equal 11.months.ago.to_date, @series.daily_observations.first.observed_on
     end
   end
+
+  test "skips USGS calls when continuous daily and peaks are already loaded" do
+    ContinuousObservation.create!(time_series: @series, observed_at: 1.hour.ago, value: 1.0)
+    DailyObservation.create!(time_series: @series, observed_on: 11.months.ago.to_date, value: 1.0)
+    DailyObservation.create!(time_series: @series, observed_on: Date.current, value: 1.1)
+    PeakObservation.create!(time_series: @series, water_year: 2025, value: 9.0, peak_kind: "high")
+
+    HistoryIngestion.new(monitoring_location: @location, range: "1y").perform
+
+    assert_not_requested :get, %r{api\.waterdata\.usgs\.gov}
+  end
+
+  test "continuous request starts from newest local tip instead of full window" do
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do
+      ContinuousObservation.create!(
+        time_series: @series,
+        observed_at: Time.zone.parse("2026-08-01 00:00:00"),
+        value: 1.0
+      )
+      # Still needs continuous: newest is older than CONTINUOUS_FRESHNESS (7d)? 
+      # Aug 1 to Aug 3 is 2.5 days — within freshness, so continuous would be skipped.
+      # Use an older tip outside freshness so a gap pull is required.
+      @series.continuous_observations.delete_all
+      ContinuousObservation.create!(
+        time_series: @series,
+        observed_at: Time.zone.parse("2026-07-20 12:00:00"),
+        value: 1.0
+      )
+
+      captured = nil
+      stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/continuous/items})
+        .to_return do |request|
+          captured = CGI.unescape(request.uri.query.to_s)
+          { status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json }
+        end
+      stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/daily/items})
+        .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+      stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/peaks/items})
+        .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+
+      HistoryIngestion.new(monitoring_location: @location, range: "1y").perform
+
+      # 30-minute overlap from newest tip 2026-07-20T12:00:00
+      assert_match(%r{datetime=2026-07-20T11:30:00}, captured)
+      refute_match(%r{datetime=2026-05-05T}, captured)
+    end
+  end
+
+  test "daily request only fills the older gap when recent days already exist" do
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do
+      DailyObservation.create!(time_series: @series, observed_on: Date.new(2026, 7, 1), value: 1.0)
+      DailyObservation.create!(time_series: @series, observed_on: Date.new(2026, 8, 3), value: 1.1)
+
+      captured = nil
+      stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/continuous/items})
+        .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+      stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/daily/items})
+        .to_return do |request|
+          captured = CGI.unescape(request.uri.query.to_s)
+          { status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json }
+        end
+      stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/peaks/items})
+        .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+
+      HistoryIngestion.new(monitoring_location: @location, range: "1y").perform
+
+      assert_match(%r{datetime=2025-08-03/2026-06-30}, captured)
+      refute_match(%r{datetime=2025-08-03/2026-08-03}, captured)
+    end
+  end
 end

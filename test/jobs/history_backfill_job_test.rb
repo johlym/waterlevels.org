@@ -116,6 +116,14 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
                 value: 2.5,
                 approval_status: "Approved"
               }
+            },
+            {
+              id: "d2",
+              properties: {
+                time: Date.current.iso8601,
+                value: 2.6,
+                approval_status: "Provisional"
+              }
             }
           ],
           links: []

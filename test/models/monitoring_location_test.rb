@@ -17,14 +17,21 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     daily_series = create(:time_series, monitoring_location: needs_daily, selected_for_display: true)
     ContinuousObservation.create!(time_series: daily_series, observed_at: 1.day.ago, value: 12.3)
 
+    needs_daily_tip = create(:monitoring_location, site_number: "20000004")
+    tip_series = create(:time_series, monitoring_location: needs_daily_tip, selected_for_display: true)
+    ContinuousObservation.create!(time_series: tip_series, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: tip_series, observed_on: 11.months.ago.to_date, value: 10.0)
+
     complete = create(:monitoring_location, site_number: "20000003")
     series = create(:time_series, monitoring_location: complete, selected_for_display: true)
     ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)
     DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 10.0)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
 
     ids = MonitoringLocation.needing_history_backfill.pluck(:id)
     assert_includes ids, needs_continuous.id
     assert_includes ids, needs_daily.id
+    assert_includes ids, needs_daily_tip.id
     refute_includes ids, complete.id
   end
 

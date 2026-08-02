@@ -10,6 +10,10 @@ class HistoryIngestion
   # A selected series is considered year-loaded once it has a daily point this old.
   DAILY_HISTORY_ANCHOR = 11.months
   CONTINUOUS_FRESHNESS = 7.days
+  # Refresh daily tips when the newest local day is older than this.
+  DAILY_FRESHNESS = 2.days
+  # Overlap when extending from an existing tip so revised USGS points are picked up.
+  CONTINUOUS_OVERLAP = 30.minutes
 
   def initialize(monitoring_location:, range: DEFAULT_RANGE, client: Usgs::Client.new, progress: nil)
     @monitoring_location = monitoring_location
@@ -22,9 +26,9 @@ class HistoryIngestion
     progress&.step("site=#{monitoring_location.site_number} range=#{range}")
     monitoring_location.time_series.selected.find_each do |series|
       progress&.step("series=#{series.usgs_time_series_id} kind=#{series.measurement_kind} parameter=#{series.parameter_code}")
-      ingest_continuous(series) if continuous_range?
-      ingest_daily(series) if daily_range?
-      ingest_peaks(series)
+      ingest_continuous(series) if continuous_range? && needs_continuous?(series)
+      ingest_daily(series) if daily_range? && needs_daily?(series)
+      ingest_peaks(series) if needs_peaks?(series)
     end
     StationSnapshotCache.warm(monitoring_location)
     progress&.finish("site=#{monitoring_location.site_number}")
@@ -41,12 +45,25 @@ class HistoryIngestion
     %w[1y 30d].include?(range) || range == "por"
   end
 
-  # USGS continuous rejects bare ISO-8601 durations (P7D/PT24H) despite docs;
-  # use an explicit RFC3339 interval instead.
-  # For 1y, only pull continuous within CONTINUOUS_RETENTION — year history is daily.
-  def continuous_datetime_param
-    ends = Time.current.utc
-    starts = case range
+  def needs_continuous?(series)
+    series.continuous_observations.where(observed_at: CONTINUOUS_FRESHNESS.ago..).none?
+  end
+
+  def needs_daily?(series)
+    return true if series.daily_observations.where(observed_on: ..DAILY_HISTORY_ANCHOR.ago.to_date).none?
+
+    newest = series.daily_observations.maximum(:observed_on)
+    newest.blank? || newest < DAILY_FRESHNESS.ago.to_date
+  end
+
+  def needs_peaks?(series)
+    return false unless series.measurement_kind.in?(%w[water_level discharge])
+
+    series.peak_observations.none?
+  end
+
+  def continuous_window_start
+    case range
     when "24h" then 24.hours.ago.utc
     when "7d" then 7.days.ago.utc
     when "30d" then 30.days.ago.utc
@@ -54,16 +71,72 @@ class HistoryIngestion
     else
       CONTINUOUS_RETENTION.ago.utc
     end
+  end
+
+  def daily_window_start
+    case range
+    when "1y", "por" then DAILY_RETENTION.ago.to_date
+    else
+      30.days.ago.to_date
+    end
+  end
+
+  # USGS continuous rejects bare ISO-8601 durations (P7D/PT24H) despite docs;
+  # use an explicit RFC3339 interval instead.
+  # Start from the newest local tip when present so we do not re-download history.
+  def continuous_datetime_param(series)
+    ends = Time.current.utc
+    window_start = continuous_window_start
+    newest = series.continuous_observations.maximum(:observed_at)&.utc
+    starts = if newest && newest > window_start
+      [ newest - CONTINUOUS_OVERLAP, window_start ].max
+    else
+      window_start
+    end
+    return if starts >= ends
+
     "#{starts.iso8601}/#{ends.iso8601}"
   end
 
+  def daily_datetime_ranges(series)
+    window_start = daily_window_start
+    today = Date.current
+    oldest = series.daily_observations.minimum(:observed_on)
+    newest = series.daily_observations.maximum(:observed_on)
+    ranges = []
+
+    if oldest.nil?
+      ranges << [ window_start, today ]
+    else
+      # Fill older gap down to the year/window start without re-fetching days we have.
+      if oldest > window_start
+        gap_end = oldest - 1
+        ranges << [ window_start, gap_end ] if window_start <= gap_end
+      end
+
+      # Extend the tip when daily values are stale.
+      if newest.nil? || newest < DAILY_FRESHNESS.ago.to_date
+        tip_start = newest || window_start
+        ranges << [ tip_start, today ] if tip_start <= today
+      end
+    end
+
+    ranges
+  end
+
   def ingest_continuous(series)
+    datetime = continuous_datetime_param(series)
+    unless datetime
+      progress&.step("continuous skipped (already covered)")
+      return
+    end
+
     count = 0
     client.each_collection_item(
       "continuous",
       monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
       parameter_code: series.parameter_code,
-      datetime: continuous_datetime_param
+      datetime: datetime
     ) do |item|
       observed_at = Time.zone.parse(item["time"] || item["datetime"].to_s) rescue nil
       value = item["value"]
@@ -84,47 +157,48 @@ class HistoryIngestion
       count += 1
       progress&.increment
     end
-    progress&.step("continuous upserted=#{count}")
+    progress&.step("continuous upserted=#{count} datetime=#{datetime}")
   end
 
   def ingest_daily(series)
-    start_date = case range
-    when "1y", "por" then DAILY_RETENTION.ago.to_date
-    else
-      30.days.ago.to_date
+    ranges = daily_datetime_ranges(series)
+    if ranges.empty?
+      progress&.step("daily skipped (already covered)")
+      return
     end
-    count = 0
-    client.each_collection_item(
-      "daily",
-      monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
-      parameter_code: series.parameter_code,
-      datetime: "#{start_date.iso8601}/#{Date.current.iso8601}"
-    ) do |item|
-      day = Date.parse(item["time"] || item["date"] || item["datetime"].to_s) rescue nil
-      value = item["value"]
-      next if day.blank? || value.blank?
 
-      DailyObservation.upsert(
-        {
-          time_series_id: series.id,
-          observed_on: day,
-          value: value,
-          approval_status: item["approval_status"],
-          qualifier: item["qualifier"],
-          created_at: Time.current,
-          updated_at: Time.current
-        },
-        unique_by: %i[time_series_id observed_on]
-      )
-      count += 1
-      progress&.increment
+    count = 0
+    ranges.each do |start_date, end_date|
+      client.each_collection_item(
+        "daily",
+        monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
+        parameter_code: series.parameter_code,
+        datetime: "#{start_date.iso8601}/#{end_date.iso8601}"
+      ) do |item|
+        day = Date.parse(item["time"] || item["date"] || item["datetime"].to_s) rescue nil
+        value = item["value"]
+        next if day.blank? || value.blank?
+
+        DailyObservation.upsert(
+          {
+            time_series_id: series.id,
+            observed_on: day,
+            value: value,
+            approval_status: item["approval_status"],
+            qualifier: item["qualifier"],
+            created_at: Time.current,
+            updated_at: Time.current
+          },
+          unique_by: %i[time_series_id observed_on]
+        )
+        count += 1
+        progress&.increment
+      end
     end
-    progress&.step("daily upserted=#{count}")
+    progress&.step("daily upserted=#{count} ranges=#{ranges.size}")
   end
 
   def ingest_peaks(series)
-    return unless series.measurement_kind.in?(%w[water_level discharge])
-
     count = 0
     client.each_collection_item(
       "peaks",
