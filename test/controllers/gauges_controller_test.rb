@@ -35,6 +35,39 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.headers["Cache-Tag"], "gauge:#{@location.site_number}"
   end
 
+  test "nearby stations show all available measurements" do
+    neighbor = create(
+      :monitoring_location,
+      site_number: "00000999",
+      usgs_monitoring_location_id: "USGS-00000999",
+      name: "Neighbor Creek near Town",
+      slug: "neighbor-creek-near-town",
+      latitude: 47.51,
+      longitude: -121.81,
+      has_water_level: true,
+      has_discharge: true,
+      has_temperature: true,
+      latest_discharge_value: 1250.0,
+      latest_discharge_unit: "ft3/s",
+      latest_water_level_value: 4.25,
+      latest_water_level_unit: "ft",
+      latest_temperature_c: 12.8,
+      latest_observed_at: 30.minutes.ago
+    )
+    @location.update!(nearby_station_ids: [ neighbor.id ])
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_includes response.body, "Nearby stations"
+    assert_includes response.body, "Neighbor Creek Near Town"
+    assert_includes response.body, "Flow:"
+    assert_includes response.body, "1,250"
+    assert_includes response.body, "Level:"
+    assert_includes response.body, "4.25"
+    assert_includes response.body, 'data-temp-prefix="Temp: "'
+    assert_includes response.body, 'data-temp-c="12.8"'
+  end
+
   test "map stations include station time zone fields" do
     @location.update!(time_zone: "CST", state_code: "tx", state_name: "Texas", latitude: 30.27, longitude: -97.74)
 

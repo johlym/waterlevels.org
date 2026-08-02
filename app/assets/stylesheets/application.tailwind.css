@@ -893,7 +893,11 @@
     }
 
     .card-foot {
-      @apply flex items-center justify-between gap-2 text-xs text-zinc-400;
+      @apply flex items-end justify-between gap-2 text-xs text-zinc-400;
+
+      .readings {
+        @apply flex min-w-0 flex-col gap-1;
+      }
 
       .muted {
         @apply text-zinc-500;
