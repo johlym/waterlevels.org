@@ -54,7 +54,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
       latest_temperature_c: 12.8,
       latest_observed_at: 30.minutes.ago
     )
-    @location.update!(nearby_station_ids: [neighbor.id])
+    @location.update!(nearby_station_ids: [ neighbor.id ])
 
     get "/gauges/#{@location.state_code}/#{@location.to_param}"
     assert_response :success

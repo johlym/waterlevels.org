@@ -45,14 +45,14 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
       latest_temperature_c: 12.8,
       latest_observed_at: 30.minutes.ago
     )
-    origin.update!(nearby_station_ids: [neighbor.id])
+    origin.update!(nearby_station_ids: [ neighbor.id ])
 
     payload = StationSnapshotCache.warm(origin.reload)
     nearby = payload[:nearby]
     assert_equal 1, nearby.size
 
     readings = nearby.first[:measurements]
-    assert_equal %w[discharge water_level temperature], readings.map { |r| r[:kind] }
+    assert_equal %w[ discharge water_level temperature ], readings.map { |r| r[:kind] }
     assert_equal 1250.0, readings[0][:value]
     assert_equal 4.25, readings[1][:value]
     assert_equal 12.8, readings[2][:value]
