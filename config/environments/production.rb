@@ -46,7 +46,8 @@ Rails.application.configure do
   # Don't log any deprecations.
   config.active_support.report_deprecations = false
 
-  config.cache_store = :redis_cache_store, { url: ENV.fetch("REDIS_URL", "redis://127.0.0.1:6379/0") }
+  require Rails.root.join("lib/redis_config")
+  config.cache_store = :redis_cache_store, RedisConfig.options
   config.active_job.queue_adapter = :sidekiq
 
   config.action_mailer.raise_delivery_errors = true

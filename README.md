@@ -60,6 +60,7 @@ bin/rails test
 - Dynos: `web`, `worker`
 - Add-ons: Postgres, Redis
 - Set `USGS_API_KEY`, `REDIS_URL`, `DATABASE_URL`
+- Redis TLS: Sidekiq, cache, and Action Cable use `ssl_params.verify_mode = VERIFY_NONE` for Heroku self-signed `rediss://` certs
 - After deploy: `heroku run bin/rails usgs:enqueue_bootstrap -a <app>`
 - Optional: `MALLOC_ARENA_MAX=2` if worker RSS climbs
 - Put Cloudflare in front; honor `Cache-Control` / `Cache-Tag` from the app
