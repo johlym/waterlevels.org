@@ -54,7 +54,7 @@ namespace :usgs do
   desc "Backfill history for locations (STATE=wa RANGE=7d, optional LIMIT=n)"
   task backfill: :environment do
     state = ENV.fetch("STATE") { raise "STATE is required, e.g. STATE=wa bin/rails usgs:backfill" }
-    range = ENV.fetch("RANGE", "7d")
+    range = ENV.fetch("RANGE", HistoryIngestion::DEFAULT_RANGE)
     limit = ENV["LIMIT"]&.to_i
 
     scope = MonitoringLocation.in_state(Usgs::StateCodes.normalize_postal(state)).order(:site_number)

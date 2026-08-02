@@ -44,7 +44,7 @@ STATE=wa bin/rails usgs:bootstrap
 Optional history backfill after bootstrap:
 
 ```bash
-STATE=wa RANGE=7d LIMIT=25 bin/rails usgs:backfill
+STATE=wa RANGE=1y LIMIT=25 bin/rails usgs:backfill
 ```
 
 Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_BACKFILL_BATCH` (default `40`).

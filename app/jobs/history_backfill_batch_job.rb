@@ -4,7 +4,12 @@ class HistoryBackfillBatchJob < ApplicationJob
   # Page through candidates so locked/cooling low IDs cannot starve the rest.
   CANDIDATE_PAGE = 200
 
-  def perform(limit = nil, range = "7d")
+  def perform(limit = nil, range = HistoryIngestion::DEFAULT_RANGE)
+    if HistoryBackfillJob.paused_for_catalog_sync?
+      Rails.logger.info("HistoryBackfillBatchJob skipped: Sunday catalog sync window")
+      return 0
+    end
+
     batch_size = (limit || ENV.fetch("HISTORY_BACKFILL_BATCH", "40")).to_i
     batch_size = 40 if batch_size <= 0
 
