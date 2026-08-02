@@ -1,0 +1,19 @@
+<% state_label = @listing[:state_name].presence || @listing[:state_code].upcase %>
+<% content_for :title, "Water Gauges in #{state_label} | WaterLevels.org" %>
+<% content_for :meta_description, "Browse USGS monitoring locations in #{state_label} with water level, flow, and temperature availability." %>
+
+<div class="flex min-h-dvh flex-col">
+  <%= render Navigation::BarComponent.new %>
+  <main class="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+    <h1 class="text-3xl font-semibold tracking-tight text-rolling-stone-900 dark:text-rolling-stone-50">Water gauges in <%= state_label %></h1>
+    <p class="mt-2 max-w-2xl text-rolling-stone-700 dark:text-rolling-stone-300">Locations sorted by county, then name. Measurement columns show what each site reports.</p>
+    <div class="mt-8">
+      <% if @listing[:locations].blank? %>
+        <p class="text-rolling-stone-600 dark:text-rolling-stone-400">No locations loaded for this state yet. Check back as catalog sync fills in.</p>
+      <% else %>
+        <%= render States::LocationsTableComponent.new(locations: @listing[:locations]) %>
+      <% end %>
+    </div>
+  </main>
+  <%= render Footer::ThinComponent.new %>
+</div>

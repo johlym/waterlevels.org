@@ -1,0 +1,18 @@
+<header class="relative z-20 flex items-center justify-between gap-4 border-b border-rolling-stone-200/80 bg-rolling-stone-50/90 px-4 py-3 backdrop-blur dark:border-rolling-stone-800 dark:bg-rolling-stone-950/90 dark:shadow-none">
+  <a href="/" class="text-xl font-semibold tracking-tight text-smalt-800 dark:text-smalt-300">
+    <%= @brand %>
+  </a>
+
+  <nav class="flex items-center gap-3 text-sm text-rolling-stone-700 dark:text-rolling-stone-200" aria-label="Primary">
+    <% if @map_controls %>
+      <button
+        type="button"
+        class="rounded-md bg-smalt-700 px-3 py-2 text-smalt-50 hover:bg-smalt-800 dark:bg-smalt-400 dark:text-rolling-stone-950 dark:hover:bg-smalt-300"
+        data-action="map#locate"
+      >
+        Use my location
+      </button>
+    <% end %>
+    <%= link_to "About", about_path, class: "hover:text-smalt-700 dark:hover:text-smalt-300" %>
+  </nav>
+</header>
