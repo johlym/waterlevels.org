@@ -20,8 +20,10 @@ class HistoryBackfillBatchJobTest < ActiveSupport::TestCase
     series = create(:time_series, monitoring_location: complete, selected_for_display: true)
     ContinuousObservation.create!(time_series: series, observed_at: 1.hour.ago, value: 1.0)
 
-    assert_enqueued_with(job: HistoryBackfillJob, args: [ needs.id, "7d" ]) do
-      HistoryBackfillBatchJob.perform_now(10, "7d")
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      assert_enqueued_with(job: HistoryBackfillJob, args: [ needs.id, "7d" ]) do
+        HistoryBackfillBatchJob.perform_now(10, "7d")
+      end
     end
   end
 
@@ -33,10 +35,12 @@ class HistoryBackfillBatchJobTest < ActiveSupport::TestCase
     ready = create(:monitoring_location, site_number: "30000011")
     create(:time_series, monitoring_location: ready, selected_for_display: true)
 
-    assert_enqueued_with(job: HistoryBackfillJob, args: [ ready.id, "7d" ]) do
-      assert_equal 1, HistoryBackfillBatchJob.perform_now(1, "7d")
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      assert_enqueued_with(job: HistoryBackfillJob, args: [ ready.id, "7d" ]) do
+        assert_equal 1, HistoryBackfillBatchJob.perform_now(1, "7d")
+      end
+      refute HistoryBackfillJob.enqueue(stuck.id, "7d")
     end
-    refute HistoryBackfillJob.enqueue(stuck.id, "7d")
   end
 
   test "skips enqueueing on Sunday for catalog sync budget" do
