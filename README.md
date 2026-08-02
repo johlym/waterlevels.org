@@ -12,7 +12,7 @@ Rails 8.1 / Ruby 4 app that maps USGS water monitoring locations (water level, f
 
 ```bash
 rvm use 4.0.4
-nvm use 20
+nvm use          # Node 20+ required (see .nvmrc / .node-version)
 bundle install
 yarn install
 createdb waterlevels_development waterlevels_test

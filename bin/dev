@@ -1,8 +1,27 @@
 #!/usr/bin/env sh
+set -e
 
 if gem list --no-installed --exact --silent foreman; then
   echo "Installing foreman..."
   gem install foreman
+fi
+
+# Tailwind CSS v4 requires Node 20+ (module.isBuiltin). Prefer .node-version / .nvmrc.
+required_node_major=20
+current_node_major="$(node -p "process.versions.node.split('.')[0]" 2>/dev/null || echo 0)"
+if [ "$current_node_major" -lt "$required_node_major" ]; then
+  if [ -s "$HOME/.nvm/nvm.sh" ]; then
+    # shellcheck disable=SC1091
+    . "$HOME/.nvm/nvm.sh"
+    nvm use
+    current_node_major="$(node -p "process.versions.node.split('.')[0]" 2>/dev/null || echo 0)"
+  fi
+fi
+
+if [ "$current_node_major" -lt "$required_node_major" ]; then
+  echo "bin/dev requires Node ${required_node_major}+ (found $(node -v 2>/dev/null || echo none))." >&2
+  echo "Run: nvm use  (or: nvm install && nvm use)" >&2
+  exit 1
 fi
 
 # Default to port 3000 if not specified
