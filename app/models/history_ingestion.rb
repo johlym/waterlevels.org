@@ -3,9 +3,15 @@ class HistoryIngestion
 
   attr_accessor :client, :monitoring_location, :range, :progress
 
+  DEFAULT_RANGE = "1y"
+  # High-resolution continuous is capped; 1y charts use daily values.
   CONTINUOUS_RETENTION = 90.days
+  DAILY_RETENTION = 1.year
+  # A selected series is considered year-loaded once it has a daily point this old.
+  DAILY_HISTORY_ANCHOR = 11.months
+  CONTINUOUS_FRESHNESS = 7.days
 
-  def initialize(monitoring_location:, range: "7d", client: Usgs::Client.new, progress: nil)
+  def initialize(monitoring_location:, range: DEFAULT_RANGE, client: Usgs::Client.new, progress: nil)
     @monitoring_location = monitoring_location
     @range = range
     @client = client
@@ -28,7 +34,7 @@ class HistoryIngestion
   private
 
   def continuous_range?
-    %w[24h 7d 30d].include?(range)
+    %w[24h 7d 30d 1y].include?(range)
   end
 
   def daily_range?
@@ -37,15 +43,16 @@ class HistoryIngestion
 
   # USGS continuous rejects bare ISO-8601 durations (P7D/PT24H) despite docs;
   # use an explicit RFC3339 interval instead.
-  def datetime_param
+  # For 1y, only pull continuous within CONTINUOUS_RETENTION — year history is daily.
+  def continuous_datetime_param
     ends = Time.current.utc
     starts = case range
     when "24h" then 24.hours.ago.utc
     when "7d" then 7.days.ago.utc
     when "30d" then 30.days.ago.utc
-    when "1y" then 1.year.ago.utc
+    when "1y" then CONTINUOUS_RETENTION.ago.utc
     else
-      1.year.ago.utc
+      CONTINUOUS_RETENTION.ago.utc
     end
     "#{starts.iso8601}/#{ends.iso8601}"
   end
@@ -56,7 +63,7 @@ class HistoryIngestion
       "continuous",
       monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
       parameter_code: series.parameter_code,
-      datetime: datetime_param
+      datetime: continuous_datetime_param
     ) do |item|
       observed_at = Time.zone.parse(item["time"] || item["datetime"].to_s) rescue nil
       value = item["value"]
@@ -81,7 +88,11 @@ class HistoryIngestion
   end
 
   def ingest_daily(series)
-    start_date = range == "1y" ? 1.year.ago.to_date : 30.days.ago.to_date
+    start_date = case range
+    when "1y", "por" then DAILY_RETENTION.ago.to_date
+    else
+      30.days.ago.to_date
+    end
     count = 0
     client.each_collection_item(
       "daily",

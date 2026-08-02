@@ -12,11 +12,11 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
     Rails.cache = @previous_cache
   end
 
-  test "enqueue claims lock before perform_later" do
+  test "enqueue claims lock before perform_later with 1y default" do
     travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
-      assert HistoryBackfillJob.enqueue(99, "7d")
-      assert_enqueued_with(job: HistoryBackfillJob, args: [ 99, "7d" ])
-      refute HistoryBackfillJob.enqueue(99, "7d")
+      assert HistoryBackfillJob.enqueue(99)
+      assert_enqueued_with(job: HistoryBackfillJob, args: [ 99, "1y" ])
+      refute HistoryBackfillJob.enqueue(99)
     end
   end
 
@@ -24,7 +24,7 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
     travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
       assert HistoryBackfillLock.claim!(99)
       assert_no_enqueued_jobs only: HistoryBackfillJob do
-        refute HistoryBackfillJob.enqueue(99, "7d")
+        refute HistoryBackfillJob.enqueue(99)
       end
     end
   end
@@ -33,7 +33,7 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
     travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
       HistoryBackfillLock.cooldown!(99)
       assert_no_enqueued_jobs only: HistoryBackfillJob do
-        refute HistoryBackfillJob.enqueue(99, "7d")
+        refute HistoryBackfillJob.enqueue(99)
       end
     end
   end
@@ -41,7 +41,7 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
   test "enqueue returns false on Sunday for catalog sync budget" do
     travel_to Time.zone.parse("2026-08-02 03:00:00") do # Sunday
       assert_no_enqueued_jobs only: HistoryBackfillJob do
-        refute HistoryBackfillJob.enqueue(99, "7d")
+        refute HistoryBackfillJob.enqueue(99)
       end
     end
   end
@@ -52,7 +52,7 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
 
     travel_to Time.zone.parse("2026-08-02 15:00:00") do # Sunday
       assert HistoryBackfillLock.claim!(location.id)
-      HistoryBackfillJob.perform_now(location.id, "7d")
+      HistoryBackfillJob.perform_now(location.id)
 
       assert_not_requested :get, %r{api\.waterdata\.usgs\.gov}
       refute Rails.cache.exist?("history_backfill:#{location.id}")
@@ -66,20 +66,22 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
 
     stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/continuous/items})
       .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/daily/items})
+      .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
     stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/peaks/items})
       .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
 
     travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
       assert HistoryBackfillLock.claim!(location.id)
-      HistoryBackfillJob.perform_now(location.id, "7d")
+      HistoryBackfillJob.perform_now(location.id)
 
       refute Rails.cache.exist?("history_backfill:#{location.id}")
       assert HistoryBackfillLock.cooling_down?(location.id)
-      refute HistoryBackfillJob.enqueue(location.id, "7d")
+      refute HistoryBackfillJob.enqueue(location.id)
     end
   end
 
-  test "perform releases lock without cooldown when continuous data lands" do
+  test "perform releases lock without cooldown when continuous and daily history land" do
     location = create(:monitoring_location, site_number: "30000100")
     series = create(:time_series, monitoring_location: location, selected_for_display: true)
 
@@ -101,14 +103,33 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
           links: []
         }.to_json
       )
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/daily/items})
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/geo+json" },
+        body: {
+          features: [
+            {
+              id: "d1",
+              properties: {
+                time: 11.months.ago.to_date.iso8601,
+                value: 2.5,
+                approval_status: "Approved"
+              }
+            }
+          ],
+          links: []
+        }.to_json
+      )
     stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/peaks/items})
       .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
 
     travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
       assert HistoryBackfillLock.claim!(location.id)
-      HistoryBackfillJob.perform_now(location.id, "7d")
+      HistoryBackfillJob.perform_now(location.id)
 
       assert series.continuous_observations.exists?
+      assert series.daily_observations.exists?
       refute Rails.cache.exist?("history_backfill:#{location.id}")
       refute HistoryBackfillLock.cooling_down?(location.id)
     end

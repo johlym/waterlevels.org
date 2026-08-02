@@ -9,20 +9,22 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     assert_equal "America/Phoenix", arizona.time_zone_identifier
   end
 
-  test "needing_history_backfill includes locations with selected series but no recent continuous" do
-    needs = create(:monitoring_location, site_number: "20000001")
-    create(:time_series, monitoring_location: needs, selected_for_display: true)
+  test "needing_history_backfill includes locations missing recent continuous or year daily" do
+    needs_continuous = create(:monitoring_location, site_number: "20000001")
+    create(:time_series, monitoring_location: needs_continuous, selected_for_display: true)
 
-    complete = create(:monitoring_location, site_number: "20000002")
+    needs_daily = create(:monitoring_location, site_number: "20000002")
+    daily_series = create(:time_series, monitoring_location: needs_daily, selected_for_display: true)
+    ContinuousObservation.create!(time_series: daily_series, observed_at: 1.day.ago, value: 12.3)
+
+    complete = create(:monitoring_location, site_number: "20000003")
     series = create(:time_series, monitoring_location: complete, selected_for_display: true)
-    ContinuousObservation.create!(
-      time_series: series,
-      observed_at: 1.day.ago,
-      value: 12.3
-    )
+    ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 10.0)
 
     ids = MonitoringLocation.needing_history_backfill.pluck(:id)
-    assert_includes ids, needs.id
+    assert_includes ids, needs_continuous.id
+    assert_includes ids, needs_daily.id
     refute_includes ids, complete.id
   end
 

@@ -34,22 +34,36 @@ class MonitoringLocation < ApplicationRecord
       )
     )
   }
-  scope :needing_history_backfill, lambda { |since: 7.days.ago|
-    selected_without_recent = TimeSeries.selected.where.not(
-      id: ContinuousObservation.where(observed_at: since..).select(:time_series_id)
+  scope :needing_history_backfill, lambda {
+    continuous_since = HistoryIngestion::CONTINUOUS_FRESHNESS.ago
+    daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
+
+    missing_continuous = TimeSeries.selected.where.not(
+      id: ContinuousObservation.where(observed_at: continuous_since..).select(:time_series_id)
     )
-    where(id: selected_without_recent.select(:monitoring_location_id)).distinct
+    missing_daily = TimeSeries.selected.where.not(
+      id: DailyObservation.where(observed_on: ..daily_anchor).select(:time_series_id)
+    )
+    where(id: missing_continuous.select(:monitoring_location_id))
+      .or(where(id: missing_daily.select(:monitoring_location_id)))
+      .distinct
   }
 
   def stale?
     latest_observed_at.blank? || latest_observed_at < STALE_AFTER.ago
   end
 
-  def needs_history_backfill?(since: 7.days.ago)
+  def needs_history_backfill?
     series = time_series.selected
     return false if series.none?
 
-    series.any? { |s| s.continuous_observations.where(observed_at: since..).none? }
+    continuous_since = HistoryIngestion::CONTINUOUS_FRESHNESS.ago
+    daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
+
+    series.any? do |s|
+      s.continuous_observations.where(observed_at: continuous_since..).none? ||
+        s.daily_observations.where(observed_on: ..daily_anchor).none?
+    end
   end
 
   def to_param
