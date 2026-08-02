@@ -24,4 +24,18 @@ class HistoryBackfillBatchJobTest < ActiveSupport::TestCase
       HistoryBackfillBatchJob.perform_now(10, "7d")
     end
   end
+
+  test "skips cooling stations and advances to later candidates" do
+    stuck = create(:monitoring_location, site_number: "30000010")
+    create(:time_series, monitoring_location: stuck, selected_for_display: true)
+    HistoryBackfillLock.cooldown!(stuck.id)
+
+    ready = create(:monitoring_location, site_number: "30000011")
+    create(:time_series, monitoring_location: ready, selected_for_display: true)
+
+    assert_enqueued_with(job: HistoryBackfillJob, args: [ ready.id, "7d" ]) do
+      assert_equal 1, HistoryBackfillBatchJob.perform_now(1, "7d")
+    end
+    refute HistoryBackfillJob.enqueue(stuck.id, "7d")
+  end
 end

@@ -1,14 +1,45 @@
 class HistoryBackfillBatchJob < ApplicationJob
   queue_as :backfill
 
+  # Page through candidates so locked/cooling low IDs cannot starve the rest.
+  CANDIDATE_PAGE = 200
+
   def perform(limit = nil, range = "7d")
     batch_size = (limit || ENV.fetch("HISTORY_BACKFILL_BATCH", "40")).to_i
     batch_size = 40 if batch_size <= 0
 
-    ids = MonitoringLocation.needing_history_backfill.order(:id).limit(batch_size).pluck(:id)
-    enqueued = ids.count { |id| HistoryBackfillJob.enqueue(id, range) }
+    enqueued = 0
+    skipped = 0
+    scanned = 0
+    last_id = 0
 
-    Rails.logger.info("HistoryBackfillBatchJob enqueued=#{enqueued} candidates=#{ids.size} range=#{range}")
+    loop do
+      break if enqueued >= batch_size
+
+      ids = MonitoringLocation.needing_history_backfill
+        .where("monitoring_locations.id > ?", last_id)
+        .order(:id)
+        .limit(CANDIDATE_PAGE)
+        .pluck(:id)
+      break if ids.empty?
+
+      ids.each do |id|
+        last_id = id
+        scanned += 1
+        break if enqueued >= batch_size
+
+        if HistoryBackfillJob.enqueue(id, range)
+          enqueued += 1
+        else
+          skipped += 1
+        end
+      end
+    end
+
+    Rails.logger.info(
+      "HistoryBackfillBatchJob enqueued=#{enqueued} skipped=#{skipped} " \
+      "scanned=#{scanned} batch_size=#{batch_size} range=#{range}"
+    )
     enqueued
   end
 end
