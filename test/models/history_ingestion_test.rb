@@ -127,9 +127,8 @@ class HistoryIngestionTest < ActiveSupport::TestCase
         observed_at: Time.zone.parse("2026-08-01 00:00:00"),
         value: 1.0
       )
-      # Still needs continuous: newest is older than CONTINUOUS_FRESHNESS (7d)? 
-      # Aug 1 to Aug 3 is 2.5 days — within freshness, so continuous would be skipped.
-      # Use an older tip outside freshness so a gap pull is required.
+      # Tip within CONTINUOUS_FRESHNESS would skip continuous; use an older tip
+      # so a gap pull is required and we can assert the narrowed datetime bound.
       @series.continuous_observations.delete_all
       ContinuousObservation.create!(
         time_series: @series,
