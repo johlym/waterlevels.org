@@ -10,7 +10,7 @@ module Api
         range = "7d" unless HydrographSeries::RANGES.key?(range)
 
         payload = HydrographSeries.for(location: location, kind: kind, range: range)
-        cache_public!(tags: ["gauge:#{location.site_number}"])
+        cache_public!(tags: [ "gauge:#{location.site_number}" ])
         render json: payload
       end
     end

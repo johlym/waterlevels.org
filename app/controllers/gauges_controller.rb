@@ -6,7 +6,7 @@ class GaugesController < ApplicationController
     ensure_canonical_path!(@location)
     @snapshot = StationSnapshotCache.fetch(@location)
     HistoryBackfillJob.perform_later(@location.id, "7d") if needs_series_backfill?(@location)
-    cache_public!(tags: ["gauge:#{@location.site_number}"])
+    cache_public!(tags: [ "gauge:#{@location.site_number}" ])
   end
 
   private

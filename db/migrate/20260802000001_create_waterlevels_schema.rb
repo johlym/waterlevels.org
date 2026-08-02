@@ -38,8 +38,8 @@ class CreateWaterlevelsSchema < ActiveRecord::Migration[8.1]
 
     add_index :monitoring_locations, :usgs_monitoring_location_id, unique: true
     add_index :monitoring_locations, :site_number, unique: true
-    add_index :monitoring_locations, [:state_code, :county_name, :name]
-    add_index :monitoring_locations, [:latitude, :longitude]
+    add_index :monitoring_locations, [ :state_code, :county_name, :name ]
+    add_index :monitoring_locations, [ :latitude, :longitude ]
     add_index :monitoring_locations, :has_water_level, where: "has_water_level = TRUE"
     add_index :monitoring_locations, :has_discharge, where: "has_discharge = TRUE"
 
@@ -62,7 +62,7 @@ class CreateWaterlevelsSchema < ActiveRecord::Migration[8.1]
     end
 
     add_index :time_series, :usgs_time_series_id, unique: true
-    add_index :time_series, [:monitoring_location_id, :measurement_kind, :selected_for_display],
+    add_index :time_series, [ :monitoring_location_id, :measurement_kind, :selected_for_display ],
               name: "index_time_series_on_location_kind_selected"
 
     create_table :latest_observations do |t|
@@ -86,7 +86,7 @@ class CreateWaterlevelsSchema < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :daily_observations, [:time_series_id, :observed_on], unique: true
+    add_index :daily_observations, [ :time_series_id, :observed_on ], unique: true
 
     create_table :continuous_observations do |t|
       t.references :time_series, null: false, foreign_key: true
@@ -97,7 +97,7 @@ class CreateWaterlevelsSchema < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :continuous_observations, [:time_series_id, :observed_at], unique: true
+    add_index :continuous_observations, [ :time_series_id, :observed_at ], unique: true
 
     create_table :peak_observations do |t|
       t.references :time_series, null: false, foreign_key: true
@@ -109,7 +109,7 @@ class CreateWaterlevelsSchema < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :peak_observations, [:time_series_id, :water_year, :peak_kind], unique: true,
+    add_index :peak_observations, [ :time_series_id, :water_year, :peak_kind ], unique: true,
               name: "index_peak_observations_unique"
   end
 end

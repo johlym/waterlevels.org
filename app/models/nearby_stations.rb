@@ -12,7 +12,7 @@ class NearbyStations
   def self.nearest_ids(id, lat, lon, all, limit: 4)
     all
       .reject { |other_id, _, _| other_id == id }
-      .map { |other_id, other_lat, other_lon| [other_id, haversine_km(lat, lon, other_lat.to_f, other_lon.to_f)] }
+      .map { |other_id, other_lat, other_lon| [ other_id, haversine_km(lat, lon, other_lat.to_f, other_lon.to_f) ] }
       .sort_by(&:last)
       .first(limit)
       .map(&:first)

@@ -50,7 +50,7 @@ module Usgs
 
     def build_connection
       Faraday.new(url: BASE_URL) do |f|
-        f.request :retry, max: 3, interval: 1, retry_statuses: [429, 500, 502, 503, 504]
+        f.request :retry, max: 3, interval: 1, retry_statuses: [ 429, 500, 502, 503, 504 ]
         f.options.timeout = 60
         f.options.open_timeout = 10
         f.response :json, content_type: /\bjson$/

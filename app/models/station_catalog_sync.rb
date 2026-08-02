@@ -116,7 +116,7 @@ class StationCatalogSync
       temperature = series.find { |s| s.measurement_kind == "temperature" && s.primary_series? } ||
                     series.find { |s| s.measurement_kind == "temperature" }
 
-      [water_level, discharge, temperature].compact.each do |ts|
+      [ water_level, discharge, temperature ].compact.each do |ts|
         ts.update!(selected_for_display: true)
       end
 

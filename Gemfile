@@ -29,9 +29,7 @@ group :development, :test do
   gem "bundler-audit", require: false
   gem "brakeman", require: false
   gem "rubocop-rails-omakase", require: false
-  gem "rspec-rails", "~> 7.0"
   gem "factory_bot_rails"
-  gem "shoulda-matchers", "~> 6.0"
   gem "webmock"
 end
 

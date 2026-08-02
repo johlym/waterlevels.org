@@ -36,4 +36,3 @@ class ContactMessage
     errors.add(:base, "Please complete the bot check and try again.")
   end
 end
-

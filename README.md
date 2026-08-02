@@ -36,7 +36,7 @@ bin/rails runner "StationCatalogSyncJob.perform_later"
 ## Tests
 
 ```bash
-bundle exec rspec
+bin/rails test
 ```
 
 ## Heroku

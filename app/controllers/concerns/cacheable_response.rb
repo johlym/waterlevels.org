@@ -9,6 +9,6 @@ module CacheableResponse
   end
 
   def cache_static_page!
-    cache_public!(max_age: 300, s_maxage: 86_400, tags: ["static"])
+    cache_public!(max_age: 300, s_maxage: 86_400, tags: [ "static" ])
   end
 end

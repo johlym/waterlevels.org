@@ -27,7 +27,7 @@ module Api
           }
         end
 
-        cache_public!(max_age: 30, s_maxage: 300, tags: ["map-stations"])
+        cache_public!(max_age: 30, s_maxage: 300, tags: [ "map-stations" ])
         render json: { stations: stations }
       end
 

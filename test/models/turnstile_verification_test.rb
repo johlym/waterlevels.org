@@ -1,19 +1,20 @@
-require "rails_helper"
+require "test_helper"
 
-RSpec.describe TurnstileVerification do
-  around do |example|
-    previous = ENV["TURNSTILE_SECRET"]
+class TurnstileVerificationTest < ActiveSupport::TestCase
+  setup do
+    @previous_secret = ENV["TURNSTILE_SECRET"]
     ENV["TURNSTILE_SECRET"] = "test-secret"
-    example.run
-  ensure
-    if previous
-      ENV["TURNSTILE_SECRET"] = previous
+  end
+
+  teardown do
+    if @previous_secret
+      ENV["TURNSTILE_SECRET"] = @previous_secret
     else
       ENV.delete("TURNSTILE_SECRET")
     end
   end
 
-  it "returns true when siteverify succeeds" do
+  test "returns true when siteverify succeeds" do
     stub_request(:post, TurnstileVerification::SITEVERIFY_URL)
       .with { |req|
         req.headers["Content-Type"] == "application/x-www-form-urlencoded" &&
@@ -23,19 +24,19 @@ RSpec.describe TurnstileVerification do
       }
       .to_return(status: 200, body: { success: true }.to_json, headers: { "Content-Type" => "application/json" })
 
-    expect(described_class.new(token: "good-token", remote_ip: "1.2.3.4")).to be_success
+    assert TurnstileVerification.new(token: "good-token", remote_ip: "1.2.3.4").success?
   end
 
-  it "returns false when siteverify fails closed" do
+  test "returns false when siteverify fails closed" do
     stub_request(:post, TurnstileVerification::SITEVERIFY_URL)
       .to_return(status: 200, body: { success: false }.to_json, headers: { "Content-Type" => "application/json" })
 
-    expect(described_class.new(token: "bad-token")).not_to be_success
+    assert_not TurnstileVerification.new(token: "bad-token").success?
   end
 
-  it "returns false on non-2xx siteverify responses" do
+  test "returns false on non-2xx siteverify responses" do
     stub_request(:post, TurnstileVerification::SITEVERIFY_URL).to_return(status: 503, body: "nope")
 
-    expect(described_class.new(token: "token")).not_to be_success
+    assert_not TurnstileVerification.new(token: "token").success?
   end
 end
