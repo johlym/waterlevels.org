@@ -6,12 +6,16 @@ module ApplicationHelper
     titleized.gsub(/,\s*([A-Za-z]{2})\z/) { ", #{$1.upcase}" }
   end
 
-  # e.g. "August 1, 2026 at 09:30:00 PM"
-  def display_timestamp(value)
+  # e.g. "August 1, 2026 at 09:30:00 PM CDT" in the station's local zone when known.
+  def display_timestamp(value, time_zone: nil, state_code: nil)
     time = coerce_time(value)
     return "—" if time.blank?
 
-    time.in_time_zone.strftime("%B %-d, %Y at %I:%M:%S %p")
+    zone = Usgs::TimeZones.resolve(time_zone, state_code: state_code)
+    local = zone ? time.in_time_zone(zone) : time.in_time_zone
+    formatted = local.strftime("%B %-d, %Y at %I:%M:%S %p")
+    abbreviation = local.strftime("%Z")
+    abbreviation.present? ? "#{formatted} #{abbreviation}" : formatted
   end
 
   # e.g. "Latitude 30°15'11\" N, Longitude 97°44'37\" W"

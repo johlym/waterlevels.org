@@ -25,6 +25,8 @@ module Api
             discharge_unit: UnitLabel.format(loc.latest_discharge_unit),
             temperature_c: loc.latest_temperature_c&.to_f,
             observed_at: loc.latest_observed_at&.iso8601,
+            time_zone: loc.time_zone,
+            time_zone_identifier: loc.time_zone_identifier,
             approval_status: loc.latest_approval_status
           }
         end

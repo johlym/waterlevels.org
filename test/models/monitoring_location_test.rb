@@ -1,6 +1,14 @@
 require "test_helper"
 
 class MonitoringLocationTest < ActiveSupport::TestCase
+  test "time_zone_identifier maps USGS abbreviation to IANA" do
+    location = build(:monitoring_location, time_zone: "CST", state_code: "tx")
+    assert_equal "America/Chicago", location.time_zone_identifier
+
+    arizona = build(:monitoring_location, time_zone: "MST", state_code: "az")
+    assert_equal "America/Phoenix", arizona.time_zone_identifier
+  end
+
   test "needing_history_backfill includes locations with selected series but no recent continuous" do
     needs = create(:monitoring_location, site_number: "20000001")
     create(:time_series, monitoring_location: needs, selected_for_display: true)

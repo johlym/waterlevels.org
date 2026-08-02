@@ -11,10 +11,16 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
       time_series: series,
       value: 12.34,
       unit_of_measure: "ft",
-      observed_at: 1.hour.ago,
+      observed_at: Time.utc(2026, 8, 2, 4, 30, 0),
       synced_at: Time.current
     )
-    @location.update!(latest_water_level_value: 12.34, latest_water_level_unit: "ft", latest_water_level_parameter_code: "00065")
+    @location.update!(
+      latest_water_level_value: 12.34,
+      latest_water_level_unit: "ft",
+      latest_water_level_parameter_code: "00065",
+      latest_observed_at: Time.utc(2026, 8, 2, 4, 30, 0),
+      time_zone: "PST"
+    )
 
     get "/gauges/#{@location.state_code}/#{@location.to_param}"
     assert_response :success
@@ -23,7 +29,20 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "role=\"tablist\""
     assert_includes response.body, ">King<"
     assert_not_includes response.body, "King County"
+    assert_includes response.body, "August 1, 2026 at 09:30:00 PM PDT"
+    assert_includes response.body, 'data-hydrograph-time-zone-value="America/Los_Angeles"'
+    assert_includes response.body, 'data-hydrograph-time-zone-label-value="PST"'
     assert_includes response.headers["Cache-Tag"], "gauge:#{@location.site_number}"
+  end
+
+  test "map stations include station time zone fields" do
+    @location.update!(time_zone: "CST", state_code: "tx", state_name: "Texas", latitude: 30.27, longitude: -97.74)
+
+    get "/api/map/stations", params: { bbox: "-98,30,-97,31" }
+    assert_response :success
+    station = JSON.parse(response.body)["stations"].find { |row| row["id"] == @location.site_number }
+    assert_equal "CST", station["time_zone"]
+    assert_equal "America/Chicago", station["time_zone_identifier"]
   end
 
   test "renders state listing grouped by county with titlecased locations" do

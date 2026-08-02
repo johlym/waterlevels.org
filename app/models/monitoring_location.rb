@@ -38,6 +38,11 @@ class MonitoringLocation < ApplicationRecord
     state_code.to_s.downcase
   end
 
+  # IANA zone for the USGS `time_zone` abbreviation (e.g. CST → America/Chicago).
+  def time_zone_identifier
+    Usgs::TimeZones.iana_identifier(time_zone, state_code: state_code)
+  end
+
   def measurement_kinds
     kinds = []
     kinds << "water_level" if has_water_level?

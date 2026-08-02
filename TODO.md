@@ -19,7 +19,7 @@ Shipped in UI shape: breadcrumb, Active/Stale badges, station meta (ID, coordina
 - [ ] Breadcrumb ending on the **station name** (we stop at county)
 - [ ] Location subtitle as “County, State, United States”
 - [ ] **Drainage area** in the meta panel
-- [ ] Last-updated formatting with **station-local timezone** (e.g. CST), not only app/browser local time
+- [x] Last-updated formatting with **station-local timezone** (e.g. CST), not only app/browser local time
 
 ### Current conditions cards
 
@@ -41,7 +41,7 @@ Shipped in UI shape: breadcrumb, Active/Stale badges, station meta (ID, coordina
 
 - [ ] **Conductance** column
 - [ ] Status column driven by hydrologic thresholds (amber elevated / green nominal), not only “all parameters present”
-- [ ] Time column labeled with **station timezone** (e.g. Time (CST))
+- [x] Time column labeled with **station timezone** (e.g. Time (CST))
 - [ ] Server-side or denser “true hourly” aggregation if USGS points are sub-hourly / irregular
 
 ### Nearby stations
