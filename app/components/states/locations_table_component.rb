@@ -18,8 +18,7 @@ module States
     def county_jump_links
       counties
         .map { |name, locations| [ name, locations.size, county_dom_id(name) ] }
-        .sort_by { |(_, count, _)| -count }
-        .first(12)
+        .sort_by { |(name, _, _)| name.downcase }
     end
 
     def type_tokens(loc)
