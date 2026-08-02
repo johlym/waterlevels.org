@@ -1,6 +1,6 @@
 module States
   class LocationsTableComponent < ViewComponent::Base
-    def initialize(locations:)
+    def initialize(locations:, state_label: nil)
       @locations = Array(locations)
     end
 
@@ -15,6 +15,25 @@ module States
       "county-#{county_name.to_s.parameterize.presence || "unspecified"}"
     end
 
+    def county_jump_links
+      counties
+        .map { |name, locations| [ name, locations.size, county_dom_id(name) ] }
+        .sort_by { |(_, count, _)| -count }
+        .first(12)
+    end
+
+    def type_tokens(loc)
+      tokens = []
+      tokens << "streamflow" if truthy?(loc[:has_discharge] || loc["has_discharge"])
+      tokens << "gauge-height" if truthy?(loc[:has_water_level] || loc["has_water_level"])
+      tokens << "water-quality" if truthy?(loc[:has_temperature] || loc["has_temperature"])
+      tokens
+    end
+
+    def stale?(loc)
+      truthy?(loc[:stale] || loc["stale"])
+    end
+
     private
 
     def county_key(loc)
@@ -26,7 +45,13 @@ module States
       return "Unspecified" if key.blank?
 
       raw = sample[:county_name].presence || sample["county_name"].presence || key
-      raw.to_s.sub(/\s+County\z/i, "")
+      label = raw.to_s.sub(/\s+County\z/i, "")
+      label = "#{label} County" unless label.casecmp("unspecified").zero? || label.match?(/county\z/i)
+      label
+    end
+
+    def truthy?(value)
+      value == true || value.to_s == "true"
     end
   end
 end

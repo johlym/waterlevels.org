@@ -1,24 +1,49 @@
 <% state_label = @listing[:state_name].presence || @listing[:state_code].upcase %>
+<% locations = Array(@listing[:locations]) %>
+<% total_count = @listing[:total_count] || @listing["total_count"] || locations.size %>
+<% offline_count = @listing[:offline_count] || @listing["offline_count"] || locations.count { |loc| loc[:stale] || loc["stale"] } %>
 <% content_for :title, "Water Gauges in #{state_label} | WaterLevels.org" %>
 <% content_for :meta_description, "Browse USGS monitoring locations in #{state_label} with water level, flow, and temperature availability." %>
 
-<div class="app-shell">
+<div class="app-shell" data-controller="temperature-unit" data-temperature-unit-url-value="<%= temperature_unit_path %>">
   <%= render Navigation::BarComponent.new %>
-  <main class="page-main">
-    <div class="state-intro">
-      <h1>Water gauges in <%= state_label %></h1>
-      <p>Locations grouped by county. Measurement columns show what each site reports.</p>
-    </div>
 
-    <div class="state-listing">
-      <% if @listing[:locations].blank? %>
-        <div class="empty-state">
-          <p>No locations loaded for this state yet. Check back as catalog sync fills in.</p>
+  <header class="state-hero">
+    <div class="glow" aria-hidden="true"></div>
+    <div class="inner">
+      <div class="copy">
+        <span class="eyebrow">
+          <span class="dot" aria-hidden="true"></span>
+          <%= state_label %> Station Directory
+        </span>
+        <h1>Active Monitoring Locations</h1>
+        <p>
+          Real-time hydrological observation sites grouped by region, with ongoing streamflow, stage height, and temperature metrics.
+        </p>
+      </div>
+      <div class="stats">
+        <div class="stat">
+          <div class="label">Total Gauges</div>
+          <div class="value"><%= number_with_delimiter(total_count) %></div>
         </div>
-      <% else %>
-        <%= render States::LocationsTableComponent.new(locations: @listing[:locations]) %>
-      <% end %>
+        <div class="divider" aria-hidden="true"></div>
+        <div class="stat">
+          <div class="label">Offline / Stale</div>
+          <div class="value alert"><%= number_with_delimiter(offline_count) %></div>
+        </div>
+      </div>
     </div>
+  </header>
+
+  <main class="page-main state-main">
+    <% if locations.blank? %>
+      <div class="empty-state">
+        <p>No locations loaded for this state yet. Check back as catalog sync fills in.</p>
+      </div>
+    <% else %>
+      <%= render States::LocationsTableComponent.new(locations: locations, state_label: state_label) %>
+    <% end %>
   </main>
+
   <%= render Footer::ThinComponent.new %>
 </div>
