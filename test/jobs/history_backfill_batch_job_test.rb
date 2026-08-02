@@ -38,4 +38,15 @@ class HistoryBackfillBatchJobTest < ActiveSupport::TestCase
     end
     refute HistoryBackfillJob.enqueue(stuck.id, "7d")
   end
+
+  test "skips enqueueing on Sunday for catalog sync budget" do
+    needs = create(:monitoring_location, site_number: "30000020")
+    create(:time_series, monitoring_location: needs, selected_for_display: true)
+
+    travel_to Time.zone.parse("2026-08-02 12:00:00") do # Sunday
+      assert_no_enqueued_jobs only: HistoryBackfillJob do
+        assert_equal 0, HistoryBackfillBatchJob.perform_now(10, "7d")
+      end
+    end
+  end
 end

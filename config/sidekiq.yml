@@ -15,7 +15,9 @@
       class: LatestObservationSyncJob
       queue: sync
     history_backfill_batch:
-      cron: "30 * * * *"
+      # Mon–Sat only; Sunday is reserved for StationCatalogSyncJob.
+      # HistoryBackfillJob also no-ops on Sunday as a safety net.
+      cron: "30 * * * 1-6"
       class: HistoryBackfillBatchJob
       queue: backfill
     continuous_prune:

@@ -5,6 +5,11 @@ class HistoryBackfillBatchJob < ApplicationJob
   CANDIDATE_PAGE = 200
 
   def perform(limit = nil, range = "7d")
+    if HistoryBackfillJob.paused_for_catalog_sync?
+      Rails.logger.info("HistoryBackfillBatchJob skipped: Sunday catalog sync window")
+      return 0
+    end
+
     batch_size = (limit || ENV.fetch("HISTORY_BACKFILL_BATCH", "40")).to_i
     batch_size = 40 if batch_size <= 0
 

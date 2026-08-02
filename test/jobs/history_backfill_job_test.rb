@@ -32,6 +32,28 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
     end
   end
 
+  test "enqueue returns false on Sunday for catalog sync budget" do
+    travel_to Time.zone.parse("2026-08-02 03:00:00") do # Sunday
+      assert_no_enqueued_jobs only: HistoryBackfillJob do
+        refute HistoryBackfillJob.enqueue(99, "7d")
+      end
+    end
+  end
+
+  test "perform skips USGS calls on Sunday" do
+    location = create(:monitoring_location, site_number: "30000098")
+    create(:time_series, monitoring_location: location, selected_for_display: true)
+
+    travel_to Time.zone.parse("2026-08-02 15:00:00") do # Sunday
+      assert HistoryBackfillLock.claim!(location.id)
+      HistoryBackfillJob.perform_now(location.id, "7d")
+
+      assert_not_requested :get, %r{api\.waterdata\.usgs\.gov}
+      refute Rails.cache.exist?("history_backfill:#{location.id}")
+      refute HistoryBackfillLock.cooling_down?(location.id)
+    end
+  end
+
   test "perform releases lock and cooldowns when history is still missing" do
     location = create(:monitoring_location, site_number: "30000099")
     create(:time_series, monitoring_location: location, selected_for_display: true)
