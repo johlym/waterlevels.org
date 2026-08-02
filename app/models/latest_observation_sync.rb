@@ -81,6 +81,19 @@ class LatestObservationSync
         },
         unique_by: :time_series_id
       )
+      # Keep hydrographs / hourly tables moving between full history backfills.
+      ContinuousObservation.upsert(
+        {
+          time_series_id: series.id,
+          observed_at: observed_at,
+          value: value,
+          approval_status: item["approval_status"] || item["approval"],
+          qualifier: item["qualifier"],
+          created_at: Time.current,
+          updated_at: Time.current
+        },
+        unique_by: %i[time_series_id observed_at]
+      )
       count += 1
       progress&.increment
     end

@@ -244,6 +244,18 @@ class StationCatalogSync
         },
         unique_by: :time_series_id
       )
+      ContinuousObservation.upsert(
+        {
+          time_series_id: series_id,
+          observed_at: observed_at,
+          value: row[:value],
+          approval_status: row[:approval_status],
+          qualifier: row[:qualifier],
+          created_at: Time.current,
+          updated_at: Time.current
+        },
+        unique_by: %i[time_series_id observed_at]
+      )
       count += 1
       progress&.increment
     end
