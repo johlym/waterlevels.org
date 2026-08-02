@@ -65,4 +65,43 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     json = JSON.parse(response.body)
     assert_kind_of Array, json["stations"]
   end
+
+  test "searches all monitoring locations without a bbox" do
+    in_view = create(
+      :monitoring_location,
+      site_number: "12101000",
+      usgs_monitoring_location_id: "USGS-12101000",
+      name: "SNOHOMISH RIVER NEAR MONROE, WA",
+      latitude: 47.85,
+      longitude: -122.0,
+      state_code: "wa"
+    )
+    out_of_view = create(
+      :monitoring_location,
+      site_number: "01646500",
+      usgs_monitoring_location_id: "USGS-01646500",
+      name: "POTOMAC RIVER NEAR WASH, DC",
+      latitude: 38.95,
+      longitude: -77.13,
+      state_code: "md"
+    )
+
+    get "/api/map/stations/search", params: { q: "potomac" }
+    assert_response :success
+    stations = JSON.parse(response.body)["stations"]
+    ids = stations.map { |row| row["id"] }
+
+    assert_includes ids, out_of_view.site_number
+    assert_not_includes ids, in_view.site_number
+    assert_equal "/gauges/md/#{out_of_view.to_param}", stations.first["path"]
+    assert_not stations.first.key?("lat")
+  end
+
+  test "station search requires at least two characters" do
+    create(:monitoring_location, name: "POTOMAC RIVER NEAR WASH, DC", state_code: "md")
+
+    get "/api/map/stations/search", params: { q: "p" }
+    assert_response :success
+    assert_equal [], JSON.parse(response.body)["stations"]
+  end
 end

@@ -12,6 +12,28 @@ class MonitoringLocation < ApplicationRecord
   scope :in_bbox, lambda { |west, south, east, north|
     where(latitude: south..north, longitude: west..east)
   }
+  scope :search, lambda { |query|
+    q = query.to_s.strip
+    return none if q.blank?
+
+    pattern = "%#{sanitize_sql_like(q)}%"
+    where(
+      "name ILIKE :pattern OR site_number ILIKE :pattern OR state_code ILIKE :pattern OR state_name ILIKE :pattern OR COALESCE(county_name, '') ILIKE :pattern",
+      pattern: pattern
+    ).order(
+      Arel.sql(
+        sanitize_sql_array([
+          "CASE
+            WHEN site_number = :exact THEN 0
+            WHEN site_number ILIKE :prefix THEN 1
+            WHEN name ILIKE :prefix THEN 2
+            ELSE 3
+          END, name ASC",
+          { exact: q, prefix: "#{sanitize_sql_like(q)}%" }
+        ])
+      )
+    )
+  }
   scope :needing_history_backfill, lambda { |since: 7.days.ago|
     selected_without_recent = TimeSeries.selected.where.not(
       id: ContinuousObservation.where(observed_at: since..).select(:time_series_id)

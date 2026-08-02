@@ -28,7 +28,9 @@ Rails.application.routes.draw do
 
   namespace :api do
     namespace :map do
-      resources :stations, only: :index
+      resources :stations, only: :index do
+        get :search, on: :collection
+      end
     end
     resources :gauges, only: [] do
       resources :observations, only: :index, module: :gauges

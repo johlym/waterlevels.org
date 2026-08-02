@@ -13,12 +13,17 @@ export default class extends Controller {
     "temperatureCount",
     "layersPanel"
   ]
-  static values = { stationsUrl: String }
+  static values = {
+    stationsUrl: String,
+    searchUrl: String
+  }
 
   connect() {
     this.stations = []
+    this.searchResults = []
     this.markersById = new Map()
     this.query = ""
+    this.searchRequestId = 0
     this.layers = {
       discharge: true,
       water_level: true,
@@ -45,6 +50,7 @@ export default class extends Controller {
 
   disconnect() {
     this.layersMediaQuery?.removeEventListener("change", this.syncLayersPanel)
+    if (this.searchTimer) clearTimeout(this.searchTimer)
     if (this.map) this.map.remove()
   }
 
@@ -92,12 +98,34 @@ export default class extends Controller {
       if (layer) this.layers[layer] = input.checked
     })
     this.renderStations()
-    this.renderSearchResults()
   }
 
   search() {
-    this.query = (this.searchTarget.value || "").trim().toLowerCase()
-    this.renderStations()
+    this.query = (this.searchTarget.value || "").trim()
+    if (this.searchTimer) clearTimeout(this.searchTimer)
+
+    if (this.query.length < 2) {
+      this.searchRequestId += 1
+      this.searchResults = []
+      this.renderSearchResults({ waiting: this.query.length === 1 })
+      return
+    }
+
+    this.searchTimer = setTimeout(() => this.fetchSearchResults(), 200)
+  }
+
+  async fetchSearchResults() {
+    if (!this.hasSearchUrlValue || !this.searchUrlValue) return
+
+    const requestId = ++this.searchRequestId
+    const query = this.query
+    const url = `${this.searchUrlValue}?q=${encodeURIComponent(query)}`
+    const response = await fetch(url, { headers: { Accept: "application/json" } })
+    if (!response.ok) return
+    if (requestId !== this.searchRequestId || query !== this.query) return
+
+    const data = await response.json()
+    this.searchResults = data.stations || []
     this.renderSearchResults()
   }
 
@@ -111,7 +139,6 @@ export default class extends Controller {
     this.stations = data.stations || []
     this.updateCounts()
     this.renderStations()
-    this.renderSearchResults()
   }
 
   updateCounts() {
@@ -145,14 +172,8 @@ export default class extends Controller {
     return Boolean(matches)
   }
 
-  matchesSearch(station) {
-    if (!this.query) return true
-    const haystack = [station.name, station.id, station.state].filter(Boolean).join(" ").toLowerCase()
-    return haystack.includes(this.query)
-  }
-
   visibleStations() {
-    return this.stations.filter((station) => this.matchesLayers(station) && this.matchesSearch(station))
+    return this.stations.filter((station) => this.matchesLayers(station))
   }
 
   renderStations() {
@@ -174,25 +195,23 @@ export default class extends Controller {
     })
   }
 
-  renderSearchResults() {
+  renderSearchResults({ waiting = false } = {}) {
     if (!this.hasResultsTarget) return
 
-    if (!this.query) {
+    if (!this.query || waiting) {
       this.resultsTarget.innerHTML = ""
       this.resultsTarget.setAttribute("data-empty", "")
       this.resultsTarget.hidden = true
       return
     }
 
-    const matches = this.stations
-      .filter((station) => this.matchesLayers(station) && this.matchesSearch(station))
-      .slice(0, 8)
+    const matches = this.searchResults
 
     this.resultsTarget.hidden = false
     this.resultsTarget.removeAttribute("data-empty")
 
     if (!matches.length) {
-      this.resultsTarget.innerHTML = `<p class="empty">No matching stations in view.</p>`
+      this.resultsTarget.innerHTML = `<p class="empty">No matching stations.</p>`
       return
     }
 
