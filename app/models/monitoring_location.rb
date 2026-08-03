@@ -112,6 +112,16 @@ class MonitoringLocation < ApplicationRecord
     end
   end
 
+  # True when a selected series lacks daily points near the ~1-year retention
+  # anchor — i.e. the 1 Year chart is not fully loaded yet.
+  def missing_year_history?
+    series = time_series.selected
+    return false if series.none?
+
+    daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
+    series.any? { |s| s.daily_observations.where(observed_on: ..daily_anchor).none? }
+  end
+
   def to_param
     "#{site_number}-#{slug}"
   end

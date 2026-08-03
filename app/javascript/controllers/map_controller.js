@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 import L from "leaflet"
 import "leaflet.markercluster"
+import { geolocationErrorMessage } from "../lib/geolocation_errors"
 
 export default class extends Controller {
   static targets = [
@@ -15,6 +16,7 @@ export default class extends Controller {
     "settingsButton",
     "mobileSearch"
   ]
+  static outlets = ["dialog"]
 
   static FLOOD_COLORS = {
     action: { color: "#fbbf24", fill: "#f59e0b" },
@@ -46,11 +48,8 @@ export default class extends Controller {
       temperature: true
     }
 
-    const initialView = this.viewFromUrl() || this.constructor.DEFAULT_VIEW
-    this.map = L.map(this.canvasTarget, { zoomControl: false, attributionControl: false }).setView(
-      [initialView.lat, initialView.lon],
-      initialView.zoom
-    )
+const initial = this.initialView()
+    this.map = L.map(this.canvasTarget, { zoomControl: false, attributionControl: false }).setView(initial.center, initial.zoom)
     L.control.attribution({
       position: "bottomleft",
       prefix: this.attributionPrefix()
@@ -125,14 +124,37 @@ export default class extends Controller {
 
     const center = this.map.getCenter()
     const zoom = this.map.getZoom()
-    const nextHash = this.formatMapHash(center.lat, center.lng, zoom)
-    if (window.location.hash === `#${nextHash}`) return
-
     const url = new URL(window.location.href)
-    url.hash = nextHash
+    const searchView = this.viewFromSearchParams(url.searchParams)
+
+    // ZIP/query deep links win until the user moves away from that view.
+    if (searchView && this.sameView(center.lat, center.lng, zoom, searchView)) {
+      if (window.location.hash) {
+        this.syncingHashFromMap = true
+        history.replaceState(history.state, "", `${url.pathname}${url.search}`)
+        this.syncingHashFromMap = false
+      }
+      return
+    }
+
+    ;["lat", "lon", "zoom"].forEach((key) => url.searchParams.delete(key))
+    url.hash = this.formatMapHash(center.lat, center.lng, zoom)
+
+    const next = `${url.pathname}${url.search}${url.hash}`
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    if (current === next) return
+
     this.syncingHashFromMap = true
-    history.replaceState(history.state, "", url)
+    history.replaceState(history.state, "", next)
     this.syncingHashFromMap = false
+  }
+
+  sameView(lat, lon, zoom, view) {
+    return (
+      Math.abs(lat - view.center[0]) < 1e-5 &&
+      Math.abs(lon - view.center[1]) < 1e-5 &&
+      Math.abs(zoom - view.zoom) < 1e-5
+    )
   }
 
   formatMapHash(lat, lon, zoom) {
@@ -151,6 +173,53 @@ export default class extends Controller {
     ].join(" | ")
   }
 
+  initialView() {
+    const fromSearch = this.viewFromSearchParams(new URLSearchParams(window.location.search))
+    if (fromSearch) return fromSearch
+
+    const fromHash = this.viewFromUrl()
+    if (fromHash) return { center: [fromHash.lat, fromHash.lon], zoom: fromHash.zoom }
+
+    const fallback = this.constructor.DEFAULT_VIEW
+    return { center: [fallback.lat, fallback.lon], zoom: fallback.zoom }
+  }
+
+  viewFromSearchParams(params) {
+    const lat = Number(params.get("lat"))
+    const lon = Number(params.get("lon"))
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null
+
+    const parsedZoom = Number(params.get("zoom"))
+    const maxZoom = this.constructor.MAX_ZOOM
+    const zoom = Number.isFinite(parsedZoom) && parsedZoom >= 1 && parsedZoom <= maxZoom ? parsedZoom : 12
+    return { center: [lat, lon], zoom }
+  }
+
+  applyMapViewFromParams(params) {
+    const view = this.viewFromSearchParams(params)
+    if (!view || !this.map) return false
+    this.map.setView(view.center, view.zoom)
+    return true
+  }
+
+  selectSearchResult(event) {
+    const link = event.currentTarget
+    if (!link?.href) return
+
+    const url = new URL(link.href, window.location.origin)
+    if (url.pathname !== "/map") return
+    if (!this.viewFromSearchParams(url.searchParams)) return
+
+    event.preventDefault()
+    this.closeMobileSearch()
+    // Write ZIP query params before setView so moveend keeps them until the user pans/zooms.
+    if (window.history?.replaceState) {
+      window.history.replaceState({}, "", `${url.pathname}${url.search}`)
+    }
+    this.applyMapViewFromParams(url.searchParams)
+  }
+
   zoomIn() {
     this.map?.zoomIn()
   }
@@ -160,7 +229,13 @@ export default class extends Controller {
   }
 
   locate() {
-    if (!navigator.geolocation || !this.map) return
+    if (!this.map) return
+
+    if (!navigator.geolocation) {
+      this.showGeolocationError()
+      return
+    }
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords
@@ -174,9 +249,14 @@ export default class extends Controller {
           weight: 2
         }).addTo(this.map)
       },
-      () => {},
+      (error) => this.showGeolocationError(error),
       { enableHighAccuracy: true, timeout: 10000 }
     )
+  }
+
+  showGeolocationError(error) {
+    if (!this.hasDialogOutlet) return
+    this.dialogOutlet.show(geolocationErrorMessage(error))
   }
 
   toggleSettings() {
@@ -268,9 +348,21 @@ export default class extends Controller {
       await this.fetchSearchResults()
     }
 
-    if (this.searchResults[0]?.path) {
-      window.location.href = this.searchResults[0].path
+    const first = this.searchResults[0]
+    if (!first?.path) return
+
+    const url = new URL(first.path, window.location.origin)
+    if (url.pathname === "/map" && this.viewFromSearchParams(url.searchParams)) {
+      this.closeMobileSearch()
+      // Write ZIP query params before setView so moveend keeps them until the user pans/zooms.
+      if (window.history?.replaceState) {
+        window.history.replaceState({}, "", `${url.pathname}${url.search}`)
+      }
+      this.applyMapViewFromParams(url.searchParams)
+      return
     }
+
+    window.location.href = first.path
   }
 
   async fetchSearchResults() {
@@ -395,6 +487,24 @@ export default class extends Controller {
             <p class="meta">Browse all stations in ${this.escapeHtml(result.name)}</p>
           </div>
           <span class="status state">State</span>
+        </a>
+      `
+    }
+
+    if (result.type === "zip") {
+      return `
+        <a href="${this.escapeHtml(result.path)}" class="item" data-action="click->map#selectSearchResult">
+          <div class="icon" aria-hidden="true">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+          </div>
+          <div class="copy">
+            <p class="name">${this.escapeHtml(result.name)}</p>
+            <p class="meta">Show this ZIP code on the map</p>
+          </div>
+          <span class="status zip">ZIP</span>
         </a>
       `
     }

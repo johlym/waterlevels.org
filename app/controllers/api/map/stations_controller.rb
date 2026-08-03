@@ -74,16 +74,43 @@ module Api
       end
 
       def build_search_results(query)
+        zip_results = zip_search_payloads(query)
         state_results = state_search_payloads(query)
-        station_limit = [ SEARCH_LIMIT - state_results.length, 0 ].max
+        used = zip_results.length + state_results.length
+        station_limit = [ SEARCH_LIMIT - used, 0 ].max
         station_results = MonitoringLocation.search(query).limit(station_limit).map { |loc| search_payload(loc) }
-        state_results + station_results
+        zip_results + state_results + station_results
+      end
+
+      def zip_search_payloads(query)
+        result = ZipCodeLookup.lookup(query)
+        return [] unless result
+
+        [ zip_payload(result) ]
       end
 
       def state_search_payloads(query)
         return [] if MonitoringLocation.exact_search_match(query).exists?
 
         Usgs::StateCodes.match_query(query).map { |match| state_payload(match) }
+      end
+
+      def zip_payload(result)
+        {
+          id: result.zip,
+          name: result.display_name,
+          state: result.state_code.downcase,
+          path: result.map_path,
+          type: "zip",
+          stale: false,
+          has_water_level: false,
+          has_discharge: false,
+          has_temperature: false,
+          nwps_matched: false,
+          flood_category: nil,
+          flood_category_label: nil,
+          flood_alert: false
+        }
       end
 
       def state_payload(match)

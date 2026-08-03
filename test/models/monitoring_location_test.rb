@@ -52,6 +52,30 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     refute location.needs_history_backfill?
   end
 
+  test "missing_year_history? is true without a daily point near the year anchor" do
+    location = create(:monitoring_location)
+    series = create(:time_series, monitoring_location: location, selected_for_display: true)
+    ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+
+    assert location.missing_year_history?
+  end
+
+  test "missing_year_history? is false when year daily history is present" do
+    location = create(:monitoring_location)
+    series = create(:time_series, monitoring_location: location, selected_for_display: true)
+    DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 10.0)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+
+    refute location.missing_year_history?
+  end
+
+  test "missing_year_history? is false without selected series" do
+    location = create(:monitoring_location)
+    create(:time_series, monitoring_location: location, selected_for_display: false)
+    refute location.missing_year_history?
+  end
+
   test "search matches name, site number, and state across the collection" do
     river = create(
       :monitoring_location,

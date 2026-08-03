@@ -6,11 +6,16 @@ Rails.application.routes.draw do
 
   root "home#show"
   get "/map", to: "maps#show", as: :map
+  get "/alerts", to: "alerts#show", as: :alerts
 
   get "/sitemap.xml", to: "sitemaps#index", as: :sitemap
   get "/sitemaps/static.xml", to: "sitemaps#static", as: :sitemap_static
   get "/sitemaps/:state.xml", to: "sitemaps#state", as: :sitemap_state,
       constraints: { state: /[a-z]{2}/ }
+
+  get "/og.png", to: "og_images#default", as: :og_default
+  get "/og/gauges/:site_number.png", to: "og_images#station", as: :og_station,
+      constraints: { site_number: /\d+/ }
 
   get "/gauges/:state", to: "states#show", as: :state_gauges, constraints: { state: /[a-z]{2}/ }
   get "/gauges/:state/:site_number_slug", to: "gauges#show", as: :gauge,
