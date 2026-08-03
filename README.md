@@ -60,7 +60,7 @@ bin/rails test
 - Dynos: `web`, `worker`
 - Add-ons: Postgres, Redis
 - Set `USGS_API_KEY`, `REDIS_URL`, `DATABASE_URL`, `APP_HOST`
-- Open Graph PNGs are rendered with `rsvg-convert` (`Aptfile` → `librsvg2-bin`). Add [heroku-buildpack-apt](https://github.com/heroku/heroku-buildpack-apt) **before** the Ruby buildpack if it is not already on the app.
+- Open Graph PNGs are rendered with `rsvg-convert` (`Aptfile` → `librsvg2-bin`). Requires [`heroku-community/apt`](https://elements.heroku.com/buildpacks/heroku/heroku-buildpack-apt) as buildpack **#1** (before Ruby) so the Aptfile packages install on the dyno.
 - Redis TLS: Sidekiq, cache, and Action Cable use `ssl_params.verify_mode = VERIFY_NONE` for Heroku self-signed `rediss://` certs
 - After deploy: `heroku run bin/rails usgs:enqueue_bootstrap -a <app>`
 - Optional: `MALLOC_ARENA_MAX=2` if worker RSS climbs
