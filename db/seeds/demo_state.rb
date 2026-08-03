@@ -113,6 +113,7 @@ module DemoStateSeed
     rows = (1..STATION_COUNT).map do |n|
       site_number = format("%08d", SITE_NUMBER_BASE + n)
       name = station_name(n)
+      derived_names = MonitoringLocation.derived_names_for(name)
       county_code, county_name = COUNTIES[(n - 1) % COUNTIES.size]
       # Spread stations across Washington's approximate bounding box.
       lat = 45.55 + ((n - 1) % 10) * 0.32 + ((n - 1) / 10) * 0.01
@@ -123,6 +124,8 @@ module DemoStateSeed
         usgs_monitoring_location_id: "USGS-#{site_number}",
         site_number: site_number,
         name: name,
+        display_name: derived_names[:display_name],
+        search_name: derived_names[:search_name],
         slug: MonitoringLocation.slug_for(name),
         site_type_code: n.even? ? "ST" : "LK",
         site_type_name: n.even? ? "Stream" : "Lake, Reservoir, Impoundment",

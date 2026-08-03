@@ -113,18 +113,23 @@
               observed_at = loc[:latest_observed_at] || loc["latest_observed_at"]
               time_zone = loc[:time_zone] || loc["time_zone"]
               state_code = loc[:state_code] || loc["state_code"]
+              search_blob = [
+                loc[:search_name] || loc["search_name"] || name,
+                loc[:raw_name] || loc["raw_name"],
+                name
+              ].compact.map { |value| value.to_s.downcase }.uniq.join(" ")
             %>
             <%= link_to path,
                   class: "station-card#{" is-alert" if flood_alert && !offline}",
                   data: {
                     state_directory_target: "card",
-                    name: helpers.display_location_name(name).downcase,
+                    name: search_blob,
                     types: tokens.join(" ")
                   } do %>
               <div class="card-head">
                 <div>
                   <span class="site-id">ID: <%= site %></span>
-                  <h3><%= helpers.display_location_name(name) %></h3>
+                  <h3><%= name %></h3>
                   <% if observed_at.present? %>
                     <p class="updated-at"><%= helpers.display_timestamp(observed_at, time_zone: time_zone, state_code: state_code) %></p>
                   <% end %>

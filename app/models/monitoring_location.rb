@@ -4,11 +4,13 @@ class MonitoringLocation < ApplicationRecord
   has_many :time_series, dependent: :destroy
   has_many :selected_time_series, -> { where(selected_for_display: true) }, class_name: "TimeSeries"
 
-  validates :usgs_monitoring_location_id, :site_number, :name, :slug, :state_code, :latitude, :longitude, presence: true
+  before_validation :assign_derived_names
+
+  validates :usgs_monitoring_location_id, :site_number, :name, :display_name, :search_name, :slug, :state_code, :latitude, :longitude, presence: true
   validates :usgs_monitoring_location_id, :site_number, uniqueness: true
 
   scope :in_state, ->(code) { where(state_code: code.to_s.downcase) }
-  scope :ordered_for_state_table, -> { order(Arel.sql("LOWER(COALESCE(county_name, '')) ASC, LOWER(name) ASC")) }
+  scope :ordered_for_state_table, -> { order(Arel.sql("LOWER(COALESCE(county_name, '')) ASC, LOWER(display_name) ASC")) }
   scope :in_bbox, lambda { |west, south, east, north|
     where(latitude: south..north, longitude: west..east)
   }
@@ -17,10 +19,13 @@ class MonitoringLocation < ApplicationRecord
     q = query.to_s.strip
     return none if q.blank?
 
+    expanded = Usgs::LocationNames.search_key(q)
     pattern = "%#{sanitize_sql_like(q)}%"
+    expanded_pattern = "%#{sanitize_sql_like(expanded)}%"
     where(
-      "name ILIKE :pattern OR site_number ILIKE :pattern OR state_code ILIKE :pattern OR state_name ILIKE :pattern OR COALESCE(county_name, '') ILIKE :pattern OR COALESCE(nwps_lid, '') ILIKE :pattern",
-      pattern: pattern
+      "name ILIKE :pattern OR display_name ILIKE :pattern OR search_name ILIKE :expanded_pattern OR site_number ILIKE :pattern OR state_code ILIKE :pattern OR state_name ILIKE :pattern OR COALESCE(county_name, '') ILIKE :pattern OR COALESCE(nwps_lid, '') ILIKE :pattern",
+      pattern: pattern,
+      expanded_pattern: expanded_pattern
     ).order(
       Arel.sql(
         sanitize_sql_array([
@@ -28,10 +33,14 @@ class MonitoringLocation < ApplicationRecord
             WHEN site_number = :exact THEN 0
             WHEN UPPER(COALESCE(nwps_lid, '')) = UPPER(:exact) THEN 1
             WHEN site_number ILIKE :prefix THEN 2
-            WHEN name ILIKE :prefix THEN 3
+            WHEN display_name ILIKE :prefix OR search_name ILIKE :expanded_prefix OR name ILIKE :prefix THEN 3
             ELSE 4
-          END, name ASC",
-          { exact: q, prefix: "#{sanitize_sql_like(q)}%" }
+          END, display_name ASC",
+          {
+            exact: q,
+            prefix: "#{sanitize_sql_like(q)}%",
+            expanded_prefix: "#{sanitize_sql_like(expanded)}%"
+          }
         ])
       )
     )
@@ -117,6 +126,12 @@ class MonitoringLocation < ApplicationRecord
     name.to_s.parameterize.presence || "gauge"
   end
 
+  # Derived display/search fields for upsert/insert_all paths that skip callbacks.
+  def self.derived_names_for(name)
+    display = Usgs::LocationNames.format(name)
+    { display_name: display, search_name: display.downcase }
+  end
+
   # Hard-delete locations and dependent rows without AR callbacks (fast purge).
   def self.purge_ids!(ids)
     ids = Array(ids).compact.uniq
@@ -131,5 +146,16 @@ class MonitoringLocation < ApplicationRecord
       TimeSeries.where(id: ts_ids).delete_all
     end
     where(id: ids).delete_all
+  end
+
+  private
+
+  def assign_derived_names
+    return if name.blank?
+    return unless display_name.blank? || search_name.blank? || will_save_change_to_name?
+
+    derived = self.class.derived_names_for(name)
+    self.display_name = derived[:display_name]
+    self.search_name = derived[:search_name]
   end
 end
