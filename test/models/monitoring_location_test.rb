@@ -93,4 +93,3 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     assert_equal [ location ], MonitoringLocation.search("thet2").to_a
   end
 end
-
