@@ -4,7 +4,8 @@ require "sidekiq-scheduler/web"
 Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
 
-  root "maps#show"
+  root "home#show"
+  get "/map", to: "maps#show", as: :map
 
   get "/sitemap.xml", to: "sitemaps#index", as: :sitemap
   get "/sitemaps/static.xml", to: "sitemaps#static", as: :sitemap_static
@@ -30,6 +31,7 @@ Rails.application.routes.draw do
     namespace :map do
       resources :stations, only: :index do
         get :search, on: :collection
+        get :nearest, on: :collection
       end
     end
     resources :gauges, only: [] do

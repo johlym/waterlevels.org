@@ -11,11 +11,16 @@ export default class extends Controller {
     "dischargeCount",
     "waterLevelCount",
     "temperatureCount",
-    "layersPanel"
+    "settingsPanel",
+    "settingsButton",
+    "mobileSearch"
   ]
   static values = {
     stationsUrl: String,
-    searchUrl: String
+    searchUrl: String,
+    privacyUrl: String,
+    termsUrl: String,
+    year: Number
   }
 
   connect() {
@@ -31,7 +36,10 @@ export default class extends Controller {
     }
 
     this.map = L.map(this.canvasTarget, { zoomControl: false, attributionControl: false }).setView([39.5, -98.35], 4)
-    L.control.attribution({ position: "bottomleft" }).addTo(this.map)
+    L.control.attribution({
+      position: "bottomleft",
+      prefix: this.attributionPrefix()
+    }).addTo(this.map)
     L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
       maxZoom: 18
@@ -42,21 +50,25 @@ export default class extends Controller {
     this.map.on("moveend", () => this.loadStations())
     this.loadStations()
 
-    this.layersMediaQuery = window.matchMedia("(min-width: 640px)")
-    this.syncLayersPanel = this.syncLayersPanel.bind(this)
-    this.syncLayersPanel()
-    this.layersMediaQuery.addEventListener("change", this.syncLayersPanel)
+    this.onKeydown = this.onKeydown.bind(this)
+    document.addEventListener("keydown", this.onKeydown)
   }
 
   disconnect() {
-    this.layersMediaQuery?.removeEventListener("change", this.syncLayersPanel)
+    document.removeEventListener("keydown", this.onKeydown)
     if (this.searchTimer) clearTimeout(this.searchTimer)
     if (this.map) this.map.remove()
   }
 
-  syncLayersPanel() {
-    if (!this.hasLayersPanelTarget) return
-    this.layersPanelTarget.open = this.layersMediaQuery.matches
+  attributionPrefix() {
+    const year = this.hasYearValue ? this.yearValue : new Date().getFullYear()
+    const privacy = this.hasPrivacyUrlValue ? this.privacyUrlValue : "/privacy"
+    const terms = this.hasTermsUrlValue ? this.termsUrlValue : "/terms"
+
+    return [
+      '<a href="https://leafletjs.com" title="A JavaScript library for interactive maps"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8" class="leaflet-attribution-flag"><path fill="#4C9AFF" d="M0 0h12v4H0z"/><path fill="#FFF" d="M0 4h12v3H0z"/><path fill="#FD817D" d="M0 7h12v1H0z"/></svg> Leaflet</a>',
+      `&copy; ${year} <a href="/">WaterLevels.org</a> - <a href="${privacy}">Privacy</a> - <a href="${terms}">Terms</a>`
+    ].join(" | ")
   }
 
   zoomIn() {
@@ -85,6 +97,55 @@ export default class extends Controller {
       () => {},
       { enableHighAccuracy: true, timeout: 10000 }
     )
+  }
+
+  toggleSettings() {
+    if (!this.hasSettingsPanelTarget) return
+    if (this.settingsPanelTarget.hidden) this.openSettings()
+    else this.closeSettings()
+  }
+
+  openSettings() {
+    if (!this.hasSettingsPanelTarget) return
+    this.settingsPanelTarget.hidden = false
+    if (this.hasSettingsButtonTarget) {
+      this.settingsButtonTarget.setAttribute("aria-expanded", "true")
+      this.settingsButtonTarget.classList.add("is-active")
+    }
+  }
+
+  closeSettings() {
+    if (!this.hasSettingsPanelTarget) return
+    this.settingsPanelTarget.hidden = true
+    if (this.hasSettingsButtonTarget) {
+      this.settingsButtonTarget.setAttribute("aria-expanded", "false")
+      this.settingsButtonTarget.classList.remove("is-active")
+    }
+  }
+
+  openMobileSearch() {
+    if (!this.hasMobileSearchTarget) return
+    this.mobileSearchTarget.hidden = false
+    this.element.setAttribute("data-search-open", "")
+    this.closeSettings()
+    requestAnimationFrame(() => this.searchTarget?.focus())
+  }
+
+  closeMobileSearch() {
+    if (!this.hasMobileSearchTarget) return
+    this.mobileSearchTarget.hidden = true
+    this.element.removeAttribute("data-search-open")
+    this.query = ""
+    this.searchResults = []
+    if (this.hasSearchTarget) this.searchTarget.value = ""
+    this.renderSearchResults()
+  }
+
+  onKeydown(event) {
+    if (event.key === "Escape") {
+      this.closeMobileSearch()
+      this.closeSettings()
+    }
   }
 
   filterChanged() {
@@ -200,15 +261,12 @@ export default class extends Controller {
 
     if (!this.query || waiting) {
       this.resultsTarget.innerHTML = ""
-      this.resultsTarget.setAttribute("data-empty", "")
       this.resultsTarget.hidden = true
       return
     }
 
     const matches = this.searchResults
-
     this.resultsTarget.hidden = false
-    this.resultsTarget.removeAttribute("data-empty")
 
     if (!matches.length) {
       this.resultsTarget.innerHTML = `<p class="empty">No matching stations.</p>`
@@ -217,16 +275,19 @@ export default class extends Controller {
 
     this.resultsTarget.innerHTML = matches.map((station) => {
       const status = station.stale ? "Inactive" : "Active"
-      const layers = [
-        station.has_discharge ? "Streamflow" : null,
-        station.has_water_level ? "Water level" : null,
-        station.has_temperature ? "Temperature" : null
-      ].filter(Boolean).join(" · ")
-
+      const statusClass = station.stale ? "inactive" : "active"
       return `
-        <a href="${this.escapeHtml(station.path)}" class="result">
-          <span class="name">${this.escapeHtml(station.name)}</span>
-          <span class="meta">${this.escapeHtml(station.id)} · ${status}${layers ? ` · ${layers}` : ""}</span>
+        <a href="${this.escapeHtml(station.path)}" class="item">
+          <div class="icon" aria-hidden="true">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+            </svg>
+          </div>
+          <div class="copy">
+            <p class="name">${this.escapeHtml(station.name)}</p>
+            <p class="meta">Station ID: ${this.escapeHtml(station.id)} · ${this.escapeHtml((station.state || "").toUpperCase())}</p>
+          </div>
+          <span class="status ${statusClass}">${status}</span>
         </a>
       `
     }).join("")
