@@ -52,6 +52,15 @@
               <% else %>
                 <span class="badge live"><span class="dot" aria-hidden="true"></span> Active</span>
               <% end %>
+              <% flood_category = @snapshot[:flood_category] || @snapshot["flood_category"] %>
+              <% flood_label = @snapshot[:flood_category_label] || @snapshot["flood_category_label"] %>
+              <% if flood_category.present? %>
+                <span class="badge flood-<%= flood_category.to_s.tr('_', '-') %>">
+                  <%= flood_label.presence || flood_category.to_s.humanize %>
+                </span>
+              <% else %>
+                <span class="badge muted">No flood stage data</span>
+              <% end %>
               <span class="badge muted">USGS</span>
             </div>
             <h1><%= location_name %></h1>
@@ -91,6 +100,24 @@
               <p class="label">Last updated</p>
               <p class="value"><%= display_timestamp(@snapshot[:latest_observed_at], time_zone: @snapshot[:time_zone_identifier] || @snapshot[:time_zone], state_code: @snapshot[:state_code]) %></p>
             </div>
+            <% stages = @snapshot[:flood_stages] || @snapshot["flood_stages"] || {} %>
+            <% action_ft = stages[:action] || stages["action"] %>
+            <% minor_ft = stages[:minor] || stages["minor"] %>
+            <% moderate_ft = stages[:moderate] || stages["moderate"] %>
+            <% major_ft = stages[:major] || stages["major"] %>
+            <% if action_ft.present? || minor_ft.present? || moderate_ft.present? || major_ft.present? %>
+              <div class="span-2">
+                <p class="label">NWS flood stages</p>
+                <p class="value flood-stages">
+                  <% bits = [] %>
+                  <% bits << "Action #{number_with_precision(action_ft, precision: 1)} ft" if action_ft.present? %>
+                  <% bits << "Minor #{number_with_precision(minor_ft, precision: 1)} ft" if minor_ft.present? %>
+                  <% bits << "Mod #{number_with_precision(moderate_ft, precision: 1)} ft" if moderate_ft.present? %>
+                  <% bits << "Major #{number_with_precision(major_ft, precision: 1)} ft" if major_ft.present? %>
+                  <%= bits.join(" · ") %>
+                </p>
+              </div>
+            <% end %>
           </div>
         </aside>
       </div>

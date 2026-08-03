@@ -11,10 +11,18 @@ export default class extends Controller {
     "dischargeCount",
     "waterLevelCount",
     "temperatureCount",
+    "floodCount",
     "settingsPanel",
     "settingsButton",
     "mobileSearch"
   ]
+
+  static FLOOD_COLORS = {
+    action: { color: "#fbbf24", fill: "#f59e0b" },
+    minor: { color: "#fb923c", fill: "#f97316" },
+    moderate: { color: "#f43f5e", fill: "#e11d48" },
+    major: { color: "#ef4444", fill: "#b91c1c" }
+  }
   static values = {
     stationsUrl: String,
     searchUrl: String,
@@ -203,16 +211,18 @@ export default class extends Controller {
   }
 
   updateCounts() {
-    const counts = { discharge: 0, water_level: 0, temperature: 0 }
+    const counts = { discharge: 0, water_level: 0, temperature: 0, flood: 0 }
     this.stations.forEach((station) => {
       if (station.has_discharge) counts.discharge += 1
       if (station.has_water_level) counts.water_level += 1
       if (station.has_temperature) counts.temperature += 1
+      if (station.flood_alert) counts.flood += 1
     })
 
     this.setCount(this.dischargeCountTarget, counts.discharge)
     this.setCount(this.waterLevelCountTarget, counts.water_level)
     this.setCount(this.temperatureCountTarget, counts.temperature)
+    if (this.hasFloodCountTarget) this.setCount(this.floodCountTarget, counts.flood)
   }
 
   setCount(target, value) {
@@ -242,11 +252,11 @@ export default class extends Controller {
     this.markersById.clear()
 
     this.visibleStations().forEach((station) => {
-      const active = !station.stale
+      const style = this.markerStyle(station)
       const marker = L.circleMarker([station.lat, station.lon], {
-        radius: 6,
-        color: active ? "#22d3ee" : "#71717a",
-        fillColor: active ? "#06b6d4" : "#a1a1aa",
+        radius: station.flood_alert ? 7 : 6,
+        color: style.color,
+        fillColor: style.fill,
         fillOpacity: 0.85,
         weight: 2
       })
@@ -254,6 +264,13 @@ export default class extends Controller {
       this.markersById.set(station.id, marker)
       this.cluster.addLayer(marker)
     })
+  }
+
+  markerStyle(station) {
+    if (station.stale) return { color: "#71717a", fill: "#a1a1aa" }
+    const flood = this.constructor.FLOOD_COLORS[station.flood_category]
+    if (flood) return flood
+    return { color: "#22d3ee", fill: "#06b6d4" }
   }
 
   renderSearchResults({ waiting = false } = {}) {
@@ -295,8 +312,10 @@ export default class extends Controller {
 
   popupHtml(station) {
     const rows = []
-    const status = station.stale ? "Inactive" : "Active"
-    rows.push(`<div class="popup-meta">Status: <strong>${status}</strong></div>`)
+    const status = station.stale
+      ? "Inactive"
+      : (station.flood_category_label || (station.flood_category === "no_flooding" ? "Normal" : "Active"))
+    rows.push(`<div class="popup-meta">Status: <strong>${this.escapeHtml(status)}</strong></div>`)
 
     if (station.water_level != null) {
       const label = station.water_level_label || "Water level"

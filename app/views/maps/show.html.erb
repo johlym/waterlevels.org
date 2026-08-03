@@ -104,13 +104,36 @@
               <span class="count" data-map-target="temperatureCount" data-zero>0</span>
             </label>
           </div>
+
+          <div class="map-stats" aria-label="Flood status in view">
+            <div class="stat">
+              <div class="label">At / above flood stage</div>
+              <div class="value" data-map-target="floodCount" data-zero>0</div>
+            </div>
+          </div>
         </div>
       </aside>
 
       <div class="map-legend">
         <div class="item">
           <span class="swatch active" aria-hidden="true"></span>
-          <span class="label">Active</span>
+          <span class="label">Normal</span>
+        </div>
+        <div class="item">
+          <span class="swatch action" aria-hidden="true"></span>
+          <span class="label">Action</span>
+        </div>
+        <div class="item">
+          <span class="swatch minor" aria-hidden="true"></span>
+          <span class="label">Minor</span>
+        </div>
+        <div class="item">
+          <span class="swatch moderate" aria-hidden="true"></span>
+          <span class="label">Moderate</span>
+        </div>
+        <div class="item">
+          <span class="swatch major" aria-hidden="true"></span>
+          <span class="label">Major</span>
         </div>
         <div class="item">
           <span class="swatch inactive" aria-hidden="true"></span>

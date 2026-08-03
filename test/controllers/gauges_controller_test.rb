@@ -32,7 +32,29 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "August 1, 2026 at 09:30:00 PM PDT"
     assert_includes response.body, 'data-hydrograph-time-zone-value="America/Los_Angeles"'
     assert_includes response.body, 'data-hydrograph-time-zone-label-value="PST"'
+    assert_includes response.body, "No flood stage data"
     assert_includes response.headers["Cache-Tag"], "gauge:#{@location.site_number}"
+  end
+
+  test "gauge page shows NWS flood category and stage thresholds" do
+    @location.update!(
+      nwps_matched: true,
+      nwps_lid: "BRKM2",
+      flood_category: "minor",
+      flood_stage_action: 5,
+      flood_stage_minor: 10,
+      flood_stage_moderate: 12,
+      flood_stage_major: 14,
+      latest_observed_at: 1.hour.ago
+    )
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_includes response.body, "Minor Flooding"
+    assert_includes response.body, "badge flood-minor"
+    assert_includes response.body, "NWS flood stages"
+    assert_includes response.body, "Action 5.0 ft"
+    assert_not_includes response.body, "No flood stage data"
   end
 
   test "nearby stations show all available measurements" do
@@ -78,6 +100,27 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "America/Chicago", station["time_zone_identifier"]
   end
 
+  test "map stations include flood category fields" do
+    @location.update!(
+      flood_category: "moderate",
+      nwps_matched: true,
+      flood_stage_action: 5,
+      flood_stage_minor: 10,
+      flood_stage_moderate: 12,
+      flood_stage_major: 14,
+      latitude: 47.5,
+      longitude: -121.8
+    )
+
+    get "/api/map/stations", params: { bbox: "-125,45,-120,49" }
+    assert_response :success
+    station = JSON.parse(response.body)["stations"].find { |row| row["id"] == @location.site_number }
+    assert_equal "moderate", station["flood_category"]
+    assert_equal "Moderate Flood", station["flood_category_label"]
+    assert station["flood_alert"]
+    assert_in_delta 12.0, station["flood_stage_moderate"], 0.001
+  end
+
   test "renders state listing grouped by county with titlecased locations" do
     create(:monitoring_location, site_number: "100", usgs_monitoring_location_id: "USGS-100", county_name: "Yakima", name: "Z RIVER NEAR TOWN, WA", state_code: "wa")
     create(:monitoring_location, site_number: "101", usgs_monitoring_location_id: "USGS-101", county_name: "Adams", name: "A CREEK NEAR TOWN, WA", state_code: "wa")
@@ -90,6 +133,36 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Z River Near Town, WA"
     assert_operator response.body.index("Adams"), :<, response.body.index("Yakima")
     assert_operator response.body.index("A Creek Near Town, WA"), :<, response.body.index("Z River Near Town, WA")
+  end
+
+  test "state listing shows critical alerts and flood card status" do
+    create(
+      :monitoring_location,
+      site_number: "200",
+      usgs_monitoring_location_id: "USGS-200",
+      county_name: "King",
+      name: "FLOOD CREEK NEAR TOWN, WA",
+      state_code: "wa",
+      flood_category: "action",
+      nwps_matched: true,
+      latest_water_level_value: 6.2,
+      latest_water_level_unit: "ft",
+      latest_observed_at: 30.minutes.ago
+    )
+
+    get "/gauges/wa"
+    assert_response :success
+    assert_includes response.body, "Critical Alerts"
+    assert_includes response.body, "Action"
+    assert_includes response.body, "status flood-action"
+    assert_includes response.body, "elevated"
+  end
+
+  test "map page includes flood stage stat tile" do
+    get map_path
+    assert_response :success
+    assert_includes response.body, "At / above flood stage"
+    assert_includes response.body, 'data-map-target="floodCount"'
   end
 
   test "returns map stations for a bbox" do

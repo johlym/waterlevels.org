@@ -127,8 +127,30 @@
   }
 }
 
+.map-stats {
+  @apply mt-4 border-t border-zinc-800 pt-4;
+
+  .stat {
+    .label {
+      @apply text-xs font-semibold tracking-wider text-zinc-500 uppercase;
+    }
+
+    .value {
+      @apply mt-1 font-display text-3xl font-bold text-white;
+
+      &[data-zero] {
+        @apply text-zinc-500;
+      }
+
+      &:not([data-zero]) {
+        @apply text-rose-400;
+      }
+    }
+  }
+}
+
 .map-legend {
-  @apply pointer-events-auto absolute right-4 bottom-4 flex flex-wrap items-center gap-4 rounded-xl border border-zinc-700/50 bg-zinc-900 px-4 py-3 shadow-lg shadow-black/40 sm:right-6 sm:bottom-10;
+  @apply pointer-events-auto absolute right-4 bottom-4 flex max-w-[min(100%,28rem)] flex-wrap items-center gap-3 rounded-xl border border-zinc-700/50 bg-zinc-900 px-4 py-3 shadow-lg shadow-black/40 sm:right-6 sm:bottom-10;
 
   .item {
     @apply flex items-center gap-2;
@@ -138,6 +160,22 @@
 
       &.active {
         @apply bg-cyan-400 shadow-lg shadow-cyan-500/30;
+      }
+
+      &.action {
+        @apply bg-amber-400;
+      }
+
+      &.minor {
+        @apply bg-orange-400;
+      }
+
+      &.moderate {
+        @apply bg-rose-500;
+      }
+
+      &.major {
+        @apply bg-red-600;
       }
 
       &.inactive {
@@ -853,6 +891,26 @@
   &.warn {
     @apply border-amber-500/20 bg-amber-500/10 text-amber-400;
   }
+
+  &.flood-no-flooding {
+    @apply border-emerald-500/20 bg-emerald-500/10 text-emerald-400;
+  }
+
+  &.flood-action {
+    @apply border-amber-500/30 bg-amber-500/10 text-amber-300;
+  }
+
+  &.flood-minor {
+    @apply border-orange-500/30 bg-orange-500/10 text-orange-300;
+  }
+
+  &.flood-moderate {
+    @apply border-rose-500/30 bg-rose-500/10 text-rose-300;
+  }
+
+  &.flood-major {
+    @apply border-red-500/40 bg-red-500/15 text-red-300;
+  }
 }
 
 .station-meta {
@@ -860,6 +918,14 @@
 
   .meta-grid {
     @apply grid grid-cols-2 gap-4 text-sm;
+  }
+
+  .span-2 {
+    @apply col-span-2;
+  }
+
+  .flood-stages {
+    @apply text-pretty text-zinc-300;
   }
 
   .label {
@@ -1401,6 +1467,10 @@
 
   .station-card {
     @apply block rounded-xl border border-zinc-800 bg-zinc-900/20 p-5 no-underline transition-all hover:border-zinc-700;
+
+    &.is-alert {
+      @apply border-rose-500/40 bg-rose-500/5 hover:border-rose-400/50;
+    }
   }
 
   .card-head {
@@ -1448,6 +1518,10 @@
 
     .value {
       @apply font-display text-base font-semibold text-white;
+
+      &.elevated {
+        @apply text-rose-300;
+      }
     }
 
     .status {
@@ -1470,6 +1544,38 @@
 
         .dot {
           @apply bg-amber-400;
+        }
+      }
+
+      &.flood-action {
+        @apply text-amber-300;
+
+        .dot {
+          @apply bg-amber-400;
+        }
+      }
+
+      &.flood-minor {
+        @apply text-orange-300;
+
+        .dot {
+          @apply bg-orange-400;
+        }
+      }
+
+      &.flood-moderate {
+        @apply text-rose-300;
+
+        .dot {
+          @apply bg-rose-500;
+        }
+      }
+
+      &.flood-major {
+        @apply text-red-300;
+
+        .dot {
+          @apply bg-red-500;
         }
       }
     }

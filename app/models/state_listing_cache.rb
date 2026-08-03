@@ -1,5 +1,5 @@
 class StateListingCache
-  PREFIX = "state_listing:v3".freeze
+  PREFIX = "state_listing:v4".freeze
   TTL = 6.hours
 
   def self.key_for(state_code)
@@ -29,6 +29,14 @@ class StateListingCache
         latest_temperature_c: loc.latest_temperature_c&.to_f,
         latest_observed_at: loc.latest_observed_at&.iso8601,
         stale: loc.stale?,
+        nwps_matched: loc.nwps_matched,
+        flood_category: loc.flood_category,
+        flood_category_label: loc.flood_category_short_label,
+        flood_alert: loc.flood_alert?,
+        flood_stage_action: loc.flood_stage_action&.to_f,
+        flood_stage_minor: loc.flood_stage_minor&.to_f,
+        flood_stage_moderate: loc.flood_stage_moderate&.to_f,
+        flood_stage_major: loc.flood_stage_major&.to_f,
         path: "/gauges/#{loc.path_state}/#{loc.to_param}"
       }
     end
@@ -38,7 +46,8 @@ class StateListingCache
       state_name: state_name,
       locations: rows,
       total_count: rows.size,
-      offline_count: rows.count { |row| row[:stale] }
+      offline_count: rows.count { |row| row[:stale] },
+      critical_count: rows.count { |row| row[:flood_alert] }
     }
     Rails.cache.write(key_for(state_code), payload, expires_in: TTL)
     payload
@@ -52,6 +61,7 @@ class StateListingCache
     cached = read(state_code)
     return warm(state_code) if cached.blank?
     return warm(state_code) if cached.is_a?(Hash) && !cached.key?(:total_count) && !cached.key?("total_count")
+    return warm(state_code) if cached.is_a?(Hash) && !cached.key?(:critical_count) && !cached.key?("critical_count")
 
     cached
   end

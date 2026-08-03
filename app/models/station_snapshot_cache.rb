@@ -1,5 +1,5 @@
 class StationSnapshotCache
-  PREFIX = "station_snapshot:v9".freeze
+  PREFIX = "station_snapshot:v10".freeze
   TTL = 2.hours
   MILES_PER_KM = 0.621371
 
@@ -99,6 +99,18 @@ class StationSnapshotCache
       time_zone_identifier: location.time_zone_identifier,
       stale: location.stale?,
       latest_observed_at: latest_observed_at,
+      nwps_matched: location.nwps_matched,
+      nwps_lid: location.nwps_lid,
+      flood_category: location.flood_category,
+      flood_category_label: location.flood_category_label,
+      flood_alert: location.flood_alert?,
+      flood_category_observed_at: location.flood_category_observed_at&.iso8601,
+      flood_stages: {
+        action: location.flood_stage_action&.to_f,
+        minor: location.flood_stage_minor&.to_f,
+        moderate: location.flood_stage_moderate&.to_f,
+        major: location.flood_stage_major&.to_f
+      },
       measurement_kinds: measurements.map { |m| m[:kind] }.uniq,
       measurements: measurements,
       current: current,

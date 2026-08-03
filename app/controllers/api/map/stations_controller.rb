@@ -65,7 +65,11 @@ module Api
           observed_at: loc.latest_observed_at&.iso8601,
           time_zone: loc.time_zone,
           time_zone_identifier: loc.time_zone_identifier,
-          approval_status: loc.latest_approval_status
+          approval_status: loc.latest_approval_status,
+          flood_stage_action: loc.flood_stage_action&.to_f,
+          flood_stage_minor: loc.flood_stage_minor&.to_f,
+          flood_stage_moderate: loc.flood_stage_moderate&.to_f,
+          flood_stage_major: loc.flood_stage_major&.to_f
         )
       end
 
@@ -78,7 +82,11 @@ module Api
           stale: loc.stale?,
           has_water_level: loc.has_water_level,
           has_discharge: loc.has_discharge,
-          has_temperature: loc.has_temperature
+          has_temperature: loc.has_temperature,
+          nwps_matched: loc.nwps_matched,
+          flood_category: loc.flood_category,
+          flood_category_label: loc.flood_category_short_label,
+          flood_alert: loc.flood_alert?
         }
       end
     end

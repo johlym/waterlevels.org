@@ -14,6 +14,11 @@
       cron: "0 * * * *"
       class: LatestObservationSyncJob
       queue: sync
+    flood_stage_sync:
+      # Offset from latest USGS sync so category refresh trails observations.
+      cron: "20 * * * *"
+      class: FloodStageSyncJob
+      queue: sync
     history_backfill_batch:
       # Mon–Sat only; Sunday is reserved for StationCatalogSyncJob.
       # HistoryBackfillJob also no-ops on Sunday as a safety net.
