@@ -1,7 +1,7 @@
 class PagesController < ApplicationController
   include CacheableResponse
 
-  PAGES = %w[about contact disclosures privacy terms].freeze
+  PAGES = %w[about contact disclosures faq privacy terms].freeze
 
   def show
     @page = params[:id].to_s

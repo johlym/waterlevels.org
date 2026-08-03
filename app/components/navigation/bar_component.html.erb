@@ -12,6 +12,7 @@
     <nav class="desktop-nav" aria-label="Primary">
       <%= link_to "Map", map_path, class: "nav-link" %>
       <%= link_to "About", about_path, class: "nav-link" %>
+      <%= link_to "FAQ", faq_path, class: "nav-link" %>
       <%= link_to "Contact", contact_path, class: "nav-link" %>
       <%= link_to "Data", disclosures_path, class: "nav-link" %>
     </nav>
@@ -50,6 +51,7 @@
     <nav aria-label="Mobile primary">
       <%= link_to "Map", map_path, class: "nav-link", data: { action: "mobile-nav#close" } %>
       <%= link_to "About", about_path, class: "nav-link", data: { action: "mobile-nav#close" } %>
+      <%= link_to "FAQ", faq_path, class: "nav-link", data: { action: "mobile-nav#close" } %>
       <%= link_to "Contact", contact_path, class: "nav-link", data: { action: "mobile-nav#close" } %>
     </nav>
   </div>

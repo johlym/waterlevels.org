@@ -1,0 +1,33 @@
+<%# locals: (question:, id:) %>
+<div class="faq-item" data-faq-target="item" id="<%= id %>">
+  <h3>
+    <button
+      type="button"
+      class="faq-trigger"
+      data-faq-target="trigger"
+      data-action="faq#toggle"
+      aria-expanded="false"
+      aria-controls="<%= id %>-answer"
+      id="<%= id %>-question"
+    >
+      <span class="question"><%= question %></span>
+      <span class="faq-icon" aria-hidden="true">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+        </svg>
+      </span>
+    </button>
+  </h3>
+  <div
+    class="faq-panel"
+    data-faq-target="panel"
+    id="<%= id %>-answer"
+    role="region"
+    aria-labelledby="<%= id %>-question"
+    hidden
+  >
+    <div class="answer">
+      <%= yield %>
+    </div>
+  </div>
+</div>

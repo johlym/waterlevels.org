@@ -1,0 +1,314 @@
+<% content_for :title, "FAQ | WaterLevels.org" %>
+<% content_for :meta_description, "Answers about WaterLevels.org: USGS data sources, update frequency, flood categories, gage height, streamflow, and how to use the map and station pages." %>
+
+<div class="app-shell">
+  <%= render Navigation::BarComponent.new %>
+
+  <section class="page-hero">
+    <div class="glow" aria-hidden="true">
+      <div class="blob-a"></div>
+      <div class="blob-b"></div>
+    </div>
+    <div class="inner">
+      <span class="eyebrow">
+        <svg class="size-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        FAQ
+      </span>
+      <h1>
+        Frequently asked
+        <span class="accent">questions</span>
+      </h1>
+      <p class="lede">
+        What WaterLevels.org is, where the readings come from, how often they update, and what common hydrology terms mean on the map and station pages.
+      </p>
+    </div>
+  </section>
+
+  <main class="page-main faq-main">
+    <div class="faq-page" data-controller="faq">
+      <aside class="faq-sidebar">
+        <div class="sidebar-sticky">
+          <h2 class="sidebar-label">Categories</h2>
+          <nav class="faq-categories" aria-label="FAQ categories" role="tablist">
+            <button
+              type="button"
+              class="category-btn"
+              data-faq-target="category"
+              data-faq-category-param="general"
+              data-active
+              data-action="faq#selectCategory"
+              role="tab"
+              aria-selected="true"
+            >
+              General
+            </button>
+            <button
+              type="button"
+              class="category-btn"
+              data-faq-target="category"
+              data-faq-category-param="data"
+              data-action="faq#selectCategory"
+              role="tab"
+              aria-selected="false"
+            >
+              Data &amp; sources
+            </button>
+            <button
+              type="button"
+              class="category-btn"
+              data-faq-target="category"
+              data-faq-category-param="stations"
+              data-action="faq#selectCategory"
+              role="tab"
+              aria-selected="false"
+            >
+              Map &amp; stations
+            </button>
+            <button
+              type="button"
+              class="category-btn"
+              data-faq-target="category"
+              data-faq-category-param="glossary"
+              data-action="faq#selectCategory"
+              role="tab"
+              aria-selected="false"
+            >
+              Glossary
+            </button>
+          </nav>
+
+          <div class="help-card">
+            <div class="icon" aria-hidden="true">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+              </svg>
+            </div>
+            <h3>Still have questions?</h3>
+            <p>Send a note with the site number and about when you saw the issue.</p>
+            <%= link_to contact_path, class: "help-link" do %>
+              Contact us
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+              </svg>
+            <% end %>
+          </div>
+        </div>
+      </aside>
+
+      <div class="faq-panels">
+        <section class="faq-section" data-faq-target="section" data-faq-category-param="general" aria-labelledby="faq-general-heading">
+          <h2 id="faq-general-heading">General</h2>
+          <div class="faq-list">
+            <%= render "pages/faq_item", question: "What is WaterLevels.org?", id: "what-is" do %>
+              <p>
+                WaterLevels.org is an independent site that maps USGS water-monitoring locations and presents streamflow, water level (gage height), and water temperature in a browsable map, state directories, and station detail pages.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "Is WaterLevels.org free?", id: "is-free" do %>
+              <p>
+                Yes. The map, state listings, station pages, charts, and CSV exports on gauge pages are free to use. There are no accounts, subscriptions, or paid tiers.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "Is this an official USGS website?", id: "official-usgs" do %>
+              <p>
+                No. WaterLevels.org is a private project operated by Bytoro LLC. It is not affiliated with, endorsed by, or operated by the USGS or the Department of the Interior. For the authoritative record at any station, use the official USGS monitoring-location page linked from each gauge.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "Who is this site for?", id: "who-for" do %>
+              <p>
+                Anyone who wants a clearer view of public water data: neighbors checking a local river, paddlers and anglers, journalists, students, or anyone comparing nearby gauges. It is for informational browsing, not engineering design, flood response, or legal decisions.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "Do I need an account?", id: "account" do %>
+              <p>
+                No. Everything on the site is available without signing in. Account features from older mockups (saved stations, email alerts, premium plans) are not part of the product today.
+              </p>
+            <% end %>
+          </div>
+        </section>
+
+        <section class="faq-section" data-faq-target="section" data-faq-category-param="data" hidden aria-labelledby="faq-data-heading">
+          <h2 id="faq-data-heading">Data &amp; sources</h2>
+          <div class="faq-list">
+            <%= render "pages/faq_item", question: "Where does the data come from?", id: "data-source" do %>
+              <p>
+                Nearly all hydrologic values come from the
+                <a href="https://api.waterdata.usgs.gov/" rel="noopener noreferrer" target="_blank">USGS Water Data APIs</a>.
+                Flood categories and stage thresholds, when available, come from the National Weather Service National Water Prediction Service (NWPS) and are joined to USGS gauges by site number.
+              </p>
+              <p>
+                <%= link_to "Read the full data disclosures", disclosures_path %> for what we store, how we cache updates, and important limitations.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "How often is the data updated?", id: "update-frequency" do %>
+              <p>
+                Most USGS continuous stations report on the order of every 15 minutes, but remote sites can report less often. WaterLevels.org refreshes latest observations on a schedule and serves cached pages, so the number you see can lag the live USGS feed by minutes to hours—and occasionally longer if a sync has not completed.
+              </p>
+              <p>
+                Each station page shows the timestamp of the latest observation we have stored so you can judge freshness.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "What does “provisional” mean?", id: "provisional" do %>
+              <p>
+                USGS marks many real-time values as provisional. Those readings can be revised, corrected, or removed after review. Approved values are more stable but still follow USGS publication practices. If this site and the official USGS page disagree, treat USGS as correct.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "How far back does history go on this site?", id: "history" do %>
+              <p>
+                Station charts and tables use history we have cached for that gauge—typically recent continuous (sub-daily) points, plus daily and peak series where available. Retention is finite (on the order of ~90 days of continuous points and about a year of daily means), not the full USGS archive back to the early 1900s.
+              </p>
+              <p>
+                For the complete period of record, use the official USGS station page.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "Can I export data?", id: "export" do %>
+              <p>
+                Yes. Gauge detail pages include a measurements table with CSV export for the loaded history. We do not sell a third-party data API or resell raw USGS access. For bulk or programmatic use at scale, prefer the
+                <a href="https://api.waterdata.usgs.gov/" rel="noopener noreferrer" target="_blank">USGS Water Data APIs</a>
+                directly.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "Why might a value look wrong or missing?", id: "wrong-value" do %>
+              <p>
+                Gaps and mismatches can appear when a sensor is offline, a parameter was discontinued, our sync lagged, a station falls outside the site types we keep, or USGS rate limits interrupted a refresh. A “stale” label means our latest stored observation is older than our freshness threshold (currently one week), not necessarily that USGS stopped collecting data.
+              </p>
+            <% end %>
+          </div>
+        </section>
+
+        <section class="faq-section" data-faq-target="section" data-faq-category-param="stations" hidden aria-labelledby="faq-stations-heading">
+          <h2 id="faq-stations-heading">Map &amp; stations</h2>
+          <div class="faq-list">
+            <%= render "pages/faq_item", question: "Which stations appear on the map?", id: "which-stations" do %>
+              <p>
+                We focus on active continuous surface-water and related sites that currently report water level, streamflow/discharge, and/or water temperature. We do not host the full USGS groundwater-well archive or every historical field measurement.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "What do the map marker colors mean?", id: "marker-colors" do %>
+              <p>
+                Markers reflect National Weather Service flood categories when we have an NWPS match for that gauge:
+              </p>
+              <ul role="list">
+                <li><span class="emphasis">Cyan / normal</span> — no flooding (or no elevated category)</li>
+                <li><span class="emphasis">Amber</span> — action stage</li>
+                <li><span class="emphasis">Orange</span> — minor flooding</li>
+                <li><span class="emphasis">Rose</span> — moderate flooding</li>
+                <li><span class="emphasis">Red</span> — major flooding</li>
+              </ul>
+              <p>
+                Not every USGS site has an NWPS forecast point. WaterLevels.org is not a warning system—confirm against official NWS and USGS products when safety decisions matter.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "How do I find stations near me?", id: "near-me" do %>
+              <p>
+                On the homepage search, use the locate control to request your location once and jump toward the nearest station, or search by station name, river, or place. The interactive map also supports browsing by area; state directories at paths like <%= link_to "/gauges/wa", state_gauges_path("wa") %> list stations by county.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "What is on a station (gauge) page?", id: "gauge-page" do %>
+              <p>
+                Current conditions for available parameters, NWS flood category when linked, a trend chart for recent history, an hourly-style measurements table with CSV export, and a few nearby stations. Temperature can be shown in °F or °C via the site preference control.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "Can you add a station I care about?", id: "add-station" do %>
+              <p>
+                If it is an active USGS continuous site reporting parameters we already ingest, it should appear after catalog sync. If something is missing,
+                <%= link_to "contact us", contact_path %>
+                with the USGS site number. We can only surface stations with publicly available machine-readable USGS feeds that match our filters.
+              </p>
+            <% end %>
+          </div>
+        </section>
+
+        <section class="faq-section" data-faq-target="section" data-faq-category-param="glossary" hidden aria-labelledby="faq-glossary-heading">
+          <h2 id="faq-glossary-heading">Glossary</h2>
+          <div class="faq-list">
+            <%= render "pages/faq_item", question: "What is gage height (stage)?", id: "gage-height" do %>
+              <p>
+                Gage height (often called stage) is the water-surface elevation at the gauge relative to a local datum—not depth from the streambed in most cases. USGS commonly reports it under parameter code 00065. Some sites instead report lake or reservoir elevation relative to a vertical datum such as NGVD 1929 or NAVD 1988.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "What is streamflow or discharge?", id: "discharge" do %>
+              <p>
+                Streamflow (discharge) is the volume of water moving past the gauge per unit time, typically in cubic feet per second (cfs). USGS parameter code 00060. It is related to stage through a rating curve maintained by USGS, but stage and discharge are separate measurements on this site.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "What are action, minor, moderate, and major flood stages?", id: "flood-stages" do %>
+              <p>
+                These are National Weather Service categories for how high the water is relative to impacts at that forecast point:
+              </p>
+              <ul role="list">
+                <li><span class="emphasis">Action</span> — elevated levels; monitoring and preparedness may begin</li>
+                <li><span class="emphasis">Minor</span> — minimal or no property damage, but possibly some public threat</li>
+                <li><span class="emphasis">Moderate</span> — some inundation of structures and roads near streams</li>
+                <li><span class="emphasis">Major</span> — extensive inundation, significant evacuations, and/or significant infrastructure impacts</li>
+              </ul>
+              <p>
+                Thresholds are location-specific. Exact definitions and impacts are published by NWS for each gauge.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "What is a USGS site number?", id: "site-number" do %>
+              <p>
+                Every USGS monitoring location has a numeric site identifier (for example, 12113000). WaterLevels.org URLs use that number plus a readable slug, such as
+                <code>/gauges/wa/12113000-green-river-near-auburn</code>.
+                Use the site number when contacting us or looking up the same station on USGS.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "What do NGVD 1929 and NAVD 1988 mean?", id: "datums" do %>
+              <p>
+                They are vertical datums—reference systems for elevation. Some lake and reservoir gauges report water-surface height above NGVD 1929 or NAVD 1988 instead of (or in addition to) local gage height. Values in different datums are not interchangeable without a conversion.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "Why can temperature show °F or °C?", id: "temperature-units" do %>
+              <p>
+                USGS water temperature is stored in Celsius. The interface defaults to Fahrenheit and can switch units via the temperature preference control; the underlying observation is the same either way.
+              </p>
+            <% end %>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <section class="faq-cta">
+    <div class="inner">
+      <h2>Can't find what you're looking for?</h2>
+      <p>Check the data disclosures for source and caching details, or send a message through the contact form.</p>
+      <div class="actions">
+        <%= link_to contact_path, class: "btn-primary" do %>
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+          </svg>
+          Contact us
+        <% end %>
+        <%= link_to disclosures_path, class: "btn-secondary" do %>
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+          </svg>
+          Data disclosures
+        <% end %>
+      </div>
+    </div>
+  </section>
+
+  <%= render Footer::ThinComponent.new %>
+</div>

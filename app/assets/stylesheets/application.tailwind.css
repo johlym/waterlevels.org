@@ -810,6 +810,166 @@
   }
 }
 
+/* —— FAQ —— */
+.page-main.faq-main {
+  @apply py-12 lg:py-16;
+}
+
+.faq-page {
+  @apply grid gap-8 lg:grid-cols-12 lg:gap-16;
+}
+
+.faq-sidebar {
+  @apply lg:col-span-3;
+
+  .sidebar-sticky {
+    @apply flex flex-col gap-8 lg:sticky lg:top-8;
+  }
+
+  .sidebar-label {
+    @apply text-xs font-semibold tracking-wider text-zinc-500 uppercase;
+  }
+}
+
+.faq-categories {
+  @apply flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0;
+
+  .category-btn {
+    @apply shrink-0 rounded-lg px-4 py-2.5 text-left text-base text-zinc-400 hover:bg-zinc-800/40 hover:text-white sm:text-sm;
+
+    &[data-active] {
+      @apply bg-zinc-800/60 font-medium text-white;
+    }
+  }
+}
+
+.help-card {
+  @apply rounded-xl border border-zinc-800/50 bg-zinc-900/50 p-5 max-lg:hidden;
+
+  .icon {
+    @apply mb-3 flex size-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400;
+
+    svg {
+      @apply size-5;
+    }
+  }
+
+  h3 {
+    @apply font-display text-base font-semibold text-white sm:text-sm;
+  }
+
+  p {
+    @apply mt-1 text-base text-zinc-500 sm:text-sm;
+  }
+
+  .help-link {
+    @apply mt-4 inline-flex items-center gap-2 text-base font-medium text-cyan-400 no-underline hover:text-cyan-300 sm:text-sm;
+
+    svg {
+      @apply size-4;
+    }
+  }
+}
+
+.faq-panels {
+  @apply lg:col-span-9;
+}
+
+.faq-section {
+  h2 {
+    @apply mb-6 font-display text-xl font-semibold text-white;
+  }
+}
+
+.faq-list {
+  @apply flex flex-col gap-4;
+}
+
+.faq-item {
+  @apply rounded-xl border border-zinc-800/50 bg-zinc-900/30;
+
+  .faq-trigger {
+    @apply flex w-full items-center justify-between gap-4 px-6 py-5 text-left;
+  }
+
+  .question {
+    @apply text-base font-medium text-white;
+  }
+
+  .faq-icon {
+    @apply flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-800;
+
+    svg {
+      @apply size-4 text-zinc-400 transition-transform duration-300;
+    }
+  }
+
+  &[data-open] .faq-icon svg {
+    @apply rotate-180;
+  }
+
+  .faq-panel {
+    @apply px-6 pb-5;
+  }
+
+  .answer {
+    @apply space-y-3 text-pretty text-base text-zinc-400;
+
+    a {
+      @apply font-medium text-cyan-400 underline hover:text-cyan-300;
+    }
+
+    .emphasis {
+      @apply font-medium text-zinc-200;
+    }
+
+    ul {
+      @apply list-disc space-y-2 pl-5;
+    }
+
+    code {
+      @apply rounded bg-white/10 px-1.5 py-0.5 text-zinc-200;
+    }
+  }
+}
+
+.faq-cta {
+  @apply border-t border-zinc-800/30 bg-zinc-900/50 py-16 lg:py-20;
+
+  .inner {
+    @apply mx-auto flex max-w-3xl flex-col items-center gap-4 px-6 text-center;
+  }
+
+  h2 {
+    @apply font-display text-2xl font-semibold text-white lg:text-3xl;
+  }
+
+  p {
+    @apply text-pretty text-base text-zinc-400;
+  }
+
+  .actions {
+    @apply mt-4 flex flex-col items-center justify-center gap-4 sm:flex-row;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 rounded-full px-6 py-3 text-base font-medium no-underline sm:text-sm;
+
+    svg {
+      @apply size-4;
+    }
+  }
+
+  .btn-primary {
+    @apply bg-cyan-500 text-zinc-950 hover:bg-cyan-400 active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply border border-zinc-700 bg-zinc-800/50 text-white hover:bg-zinc-800 active:scale-95;
+  }
+}
+
 .empty-state {
   @apply rounded-xl border border-zinc-800/80 bg-zinc-900/50 px-6 py-10 text-center;
 

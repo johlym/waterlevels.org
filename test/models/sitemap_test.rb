@@ -18,7 +18,7 @@ class SitemapTest < ActiveSupport::TestCase
   test "static_xml includes public pages and omits contact" do
     xml = Sitemap.static_xml(host: "example.com", protocol: "https")
 
-    %w[/ /map /about /disclosures /privacy /terms].each do |path|
+    %w[/ /map /about /disclosures /faq /privacy /terms].each do |path|
       assert_includes xml, "<loc>https://example.com#{path}</loc>"
     end
     refute_includes xml, "/contact"

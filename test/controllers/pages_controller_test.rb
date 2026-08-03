@@ -1,7 +1,7 @@
 require "test_helper"
 
 class PagesControllerTest < ActionDispatch::IntegrationTest
-  %w[about disclosures privacy terms].each do |page|
+  %w[about disclosures faq privacy terms].each do |page|
     test "renders #{page}" do
       get "/#{page}"
       assert_response :success
