@@ -11,7 +11,6 @@ export default class extends Controller {
     "dischargeCount",
     "waterLevelCount",
     "temperatureCount",
-    "floodCount",
     "settingsPanel",
     "settingsButton",
     "mobileSearch"
@@ -211,18 +210,16 @@ export default class extends Controller {
   }
 
   updateCounts() {
-    const counts = { discharge: 0, water_level: 0, temperature: 0, flood: 0 }
+    const counts = { discharge: 0, water_level: 0, temperature: 0 }
     this.stations.forEach((station) => {
       if (station.has_discharge) counts.discharge += 1
       if (station.has_water_level) counts.water_level += 1
       if (station.has_temperature) counts.temperature += 1
-      if (station.flood_alert) counts.flood += 1
     })
 
     this.setCount(this.dischargeCountTarget, counts.discharge)
     this.setCount(this.waterLevelCountTarget, counts.water_level)
     this.setCount(this.temperatureCountTarget, counts.temperature)
-    if (this.hasFloodCountTarget) this.setCount(this.floodCountTarget, counts.flood)
   }
 
   setCount(target, value) {

@@ -158,13 +158,6 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "elevated"
   end
 
-  test "map page includes flood stage stat tile" do
-    get map_path
-    assert_response :success
-    assert_includes response.body, "At / above flood stage"
-    assert_includes response.body, 'data-map-target="floodCount"'
-  end
-
   test "returns map stations for a bbox" do
     get "/api/map/stations", params: { bbox: "-125,45,-120,49" }
     assert_response :success

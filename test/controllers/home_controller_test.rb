@@ -8,7 +8,9 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
       usgs_monitoring_location_id: "USGS-09380000",
       name: "COLORADO RIVER AT LEES FERRY, AZ",
       state_code: "az",
-      state_name: "Arizona"
+      state_name: "Arizona",
+      flood_category: "action",
+      nwps_matched: true
     )
 
     get root_path
@@ -17,6 +19,8 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Total stations"
     assert_includes response.body, "Total measurements"
     assert_includes response.body, "Updates per hour"
+    assert_includes response.body, "Flood alerts"
+    assert_includes response.body, 'class="value alert">1</p>'
     assert_includes response.body, "Colorado River"
     assert_includes response.body, "Mississippi Basin"
     assert_includes response.body, "Great Lakes"
@@ -32,6 +36,8 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'data-controller="map"'
     assert_includes response.body, "map-mobile-search"
     assert_includes response.body, "Map settings"
+    assert_not_includes response.body, "At / above flood stage"
+    assert_not_includes response.body, 'data-map-target="floodCount"'
     assert_not_includes response.body, 'class="site-footer"'
     assert_includes response.headers["Cache-Tag"], "map"
   end
