@@ -32,7 +32,7 @@ export default class extends Controller {
     year: Number
   }
 
-  static DEFAULT_VIEW = { lat: 39.5, lon: -98.35, zoom: 4 }
+  static DEFAULT_VIEW = { lat: 39.5, lon: -98.35, zoom: 5 }
   static MAX_ZOOM = 18
 
   connect() {
@@ -48,7 +48,7 @@ export default class extends Controller {
       temperature: true
     }
 
-const initial = this.initialView()
+    const initial = this.initialView()
     this.map = L.map(this.canvasTarget, { zoomControl: false, attributionControl: false }).setView(initial.center, initial.zoom)
     L.control.attribution({
       position: "bottomleft",
