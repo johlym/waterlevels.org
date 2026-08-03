@@ -62,12 +62,52 @@ class FloodStageSyncTest < ActiveSupport::TestCase
 
   test "list refresh updates category for known LIDs without detail GETs" do
     @location.update!(
-      nwps_lid: "THET2",
+      nwps_lid: "BRKM2",
       nwps_matched: true,
       nwps_synced_at: 2.hours.ago,
       flood_category: "no_flooding",
-      flood_stage_minor: 25
+      flood_stage_minor: 10,
+      state_code: "wa"
     )
+    @unmatched.update!(nwps_matched: false, nwps_synced_at: 1.day.ago)
+
+    stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges")
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: {
+          gauges: [
+            {
+              lid: "BRKM2",
+              state: { abbreviation: "WA" },
+              status: {
+                observed: { floodCategory: "minor", validTime: "2026-08-03T04:15:00Z" },
+                forecast: { floodCategory: "action", validTime: "2026-08-03T06:00:00Z" }
+              }
+            }
+          ]
+        }.to_json
+      )
+
+    FloodStageSync.new(state: "wa").perform
+
+    @location.reload
+    assert_equal "minor", @location.flood_category
+    assert_in_delta 10.0, @location.flood_stage_minor, 0.001
+    assert_not_requested :get, "https://api.water.noaa.gov/nwps/v1/gauges/01646500"
+    assert_not_requested :get, "https://api.water.noaa.gov/nwps/v1/gauges/99999999"
+  end
+
+  test "matches unlinked action-plus gauges from the list via LID detail and usgsId" do
+    flooding = create(
+      :monitoring_location,
+      site_number: "08210000",
+      usgs_monitoring_location_id: "USGS-08210000",
+      state_code: "tx",
+      state_name: "Texas",
+      has_water_level: true
+    )
+    @location.update!(nwps_matched: false, nwps_synced_at: 1.day.ago)
     @unmatched.update!(nwps_matched: false, nwps_synced_at: 1.day.ago)
 
     stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges")
@@ -83,18 +123,75 @@ class FloodStageSyncTest < ActiveSupport::TestCase
                 observed: { floodCategory: "major", validTime: "2026-08-03T04:15:00Z" },
                 forecast: { floodCategory: "major", validTime: "2026-08-03T06:00:00Z" }
               }
+            },
+            {
+              lid: "TILT2",
+              state: { abbreviation: "TX" },
+              status: {
+                observed: { floodCategory: "moderate", validTime: "2026-08-03T04:00:00Z" },
+                forecast: { floodCategory: "moderate", validTime: "2026-08-03T06:00:00Z" }
+              }
+            },
+            {
+              lid: "QUIET",
+              state: { abbreviation: "TX" },
+              status: {
+                observed: { floodCategory: "no_flooding", validTime: "2026-08-03T04:00:00Z" }
+              }
             }
           ]
+        }.to_json
+      )
+    stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges/THET2")
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: {
+          lid: "THET2",
+          usgsId: "8210000", # unpadded on purpose — sync should still match 08210000
+          flood: {
+            categories: {
+              action: { stage: 20 },
+              minor: { stage: 25 },
+              moderate: { stage: 27 },
+              major: { stage: 35 }
+            }
+          },
+          status: {
+            observed: { floodCategory: "major", validTime: "2026-08-03T04:15:00Z" },
+            forecast: { floodCategory: "major", validTime: "2026-08-03T06:00:00Z" }
+          }
+        }.to_json
+      )
+    stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges/TILT2")
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: {
+          lid: "TILT2",
+          usgsId: "08206600",
+          flood: {
+            categories: {
+              action: { stage: 10 },
+              minor: { stage: 14 },
+              moderate: { stage: 17 },
+              major: { stage: 20 }
+            }
+          },
+          status: {
+            observed: { floodCategory: "moderate", validTime: "2026-08-03T04:00:00Z" }
+          }
         }.to_json
       )
 
     FloodStageSync.new.perform
 
-    @location.reload
-    assert_equal "major", @location.flood_category
-    assert_in_delta 25.0, @location.flood_stage_minor, 0.001
-    assert_not_requested :get, "https://api.water.noaa.gov/nwps/v1/gauges/01646500"
-    assert_not_requested :get, "https://api.water.noaa.gov/nwps/v1/gauges/99999999"
+    flooding.reload
+    assert flooding.nwps_matched?
+    assert_equal "THET2", flooding.nwps_lid
+    assert_equal "major", flooding.flood_category
+    assert_in_delta 35.0, flooding.flood_stage_major, 0.001
+    assert_not_requested :get, "https://api.water.noaa.gov/nwps/v1/gauges/QUIET"
   end
 
   test "uses more severe forecast category when observed is not current" do
