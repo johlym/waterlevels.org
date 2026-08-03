@@ -12,6 +12,8 @@ class BootstrapStateJob < ApplicationJob
     StationCatalogSync.new(state: state, progress: progress).perform
     progress.step("latest")
     LatestObservationSync.new(state: state, progress: progress).perform
+    progress.step("flood_stages")
+    FloodStageSync.new(state: state, progress: progress).perform
     progress.finish("state=#{state}")
   end
 end

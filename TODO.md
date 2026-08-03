@@ -35,6 +35,7 @@ Shipped in UI shape: breadcrumb, Active/Stale badges, station meta (ID, coordina
 
 - [ ] **Historical median** period stat (tile shows “Not available yet”)
 - [ ] Always-on dual series (streamflow + gauge height) regardless of selected measurement tab (today companion series only overlays when both exist and the selected kind is flow or stage)
+- [x] NWS flood stage reference lines on water-level hydrographs (action/minor/moderate/major)
 - [ ] Mock static axis / “Hover for details” chrome parity beyond Chart.js defaults
 
 ### Hourly measurements table

@@ -19,16 +19,17 @@ class MonitoringLocation < ApplicationRecord
 
     pattern = "%#{sanitize_sql_like(q)}%"
     where(
-      "name ILIKE :pattern OR site_number ILIKE :pattern OR state_code ILIKE :pattern OR state_name ILIKE :pattern OR COALESCE(county_name, '') ILIKE :pattern",
+      "name ILIKE :pattern OR site_number ILIKE :pattern OR state_code ILIKE :pattern OR state_name ILIKE :pattern OR COALESCE(county_name, '') ILIKE :pattern OR COALESCE(nwps_lid, '') ILIKE :pattern",
       pattern: pattern
     ).order(
       Arel.sql(
         sanitize_sql_array([
           "CASE
             WHEN site_number = :exact THEN 0
-            WHEN site_number ILIKE :prefix THEN 1
-            WHEN name ILIKE :prefix THEN 2
-            ELSE 3
+            WHEN UPPER(COALESCE(nwps_lid, '')) = UPPER(:exact) THEN 1
+            WHEN site_number ILIKE :prefix THEN 2
+            WHEN name ILIKE :prefix THEN 3
+            ELSE 4
           END, name ASC",
           { exact: q, prefix: "#{sanitize_sql_like(q)}%" }
         ])

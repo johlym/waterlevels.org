@@ -7,6 +7,22 @@ const SERIES_COLORS = {
   temperature: { border: "#2dd4bf", fill: "rgba(45, 212, 191, 0.12)", legend: "bg-teal" }
 }
 
+const FLOOD_STAGE_COLORS = {
+  action: { border: "#fbbf24", legend: "bg-flood-action" },
+  minor: { border: "#fb923c", legend: "bg-flood-minor" },
+  moderate: { border: "#f43f5e", legend: "bg-flood-moderate" },
+  major: { border: "#ef4444", legend: "bg-flood-major" }
+}
+
+const FLOOD_STAGE_LABELS = {
+  action: "Action stage",
+  minor: "Minor flood",
+  moderate: "Moderate flood",
+  major: "Major flood"
+}
+
+const FLOOD_STAGE_ORDER = ["action", "minor", "moderate", "major"]
+
 const PAGE_SIZE = 8
 
 export default class extends Controller {
@@ -14,6 +30,7 @@ export default class extends Controller {
   static values = {
     url: String,
     measurements: Array,
+    floodStages: Object,
     timeZone: { type: String, default: "" },
     timeZoneLabel: { type: String, default: "" }
   }
@@ -164,8 +181,9 @@ export default class extends Controller {
     const primary = this.primarySeries()
     const companion = this.companionSeries(primary)
     const items = [primary, companion].filter(Boolean)
+    const floodStages = primary?.kind === "water_level" ? this.floodStageEntries() : []
 
-    if (!items.length) {
+    if (!items.length && !floodStages.length) {
       this.legendTarget.innerHTML = ""
       return
     }
@@ -181,8 +199,29 @@ export default class extends Controller {
           </div>
         `
       }).join("")}
+      ${floodStages.map(({ key, value }) => {
+        const colors = FLOOD_STAGE_COLORS[key]
+        const label = FLOOD_STAGE_LABELS[key] || key
+        return `
+          <div class="item">
+            <span class="swatch dashed ${colors.legend}" aria-hidden="true"></span>
+            <span>${this.escapeHtml(label)} (${this.escapeHtml(this.displayValue(value, "water_level"))} ft)</span>
+          </div>
+        `
+      }).join("")}
       <div class="hint">Hover for details</div>
     `
+  }
+
+  floodStageEntries() {
+    const stages = this.floodStagesValue || {}
+    return FLOOD_STAGE_ORDER.flatMap((key) => {
+      const raw = stages[key]
+      if (raw == null || raw === "") return []
+      const value = Number(raw)
+      if (!Number.isFinite(value) || value <= 0) return []
+      return [{ key, value }]
+    })
   }
 
   renderStats(points) {
@@ -440,7 +479,8 @@ export default class extends Controller {
       tension: 0.25,
       pointRadius: 0,
       borderWidth: 2,
-      yAxisID: "y"
+      yAxisID: "y",
+      seriesKind: primary.kind
     }]
 
     if (companion && (companion.points || []).length) {
@@ -459,9 +499,36 @@ export default class extends Controller {
         pointRadius: 0,
         borderWidth: 2,
         yAxisID: "y1",
-        spanGaps: true
+        spanGaps: true,
+        seriesKind: companion.kind
       })
     }
+
+    const floodStages = primary.kind === "water_level" ? this.floodStageEntries() : []
+    floodStages.forEach(({ key, value }) => {
+      const stageColors = FLOOD_STAGE_COLORS[key]
+      datasets.push({
+        label: FLOOD_STAGE_LABELS[key] || key,
+        data: primaryPoints.length ? primaryPoints.map(() => value) : [value],
+        borderColor: stageColors.border,
+        backgroundColor: "transparent",
+        borderDash: [6, 4],
+        fill: false,
+        tension: 0,
+        pointRadius: 0,
+        borderWidth: 1.5,
+        yAxisID: "y",
+        seriesKind: "water_level",
+        isFloodStage: true
+      })
+    })
+
+    if (!labels.length && floodStages.length) labels.push("")
+
+    const ySuggestedMax = this.suggestedMaxForAxis(
+      primaryPoints.map((point) => point.v),
+      floodStages.map((stage) => stage.value)
+    )
 
     try {
       this.chart = new Chart(this.canvasTarget.getContext("2d"), {
@@ -479,11 +546,15 @@ export default class extends Controller {
               bodyColor: "#d4d4d8",
               borderColor: "rgba(255,255,255,0.12)",
               borderWidth: 1,
+              filter: (context) => !context.dataset.isFloodStage || context.dataIndex === 0,
               callbacks: {
                 label: (context) => {
-                  const series = context.datasetIndex === 0 ? primary : companion
                   const raw = context.parsed.y
                   if (raw == null) return `${context.dataset.label}: —`
+                  if (context.dataset.isFloodStage) {
+                    return `${context.dataset.label}: ${this.displayValue(raw, "water_level")} ft`
+                  }
+                  const series = context.dataset.seriesKind === companion?.kind ? companion : primary
                   return `${context.dataset.label}: ${this.displayValue(raw, series.kind)} ${this.unitLabel(series) || ""}`.trim()
                 }
               }
@@ -524,6 +595,7 @@ export default class extends Controller {
               display: true,
               border: { display: false },
               grid: { color: grid },
+              suggestedMax: ySuggestedMax,
               ticks: {
                 color: tick,
                 callback: (value) => this.displayValue(value, primary.kind)
@@ -547,6 +619,13 @@ export default class extends Controller {
     } catch (error) {
       console.error("Hydrograph chart failed to render", error)
     }
+  }
+
+  suggestedMaxForAxis(pointValues, stageValues) {
+    const values = [...pointValues, ...stageValues].filter((value) => Number.isFinite(value))
+    if (!values.length) return undefined
+    const max = Math.max(...values)
+    return max > 0 ? max * 1.05 : undefined
   }
 
   destroyChart() {

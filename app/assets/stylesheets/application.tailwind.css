@@ -1065,6 +1065,26 @@
       &.bg-teal {
         @apply bg-teal-400;
       }
+
+      &.bg-flood-action {
+        @apply bg-amber-400;
+      }
+
+      &.bg-flood-minor {
+        @apply bg-orange-400;
+      }
+
+      &.bg-flood-moderate {
+        @apply bg-rose-500;
+      }
+
+      &.bg-flood-major {
+        @apply bg-red-500;
+      }
+
+      &.dashed {
+        @apply rounded-sm ring-1 ring-inset ring-white/20;
+      }
     }
 
     .hint {
