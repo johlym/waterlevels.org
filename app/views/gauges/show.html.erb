@@ -270,9 +270,7 @@
     <% end %>
 
     <p class="usgs-note">
-      Official USGS page:
-      <%= link_to @snapshot[:usgs_url], @snapshot[:usgs_url], rel: "noopener noreferrer", target: "_blank" %>
-      (may include cooperator information)
+      Data provided by the <%= link_to "USGS", @snapshot[:usgs_url], rel: "noopener noreferrer", target: "_blank" %>.
     </p>
   </main>
   <%= render Footer::ThinComponent.new %>
