@@ -12,6 +12,10 @@ Rails.application.routes.draw do
   get "/sitemaps/:state.xml", to: "sitemaps#state", as: :sitemap_state,
       constraints: { state: /[a-z]{2}/ }
 
+  get "/og.png", to: "og_images#default", as: :og_default
+  get "/og/gauges/:site_number.png", to: "og_images#station", as: :og_station,
+      constraints: { site_number: /\d+/ }
+
   get "/gauges/:state", to: "states#show", as: :state_gauges, constraints: { state: /[a-z]{2}/ }
   get "/gauges/:state/:site_number_slug", to: "gauges#show", as: :gauge,
       constraints: { state: /[a-z]{2}/, site_number_slug: /\d+.+/ }

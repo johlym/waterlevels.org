@@ -1,6 +1,7 @@
 <% location_name = display_location_name(@snapshot[:name]) %>
 <% content_for :title, "#{location_name} Water Level & Flow | #{@snapshot[:state_code].upcase} | WaterLevels.org" %>
 <% content_for :meta_description, "Current water level, flow, and temperature for #{location_name} from USGS monitoring data." %>
+<% content_for :og_image_path, og_station_path(@snapshot[:site_number]) %>
 <% measurements = Array(@snapshot[:measurements]) %>
 
 <div
