@@ -6,6 +6,11 @@ module ApplicationHelper
     titleized.gsub(/,\s*([A-Za-z]{2})\z/) { ", #{$1.upcase}" }
   end
 
+  # Breadcrumbs / headings should not repeat the word "County".
+  def display_county_name(name)
+    name.to_s.gsub(/\s+County\z/i, "").strip
+  end
+
   # e.g. "August 1, 2026 at 09:30:00 PM CDT" in the station's local zone when known.
   def display_timestamp(value, time_zone: nil, state_code: nil)
     time = coerce_time(value)

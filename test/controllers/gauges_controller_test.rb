@@ -36,6 +36,15 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.headers["Cache-Tag"], "gauge:#{@location.site_number}"
   end
 
+  test "breadcrumb strips County suffix from county names" do
+    @location.update!(county_name: "King County")
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_includes response.body, ">King<"
+    assert_not_includes response.body, "King County"
+  end
+
   test "gauge page shows NWS flood category and stage thresholds" do
     @location.update!(
       nwps_matched: true,

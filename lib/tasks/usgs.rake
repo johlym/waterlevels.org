@@ -103,4 +103,40 @@ namespace :usgs do
     deleted = MonitoringLocation.purge_ids!(ids)
     puts "Purged #{deleted} locations for STATE=#{state}"
   end
+
+  desc "Audit catalog for errant stations (optional STATE=wa)"
+  task audit_catalog: :environment do
+    report = StationCatalogCleanup.audit(state: ENV["STATE"])
+    puts "Catalog total=#{report[:total]}#{" state=#{ENV['STATE']}" if ENV['STATE'].present?}"
+    if report[:categories].empty?
+      puts "No errant station categories found."
+    else
+      report[:categories].each do |category|
+        samples = category[:sample_site_numbers].join(", ")
+        puts "- #{category[:label]}: #{category[:count]}#{" (e.g. #{samples})" if samples.present?}"
+      end
+      removable = report[:categories].sum { |category| category[:count] }
+      # Counts overlap across categories; unique removable is computed on purge.
+      puts "Category matches (may overlap)=#{removable}"
+      puts "Run `bin/rails usgs:cleanup` for a dry-run unique count, or APPLY=1 to delete."
+    end
+  end
+
+  desc "Remove errant catalog stations (dry-run by default; APPLY=1 to delete; optional STATE=wa)"
+  task cleanup: :environment do
+    apply = ENV["APPLY"] == "1"
+    report = StationCatalogCleanup.purge!(state: ENV["STATE"], apply: apply)
+    mode = report[:dry_run] ? "dry-run" : "applied"
+    puts "Catalog cleanup #{mode}#{" state=#{ENV['STATE']}" if ENV['STATE'].present?}"
+    puts "Total before=#{report[:total_before]} removable=#{report[:removable]}"
+    report[:categories].each do |category|
+      samples = category[:sample_site_numbers].join(", ")
+      puts "- #{category[:label]}: #{category[:count]}#{" (e.g. #{samples})" if samples.present?}"
+    end
+    if report[:dry_run]
+      puts "No rows deleted. Re-run with APPLY=1 to purge removable stations."
+    else
+      puts "Deleted=#{report[:deleted]} total after=#{report[:total_after]}"
+    end
+  end
 end

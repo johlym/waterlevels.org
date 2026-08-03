@@ -6,8 +6,10 @@ class SiteStatsTest < ActiveSupport::TestCase
   end
 
   test "snapshot counts stations measurements recent updates and flood alerts" do
+    # Avoid hardcoding site numbers that collide with FactoryBot's %08d sequence
+    # after earlier creates in the same parallel worker.
     location = create(:monitoring_location, flood_category: "minor", nwps_matched: true)
-    create(:monitoring_location, site_number: "00000002", usgs_monitoring_location_id: "USGS-00000002", flood_category: "no_flooding")
+    create(:monitoring_location, flood_category: "no_flooding")
     series = create(:time_series, monitoring_location: location, parameter_code: "00060")
     ContinuousObservation.create!(
       time_series: series,

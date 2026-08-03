@@ -17,6 +17,14 @@
   a {
     @apply underline-offset-2;
   }
+
+  button:not(:disabled),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  summary {
+    cursor: pointer;
+  }
 }
 
 /* —— App shell —— */
@@ -111,7 +119,7 @@
   @apply pointer-events-auto absolute top-4 right-4 flex flex-col gap-2 sm:top-6 sm:right-6;
 
   button {
-    @apply flex size-10 items-center justify-center rounded-lg border border-zinc-700/50 bg-zinc-900 text-zinc-300 shadow-lg shadow-black/40 transition-all hover:bg-zinc-800 hover:text-white active:scale-95;
+    @apply flex size-10 cursor-pointer items-center justify-center rounded-lg border border-zinc-700/50 bg-zinc-900 text-zinc-300 shadow-lg shadow-black/40 transition-all hover:bg-zinc-800 hover:text-white active:scale-95;
 
     svg {
       @apply size-5;
@@ -128,42 +136,78 @@
 }
 
 .map-legend {
-  @apply pointer-events-auto absolute right-4 bottom-4 flex max-w-[min(100%,28rem)] flex-wrap items-center gap-3 rounded-xl border border-zinc-700/50 bg-zinc-900 px-4 py-3 shadow-lg shadow-black/40 sm:right-6 sm:bottom-10;
+  @apply pointer-events-auto absolute right-4 bottom-4 w-[min(100%,16.5rem)] rounded-xl border border-zinc-700/50 bg-zinc-900 shadow-lg shadow-black/40 sm:right-6 sm:bottom-10;
+
+  summary {
+    @apply flex cursor-pointer list-none items-center gap-3 px-4 py-3 marker:content-none [&::-webkit-details-marker]:hidden;
+  }
+
+  .summary-label {
+    @apply text-sm font-semibold tracking-wide text-zinc-300;
+  }
+
+  .summary-preview {
+    @apply ml-auto flex items-center gap-1.5;
+  }
+
+  .chevron {
+    @apply size-4 shrink-0 text-zinc-500 transition-transform;
+  }
+
+  &[open] .chevron {
+    @apply rotate-180;
+  }
+
+  .legend-body {
+    @apply space-y-4 border-t border-zinc-800 px-4 py-3;
+  }
+
+  .legend-group {
+    @apply space-y-2;
+  }
+
+  .group-label {
+    @apply text-xs font-semibold tracking-wider text-zinc-500 uppercase;
+  }
+
+  .items {
+    @apply grid gap-2;
+  }
 
   .item {
     @apply flex items-center gap-2;
+  }
 
-    .swatch {
-      @apply size-3 rounded-full;
+  .swatch {
+    @apply size-3 shrink-0 rounded-full;
 
-      &.active {
-        @apply bg-cyan-400 shadow-lg shadow-cyan-500/30;
-      }
-
-      &.action {
-        @apply bg-amber-400;
-      }
-
-      &.minor {
-        @apply bg-orange-400;
-      }
-
-      &.moderate {
-        @apply bg-rose-500;
-      }
-
-      &.major {
-        @apply bg-red-600;
-      }
-
-      &.inactive {
-        @apply bg-zinc-500;
-      }
+    &.active {
+      @apply bg-cyan-400 shadow-lg shadow-cyan-500/30;
     }
 
-    .label {
-      @apply text-sm text-zinc-400;
+    &.action {
+      @apply bg-amber-400;
     }
+
+    &.minor {
+      @apply bg-orange-400;
+    }
+
+    &.moderate {
+      @apply bg-rose-500;
+    }
+
+    &.major {
+      @apply bg-red-600;
+    }
+
+    &.inactive {
+      @apply bg-zinc-500;
+    }
+  }
+
+  .label {
+    @apply text-sm text-zinc-400;
   }
 }
 
@@ -381,6 +425,10 @@
 .home-search {
   @apply relative mx-auto mt-12 max-w-2xl;
 
+  .search-stack {
+    @apply relative;
+  }
+
   .search-shell {
     @apply rounded-2xl border border-zinc-700/50 bg-zinc-900/80 p-2 shadow-2xl shadow-black/40 backdrop-blur-xl;
   }
@@ -402,7 +450,7 @@
   }
 
   .locate-btn {
-    @apply flex size-12 shrink-0 items-center justify-center rounded-xl border border-zinc-700/50 bg-zinc-800 text-zinc-300 transition-all hover:border-cyan-500/40 hover:text-cyan-300 active:scale-95 disabled:opacity-60;
+    @apply flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-zinc-700/50 bg-zinc-800 text-zinc-300 transition-all hover:border-cyan-500/40 hover:text-cyan-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60;
 
     svg {
       @apply size-5;
@@ -410,7 +458,7 @@
   }
 
   .search-btn {
-    @apply hidden shrink-0 rounded-xl bg-cyan-500 px-6 py-3 text-sm font-semibold text-zinc-950 transition-all hover:bg-cyan-400 active:scale-95 sm:inline-flex;
+    @apply hidden shrink-0 cursor-pointer rounded-xl bg-cyan-500 px-6 py-3 text-sm font-semibold text-zinc-950 transition-all hover:bg-cyan-400 active:scale-95 sm:inline-flex;
   }
 
   .popular-chips {
@@ -571,7 +619,7 @@
     @apply grid gap-4 md:grid-cols-2 xl:grid-cols-4;
 
     article {
-      @apply rounded-2xl border border-zinc-800/50 bg-zinc-900/40 p-6;
+      @apply flex flex-col rounded-2xl border border-zinc-800/50 bg-zinc-900/40 p-6;
     }
 
     h3 {
@@ -583,11 +631,11 @@
     }
 
     ul {
-      @apply mt-4 space-y-2;
+      @apply mt-4 space-y-1;
     }
 
-    a {
-      @apply flex flex-col gap-0.5 rounded-lg px-3 py-2 no-underline transition-colors hover:bg-zinc-800/70;
+    ul a {
+      @apply -mx-3 flex flex-col gap-0.5 rounded-lg px-3 py-2 text-left no-underline transition-colors hover:bg-zinc-800/70;
 
       .name {
         @apply text-sm font-medium text-zinc-200;
@@ -596,6 +644,14 @@
       .meta {
         @apply text-sm text-zinc-500;
       }
+    }
+
+    .state-links {
+      @apply mt-auto flex flex-col gap-2 border-t border-zinc-800/60 pt-4;
+    }
+
+    .state-link {
+      @apply text-sm font-medium text-cyan-400 no-underline transition-colors hover:text-cyan-300;
     }
 
     .empty {
@@ -958,11 +1014,11 @@
 }
 
 .day-select {
-  @apply rounded-lg border border-zinc-800 bg-zinc-900/80 px-4 py-2 text-base text-white outline-none focus:border-cyan-500/50 sm:text-sm;
+  @apply h-10 rounded-lg border border-zinc-800 bg-zinc-900/80 px-4 text-base leading-none text-white outline-none focus:border-cyan-500/50 sm:text-sm;
 }
 
 .toolbar-btn {
-  @apply inline-flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/80 px-4 py-2 text-sm text-zinc-400 transition-all hover:border-cyan-500/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-zinc-800 disabled:hover:text-zinc-400;
+  @apply inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/80 px-4 text-sm text-zinc-400 transition-all hover:border-cyan-500/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-zinc-800 disabled:hover:text-zinc-400;
 
   svg {
     @apply size-4;
@@ -973,7 +1029,7 @@
   @apply inline-flex rounded-lg border border-zinc-800 bg-zinc-900/50 p-1;
 
   button {
-    @apply rounded-md px-4 py-2 text-sm font-medium text-zinc-400 transition-all hover:text-white;
+    @apply cursor-pointer rounded-md px-4 py-2 text-sm font-medium text-zinc-400 transition-all hover:text-white;
 
     &[aria-pressed="true"] {
       @apply bg-zinc-800 text-white;
@@ -1025,7 +1081,7 @@
   }
 
   .period-stats {
-    @apply mt-6 grid gap-4 border-t border-zinc-800 pt-6 sm:grid-cols-4;
+    @apply mt-6 grid grid-cols-2 gap-4 border-t border-zinc-800 pt-6 sm:grid-cols-4;
 
     .label {
       @apply mb-1 text-xs text-zinc-500;
@@ -1040,7 +1096,7 @@
     }
 
     .empty {
-      @apply text-sm text-zinc-400 sm:col-span-4;
+      @apply col-span-2 text-sm text-zinc-400 sm:col-span-4;
     }
   }
 }
@@ -1132,8 +1188,12 @@
 .nearby-grid {
   @apply mt-4 grid list-none gap-4 p-0 sm:grid-cols-2 lg:grid-cols-4;
 
+  > li {
+    @apply h-full;
+  }
+
   .nearby-card {
-    @apply block rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5 no-underline transition-all hover:border-cyan-500/30 hover:bg-zinc-900/80;
+    @apply flex h-full flex-col rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5 no-underline transition-all hover:border-cyan-500/30 hover:bg-zinc-900/80;
 
     .card-top {
       @apply mb-3 flex items-center justify-between gap-3;
@@ -1205,7 +1265,7 @@
     }
 
     .card-foot {
-      @apply flex items-end justify-between gap-2 text-xs text-zinc-400;
+      @apply mt-auto flex items-end justify-between gap-2 pt-3 text-xs text-zinc-400;
 
       .readings {
         @apply flex min-w-0 flex-col gap-1;
@@ -1469,6 +1529,10 @@
 
   .station-card h3 {
     @apply mt-1 font-display text-lg font-bold text-white;
+  }
+
+  .updated-at {
+    @apply mt-1 text-sm text-zinc-400;
   }
 
   .coords {

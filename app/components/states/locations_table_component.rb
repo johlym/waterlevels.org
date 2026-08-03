@@ -48,9 +48,7 @@ module States
       return "Unspecified" if key.blank?
 
       raw = sample[:county_name].presence || sample["county_name"].presence || key
-      label = raw.to_s.sub(/\s+County\z/i, "")
-      label = "#{label} County" unless label.casecmp("unspecified").zero? || label.match?(/county\z/i)
-      label
+      helpers.display_county_name(raw).presence || "Unspecified"
     end
 
     def truthy?(value)
