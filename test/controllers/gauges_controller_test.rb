@@ -158,8 +158,8 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "elevated"
   end
 
-  test "map homepage includes flood stage stat tile" do
-    get "/"
+  test "map page includes flood stage stat tile" do
+    get map_path
     assert_response :success
     assert_includes response.body, "At / above flood stage"
     assert_includes response.body, 'data-map-target="floodCount"'
@@ -209,5 +209,16 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     get "/api/map/stations/search", params: { q: "p" }
     assert_response :success
     assert_equal [], JSON.parse(response.body)["stations"]
+  end
+
+  test "nearest station returns the closest location path" do
+    create(:monitoring_location, site_number: "20000001", latitude: 47.0, longitude: -122.0)
+    near = create(:monitoring_location, site_number: "20000002", latitude: 47.05, longitude: -122.05)
+
+    get "/api/map/stations/nearest", params: { lat: 47.051, lon: -122.051 }
+    assert_response :success
+    station = JSON.parse(response.body)["station"]
+    assert_equal near.site_number, station["id"]
+    assert_equal "/gauges/#{near.path_state}/#{near.to_param}", station["path"]
   end
 end

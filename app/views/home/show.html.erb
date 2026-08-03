@@ -1,0 +1,169 @@
+<% content_for :title, "WaterLevels.org - Monitor water levels in real-time" %>
+<% content_for :meta_description, "Search USGS streamflow, water level, and temperature gauges across the United States. Find nearby stations and explore the live monitoring network." %>
+
+<div class="app-shell">
+  <%= render Navigation::BarComponent.new %>
+
+  <section class="home-hero">
+    <div class="glow" aria-hidden="true">
+      <div class="blob-a"></div>
+      <div class="blob-b"></div>
+    </div>
+
+    <div class="inner">
+      <div class="intro">
+        <div class="live-pill">
+          <span class="dot" aria-hidden="true"></span>
+          <span>Live data from <%= number_with_delimiter(@stats[:station_count]) %>+ stations</span>
+        </div>
+        <h1>
+          <span>Monitor water levels </span><br />
+          <span class="accent">in real-time</span>
+        </h1>
+        <p>
+          Streamflow data, gauge heights, and temperature readings for streams, rivers, lakes, and reservoirs across the United States.
+        </p>
+      </div>
+
+      <div
+        class="home-search"
+        data-controller="station-search"
+        data-station-search-search-url-value="<%= search_api_map_stations_path %>"
+        data-station-search-nearest-url-value="<%= nearest_api_map_stations_path %>"
+        data-station-search-map-url-value="<%= map_path %>"
+      >
+        <div class="search-shell">
+          <div class="search-row">
+            <div class="search-icon" aria-hidden="true">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+              </svg>
+            </div>
+            <input
+              type="search"
+              placeholder="Search by station name, river, or location..."
+              autocomplete="off"
+              data-station-search-target="input"
+              data-action="input->station-search#search keydown->station-search#keydown"
+              aria-label="Search stations"
+              aria-autocomplete="list"
+              aria-controls="home-search-results"
+            >
+            <button
+              type="button"
+              class="locate-btn"
+              data-action="station-search#locate"
+              data-station-search-target="locateButton"
+              aria-label="Use my location"
+              title="Find the closest station"
+            >
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+              </svg>
+            </button>
+            <button type="button" class="search-btn" data-action="station-search#submit">
+              Search
+            </button>
+          </div>
+        </div>
+
+        <div
+          id="home-search-results"
+          class="autocomplete"
+          data-station-search-target="results"
+          hidden
+        ></div>
+
+        <div class="popular-chips">
+          <span>Popular:</span>
+          <% @popular_regions.each do |region| %>
+            <a href="#<%= region.key %>"><%= region.name %></a>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="home-stats" aria-labelledby="home-stats-heading">
+    <div class="inner">
+      <div class="stats-header">
+        <div>
+          <p class="eyebrow">Live Network</p>
+          <h2 id="home-stats-heading">Monitoring the nation's waterways</h2>
+        </div>
+        <p class="lede">Real-time data collected from USGS monitoring stations across all 50 states.</p>
+      </div>
+
+      <div class="stats-grid">
+        <article>
+          <div class="icon cyan" aria-hidden="true">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+          </div>
+          <p class="value"><%= number_with_delimiter(@stats[:station_count]) %></p>
+          <p class="label">Total stations</p>
+        </article>
+
+        <article>
+          <div class="icon blue" aria-hidden="true">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+            </svg>
+          </div>
+          <p class="value"><%= number_to_human(@stats[:measurement_count], precision: 2, significant: true, units: { thousand: "K", million: "M", billion: "B" }) %></p>
+          <p class="label">Total measurements</p>
+        </article>
+
+        <article>
+          <div class="icon violet" aria-hidden="true">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+          <p class="value"><%= number_with_delimiter(@stats[:updates_per_hour]) %></p>
+          <p class="label">Updates per hour</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="home-popular" aria-labelledby="home-popular-heading">
+    <div class="inner">
+      <div class="popular-header">
+        <div>
+          <p class="eyebrow">Popular</p>
+          <h2 id="home-popular-heading">Well-known waterways</h2>
+        </div>
+        <p class="lede">Major measuring points for streams, rivers, lakes, and reservoirs across the United States.</p>
+      </div>
+
+      <div class="popular-grid">
+        <% @popular_regions.each do |region| %>
+          <article id="<%= region.key %>">
+            <h3><%= region.name %></h3>
+            <p><%= region.blurb %></p>
+            <% if region.stations.any? %>
+              <ul>
+                <% region.stations.each do |station| %>
+                  <li>
+                    <%= link_to gauge_path(station.path_state, station) do %>
+                      <span class="name"><%= display_location_name(station.name) %></span>
+                      <span class="meta"><%= station.site_number %> · <%= station.state_code.upcase %></span>
+                    <% end %>
+                  </li>
+                <% end %>
+              </ul>
+            <% else %>
+              <p class="empty">Stations for this region will appear after catalog sync.</p>
+            <% end %>
+          </article>
+        <% end %>
+      </div>
+    </div>
+  </section>
+
+  <%= render Footer::ThinComponent.new %>
+</div>

@@ -29,6 +29,19 @@ module Api
         render json: { stations: stations }
       end
 
+      def nearest
+        lat = params.require(:lat)
+        lon = params.require(:lon)
+        location = NearbyStations.nearest_to(lat, lon)
+
+        cache_public!(max_age: 30, s_maxage: 120, tags: [ "map-station-nearest" ])
+        if location
+          render json: { station: search_payload(location) }
+        else
+          render json: { station: nil }, status: :not_found
+        end
+      end
+
       private
 
       def bbox_params
