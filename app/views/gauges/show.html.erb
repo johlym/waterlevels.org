@@ -141,6 +141,14 @@
           <% end %>
         </div>
       </div>
+      <% if @location.missing_year_history? %>
+        <div class="history-callout" role="status">
+          <p>
+            Full-year history is still loading for this station. Shorter ranges are available now;
+            the 1 Year chart will fill in as we finish backfilling from USGS.
+          </p>
+        </div>
+      <% end %>
       <div class="chart-panel">
         <div class="pad">
           <div class="chart-legend" data-hydrograph-target="legend"></div>
