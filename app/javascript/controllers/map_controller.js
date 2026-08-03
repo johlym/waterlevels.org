@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 import L from "leaflet"
 import "leaflet.markercluster"
-import { geolocationErrorMessage } from "../geolocation_errors"
+import { geolocationErrorMessage } from "../lib/geolocation_errors"
 
 export default class extends Controller {
   static targets = [

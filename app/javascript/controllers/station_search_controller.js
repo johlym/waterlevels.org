@@ -1,5 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
-import { geolocationErrorMessage } from "../geolocation_errors"
+import { geolocationErrorMessage } from "../lib/geolocation_errors"
 
 export default class extends Controller {
   static targets = ["input", "results", "locateButton"]
