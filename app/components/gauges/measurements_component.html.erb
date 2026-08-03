@@ -56,7 +56,7 @@
         data-parameter-toggle-parameter-code-param="<%= code %>"
         data-parameter-toggle-target="tab"
       >
-        <div class="label"><%= label %></div>
+        <div class="label"><%= helpers.annotate_glossary_terms(label, focusable: false) %></div>
         <% if kind == "temperature" %>
           <div
             class="value"

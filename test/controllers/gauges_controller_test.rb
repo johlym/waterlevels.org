@@ -12,13 +12,15 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
       value: 12.34,
       unit_of_measure: "ft",
       observed_at: Time.utc(2026, 8, 2, 4, 30, 0),
-      synced_at: Time.current
+      synced_at: Time.current,
+      approval_status: "Provisional"
     )
     @location.update!(
       latest_water_level_value: 12.34,
       latest_water_level_unit: "ft",
       latest_water_level_parameter_code: "00065",
       latest_observed_at: Time.utc(2026, 8, 2, 4, 30, 0),
+      latest_approval_status: "Provisional",
       time_zone: "PST"
     )
 
@@ -33,7 +35,39 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'data-hydrograph-time-zone-value="America/Los_Angeles"'
     assert_includes response.body, 'data-hydrograph-time-zone-label-value="PST"'
     assert_includes response.body, "No flood stage data"
+    assert_includes response.body, 'class="term-tip"'
+    assert_includes response.body, ">Provisional<span"
+    assert_includes response.body, "not finished review"
     assert_includes response.headers["Cache-Tag"], "gauge:#{@location.site_number}"
+  end
+
+  test "measurement labels include glossary tooltips for datum terms" do
+    series = create(
+      :time_series,
+      monitoring_location: @location,
+      parameter_code: "00062",
+      parameter_description: "Height above datum"
+    )
+    LatestObservation.create!(
+      time_series: series,
+      value: 8.5,
+      unit_of_measure: "ft",
+      observed_at: 1.hour.ago,
+      synced_at: Time.current
+    )
+    @location.update!(
+      latest_water_level_value: 8.5,
+      latest_water_level_unit: "ft",
+      latest_water_level_parameter_code: "00062",
+      latest_observed_at: 1.hour.ago
+    )
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_includes response.body, "Height above "
+    assert_includes response.body, ">datum<span"
+    assert_includes response.body, 'class="term-tip-bubble"'
+    assert_includes response.body, "reference surface"
   end
 
   test "breadcrumb strips County suffix from county names" do

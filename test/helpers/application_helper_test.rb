@@ -32,4 +32,34 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_equal "August 1, 2026 at 09:30:00 PM MST",
       display_timestamp(time, time_zone: "MST", state_code: "az")
   end
+
+  test "annotates glossary terms with CSS tooltip markup" do
+    html = annotate_glossary_terms("Height above datum")
+    assert_includes html, 'class="term-tip"'
+    assert_includes html, 'class="term-tip-bubble"'
+    assert_includes html, 'role="tooltip"'
+    assert_includes html, "Height above "
+    assert_includes html, ">datum<span"
+    assert_includes html, "reference surface"
+    assert_includes html, 'tabindex="0"'
+
+    navd = annotate_glossary_terms("Elevation (NAVD 1988)")
+    assert_includes navd, ">NAVD 1988<span"
+    assert_includes navd, "North American Vertical Datum of 1988"
+
+    ngvd = annotate_glossary_terms("Elevation (NGVD 1929)")
+    assert_includes ngvd, ">NGVD 1929<span"
+    assert_includes ngvd, "National Geodetic Vertical Datum of 1929"
+
+    provisional = annotate_glossary_terms("Provisional")
+    assert_includes provisional, ">Provisional<span"
+    assert_includes provisional, "not finished review"
+  end
+
+  test "glossary tooltips escape surrounding text and can omit tabindex" do
+    html = annotate_glossary_terms("Height above datum <script>", focusable: false)
+    assert_includes html, "&lt;script&gt;"
+    assert_not_includes html, "tabindex"
+    assert_includes html, 'class="term-tip"'
+  end
 end

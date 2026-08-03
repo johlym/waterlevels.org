@@ -69,7 +69,7 @@
               Updated <%= display_timestamp(@snapshot[:latest_observed_at], time_zone: @snapshot[:time_zone_identifier] || @snapshot[:time_zone], state_code: @snapshot[:state_code]) %>
               <% approval = measurements.dig(0, :approval_status) || measurements.dig(0, "approval_status") %>
               <% if approval.present? %>
-                · <%= approval %>
+                · <%= annotate_glossary_terms(approval) %>
               <% end %>
               · Site <%= @snapshot[:site_number] %>
             </p>
