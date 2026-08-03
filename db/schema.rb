@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_03_070000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_03_160000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -59,6 +59,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_03_070000) do
     t.string "county_code"
     t.string "county_name"
     t.datetime "created_at", null: false
+    t.string "display_name", null: false
     t.decimal "drainage_area", precision: 12, scale: 3
     t.string "flood_category"
     t.datetime "flood_category_observed_at"
@@ -86,6 +87,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_03_070000) do
     t.string "nwps_lid"
     t.boolean "nwps_matched", default: false, null: false
     t.datetime "nwps_synced_at"
+    t.string "search_name", null: false
     t.string "site_number", null: false
     t.string "site_type_code"
     t.string "site_type_name"
@@ -101,6 +103,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_03_070000) do
     t.index ["latitude", "longitude"], name: "index_monitoring_locations_on_latitude_and_longitude"
     t.index ["nwps_lid"], name: "index_monitoring_locations_on_nwps_lid", where: "(nwps_lid IS NOT NULL)"
     t.index ["nwps_matched"], name: "index_monitoring_locations_on_nwps_matched", where: "(nwps_matched = true)"
+    t.index ["search_name"], name: "index_monitoring_locations_on_search_name"
     t.index ["site_number"], name: "index_monitoring_locations_on_site_number", unique: true
     t.index ["state_code", "county_name", "name"], name: "idx_on_state_code_county_name_name_ac7d4d7687"
     t.index ["usgs_monitoring_location_id"], name: "index_monitoring_locations_on_usgs_monitoring_location_id", unique: true

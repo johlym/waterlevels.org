@@ -125,6 +125,7 @@ class StationCatalogSync
         next if postal_code && state_code != postal_code
 
         name = item["monitoring_location_name"].presence || "Site #{site_number}"
+        derived_names = MonitoringLocation.derived_names_for(name)
 
         MonitoringLocation.upsert(
           {
@@ -132,6 +133,8 @@ class StationCatalogSync
             usgs_monitoring_location_id: usgs_id,
             site_number: site_number,
             name: name,
+            display_name: derived_names[:display_name],
+            search_name: derived_names[:search_name],
             slug: MonitoringLocation.slug_for(name),
             site_type_code: item["site_type_code"],
             site_type_name: item["site_type"],

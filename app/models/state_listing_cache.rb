@@ -1,5 +1,5 @@
 class StateListingCache
-  PREFIX = "state_listing:v5".freeze
+  PREFIX = "state_listing:v6".freeze
   TTL = 6.hours
 
   def self.key_for(state_code)
@@ -14,7 +14,9 @@ class StateListingCache
     rows = MonitoringLocation.in_state(state_code).ordered_for_state_table.map do |loc|
       {
         site_number: loc.site_number,
-        name: loc.name,
+        name: loc.display_name,
+        search_name: loc.search_name,
+        raw_name: loc.name,
         slug: loc.slug,
         county_name: loc.county_name,
         latitude: loc.latitude&.to_f,

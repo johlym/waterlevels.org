@@ -76,7 +76,7 @@ module Api
       def search_payload(loc)
         {
           id: loc.site_number,
-          name: loc.name,
+          name: loc.display_name,
           state: loc.state_code,
           path: "/gauges/#{loc.path_state}/#{loc.to_param}",
           stale: loc.stale?,

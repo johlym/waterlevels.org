@@ -1,5 +1,5 @@
 class StationSnapshotCache
-  PREFIX = "station_snapshot:v10".freeze
+  PREFIX = "station_snapshot:v11".freeze
   TTL = 2.hours
   MILES_PER_KM = 0.621371
 
@@ -88,7 +88,7 @@ class StationSnapshotCache
 
     {
       site_number: location.site_number,
-      name: location.name,
+      name: location.display_name,
       slug: location.slug,
       state_code: location.state_code,
       state_name: location.state_name,
@@ -257,7 +257,7 @@ class StationSnapshotCache
 
       {
         site_number: n.site_number,
-        name: n.name,
+        name: n.display_name,
         state_code: n.state_code,
         slug: n.slug,
         has_water_level: n.has_water_level,
