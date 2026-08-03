@@ -18,15 +18,15 @@ module Api
 
       def search
         query = params[:q].to_s.strip
-        stations =
+        results =
           if query.length < SEARCH_MIN_LENGTH
             []
           else
-            MonitoringLocation.search(query).limit(SEARCH_LIMIT).map { |loc| search_payload(loc) }
+            build_search_results(query)
           end
 
         cache_public!(max_age: 30, s_maxage: 300, tags: [ "map-station-search" ])
-        render json: { stations: stations }
+        render json: { stations: results }
       end
 
       def nearest
@@ -73,12 +73,44 @@ module Api
         )
       end
 
+      def build_search_results(query)
+        state_results = state_search_payloads(query)
+        station_limit = [ SEARCH_LIMIT - state_results.length, 0 ].max
+        station_results = MonitoringLocation.search(query).limit(station_limit).map { |loc| search_payload(loc) }
+        state_results + station_results
+      end
+
+      def state_search_payloads(query)
+        return [] if MonitoringLocation.exact_search_match(query).exists?
+
+        Usgs::StateCodes.match_query(query).map { |match| state_payload(match) }
+      end
+
+      def state_payload(match)
+        {
+          id: match[:postal],
+          name: match[:name],
+          state: match[:postal],
+          path: "/gauges/#{match[:postal]}",
+          type: "state",
+          stale: false,
+          has_water_level: false,
+          has_discharge: false,
+          has_temperature: false,
+          nwps_matched: false,
+          flood_category: nil,
+          flood_category_label: nil,
+          flood_alert: false
+        }
+      end
+
       def search_payload(loc)
         {
           id: loc.site_number,
           name: loc.display_name,
           state: loc.state_code,
           path: "/gauges/#{loc.path_state}/#{loc.to_param}",
+          type: "station",
           stale: loc.stale?,
           has_water_level: loc.has_water_level,
           has_discharge: loc.has_discharge,

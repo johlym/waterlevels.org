@@ -81,5 +81,30 @@ module Usgs
     def postal_for_fips(fips)
       FIPS_TO_POSTAL[fips.to_s]
     end
+
+    # Returns states whose USPS code equals the query, or whose name equals /
+    # starts with the query (case-insensitive). Ordered with exact matches first.
+    def match_query(query)
+      q = query.to_s.strip.downcase
+      return [] if q.length < 2
+
+      matches = STATES.filter_map do |postal, meta|
+        name = meta[:name]
+        name_key = name.downcase
+        score =
+          if postal == q || name_key == q
+            0
+          elsif name_key.start_with?(q)
+            1
+          end
+        next unless score
+
+        { postal: postal, name: name, score: score }
+      end
+
+      matches
+        .sort_by { |match| [ match[:score], match[:name].length, match[:name] ] }
+        .map { |match| match.slice(:postal, :name) }
+    end
   end
 end

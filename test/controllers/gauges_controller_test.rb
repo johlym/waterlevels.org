@@ -249,6 +249,45 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [], JSON.parse(response.body)["stations"]
   end
 
+  test "station search includes matching state first when there is no exact location match" do
+    station = create(
+      :monitoring_location,
+      site_number: "08158000",
+      usgs_monitoring_location_id: "USGS-08158000",
+      name: "Colorado Rv at Austin, TX",
+      state_code: "tx",
+      state_name: "Texas"
+    )
+
+    get "/api/map/stations/search", params: { q: "Texas" }
+    assert_response :success
+    results = JSON.parse(response.body)["stations"]
+
+    assert_equal "state", results.first["type"]
+    assert_equal "Texas", results.first["name"]
+    assert_equal "/gauges/tx", results.first["path"]
+    assert_includes results.map { |row| row["id"] }, station.site_number
+  end
+
+  test "station search omits state result when an exact location match exists" do
+    create(
+      :monitoring_location,
+      site_number: "99990001",
+      usgs_monitoring_location_id: "USGS-99990001",
+      name: "Texas",
+      state_code: "tx",
+      state_name: "Texas"
+    )
+
+    get "/api/map/stations/search", params: { q: "Texas" }
+    assert_response :success
+    results = JSON.parse(response.body)["stations"]
+
+    assert results.none? { |row| row["type"] == "state" }
+    assert_equal "station", results.first["type"]
+    assert_equal "Texas", results.first["name"]
+  end
+
   test "nearest station returns the closest location path" do
     create(:monitoring_location, site_number: "20000001", latitude: 47.0, longitude: -122.0)
     near = create(:monitoring_location, site_number: "20000002", latitude: 47.05, longitude: -122.05)

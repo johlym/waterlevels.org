@@ -186,10 +186,10 @@
               </div>
               <input
                 type="search"
-                placeholder="Search by station name, river, or location..."
+                placeholder="Search by station name, river, state, or location..."
                 autocomplete="off"
                 data-map-target="search"
-                data-action="input->map#search"
+                data-action="input->map#search keydown.enter->map#submitSearch"
                 aria-label="Search stations"
               >
             </div>
