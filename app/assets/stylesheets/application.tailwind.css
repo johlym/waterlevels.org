@@ -127,28 +127,6 @@
   }
 }
 
-.map-stats {
-  @apply mt-4 border-t border-zinc-800 pt-4;
-
-  .stat {
-    .label {
-      @apply text-xs font-semibold tracking-wider text-zinc-500 uppercase;
-    }
-
-    .value {
-      @apply mt-1 font-display text-3xl font-bold text-white;
-
-      &[data-zero] {
-        @apply text-zinc-500;
-      }
-
-      &:not([data-zero]) {
-        @apply text-rose-400;
-      }
-    }
-  }
-}
-
 .map-legend {
   @apply pointer-events-auto absolute right-4 bottom-4 flex max-w-[min(100%,28rem)] flex-wrap items-center gap-3 rounded-xl border border-zinc-700/50 bg-zinc-900 px-4 py-3 shadow-lg shadow-black/40 sm:right-6 sm:bottom-10;
 
@@ -540,7 +518,7 @@
   }
 
   .stats-grid {
-    @apply grid gap-4 sm:grid-cols-2 lg:grid-cols-3;
+    @apply grid gap-4 sm:grid-cols-2 xl:grid-cols-4;
 
     article {
       @apply rounded-2xl border border-zinc-800/50 bg-zinc-900/40 p-6 transition-all hover:border-zinc-700/50 hover:bg-zinc-900/60;
@@ -564,10 +542,18 @@
       &.violet {
         @apply bg-violet-500/10 text-violet-400;
       }
+
+      &.rose {
+        @apply bg-rose-500/10 text-rose-400;
+      }
     }
 
     .value {
       @apply font-display text-4xl font-bold text-white;
+
+      &.alert {
+        @apply text-rose-400;
+      }
     }
 
     .label {

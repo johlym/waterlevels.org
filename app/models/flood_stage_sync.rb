@@ -106,6 +106,7 @@ class FloodStageSync
   end
 
   def warm_caches
+    SiteStats.bust!
     if postal_code
       StateListingCache.warm(postal_code)
     else
