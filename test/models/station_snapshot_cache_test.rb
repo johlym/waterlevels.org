@@ -10,6 +10,28 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
     Rails.cache = @previous_cache
   end
 
+  test "payload includes agency credit for non-USGS reporters" do
+    location = create(:monitoring_location)
+    location.update!(
+      agency_code: "TX071",
+      agency_name: "Lower Colorado River Authority, TX",
+      usgs_monitoring_location_id: "TX071-#{location.site_number}"
+    )
+
+    payload = StationSnapshotCache.warm(location.reload)
+    assert_equal "TX071", payload[:agency_code]
+    assert_equal "Lower Colorado River Authority, TX", payload[:agency_name]
+    assert_equal "Lower Colorado River Authority", payload[:agency_credit]
+  end
+
+  test "payload omits agency credit for USGS sites" do
+    location = create(:monitoring_location, agency_code: "USGS", agency_name: "U.S. Geological Survey")
+
+    payload = StationSnapshotCache.warm(location)
+    assert_equal "USGS", payload[:agency_code]
+    assert_nil payload[:agency_credit]
+  end
+
   test "warm_stale_batch skips fresh snapshots" do
     location = create(:monitoring_location)
     series = create(:time_series, monitoring_location: location, selected_for_display: true)

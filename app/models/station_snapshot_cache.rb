@@ -1,5 +1,5 @@
 class StationSnapshotCache
-  PREFIX = "station_snapshot:v11".freeze
+  PREFIX = "station_snapshot:v12".freeze
   TTL = 2.hours
   MILES_PER_KM = 0.621371
 
@@ -118,7 +118,9 @@ class StationSnapshotCache
       extremes: extremes,
       nearby: nearby,
       usgs_url: "https://waterdata.usgs.gov/monitoring-location/#{location.usgs_monitoring_location_id}/",
-      agency_name: location.agency_code
+      agency_code: location.agency_code,
+      agency_name: location.agency_name,
+      agency_credit: Usgs::AgencyCodes.credit_for(location.agency_code, agency_name: location.agency_name)
     }
   end
 

@@ -271,7 +271,7 @@
     <% end %>
 
     <p class="usgs-note">
-      Data provided by the <%= link_to "USGS", @snapshot[:usgs_url], rel: "noopener noreferrer", target: "_blank" %>.
+      Data courtesy of the <%= link_to "U.S. Geological Survey", @snapshot[:usgs_url], rel: "noopener noreferrer", target: "_blank" %>.<% if @snapshot[:agency_credit].present? %> Data provided by the <%= @snapshot[:agency_credit] %>.<% end %>
     </p>
   </main>
   <%= render Footer::ThinComponent.new %>

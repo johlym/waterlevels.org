@@ -130,6 +130,7 @@ class StationCatalogSync
         MonitoringLocation.upsert(
           {
             agency_code: item["agency_code"].presence || "USGS",
+            agency_name: item["agency_name"].presence,
             usgs_monitoring_location_id: usgs_id,
             site_number: site_number,
             name: name,

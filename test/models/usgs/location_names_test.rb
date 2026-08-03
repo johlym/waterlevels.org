@@ -44,5 +44,17 @@ module Usgs
       assert_equal "", LocationNames.format("")
       assert_equal "", LocationNames.format(nil)
     end
+
+    test "preserves leading agency acronyms" do
+      assert_equal "LCRA Lake Buchanan Near Burnet, TX",
+        LocationNames.format("LCRA Lk Buchanan nr Burnet, TX")
+      assert_equal "TCEQQW Clear Creek At Mykawa St Near Pearland, TX",
+        LocationNames.format("TCEQQW Clear Ck at Mykawa St nr Pearland, TX")
+    end
+
+    test "still titlecases all-caps USGS names without preserving place words" do
+      assert_equal "Lake Travis Near Austin, TX",
+        LocationNames.format("LK TRAVIS NR AUSTIN, TX")
+    end
   end
 end

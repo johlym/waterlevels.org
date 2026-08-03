@@ -43,8 +43,12 @@ module Usgs
       raw = name.to_s.strip
       return "" if raw.blank?
 
+      # Capture acronyms from the raw name before expand() introduces mixed case
+      # (e.g. "LK" → "Lake"), which would otherwise leave place words looking
+      # like acronyms.
+      acronyms = extract_acronyms(raw)
       expanded = expand(raw)
-      titleize_preserving_state(expanded)
+      titleize_preserving_state(expanded, acronyms: acronyms)
     end
 
     # Lowercase expanded form used for ILIKE search matching.
@@ -58,9 +62,23 @@ module Usgs
       end
     end
 
-    def titleize_preserving_state(name)
+    def titleize_preserving_state(name, acronyms: [])
       titleized = name.to_s.titleize
+      Array(acronyms).each do |acronym|
+        titleized = titleized.sub(/\b#{Regexp.escape(acronym.titleize)}\b/, acronym)
+      end
       titleized.gsub(/,\s*([A-Za-z]{2})\z/) { ", #{$1.upcase}" }
+    end
+
+    # Preserve agency-style tokens (LCRA, TCEQQW) that would otherwise become
+    # "Lcra" / "Tceqqw" after titleize. Skip when the whole name is shouting
+    # (typical USGS all-caps names) so place words still titleize normally.
+    def extract_acronyms(name)
+      raw = name.to_s
+      letters = raw.gsub(/[^A-Za-z]/, "")
+      return [] if letters.blank? || letters == letters.upcase
+
+      raw.scan(/\b[A-Z]{3,}[A-Z0-9]*\b/)
     end
   end
 end

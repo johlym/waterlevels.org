@@ -81,6 +81,11 @@ class MonitoringLocation < ApplicationRecord
     Nwps::FloodCategories.short_label_for(flood_category)
   end
 
+  # Non-USGS reporting agency for attribution, or nil for USGS-operated sites.
+  def agency_credit
+    Usgs::AgencyCodes.credit_for(agency_code, agency_name: agency_name)
+  end
+
   def has_flood_stages?
     flood_stage_action.present? || flood_stage_minor.present? ||
       flood_stage_moderate.present? || flood_stage_major.present?

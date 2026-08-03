@@ -36,6 +36,26 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.headers["Cache-Tag"], "gauge:#{@location.site_number}"
   end
 
+  test "gauge page credits non-USGS reporting agencies" do
+    @location.update!(
+      agency_code: "TX071",
+      agency_name: "Lower Colorado River Authority, TX",
+      usgs_monitoring_location_id: "TX071-#{@location.site_number}"
+    )
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_includes response.body, "U.S. Geological Survey"
+    assert_includes response.body, "Data provided by the Lower Colorado River Authority."
+  end
+
+  test "gauge page does not invent a co-credit for USGS sites" do
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_includes response.body, "U.S. Geological Survey"
+    assert_not_includes response.body, "Data provided by the"
+  end
+
   test "breadcrumb strips County suffix from county names" do
     @location.update!(county_name: "King County")
 
