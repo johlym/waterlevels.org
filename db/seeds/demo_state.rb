@@ -358,7 +358,7 @@ module DemoStateSeed
 
     NearbyStations.refresh_all
     StateListingCache.warm(STATE_CODE)
-    SiteStats.bust!
+    SiteStats.warm!
   end
 end
 

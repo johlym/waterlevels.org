@@ -31,6 +31,7 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'class="search-stack"'
     assert_includes response.body, 'data-controller="station-search"'
     assert_includes response.headers["Cache-Tag"], "home"
+    assert_includes response.headers["Cache-Control"], "s-maxage=3600"
   end
 
   test "map lives at /map without the site footer" do

@@ -240,7 +240,8 @@ class FloodStageSync
   end
 
   def warm_caches
-    SiteStats.bust!
+    # Recompute in-process so the next home origin hit is not a cold COUNT(*) miss.
+    SiteStats.warm!
     if postal_code
       StateListingCache.warm(postal_code)
     else

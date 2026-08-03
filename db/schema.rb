@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_03_053000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_03_070000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -22,6 +22,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_03_053000) do
     t.bigint "time_series_id", null: false
     t.datetime "updated_at", null: false
     t.decimal "value", precision: 16, scale: 6, null: false
+    t.index ["observed_at"], name: "index_continuous_observations_on_observed_at"
     t.index ["time_series_id", "observed_at"], name: "idx_on_time_series_id_observed_at_6d681681d4", unique: true
     t.index ["time_series_id"], name: "index_continuous_observations_on_time_series_id"
   end
