@@ -68,4 +68,18 @@ class HistoryBackfillBatchJobTest < ActiveSupport::TestCase
       end
     end
   end
+
+  test "retries when database read-only circuit is open without enqueueing stations" do
+    needs = create(:monitoring_location, site_number: "30000022")
+    create(:time_series, monitoring_location: needs, selected_for_display: true)
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      DatabaseReadOnlyCircuit.open!(ttl: 1.minute)
+      assert_no_enqueued_jobs only: HistoryBackfillJob do
+        assert_enqueued_with(job: HistoryBackfillBatchJob) do
+          HistoryBackfillBatchJob.perform_now(10)
+        end
+      end
+    end
+  end
 end
