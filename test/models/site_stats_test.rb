@@ -32,4 +32,13 @@ class SiteStatsTest < ActiveSupport::TestCase
     assert_equal 1, stats[:updates_per_hour]
     assert_equal 1, stats[:flood_alert_count]
   end
+
+  test "warm! returns a freshly computed snapshot" do
+    create(:monitoring_location)
+
+    stats = SiteStats.warm!
+
+    assert_equal 1, stats[:station_count]
+    assert_equal SiteStats.compute, stats
+  end
 end
