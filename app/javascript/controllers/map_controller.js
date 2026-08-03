@@ -42,7 +42,8 @@ export default class extends Controller {
       temperature: true
     }
 
-    this.map = L.map(this.canvasTarget, { zoomControl: false, attributionControl: false }).setView([39.5, -98.35], 4)
+    const initial = this.initialView()
+    this.map = L.map(this.canvasTarget, { zoomControl: false, attributionControl: false }).setView(initial.center, initial.zoom)
     L.control.attribution({
       position: "bottomleft",
       prefix: this.attributionPrefix()
@@ -76,6 +77,47 @@ export default class extends Controller {
       '<a href="https://leafletjs.com" title="A JavaScript library for interactive maps"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8" class="leaflet-attribution-flag"><path fill="#4C9AFF" d="M0 0h12v4H0z"/><path fill="#FFF" d="M0 4h12v3H0z"/><path fill="#FD817D" d="M0 7h12v1H0z"/></svg> Leaflet</a>',
       `&copy; ${year} <a href="/">WaterLevels.org</a> - <a href="${privacy}">Privacy</a> - <a href="${terms}">Terms</a>`
     ].join(" | ")
+  }
+
+  initialView() {
+    return this.viewFromSearchParams(new URLSearchParams(window.location.search)) || {
+      center: [39.5, -98.35],
+      zoom: 4
+    }
+  }
+
+  viewFromSearchParams(params) {
+    const lat = Number(params.get("lat"))
+    const lon = Number(params.get("lon"))
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null
+
+    const parsedZoom = Number(params.get("zoom"))
+    const zoom = Number.isFinite(parsedZoom) && parsedZoom >= 1 && parsedZoom <= 18 ? parsedZoom : 12
+    return { center: [lat, lon], zoom }
+  }
+
+  applyMapViewFromParams(params) {
+    const view = this.viewFromSearchParams(params)
+    if (!view || !this.map) return false
+    this.map.setView(view.center, view.zoom)
+    return true
+  }
+
+  selectSearchResult(event) {
+    const link = event.currentTarget
+    if (!link?.href) return
+
+    const url = new URL(link.href, window.location.origin)
+    if (url.pathname !== "/map") return
+
+    if (this.applyMapViewFromParams(url.searchParams)) {
+      event.preventDefault()
+      this.closeMobileSearch()
+      if (window.history?.replaceState) {
+        window.history.replaceState({}, "", `${url.pathname}${url.search}`)
+      }
+    }
   }
 
   zoomIn() {
@@ -195,9 +237,19 @@ export default class extends Controller {
       await this.fetchSearchResults()
     }
 
-    if (this.searchResults[0]?.path) {
-      window.location.href = this.searchResults[0].path
+    const first = this.searchResults[0]
+    if (!first?.path) return
+
+    const url = new URL(first.path, window.location.origin)
+    if (url.pathname === "/map" && this.applyMapViewFromParams(url.searchParams)) {
+      this.closeMobileSearch()
+      if (window.history?.replaceState) {
+        window.history.replaceState({}, "", `${url.pathname}${url.search}`)
+      }
+      return
     }
+
+    window.location.href = first.path
   }
 
   async fetchSearchResults() {
@@ -322,6 +374,24 @@ export default class extends Controller {
             <p class="meta">Browse all stations in ${this.escapeHtml(result.name)}</p>
           </div>
           <span class="status state">State</span>
+        </a>
+      `
+    }
+
+    if (result.type === "zip") {
+      return `
+        <a href="${this.escapeHtml(result.path)}" class="item" data-action="click->map#selectSearchResult">
+          <div class="icon" aria-hidden="true">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+          </div>
+          <div class="copy">
+            <p class="name">${this.escapeHtml(result.name)}</p>
+            <p class="meta">Show this ZIP code on the map</p>
+          </div>
+          <span class="status zip">ZIP</span>
         </a>
       `
     }
