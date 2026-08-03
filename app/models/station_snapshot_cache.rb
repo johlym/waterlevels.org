@@ -1,5 +1,5 @@
 class StationSnapshotCache
-  PREFIX = "station_snapshot:v8".freeze
+  PREFIX = "station_snapshot:v9".freeze
   TTL = 2.hours
   MILES_PER_KM = 0.621371
 
@@ -38,12 +38,21 @@ class StationSnapshotCache
     cached
   end
 
-  # Rebuild when empty, or when selected series outnumber cached measurement cards
-  # (e.g. after reselect added gage height + elevation).
+  # Rebuild when empty, when selected series outnumber cached measurement cards
+  # (e.g. after reselect added gage height + elevation), or when a newer
+  # datapoint exists than the cached "last updated" timestamp.
   def self.stale_snapshot?(cached, location)
     measurements = Array(cached[:measurements])
-    selected_count = location.time_series.selected.count
+    selected = location.time_series.selected
+    selected_count = selected.count
     return true if selected_count.positive? && measurements.size < selected_count
+
+    newest_datapoint = newest_collected_at(location)
+    if newest_datapoint.present?
+      cached_latest = coerce_time(cached[:latest_observed_at])
+      # Compare at second precision: cached ISO8601 tips omit subseconds.
+      return true if cached_latest.blank? || newest_datapoint.to_i > cached_latest.to_i
+    end
 
     return false if measurements.any?
     current = cached[:current] || {}
@@ -75,6 +84,7 @@ class StationSnapshotCache
     end
 
     nearby = nearby_payload(location)
+    latest_observed_at = latest_observed_at_for(measurements, location)
 
     {
       site_number: location.site_number,
@@ -88,7 +98,7 @@ class StationSnapshotCache
       time_zone: location.time_zone,
       time_zone_identifier: location.time_zone_identifier,
       stale: location.stale?,
-      latest_observed_at: location.latest_observed_at&.iso8601,
+      latest_observed_at: latest_observed_at,
       measurement_kinds: measurements.map { |m| m[:kind] }.uniq,
       measurements: measurements,
       current: current,
@@ -99,6 +109,33 @@ class StationSnapshotCache
       agency_name: location.agency_code
     }
   end
+
+  # Prefer the newest observation among displayed measurements so "Last updated"
+  # tracks datapoints even when the denormalized location column lags.
+  def self.latest_observed_at_for(measurements, location)
+    from_measurements = Array(measurements).filter_map { |m| coerce_time(m[:observed_at] || m["observed_at"]) }.max
+    (from_measurements || location.latest_observed_at)&.iso8601
+  end
+  private_class_method :latest_observed_at_for
+
+  def self.newest_collected_at(location)
+    selected_ids = location.time_series.selected.select(:id)
+    [
+      LatestObservation.where(time_series_id: selected_ids).maximum(:observed_at),
+      location.latest_observed_at
+    ].compact.max
+  end
+  private_class_method :newest_collected_at
+
+  def self.coerce_time(value)
+    case value
+    when Time, ActiveSupport::TimeWithZone, DateTime then value
+    when String then Time.zone.parse(value)
+    end
+  rescue ArgumentError, TypeError
+    nil
+  end
+  private_class_method :coerce_time
 
   def self.measurement_payload(series)
     obs = series.latest_observation
