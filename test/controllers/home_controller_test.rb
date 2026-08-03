@@ -30,6 +30,10 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "/gauges/az"
     assert_includes response.body, 'class="search-stack"'
     assert_includes response.body, 'data-controller="station-search"'
+    assert_includes response.body, 'data-station-search-dialog-outlet="#home-geolocation-dialog"'
+    assert_includes response.body, 'id="home-geolocation-dialog"'
+    assert_includes response.body, 'data-controller="dialog"'
+    assert_includes response.body, "Couldn’t get your location"
     assert_includes response.headers["Cache-Tag"], "home"
     assert_includes response.headers["Cache-Control"], "s-maxage=3600"
   end
@@ -38,6 +42,9 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     get map_path
     assert_response :success
     assert_includes response.body, 'data-controller="map"'
+    assert_includes response.body, 'data-map-dialog-outlet="#map-geolocation-dialog"'
+    assert_includes response.body, 'id="map-geolocation-dialog"'
+    assert_includes response.body, 'data-controller="dialog"'
     assert_includes response.body, "map-mobile-search"
     assert_includes response.body, "Map settings"
     assert_includes response.body, '<details class="map-legend">'

@@ -994,6 +994,50 @@
   }
 }
 
+body.dialog-open {
+  @apply overflow-hidden;
+}
+
+.app-dialog {
+  @apply fixed inset-0 z-50 flex items-center justify-center p-4;
+
+  .app-dialog-backdrop {
+    @apply absolute inset-0 bg-zinc-950/80 backdrop-blur-sm;
+  }
+
+  .app-dialog-panel {
+    @apply map-panel relative w-full max-w-md p-5 sm:p-6;
+  }
+
+  .app-dialog-header {
+    @apply mb-3 flex items-start justify-between gap-3;
+
+    h2 {
+      @apply font-display text-lg font-semibold text-white;
+    }
+  }
+
+  .app-dialog-dismiss {
+    @apply inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-white;
+
+    svg {
+      @apply size-4;
+    }
+  }
+
+  p {
+    @apply text-base leading-relaxed text-zinc-400 sm:text-sm;
+  }
+
+  .app-dialog-actions {
+    @apply mt-5 flex justify-end;
+  }
+
+  .app-dialog-confirm {
+    @apply inline-flex cursor-pointer items-center justify-center rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-zinc-950 transition-all hover:bg-cyan-400 active:scale-95;
+  }
+}
+
 .contact-hero .flash {
   @apply mb-6;
 }

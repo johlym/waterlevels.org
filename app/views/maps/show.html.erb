@@ -4,6 +4,7 @@
 <div
   class="map-shell"
   data-controller="map"
+  data-map-dialog-outlet="#map-geolocation-dialog"
   data-map-stations-url-value="<%= api_map_stations_path %>"
   data-map-search-url-value="<%= search_api_map_stations_path %>"
   data-map-privacy-url-value="<%= privacy_path %>"
@@ -198,5 +199,7 @@
         </div>
       </div>
     </div>
+
+    <%= render Geolocation::ErrorDialogComponent.new(id: "map-geolocation-dialog") %>
   </main>
 </div>

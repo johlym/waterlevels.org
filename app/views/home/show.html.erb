@@ -28,6 +28,7 @@
       <div
         class="home-search"
         data-controller="station-search"
+        data-station-search-dialog-outlet="#home-geolocation-dialog"
         data-station-search-search-url-value="<%= search_api_map_stations_path %>"
         data-station-search-nearest-url-value="<%= nearest_api_map_stations_path %>"
         data-station-search-map-url-value="<%= map_path %>"
@@ -83,6 +84,8 @@
             <a href="#<%= region.key %>"><%= region.name %></a>
           <% end %>
         </div>
+
+        <%= render Geolocation::ErrorDialogComponent.new(id: "home-geolocation-dialog") %>
       </div>
     </div>
   </section>
