@@ -46,4 +46,23 @@ class States::LocationsTableComponentTest < ViewComponent::TestCase
     assert_not_includes without_alerts.to_html, 'data-state-directory-target="alertsOnly"'
     assert_includes without_alerts.to_html, 'data-alert="false"'
   end
+
+  test "groups by state and hides alerts filter when configured for alerts page" do
+    locations = [
+      { name: "Flood Creek", flood_alert: true, county_name: "King", state_code: "wa", state_name: "Washington", path: "/gauges/wa/1", site_number: "1" },
+      { name: "Major River", flood_alert: true, county_name: "Travis", state_code: "tx", state_name: "Texas", path: "/gauges/tx/2", site_number: "2" }
+    ]
+
+    html = render_inline(
+      States::LocationsTableComponent.new(locations: locations, group_by: :state, show_alerts_filter: false)
+    ).to_html
+
+    assert_includes html, "Quick state jump"
+    assert_not_includes html, "Quick county jump"
+    assert_includes html, "Washington"
+    assert_includes html, "Texas"
+    assert_not_includes html, "Stations with alerts"
+    assert_operator html.index("Texas"), :<, html.index("Washington")
+  end
 end
+

@@ -1,0 +1,54 @@
+<% locations = Array(@listing[:locations] || @listing["locations"]) %>
+<% total_count = @listing[:total_count] || @listing["total_count"] || locations.size %>
+<% state_count = @listing[:state_count] || @listing["state_count"] || locations.map { |loc| loc[:state_code] || loc["state_code"] }.uniq.size %>
+<% major_count = @listing[:major_count] || @listing["major_count"] || locations.count { |loc| (loc[:flood_category] || loc["flood_category"]) == "major" } %>
+<% content_for :title, "Flood Alerts | WaterLevels.org" %>
+<% content_for :meta_description, "USGS monitoring locations currently at NWS action stage or above flood stage, grouped by state." %>
+
+<div class="app-shell" data-controller="temperature-unit" data-temperature-unit-url-value="<%= temperature_unit_path %>">
+  <%= render Navigation::BarComponent.new %>
+
+  <header class="state-hero">
+    <div class="glow" aria-hidden="true"></div>
+    <div class="inner">
+      <div class="copy">
+        <span class="eyebrow">
+          <span class="dot" aria-hidden="true"></span>
+          National Flood Alerts
+        </span>
+        <h1>Stations With Active Alerts</h1>
+        <p>
+          Monitoring locations currently at NWS action stage or above, grouped by state with streamflow, stage height, and temperature metrics.
+        </p>
+      </div>
+      <div class="stats">
+        <div class="stat">
+          <div class="label">Alert Stations</div>
+          <div class="value<%= " alert" if total_count.to_i.positive? %>"><%= number_with_delimiter(total_count) %></div>
+        </div>
+        <div class="divider" aria-hidden="true"></div>
+        <div class="stat">
+          <div class="label">States Affected</div>
+          <div class="value"><%= number_with_delimiter(state_count) %></div>
+        </div>
+        <div class="divider" aria-hidden="true"></div>
+        <div class="stat">
+          <div class="label">Major Flooding</div>
+          <div class="value<%= " alert" if major_count.to_i.positive? %>"><%= number_with_delimiter(major_count) %></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="page-main state-main">
+    <% if locations.blank? %>
+      <div class="empty-state">
+        <p>No stations currently have flood alerts. Check back as conditions change.</p>
+      </div>
+    <% else %>
+      <%= render States::LocationsTableComponent.new(locations: locations, group_by: :state, show_alerts_filter: false) %>
+    <% end %>
+  </main>
+
+  <%= render Footer::ThinComponent.new %>
+</div>

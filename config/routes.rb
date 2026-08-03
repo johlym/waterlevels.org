@@ -6,6 +6,7 @@ Rails.application.routes.draw do
 
   root "home#show"
   get "/map", to: "maps#show", as: :map
+  get "/alerts", to: "alerts#show", as: :alerts
 
   get "/sitemap.xml", to: "sitemaps#index", as: :sitemap
   get "/sitemaps/static.xml", to: "sitemaps#static", as: :sitemap_static
