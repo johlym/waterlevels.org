@@ -1,0 +1,117 @@
+<% content_for :title, "Data disclosures | WaterLevels.org" %>
+<% content_for :meta_description, "How WaterLevels.org uses U.S. Geological Survey water data, what we store, how often it updates, and important limitations." %>
+
+<div class="app-shell">
+  <%= render Navigation::BarComponent.new %>
+
+  <section class="page-hero">
+    <div class="glow" aria-hidden="true">
+      <div class="blob-a"></div>
+      <div class="blob-b"></div>
+    </div>
+    <div class="inner">
+      <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Data disclosures</span>
+      <h1>
+        How we use
+        <span class="accent">USGS water data</span>
+      </h1>
+      <p class="lede">
+        WaterLevels.org is an independent site that republishes selected public water monitoring data from the U.S. Geological Survey. This page explains where the data comes from, what we keep, how we display it, and what it is not.
+      </p>
+    </div>
+  </section>
+
+  <main class="page-main narrow">
+    <div class="prose-page">
+      <section aria-labelledby="source-heading">
+        <h2 id="source-heading">Data source</h2>
+        <p>
+          Nearly all hydrologic values shown on WaterLevels.org come from the
+          <a href="https://api.waterdata.usgs.gov/" rel="noopener noreferrer" target="_blank">USGS Water Data APIs</a>
+          (OGC API–Features services operated by the USGS). Site identity, coordinates, and official station pages are likewise USGS products.
+        </p>
+        <p>
+          USGS water data is U.S. government work. WaterLevels.org is not affiliated with, endorsed by, or operated by the USGS or the Department of the Interior. We are a private project that consumes the public API and presents a subset of that data for browsing and reference.
+        </p>
+        <p>
+          For the authoritative record at any station, use the official USGS monitoring-location page linked from each WaterLevels.org station (typically
+          <a href="https://waterdata.usgs.gov/" rel="noopener noreferrer" target="_blank">waterdata.usgs.gov</a>).
+          Official pages may include additional parameters, cooperators, remarks, and quality notes that we do not show.
+        </p>
+      </section>
+
+      <section aria-labelledby="what-we-show-heading">
+        <h2 id="what-we-show-heading">What we show</h2>
+        <p>We focus on continuously monitored surface-water and related sites that currently report at least one of:</p>
+        <ul role="list">
+          <li><span class="emphasis">Water level / stage</span> — including gage height (USGS parameter code 00065) and, where available, lake or reservoir elevation relative to a vertical datum such as NGVD 1929 (62614) or NAVD 1988 (62615), or height above a local datum (00062).</li>
+          <li><span class="emphasis">Streamflow / discharge</span> — USGS parameter code 00060, typically in cubic feet per second.</li>
+          <li><span class="emphasis">Water temperature</span> — USGS parameter code 00010, stored in Celsius and convertible to Fahrenheit in the interface.</li>
+        </ul>
+        <p>
+          When a site reports more than one water-level style parameter, we generally prefer gage height for map and default display, and still expose the other selected series on the station page so you can compare them. We do not attempt to host the full USGS groundwater-well archive or every historical field measurement.
+        </p>
+      </section>
+
+      <section aria-labelledby="how-used-heading">
+        <h2 id="how-used-heading">How the data is used</h2>
+        <p>In practical terms, WaterLevels.org:</p>
+        <ul role="list">
+          <li>Discovers active sites from USGS <code>latest-continuous</code> feeds for the parameter codes above.</li>
+          <li>Stores monitoring-location metadata (name, site number, coordinates, state/county when provided) and selected time-series metadata.</li>
+          <li>Caches the latest observation for map popups and station “current conditions.”</li>
+          <li>Backfills short continuous history (and related daily/peak series where available) so station graphs and tables can render without calling USGS on every page view.</li>
+          <li>Serves highly cached HTML and JSON responses so the site stays fast; cached pages can lag behind the live USGS feed by design.</li>
+        </ul>
+        <p>
+          We do not sell USGS data, resell raw API access, or claim ownership of USGS observations. Values are shown for informational browsing. Units, parameter descriptions, approval status, and timestamps are taken from USGS fields when present.
+        </p>
+      </section>
+
+      <section aria-labelledby="provisional-heading">
+        <h2 id="provisional-heading">Provisional data and limitations</h2>
+        <p>
+          USGS marks many real-time values as <span class="emphasis">provisional</span>. Provisional data can be revised, corrected, or removed after USGS review. Approved values are more stable but still subject to USGS publication practices.
+        </p>
+        <p>
+          Where available, flood categories and stage thresholds come from the National Weather Service National Water Prediction Service (NWPS) and are joined to USGS gauges by site number. Not every USGS site has an NWPS forecast point. WaterLevels.org is <span class="emphasis">not</span> a warning system and is not suitable as the sole source for flood response, navigation, engineering design, legal disputes, or other safety-critical decisions. Always confirm against official USGS and NWS products and local emergency authorities when those decisions matter.
+        </p>
+        <p>
+          Gaps can appear when a sensor is offline, a parameter is discontinued, our sync lags, a station falls outside the site types we keep, or USGS rate limits or API errors interrupt a refresh. “Stale” labels on the site mean our latest stored observation is older than our freshness threshold (currently one week), not necessarily that USGS has stopped collecting data.
+        </p>
+      </section>
+
+      <section aria-labelledby="updates-heading">
+        <h2 id="updates-heading">Updates and caching</h2>
+        <p>
+          Catalog and latest-observation syncs run on a schedule (and can be triggered operationally). Station history is filled on demand and by batch jobs. Public pages and map station payloads are cached at the application and, in production, often at the CDN edge. That means the number you see may be minutes to hours behind the USGS source at peak, and occasionally longer if a sync has not completed.
+        </p>
+      </section>
+
+      <section aria-labelledby="attribution-heading">
+        <h2 id="attribution-heading">Attribution</h2>
+        <p>
+          Hydrologic data: U.S. Geological Survey. Access via the USGS Water Data APIs
+          (<a href="https://api.waterdata.usgs.gov/" rel="noopener noreferrer" target="_blank">api.waterdata.usgs.gov</a>).
+          Prefer citing the specific monitoring location and observation time when you reuse a value from this site.
+        </p>
+        <p>
+          Base map tiles on the homepage are provided by CARTO, built on
+          <a href="https://www.openstreetmap.org/copyright" rel="noopener noreferrer" target="_blank">OpenStreetMap</a>
+          data; map credit appears in the map control itself.
+        </p>
+      </section>
+
+      <section aria-labelledby="contact-heading">
+        <h2 id="contact-heading">Questions about a value</h2>
+        <p>
+          If something looks wrong on WaterLevels.org, first check the official USGS station page for that site. If the USGS page and this site disagree, treat USGS as correct and
+          <%= link_to "contact us", contact_path %>
+          with the site number and approximate time so we can investigate our sync or display logic.
+        </p>
+      </section>
+    </div>
+  </main>
+
+  <%= render Footer::ThinComponent.new %>
+</div>

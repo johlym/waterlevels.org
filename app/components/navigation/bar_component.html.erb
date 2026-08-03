@@ -1,18 +1,58 @@
-<header class="relative z-20 flex items-center justify-between gap-4 border-b border-rolling-stone-200/80 bg-rolling-stone-50/90 px-4 py-3 backdrop-blur dark:border-rolling-stone-800 dark:bg-rolling-stone-950/90 dark:shadow-none">
-  <a href="/" class="text-xl font-semibold tracking-tight text-smalt-800 dark:text-smalt-300">
-    <%= @brand %>
-  </a>
+<header class="<%= shell_classes %>" data-controller="mobile-nav">
+  <div class="inner">
+    <a href="/" aria-label="Homepage" class="brand">
+      <span class="mark" aria-hidden="true">
+        <svg fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zm0 18c-3.35 0-6-2.57-6-6.2 0-2.34 1.95-5.44 6-9.14 4.05 3.7 6 6.79 6 9.14 0 3.63-2.65 6.2-6 6.2z"></path>
+        </svg>
+      </span>
+      <span class="name"><%= @brand %></span>
+    </a>
 
-  <nav class="flex items-center gap-3 text-sm text-rolling-stone-700 dark:text-rolling-stone-200" aria-label="Primary">
-    <% if @map_controls %>
+    <nav class="desktop-nav" aria-label="Primary">
+      <%= link_to "Map", map_path, class: "nav-link" %>
+      <%= link_to "About", about_path, class: "nav-link" %>
+      <%= link_to "FAQ", faq_path, class: "nav-link" %>
+      <%= link_to "Contact", contact_path, class: "nav-link" %>
+      <%= link_to "Data", disclosures_path, class: "nav-link" %>
+    </nav>
+
+    <div class="header-actions">
+      <% if @map_controls %>
+        <button
+          type="button"
+          class="map-search-toggle"
+          data-action="map#openMobileSearch"
+          aria-label="Search stations"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+          </svg>
+        </button>
+      <% end %>
+
       <button
         type="button"
-        class="rounded-md bg-smalt-700 px-3 py-2 text-smalt-50 hover:bg-smalt-800 dark:bg-smalt-400 dark:text-rolling-stone-950 dark:hover:bg-smalt-300"
-        data-action="map#locate"
+        class="menu-toggle"
+        data-action="mobile-nav#toggle"
+        aria-label="Open main menu"
       >
-        Use my location
+        <svg data-mobile-nav-target="openIcon" class="open-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+        </svg>
+        <svg data-mobile-nav-target="closeIcon" class="close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+        </svg>
       </button>
-    <% end %>
-    <%= link_to "About", about_path, class: "hover:text-smalt-700 dark:hover:text-smalt-300" %>
-  </nav>
+    </div>
+  </div>
+
+  <div class="mobile-panel" data-mobile-nav-target="panel">
+    <nav aria-label="Mobile primary">
+      <%= link_to "Map", map_path, class: "nav-link", data: { action: "mobile-nav#close" } %>
+      <%= link_to "About", about_path, class: "nav-link", data: { action: "mobile-nav#close" } %>
+      <%= link_to "FAQ", faq_path, class: "nav-link", data: { action: "mobile-nav#close" } %>
+      <%= link_to "Contact", contact_path, class: "nav-link", data: { action: "mobile-nav#close" } %>
+    </nav>
+  </div>
 </header>

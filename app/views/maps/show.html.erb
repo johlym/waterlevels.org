@@ -1,10 +1,202 @@
-<% content_for :title, "WaterLevels.org — USGS Water Gauges" %>
+<% content_for :title, "Interactive map | WaterLevels.org" %>
 <% content_for :meta_description, "Interactive map of USGS water levels, streamflow, and water temperature across the United States." %>
 
-<div class="flex h-dvh flex-col" data-controller="map" data-map-stations-url-value="<%= api_map_stations_path %>">
+<div
+  class="map-shell"
+  data-controller="map"
+  data-map-stations-url-value="<%= api_map_stations_path %>"
+  data-map-search-url-value="<%= search_api_map_stations_path %>"
+  data-map-privacy-url-value="<%= privacy_path %>"
+  data-map-terms-url-value="<%= terms_path %>"
+  data-map-year-value="<%= Time.current.year %>"
+>
   <%= render Navigation::BarComponent.new(map_controls: true) %>
-  <main class="relative min-h-0 flex-1">
-    <div data-map-target="canvas" class="absolute inset-0 bg-rolling-stone-200 dark:bg-rolling-stone-900" aria-label="Water gauges map"></div>
+
+  <main class="map-main">
+    <div class="map-surface">
+      <div data-map-target="canvas" class="map-canvas" aria-label="Water gauges map"></div>
+    </div>
+
+    <div class="map-chrome">
+      <div class="map-veil" aria-hidden="true"></div>
+
+      <div class="map-tools">
+        <button type="button" data-action="map#zoomIn" aria-label="Zoom in">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+          </svg>
+        </button>
+        <button type="button" data-action="map#zoomOut" aria-label="Zoom out">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+          </svg>
+        </button>
+        <div class="divider" aria-hidden="true"></div>
+        <button type="button" data-action="map#locate" aria-label="Use my location" title="Uses your location once to center the map and find nearby stations.">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="settings-toggle"
+          data-action="map#toggleSettings"
+          data-map-target="settingsButton"
+          aria-label="Map settings"
+          aria-expanded="false"
+          aria-controls="map-settings-panel"
+        >
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          </svg>
+        </button>
+      </div>
+
+      <aside
+        id="map-settings-panel"
+        class="map-settings"
+        data-map-target="settingsPanel"
+        hidden
+      >
+        <div class="map-filters">
+          <div class="settings-heading">
+            <h2>Data layers</h2>
+            <button type="button" class="close-settings" data-action="map#closeSettings" aria-label="Close settings">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+          <div class="layers" role="group" aria-label="Measurement filters">
+            <label>
+              <input
+                type="checkbox"
+                checked
+                data-map-target="filter"
+                data-map-layer-param="discharge"
+                data-action="change->map#filterChanged"
+              >
+              <span class="name">Streamflow</span>
+              <span class="count" data-map-target="dischargeCount" data-zero>0</span>
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked
+                data-map-target="filter"
+                data-map-layer-param="water_level"
+                data-action="change->map#filterChanged"
+              >
+              <span class="name">Water levels</span>
+              <span class="count" data-map-target="waterLevelCount" data-zero>0</span>
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked
+                data-map-target="filter"
+                data-map-layer-param="temperature"
+                data-action="change->map#filterChanged"
+              >
+              <span class="name">Temperature</span>
+              <span class="count" data-map-target="temperatureCount" data-zero>0</span>
+            </label>
+          </div>
+        </div>
+      </aside>
+
+      <details class="map-legend">
+        <summary>
+          <span class="summary-label">Legend</span>
+          <span class="summary-preview" aria-hidden="true">
+            <span class="swatch active"></span>
+            <span class="swatch action"></span>
+            <span class="swatch minor"></span>
+            <span class="swatch moderate"></span>
+            <span class="swatch major"></span>
+            <span class="swatch inactive"></span>
+          </span>
+          <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
+          </svg>
+        </summary>
+        <div class="legend-body">
+          <div class="legend-group">
+            <p class="group-label">Flood stage</p>
+            <div class="items">
+              <div class="item">
+                <span class="swatch active" aria-hidden="true"></span>
+                <span class="label">Normal</span>
+              </div>
+              <div class="item">
+                <span class="swatch action" aria-hidden="true"></span>
+                <span class="label">Action</span>
+              </div>
+              <div class="item">
+                <span class="swatch minor" aria-hidden="true"></span>
+                <span class="label">Minor</span>
+              </div>
+              <div class="item">
+                <span class="swatch moderate" aria-hidden="true"></span>
+                <span class="label">Moderate</span>
+              </div>
+              <div class="item">
+                <span class="swatch major" aria-hidden="true"></span>
+                <span class="label">Major</span>
+              </div>
+            </div>
+          </div>
+          <div class="legend-group">
+            <p class="group-label">Station status</p>
+            <div class="items">
+              <div class="item">
+                <span class="swatch inactive" aria-hidden="true"></span>
+                <span class="label">Inactive / stale</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div
+      class="map-mobile-search"
+      data-map-target="mobileSearch"
+      hidden
+    >
+      <div class="mobile-search-panel">
+        <div class="mobile-search-header">
+          <h2>Search stations</h2>
+          <button type="button" data-action="map#closeMobileSearch" aria-label="Close search">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+
+        <div class="home-search map-embedded-search">
+          <div class="search-shell">
+            <div class="search-row">
+              <div class="search-icon" aria-hidden="true">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+              </div>
+              <input
+                type="search"
+                placeholder="Search by station name, river, or location..."
+                autocomplete="off"
+                data-map-target="search"
+                data-action="input->map#search"
+                aria-label="Search stations"
+              >
+            </div>
+          </div>
+          <div class="autocomplete" data-map-target="results" hidden></div>
+        </div>
+      </div>
+    </div>
   </main>
-  <%= render Footer::ThinComponent.new %>
 </div>

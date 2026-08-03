@@ -4,7 +4,13 @@ require "sidekiq-scheduler/web"
 Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
 
-  root "maps#show"
+  root "home#show"
+  get "/map", to: "maps#show", as: :map
+
+  get "/sitemap.xml", to: "sitemaps#index", as: :sitemap
+  get "/sitemaps/static.xml", to: "sitemaps#static", as: :sitemap_static
+  get "/sitemaps/:state.xml", to: "sitemaps#state", as: :sitemap_state,
+      constraints: { state: /[a-z]{2}/ }
 
   get "/gauges/:state", to: "states#show", as: :state_gauges, constraints: { state: /[a-z]{2}/ }
   get "/gauges/:state/:site_number_slug", to: "gauges#show", as: :gauge,
@@ -12,7 +18,7 @@ Rails.application.routes.draw do
   get "/gauges/:site_number", to: "gauges#show", as: :gauge_short, constraints: { site_number: /\d+/ }
 
   get "/pages/:id", to: "pages#show", as: :page
-  %w[about privacy terms].each do |page|
+  %w[about disclosures faq privacy terms].each do |page|
     get "/#{page}", to: "pages#show", id: page, as: page
   end
 
@@ -23,7 +29,10 @@ Rails.application.routes.draw do
 
   namespace :api do
     namespace :map do
-      resources :stations, only: :index
+      resources :stations, only: :index do
+        get :search, on: :collection
+        get :nearest, on: :collection
+      end
     end
     resources :gauges, only: [] do
       resources :observations, only: :index, module: :gauges

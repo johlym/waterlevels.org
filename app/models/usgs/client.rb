@@ -2,26 +2,33 @@ require "faraday/retry"
 
 module Usgs
   class Client
-    BASE_URL = "https://api.waterdata.usgs.gov/ogcapi/v0".freeze
+    # Trailing slash matters: Faraday treats paths that start with "/" as
+    # host-absolute and would drop "/ogcapi/v0" from the base URL.
+    BASE_URL = "https://api.waterdata.usgs.gov/ogcapi/v0/".freeze
     DEFAULT_LIMIT = 1000
 
     Error = Class.new(StandardError)
     RateLimitError = Class.new(Error)
 
-    def initialize(api_key: ENV["USGS_API_KEY"], connection: nil)
+    def initialize(api_key: ENV["USGS_API_KEY"], connection: nil, request_pause_ms: nil)
       @api_key = api_key
+      @request_pause_ms = request_pause_ms.nil? ? default_request_pause_ms : request_pause_ms.to_i
       @connection = connection || build_connection
     end
 
     def each_collection_item(collection, params = {})
       next_url = nil
       query = params.merge(limit: params[:limit] || DEFAULT_LIMIT, f: "json")
+      first_page = true
 
       loop do
+        pause_between_requests! unless first_page
+        first_page = false
+
         body = if next_url
           get_absolute(next_url)
         else
-          get("/collections/#{collection}/items", query)
+          get("collections/#{collection}/items", query)
         end
 
         Array(body["features"] || body["items"]).each { |feature| yield normalize_feature(feature) }
@@ -32,15 +39,19 @@ module Usgs
     end
 
     def get(path, params = {})
+      raise_if_circuit_open!
       response = @connection.get(path) do |req|
-        req.params.update(params)
+        req.params.update(stringify_params(params))
+        req.headers["Accept"] = "application/geo+json, application/json"
         req.headers["X-Api-Key"] = @api_key if @api_key.present?
       end
       handle_response(response)
     end
 
     def get_absolute(url)
+      raise_if_circuit_open!
       response = @connection.get(url) do |req|
+        req.headers["Accept"] = "application/geo+json, application/json"
         req.headers["X-Api-Key"] = @api_key if @api_key.present?
       end
       handle_response(response)
@@ -48,9 +59,38 @@ module Usgs
 
     private
 
+    def raise_if_circuit_open!
+      return unless RateLimitCircuit.open?
+
+      raise RateLimitError, "USGS rate limit circuit open"
+    end
+
+    def default_request_pause_ms
+      return 0 if Rails.env.test?
+
+      ENV.fetch("USGS_REQUEST_PAUSE_MS", "100").to_i
+    end
+
+    def pause_between_requests!
+      return if @request_pause_ms <= 0
+
+      sleep_pause(@request_pause_ms / 1000.0)
+    end
+
+    def sleep_pause(seconds)
+      sleep(seconds)
+    end
+
     def build_connection
       Faraday.new(url: BASE_URL) do |f|
-        f.request :retry, max: 3, interval: 1, retry_statuses: [ 429, 500, 502, 503, 504 ]
+        f.request :retry,
+          max: 5,
+          interval: 1,
+          interval_randomness: 0.5,
+          backoff_factor: 2,
+          max_interval: 60,
+          # Do not retry 429 — that burns the remaining hourly budget and feeds job backlogs.
+          retry_statuses: [ 500, 502, 503, 504 ]
         f.options.timeout = 60
         f.options.open_timeout = 10
         f.response :json, content_type: /\bjson$/
@@ -58,8 +98,13 @@ module Usgs
       end
     end
 
+    def stringify_params(params)
+      params.transform_keys(&:to_s).transform_values { |v| v.is_a?(Symbol) ? v.to_s : v }
+    end
+
     def handle_response(response)
       if response.status == 429
+        RateLimitCircuit.open!
         raise RateLimitError, "USGS rate limited"
       end
       unless response.success?

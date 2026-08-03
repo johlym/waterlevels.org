@@ -1,5 +1,5 @@
 class StateListingCache
-  PREFIX = "state_listing:v1".freeze
+  PREFIX = "state_listing:v6".freeze
   TTL = 6.hours
 
   def self.key_for(state_code)
@@ -14,12 +14,33 @@ class StateListingCache
     rows = MonitoringLocation.in_state(state_code).ordered_for_state_table.map do |loc|
       {
         site_number: loc.site_number,
-        name: loc.name,
+        name: loc.display_name,
+        search_name: loc.search_name,
+        raw_name: loc.name,
         slug: loc.slug,
         county_name: loc.county_name,
+        latitude: loc.latitude&.to_f,
+        longitude: loc.longitude&.to_f,
         has_water_level: loc.has_water_level,
         has_discharge: loc.has_discharge,
         has_temperature: loc.has_temperature,
+        latest_water_level_value: loc.latest_water_level_value&.to_f,
+        latest_water_level_unit: UnitLabel.format(loc.latest_water_level_unit),
+        latest_discharge_value: loc.latest_discharge_value&.to_f,
+        latest_discharge_unit: UnitLabel.format(loc.latest_discharge_unit),
+        latest_temperature_c: loc.latest_temperature_c&.to_f,
+        latest_observed_at: loc.latest_observed_at&.iso8601,
+        time_zone: loc.time_zone,
+        state_code: loc.state_code,
+        stale: loc.stale?,
+        nwps_matched: loc.nwps_matched,
+        flood_category: loc.flood_category,
+        flood_category_label: loc.flood_category_short_label,
+        flood_alert: loc.flood_alert?,
+        flood_stage_action: loc.flood_stage_action&.to_f,
+        flood_stage_minor: loc.flood_stage_minor&.to_f,
+        flood_stage_moderate: loc.flood_stage_moderate&.to_f,
+        flood_stage_major: loc.flood_stage_major&.to_f,
         path: "/gauges/#{loc.path_state}/#{loc.to_param}"
       }
     end
@@ -27,7 +48,10 @@ class StateListingCache
     payload = {
       state_code: state_code.to_s.downcase,
       state_name: state_name,
-      locations: rows
+      locations: rows,
+      total_count: rows.size,
+      offline_count: rows.count { |row| row[:stale] },
+      critical_count: rows.count { |row| row[:flood_alert] }
     }
     Rails.cache.write(key_for(state_code), payload, expires_in: TTL)
     payload
@@ -38,6 +62,22 @@ class StateListingCache
   end
 
   def self.fetch(state_code)
-    read(state_code) || warm(state_code)
+    cached = read(state_code)
+    return warm(state_code) if cached.blank?
+    return warm(state_code) if cached.is_a?(Hash) && !cached.key?(:total_count) && !cached.key?("total_count")
+    return warm(state_code) if cached.is_a?(Hash) && !cached.key?(:critical_count) && !cached.key?("critical_count")
+    return warm(state_code) if cached_missing_time_zone?(cached)
+
+    cached
+  end
+
+  def self.cached_missing_time_zone?(cached)
+    return false unless cached.is_a?(Hash)
+
+    locations = cached[:locations] || cached["locations"]
+    return false if locations.blank?
+
+    sample = locations.first
+    sample.is_a?(Hash) && !sample.key?(:time_zone) && !sample.key?("time_zone")
   end
 end

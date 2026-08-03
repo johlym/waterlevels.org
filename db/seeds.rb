@@ -1,9 +1,8 @@
-# This file should ensure the existence of records required to run the application in every environment (production,
-# development, test). The code here should be idempotent so that it can be executed at any point in every environment.
-# The data can then be loaded with the bin/rails db:seed command (or created alongside the database with db:setup).
+# frozen_string_literal: true
+
+# Load demo catalog data for local development.
+# One state (Washington), 100 stations, 30 days of USGS-shaped measurements.
 #
-# Example:
+#   bin/rails db:seed
 #
-#   ["Action", "Comedy", "Drama", "Horror"].each do |genre_name|
-#     MovieGenre.find_or_create_by!(name: genre_name)
-#   end
+load Rails.root.join("db/seeds/demo_state.rb")

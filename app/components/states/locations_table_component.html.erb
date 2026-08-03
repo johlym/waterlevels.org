@@ -1,28 +1,211 @@
-<div class="overflow-x-auto">
-  <table class="min-w-full text-left text-sm">
-    <thead class="border-b border-rolling-stone-200 text-rolling-stone-600 dark:border-rolling-stone-800 dark:text-rolling-stone-300">
-      <tr>
-        <th class="px-3 py-2 font-medium">Location</th>
-        <th class="px-3 py-2 font-medium">County</th>
-        <th class="px-3 py-2 font-medium">Measurements</th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-rolling-stone-200 dark:divide-rolling-stone-800">
-      <% @locations.each do |loc| %>
-        <tr>
-          <td class="px-3 py-2">
-            <%= link_to loc[:name], loc[:path], class: "font-medium text-smalt-800 hover:underline dark:text-smalt-300" %>
-          </td>
-          <td class="px-3 py-2 text-rolling-stone-700 dark:text-rolling-stone-200"><%= loc[:county_name].presence || "—" %></td>
-          <td class="px-3 py-2">
-            <span class="flex flex-wrap gap-2 text-xs">
-              <% if loc[:has_water_level] %><span class="text-rolling-stone-700 dark:text-rolling-stone-200">Water level</span><% end %>
-              <% if loc[:has_discharge] %><span class="text-rolling-stone-700 dark:text-rolling-stone-200">Flow</span><% end %>
-              <% if loc[:has_temperature] %><span class="text-rolling-stone-700 dark:text-rolling-stone-200">Temperature</span><% end %>
-            </span>
-          </td>
-        </tr>
+<div class="state-directory" data-controller="state-directory">
+  <aside class="filter-panel">
+    <div class="panel-card">
+      <div class="filter-block">
+        <label class="filter-label" for="station-search">Search stations</label>
+        <div class="search-field">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+          <input
+            type="search"
+            id="station-search"
+            placeholder="e.g. Colorado River..."
+            autocomplete="off"
+            data-state-directory-target="search"
+            data-action="input->state-directory#filter"
+          >
+        </div>
+      </div>
+
+      <div class="filter-block">
+        <span class="filter-label">Measurement types</span>
+        <div class="type-filters" role="group" aria-label="Measurement types">
+          <label class="filter-check">
+            <input
+              type="checkbox"
+              checked
+              value="streamflow"
+              data-state-directory-target="type"
+              data-action="change->state-directory#filter"
+            >
+            <span>Streamflow (Flow Rate)</span>
+          </label>
+          <label class="filter-check">
+            <input
+              type="checkbox"
+              checked
+              value="gauge-height"
+              data-state-directory-target="type"
+              data-action="change->state-directory#filter"
+            >
+            <span>Gauge Height (Stage)</span>
+          </label>
+          <label class="filter-check">
+            <input
+              type="checkbox"
+              checked
+              value="water-quality"
+              data-state-directory-target="type"
+              data-action="change->state-directory#filter"
+            >
+            <span>Water Quality &amp; Temp</span>
+          </label>
+        </div>
+      </div>
+
+      <% if county_jump_links.any? %>
+        <details class="filter-block county-jump" data-state-directory-target="countyJump">
+          <summary>
+            <span class="filter-label">Quick county jump</span>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+          </summary>
+          <div class="county-jumps">
+            <% county_jump_links.each do |name, count, dom_id| %>
+              <a href="#<%= dom_id %>"><%= helpers.display_county_name(name) %> (<%= count %>)</a>
+            <% end %>
+          </div>
+        </details>
       <% end %>
-    </tbody>
-  </table>
+    </div>
+  </aside>
+
+  <div class="county-listings" data-state-directory-target="listings">
+    <p class="filter-empty" hidden data-state-directory-target="empty">
+      No stations match these filters.
+    </p>
+
+    <% counties.each do |county_name, locations| %>
+      <section
+        class="county-group"
+        id="<%= county_dom_id(county_name) %>"
+        data-state-directory-target="county"
+        data-county-name="<%= county_name %>"
+      >
+        <div class="county-head">
+          <h2><%= county_name %></h2>
+          <span data-state-directory-target="countyCount">
+            <%= locations.size %> <%= locations.size == 1 ? "station" : "stations" %>
+          </span>
+        </div>
+
+        <div class="station-grid">
+          <% locations.each do |loc| %>
+            <%
+              name = loc[:name] || loc["name"]
+              path = loc[:path] || loc["path"]
+              site = loc[:site_number] || loc["site_number"]
+              lat = loc[:latitude] || loc["latitude"]
+              lon = loc[:longitude] || loc["longitude"]
+              tokens = type_tokens(loc)
+              discharge = loc[:latest_discharge_value] || loc["latest_discharge_value"]
+              discharge_unit = helpers.display_unit(loc[:latest_discharge_unit] || loc["latest_discharge_unit"] || "ft³/s")
+              stage = loc[:latest_water_level_value] || loc["latest_water_level_value"]
+              stage_unit = helpers.display_unit(loc[:latest_water_level_unit] || loc["latest_water_level_unit"] || "ft")
+              temp_c = loc[:latest_temperature_c] || loc["latest_temperature_c"]
+              offline = stale?(loc)
+              flood_category = loc[:flood_category] || loc["flood_category"]
+              flood_label = loc[:flood_category_label] || loc["flood_category_label"]
+              flood_alert = flood_alert?(loc)
+              stage_elevated = flood_alert && stage.present?
+              observed_at = loc[:latest_observed_at] || loc["latest_observed_at"]
+              time_zone = loc[:time_zone] || loc["time_zone"]
+              state_code = loc[:state_code] || loc["state_code"]
+              search_blob = [
+                loc[:search_name] || loc["search_name"] || name,
+                loc[:raw_name] || loc["raw_name"],
+                name
+              ].compact.map { |value| value.to_s.downcase }.uniq.join(" ")
+            %>
+            <%= link_to path,
+                  class: "station-card#{" is-alert" if flood_alert && !offline}",
+                  data: {
+                    state_directory_target: "card",
+                    name: search_blob,
+                    types: tokens.join(" ")
+                  } do %>
+              <div class="card-head">
+                <div>
+                  <span class="site-id">ID: <%= site %></span>
+                  <h3><%= name %></h3>
+                  <% if observed_at.present? %>
+                    <p class="updated-at"><%= helpers.display_timestamp(observed_at, time_zone: time_zone, state_code: state_code) %></p>
+                  <% end %>
+                  <% if lat.present? && lon.present? %>
+                    <p class="coords"><%= helpers.format_coordinates_dms(lat, lon) %></p>
+                  <% end %>
+                </div>
+                <div class="type-badges">
+                  <% if tokens.include?("streamflow") %>
+                    <span class="badge flow">Streamflow</span>
+                  <% end %>
+                  <% if tokens.include?("gauge-height") %>
+                    <span class="badge stage">Gauge Height</span>
+                  <% end %>
+                  <% if tokens.include?("water-quality") %>
+                    <span class="badge quality">Quality</span>
+                  <% end %>
+                </div>
+              </div>
+
+              <div class="card-metrics">
+                <% if discharge.present? %>
+                  <div>
+                    <span class="label">Flow Rate</span>
+                    <span class="value"><%= number_with_precision(discharge, precision: 0, delimiter: ",") %> <%= discharge_unit %></span>
+                  </div>
+                <% end %>
+                <% if stage.present? %>
+                  <div>
+                    <span class="label">Stage Height</span>
+                    <span class="value<%= " elevated" if stage_elevated %>"><%= number_with_precision(stage, precision: 2) %> <%= stage_unit %></span>
+                  </div>
+                <% elsif temp_c.present? %>
+                  <div>
+                    <span class="label">Water Temp</span>
+                    <span
+                      class="value"
+                      data-temperature-unit-target="display"
+                      data-temp-c="<%= temp_c %>"
+                    ></span>
+                  </div>
+                <% end %>
+                <% if temp_c.present? && stage.present? && discharge.blank? %>
+                  <div>
+                    <span class="label">Water Temp</span>
+                    <span
+                      class="value"
+                      data-temperature-unit-target="display"
+                      data-temp-c="<%= temp_c %>"
+                    ></span>
+                  </div>
+                <% end %>
+                <div>
+                  <span class="label">Status</span>
+                  <% if offline %>
+                    <span class="status warn">
+                      <span class="dot" aria-hidden="true"></span>
+                      Offline
+                    </span>
+                  <% elsif flood_alert %>
+                    <span class="status flood-<%= flood_category.to_s.tr('_', '-') %>">
+                      <span class="dot" aria-hidden="true"></span>
+                      <%= flood_label.presence || flood_category.to_s.humanize %>
+                    </span>
+                  <% else %>
+                    <span class="status ok">
+                      <span class="dot" aria-hidden="true"></span>
+                      Nominal
+                    </span>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      </section>
+    <% end %>
+  </div>
 </div>

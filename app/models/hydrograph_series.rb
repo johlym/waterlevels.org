@@ -10,12 +10,25 @@ class HydrographSeries
 
   attr_accessor :time_series, :range
 
-  def self.for(location:, kind:, range: "7d")
-    series = location.time_series.selected.find_by(measurement_kind: kind)
-    return empty(kind, range) unless series
+  def self.for(location:, kind: nil, parameter_code: nil, range: "7d")
+    series = find_series(location, kind: kind, parameter_code: parameter_code)
+    return empty(kind || parameter_code, range) unless series
 
     new(time_series: series, range: range).as_json
   end
+
+  def self.find_series(location, kind:, parameter_code:)
+    selected = location.time_series.selected
+    if parameter_code.present?
+      return selected.find_by(parameter_code: parameter_code)
+    end
+
+    return unless kind.present?
+
+    selected.where(measurement_kind: kind)
+      .min_by { |s| Usgs::ParameterCodes.preference_rank(s.parameter_code) }
+  end
+  private_class_method :find_series
 
   def self.empty(kind, range)
     { kind: kind, range: range, unit: nil, points: [], peaks: [] }
@@ -43,8 +56,9 @@ class HydrographSeries
 
     {
       kind: time_series.measurement_kind,
+      label: Usgs::ParameterCodes.label_for(time_series.parameter_code, fallback: time_series.parameter_description),
       range: range,
-      unit: time_series.unit_of_measure,
+      unit: UnitLabel.format(time_series.unit_of_measure),
       parameter_code: time_series.parameter_code,
       points: points,
       peaks: peaks

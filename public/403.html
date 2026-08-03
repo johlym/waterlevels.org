@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Access denied (403) | WaterLevels.org</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        color-scheme: dark;
+        --zinc-950: #09090b;
+        --zinc-900: #18181b;
+        --zinc-800: #27272a;
+        --zinc-500: #71717a;
+        --zinc-400: #a1a1aa;
+        --zinc-300: #d4d4d8;
+        --white: #fafafa;
+        --cyan-400: #22d3ee;
+        --cyan-500: #06b6d4;
+        --blue-500: #3b82f6;
+        --blue-600: #2563eb;
+        --amber-400: #fbbf24;
+        --rose-400: #fb7185;
+        --rose-500: #f43f5e;
+        --red-600: #dc2626;
+        --icon: #fbbf24;
+        --accent-from: #fbbf24;
+        --accent-to: #f43f5e;
+        --progress-width: 8.333%;
+      }
+      *, *::before, *::after { box-sizing: border-box; }
+      * { margin: 0; }
+      html { font-size: 16px; }
+      body {
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        background: var(--zinc-950);
+        color: var(--white);
+        font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      a { color: inherit; text-decoration: none; }
+      .site-header {
+        position: relative;
+        z-index: 50;
+        width: 100%;
+        border-bottom: 1px solid color-mix(in oklab, var(--zinc-800) 50%, transparent);
+        background: color-mix(in oklab, var(--zinc-950) 90%, transparent);
+        backdrop-filter: blur(12px);
+      }
+      .site-header .inner,
+      .site-footer .inner {
+        max-width: 96rem;
+        margin: 0 auto;
+        padding: 1rem 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+      .brand { display: inline-flex; align-items: center; gap: 0.75rem; }
+      .brand .mark {
+        display: flex; width: 2.25rem; height: 2.25rem; align-items: center; justify-content: center;
+        border-radius: 0.5rem; background: linear-gradient(to bottom right, var(--cyan-400), var(--blue-500)); color: white;
+      }
+      .brand .mark svg { width: 1.25rem; height: 1.25rem; }
+      .brand .name {
+        font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+        font-size: 1.125rem; font-weight: 600; letter-spacing: -0.025em;
+      }
+      .nav-links { display: none; gap: 2rem; }
+      @media (min-width: 768px) { .nav-links { display: flex; } }
+      .nav-links a { font-size: 0.875rem; color: var(--zinc-400); transition: color 0.15s ease; }
+      .nav-links a:hover { color: var(--white); }
+      .error-main {
+        position: relative; flex: 1; display: flex; align-items: center; justify-content: center;
+        padding: 4rem 1.5rem; overflow: hidden;
+      }
+      .error-main .glow {
+        pointer-events: none; position: absolute; inset: 0;
+        background: radial-gradient(circle at center, rgba(6, 182, 212, 0.05), transparent 60%);
+      }
+      .error-main .inner { position: relative; z-index: 10; width: 100%; max-width: 56rem; }
+      .error-grid { display: grid; gap: 2rem; align-items: center; }
+      @media (min-width: 1024px) {
+        .error-grid { grid-template-columns: 7fr 5fr; }
+        .copy { text-align: left; }
+        .actions { justify-content: flex-start; }
+      }
+      .copy { text-align: center; }
+      .badge {
+        display: inline-flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;
+        border-radius: 9999px; border: 1px solid color-mix(in oklab, var(--rose-500) 30%, transparent);
+        background: color-mix(in oklab, var(--rose-500) 10%, transparent);
+        padding: 0.25rem 0.875rem; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; color: var(--rose-400);
+      }
+      .badge .dot {
+        width: 0.5rem; height: 0.5rem; border-radius: 9999px; background: var(--rose-500);
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+      @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+      h1 {
+        font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+        font-size: clamp(2.25rem, 5vw, 3.75rem); font-weight: 800; letter-spacing: -0.025em; line-height: 1.1;
+      }
+      h1 .accent {
+        background: linear-gradient(to right, var(--accent-from), var(--accent-to));
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+      }
+      .lede {
+        margin-top: 1.5rem; max-width: 32rem; margin-inline: auto;
+        font-size: 1.125rem; line-height: 1.7; color: var(--zinc-400);
+      }
+      @media (min-width: 1024px) { .lede { margin-inline: 0; } }
+      .actions {
+        display: flex; flex-direction: column; align-items: center; gap: 1rem; margin-top: 1.75rem;
+      }
+      @media (min-width: 640px) { .actions { flex-direction: row; } }
+      .btn {
+        display: inline-flex; width: 100%; align-items: center; justify-content: center; gap: 0.5rem;
+        border-radius: 0.5rem; padding: 0.75rem 1.5rem; font-size: 0.875rem; font-weight: 600; transition: all 0.2s ease;
+      }
+      @media (min-width: 640px) { .btn { width: auto; } }
+      .btn svg { width: 1rem; height: 1rem; }
+      .btn-primary {
+        background: linear-gradient(to right, var(--cyan-500), var(--blue-600));
+        color: var(--zinc-950); box-shadow: 0 10px 15px -3px rgba(6, 182, 212, 0.15);
+      }
+      .btn-primary:hover { background: linear-gradient(to right, var(--cyan-400), var(--blue-500)); }
+      .btn-secondary {
+        border: 1px solid var(--zinc-800);
+        background: color-mix(in oklab, var(--zinc-900) 50%, transparent); color: var(--zinc-300);
+      }
+      .btn-secondary:hover { background: var(--zinc-800); color: var(--white); }
+      .panel {
+        position: relative; width: 100%; max-width: 21.25rem; margin-inline: auto; aspect-ratio: 1;
+        display: flex; flex-direction: column; justify-content: space-between; overflow: hidden;
+        border-radius: 1rem; border: 1px solid color-mix(in oklab, var(--zinc-800) 80%, transparent);
+        background: color-mix(in oklab, var(--zinc-900) 30%, transparent); padding: 1.5rem;
+        box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.5); backdrop-filter: blur(8px);
+      }
+      .panel .glow {
+        position: absolute; inset: 0;
+        background: radial-gradient(ellipse at top, rgba(6, 182, 212, 0.1), transparent 50%);
+      }
+      .panel-head, .panel-body, .panel-foot { position: relative; z-index: 1; }
+      .panel-head {
+        display: flex; align-items: center; justify-content: space-between;
+        border-bottom: 1px solid color-mix(in oklab, var(--zinc-800) 80%, transparent); padding-bottom: 1rem;
+      }
+      .panel-head .label, .panel-foot .label {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem; color: var(--zinc-500);
+      }
+      .panel-head .code {
+        font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+        font-size: 0.875rem; font-weight: 600; color: var(--zinc-300);
+      }
+      .panel-head .signal {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem; font-weight: 600;
+        color: var(--rose-400); animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; text-align: right;
+      }
+      .panel-body { display: flex; flex: 1; align-items: center; justify-content: center; padding: 1.5rem 0; }
+      .icon-ring {
+        display: flex; width: 7rem; height: 7rem; align-items: center; justify-content: center;
+        border-radius: 9999px; border: 1px solid var(--zinc-800);
+        background: color-mix(in oklab, var(--zinc-950) 60%, transparent);
+        box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.3);
+      }
+      .icon-ring svg { width: 3rem; height: 3rem; color: var(--icon); }
+      .panel-foot {
+        border-top: 1px solid color-mix(in oklab, var(--zinc-800) 80%, transparent); padding-top: 1rem;
+      }
+      .metric-row {
+        display: flex; align-items: center; justify-content: space-between;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem; color: var(--zinc-500);
+      }
+      .progress {
+        margin-top: 0.5rem; height: 0.375rem; width: 100%; overflow: hidden;
+        border-radius: 9999px; background: var(--zinc-800);
+      }
+      .progress > span { display: block; height: 100%; width: var(--progress-width); background: var(--cyan-400); }
+      .site-footer {
+        border-top: 1px solid color-mix(in oklab, var(--zinc-800) 50%, transparent); background: var(--zinc-950);
+      }
+      .site-footer .inner { flex-direction: column; }
+      @media (min-width: 640px) { .site-footer .inner { flex-direction: row; } }
+      .footer-brand { display: flex; align-items: center; gap: 0.75rem; font-size: 0.875rem; color: var(--zinc-500); }
+      .footer-brand .mark {
+        display: flex; width: 1.75rem; height: 1.75rem; align-items: center; justify-content: center;
+        border-radius: 0.375rem; background: linear-gradient(to bottom right, var(--cyan-400), var(--blue-500)); color: white;
+      }
+      .footer-brand .mark svg { width: 1rem; height: 1rem; }
+      .footer-nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 1.5rem; }
+      .footer-nav a { font-size: 0.875rem; color: var(--zinc-500); transition: color 0.15s ease; }
+      .footer-nav a:hover { color: var(--white); }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="inner">
+        <a href="/" class="brand" aria-label="WaterLevels.org homepage">
+          <span class="mark" aria-hidden="true">
+            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zm0 18c-3.35 0-6-2.57-6-6.2 0-2.34 1.95-5.44 6-9.14 4.05 3.7 6 6.79 6 9.14 0 3.63-2.65 6.2-6 6.2z"></path></svg>
+          </span>
+          <span class="name">WaterLevels.org</span>
+        </a>
+        <nav class="nav-links" aria-label="Primary">
+          <a href="/">Map</a>
+          <a href="/about">About</a>
+          <a href="/contact">Contact</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="error-main">
+      <div class="glow" aria-hidden="true"></div>
+      <div class="inner">
+        <div class="error-grid">
+          <div class="copy">
+            <div class="badge">
+              <span class="dot" aria-hidden="true"></span>
+              ACCESS RESERVOIR PROTECTED
+            </div>
+            <h1>
+              Hydro-Gate
+              <br>
+              <span class="accent">Is Restricted</span>
+            </h1>
+            <p class="lede">Security sensors detected unauthorized flow requests. This stream sector requires specialized key signatures to bypass the pressure locking mechanisms.</p>
+            <div class="actions">
+              <a href="/" class="btn btn-primary">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"></path></svg>
+                Restore Flow (Go Home)
+              </a>
+              <a href="/contact" class="btn btn-secondary">Contact Support</a>
+            </div>
+          </div>
+
+          <div class="panel" aria-hidden="true">
+            <div class="glow"></div>
+            <div class="panel-head">
+              <div>
+                <p class="label">STATION INDEX</p>
+                <p class="code">ERROR_403_FORBIDDEN</p>
+              </div>
+              <div>
+                <p class="label">SIGNAL</p>
+                <p class="signal">RESTRICTED</p>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="icon-ring">
+                <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"></path>
+                </svg>
+              </div>
+            </div>
+            <div class="panel-foot">
+              <div class="metric-row">
+                <span class="label">FLOW METRIC</span>
+                <span>LOCK STATE</span>
+              </div>
+              <div class="progress"><span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="inner">
+        <div class="footer-brand">
+          <span class="mark" aria-hidden="true">
+            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zm0 18c-3.35 0-6-2.57-6-6.2 0-2.34 1.95-5.44 6-9.14 4.05 3.7 6 6.79 6 9.14 0 3.63-2.65 6.2-6 6.2z"></path></svg>
+          </span>
+          <span>© 2026 WaterLevels.org. Data provided by USGS.</span>
+        </div>
+        <nav class="footer-nav" aria-label="Footer">
+          <a href="/about">About</a>
+          <a href="/contact">Contact</a>
+          <a href="/privacy">Privacy</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

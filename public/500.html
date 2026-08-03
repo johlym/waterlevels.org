@@ -1,135 +1,290 @@
-<!doctype html>
-
+<!DOCTYPE html>
 <html lang="en">
-
   <head>
-
-    <title>We're sorry, but something went wrong (500 Internal Server Error)</title>
-
+    <title>Something went wrong (500) | WaterLevels.org</title>
     <meta charset="utf-8">
-    <meta name="viewport" content="initial-scale=1, width=device-width">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
-
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
     <style>
-
-      *, *::before, *::after {
-        box-sizing: border-box;
+      :root {
+        color-scheme: dark;
+        --zinc-950: #09090b;
+        --zinc-900: #18181b;
+        --zinc-800: #27272a;
+        --zinc-500: #71717a;
+        --zinc-400: #a1a1aa;
+        --zinc-300: #d4d4d8;
+        --white: #fafafa;
+        --cyan-400: #22d3ee;
+        --cyan-500: #06b6d4;
+        --blue-500: #3b82f6;
+        --blue-600: #2563eb;
+        --amber-400: #fbbf24;
+        --rose-400: #fb7185;
+        --rose-500: #f43f5e;
+        --red-600: #dc2626;
+        --icon: #f43f5e;
+        --accent-from: #f43f5e;
+        --accent-to: #dc2626;
+        --progress-width: 100%;
       }
-
-      * {
-        margin: 0;
-      }
-
-      html {
-        font-size: 16px;
-      }
-
+      *, *::before, *::after { box-sizing: border-box; }
+      * { margin: 0; }
+      html { font-size: 16px; }
       body {
-        background: #FFF;
-        color: #261B23;
-        display: grid;
-        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Aptos, Roboto, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-        font-size: clamp(1rem, 2.5vw, 2rem);
-        -webkit-font-smoothing: antialiased;
-        font-style: normal;
-        font-weight: 400;
-        letter-spacing: -0.0025em;
-        line-height: 1.4;
         min-height: 100dvh;
-        place-items: center;
-        text-rendering: optimizeLegibility;
-        -webkit-text-size-adjust: 100%;
+        display: flex;
+        flex-direction: column;
+        background: var(--zinc-950);
+        color: var(--white);
+        font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
       }
-
-      #error-description {
-        fill: #d30001;
-      }
-
-      #error-id {
-        fill: #f0eff0;
-      }
-
-      @media (prefers-color-scheme: dark) {
-        body {
-          background: #101010;
-          color: #e0e0e0;
-        }
-
-        #error-description {
-          fill: #FF6161;
-        }
-
-        #error-id {
-          fill: #2c2c2c;
-        }
-      }
-
-      a {
-        color: inherit;
-        font-weight: 700;
-        text-decoration: underline;
-        text-underline-offset: 0.0925em;
-      }
-
-      b, strong {
-        font-weight: 700;
-      }
-
-      i, em {
-        font-style: italic;
-      }
-
-      main {
-        display: grid;
-        gap: 1em;
-        padding: 2em;
-        place-items: center;
-        text-align: center;
-      }
-
-      main header {
-        width: min(100%, 12em);
-      }
-
-      main header svg {
-        height: auto;
-        max-width: 100%;
+      a { color: inherit; text-decoration: none; }
+      .site-header {
+        position: relative;
+        z-index: 50;
         width: 100%;
+        border-bottom: 1px solid color-mix(in oklab, var(--zinc-800) 50%, transparent);
+        background: color-mix(in oklab, var(--zinc-950) 90%, transparent);
+        backdrop-filter: blur(12px);
       }
-
-      main article {
-        width: min(100%, 30em);
+      .site-header .inner,
+      .site-footer .inner {
+        max-width: 96rem;
+        margin: 0 auto;
+        padding: 1rem 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
       }
-
-      main article p {
-        font-size: 75%;
+      .brand { display: inline-flex; align-items: center; gap: 0.75rem; }
+      .brand .mark {
+        display: flex; width: 2.25rem; height: 2.25rem; align-items: center; justify-content: center;
+        border-radius: 0.5rem; background: linear-gradient(to bottom right, var(--cyan-400), var(--blue-500)); color: white;
       }
-
-      main article br {
-        display: none;
-
-        @media(min-width: 48em) {
-          display: inline;
-        }
+      .brand .mark svg { width: 1.25rem; height: 1.25rem; }
+      .brand .name {
+        font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+        font-size: 1.125rem; font-weight: 600; letter-spacing: -0.025em;
       }
-
+      .nav-links { display: none; gap: 2rem; }
+      @media (min-width: 768px) { .nav-links { display: flex; } }
+      .nav-links a { font-size: 0.875rem; color: var(--zinc-400); transition: color 0.15s ease; }
+      .nav-links a:hover { color: var(--white); }
+      .error-main {
+        position: relative; flex: 1; display: flex; align-items: center; justify-content: center;
+        padding: 4rem 1.5rem; overflow: hidden;
+      }
+      .error-main .glow {
+        pointer-events: none; position: absolute; inset: 0;
+        background: radial-gradient(circle at center, rgba(6, 182, 212, 0.05), transparent 60%);
+      }
+      .error-main .inner { position: relative; z-index: 10; width: 100%; max-width: 56rem; }
+      .error-grid { display: grid; gap: 2rem; align-items: center; }
+      @media (min-width: 1024px) {
+        .error-grid { grid-template-columns: 7fr 5fr; }
+        .copy { text-align: left; }
+        .actions { justify-content: flex-start; }
+      }
+      .copy { text-align: center; }
+      .badge {
+        display: inline-flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;
+        border-radius: 9999px; border: 1px solid color-mix(in oklab, var(--rose-500) 30%, transparent);
+        background: color-mix(in oklab, var(--rose-500) 10%, transparent);
+        padding: 0.25rem 0.875rem; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; color: var(--rose-400);
+      }
+      .badge .dot {
+        width: 0.5rem; height: 0.5rem; border-radius: 9999px; background: var(--rose-500);
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+      @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+      h1 {
+        font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+        font-size: clamp(2.25rem, 5vw, 3.75rem); font-weight: 800; letter-spacing: -0.025em; line-height: 1.1;
+      }
+      h1 .accent {
+        background: linear-gradient(to right, var(--accent-from), var(--accent-to));
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+      }
+      .lede {
+        margin-top: 1.5rem; max-width: 32rem; margin-inline: auto;
+        font-size: 1.125rem; line-height: 1.7; color: var(--zinc-400);
+      }
+      @media (min-width: 1024px) { .lede { margin-inline: 0; } }
+      .actions {
+        display: flex; flex-direction: column; align-items: center; gap: 1rem; margin-top: 1.75rem;
+      }
+      @media (min-width: 640px) { .actions { flex-direction: row; } }
+      .btn {
+        display: inline-flex; width: 100%; align-items: center; justify-content: center; gap: 0.5rem;
+        border-radius: 0.5rem; padding: 0.75rem 1.5rem; font-size: 0.875rem; font-weight: 600; transition: all 0.2s ease;
+      }
+      @media (min-width: 640px) { .btn { width: auto; } }
+      .btn svg { width: 1rem; height: 1rem; }
+      .btn-primary {
+        background: linear-gradient(to right, var(--cyan-500), var(--blue-600));
+        color: var(--zinc-950); box-shadow: 0 10px 15px -3px rgba(6, 182, 212, 0.15);
+      }
+      .btn-primary:hover { background: linear-gradient(to right, var(--cyan-400), var(--blue-500)); }
+      .btn-secondary {
+        border: 1px solid var(--zinc-800);
+        background: color-mix(in oklab, var(--zinc-900) 50%, transparent); color: var(--zinc-300);
+      }
+      .btn-secondary:hover { background: var(--zinc-800); color: var(--white); }
+      .panel {
+        position: relative; width: 100%; max-width: 21.25rem; margin-inline: auto; aspect-ratio: 1;
+        display: flex; flex-direction: column; justify-content: space-between; overflow: hidden;
+        border-radius: 1rem; border: 1px solid color-mix(in oklab, var(--zinc-800) 80%, transparent);
+        background: color-mix(in oklab, var(--zinc-900) 30%, transparent); padding: 1.5rem;
+        box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.5); backdrop-filter: blur(8px);
+      }
+      .panel .glow {
+        position: absolute; inset: 0;
+        background: radial-gradient(ellipse at top, rgba(6, 182, 212, 0.1), transparent 50%);
+      }
+      .panel-head, .panel-body, .panel-foot { position: relative; z-index: 1; }
+      .panel-head {
+        display: flex; align-items: center; justify-content: space-between;
+        border-bottom: 1px solid color-mix(in oklab, var(--zinc-800) 80%, transparent); padding-bottom: 1rem;
+      }
+      .panel-head .label, .panel-foot .label {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem; color: var(--zinc-500);
+      }
+      .panel-head .code {
+        font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+        font-size: 0.875rem; font-weight: 600; color: var(--zinc-300);
+      }
+      .panel-head .signal {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem; font-weight: 600;
+        color: var(--rose-400); animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; text-align: right;
+      }
+      .panel-body { display: flex; flex: 1; align-items: center; justify-content: center; padding: 1.5rem 0; }
+      .icon-ring {
+        display: flex; width: 7rem; height: 7rem; align-items: center; justify-content: center;
+        border-radius: 9999px; border: 1px solid var(--zinc-800);
+        background: color-mix(in oklab, var(--zinc-950) 60%, transparent);
+        box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.3);
+      }
+      .icon-ring svg { width: 3rem; height: 3rem; color: var(--icon); }
+      .panel-foot {
+        border-top: 1px solid color-mix(in oklab, var(--zinc-800) 80%, transparent); padding-top: 1rem;
+      }
+      .metric-row {
+        display: flex; align-items: center; justify-content: space-between;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem; color: var(--zinc-500);
+      }
+      .progress {
+        margin-top: 0.5rem; height: 0.375rem; width: 100%; overflow: hidden;
+        border-radius: 9999px; background: var(--zinc-800);
+      }
+      .progress > span { display: block; height: 100%; width: var(--progress-width); background: var(--cyan-400); }
+      .site-footer {
+        border-top: 1px solid color-mix(in oklab, var(--zinc-800) 50%, transparent); background: var(--zinc-950);
+      }
+      .site-footer .inner { flex-direction: column; }
+      @media (min-width: 640px) { .site-footer .inner { flex-direction: row; } }
+      .footer-brand { display: flex; align-items: center; gap: 0.75rem; font-size: 0.875rem; color: var(--zinc-500); }
+      .footer-brand .mark {
+        display: flex; width: 1.75rem; height: 1.75rem; align-items: center; justify-content: center;
+        border-radius: 0.375rem; background: linear-gradient(to bottom right, var(--cyan-400), var(--blue-500)); color: white;
+      }
+      .footer-brand .mark svg { width: 1rem; height: 1rem; }
+      .footer-nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 1.5rem; }
+      .footer-nav a { font-size: 0.875rem; color: var(--zinc-500); transition: color 0.15s ease; }
+      .footer-nav a:hover { color: var(--white); }
     </style>
-
   </head>
-
   <body>
+    <header class="site-header">
+      <div class="inner">
+        <a href="/" class="brand" aria-label="WaterLevels.org homepage">
+          <span class="mark" aria-hidden="true">
+            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zm0 18c-3.35 0-6-2.57-6-6.2 0-2.34 1.95-5.44 6-9.14 4.05 3.7 6 6.79 6 9.14 0 3.63-2.65 6.2-6 6.2z"></path></svg>
+          </span>
+          <span class="name">WaterLevels.org</span>
+        </a>
+        <nav class="nav-links" aria-label="Primary">
+          <a href="/">Map</a>
+          <a href="/about">About</a>
+          <a href="/contact">Contact</a>
+        </nav>
+      </div>
+    </header>
 
-    <!-- This file lives in public/500.html -->
+    <main class="error-main">
+      <div class="glow" aria-hidden="true"></div>
+      <div class="inner">
+        <div class="error-grid">
+          <div class="copy">
+            <div class="badge">
+              <span class="dot" aria-hidden="true"></span>
+              PRESSURE OVERFLOW EXCEEDED
+            </div>
+            <h1>
+              Server Core
+              <br>
+              <span class="accent">Under Turbulency</span>
+            </h1>
+            <p class="lede">An extreme spike in processing streamflow telemetry caused an internal overflow. Tech crew is working on releasing the diagnostic valves.</p>
+            <div class="actions">
+              <a href="/" class="btn btn-primary">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"></path></svg>
+                Restore Flow (Go Home)
+              </a>
+              <a href="/contact" class="btn btn-secondary">Contact Support</a>
+            </div>
+          </div>
 
-    <main>
-      <header>
-        <svg height="172" viewBox="0 0 480 172" width="480" xmlns="http://www.w3.org/2000/svg"><path d="m101.23 93.8427c-8.1103 0-15.4098 3.7849-19.7354 8.3813h-36.2269v-99.21891h103.8143v37.03791h-68.3984v24.8722c5.1366-2.7035 15.1396-5.9477 24.6014-5.9477 35.146 0 56.233 22.7094 56.233 55.4215 0 34.605-23.791 57.315-60.558 57.315-37.8492 0-61.64-22.169-63.8028-55.963h42.9857c1.0814 10.814 9.1919 19.195 21.6281 19.195 11.355 0 19.465-8.381 19.465-20.547 0-11.625-7.299-20.5463-20.006-20.5463zm138.833 77.8613c-40.822 0-64.884-35.146-64.884-85.7015 0-50.5554 24.062-85.700907 64.884-85.700907 40.823 0 64.884 35.145507 64.884 85.700907 0 50.5555-24.061 85.7015-64.884 85.7015zm0-133.2831c-17.572 0-22.709 21.8984-22.709 47.5816 0 25.6835 5.137 47.5815 22.709 47.5815 17.303 0 22.71-21.898 22.71-47.5815 0-25.6832-5.407-47.5816-22.71-47.5816zm140.456 133.2831c-40.823 0-64.884-35.146-64.884-85.7015 0-50.5554 24.061-85.700907 64.884-85.700907 40.822 0 64.884 35.145507 64.884 85.700907 0 50.5555-24.062 85.7015-64.884 85.7015zm0-133.2831c-17.573 0-22.71 21.8984-22.71 47.5816 0 25.6835 5.137 47.5815 22.71 47.5815 17.302 0 22.709-21.898 22.709-47.5815 0-25.6832-5.407-47.5816-22.709-47.5816z" id="error-id"/><path d="m23.1377 68.9967v34.0033h-8.9162v-34.0033zm4.3157 34.0033v-24.921h8.6947v2.1598c1.3845-1.5506 3.8212-2.7136 6.701-2.7136 5.538 0 8.8054 3.5997 8.8054 9.1377v16.3371h-8.6393v-14.2327c0-2.049-1.0522-3.5443-3.2674-3.5443-1.7168 0-3.1567.9969-3.5997 2.7136v15.0634zm29.9913-8.5839v-9.5807h-3.655v-6.7564h3.655v-6.8671h8.5839v6.8671h5.2058v6.7564h-5.2058v8.307c0 1.9383.9415 2.769 2.6583 2.769.9414 0 1.9937-.2216 2.769-.5538v7.3654c-.9969.443-2.8798.775-4.8181.775-5.8703 0-9.1931-2.769-9.1931-9.0819zm32.3666-.1108h8.0301c-.8861 5.7597-5.2057 9.2487-11.6852 9.2487-7.6424 0-12.682-5.2613-12.682-13.0145 0-7.6978 5.3165-13.0143 12.5159-13.0143 7.6424 0 11.9621 5.095 11.9621 12.5159v2.1598h-16.1156c.2769 2.9905 1.8275 4.5965 4.3196 4.5965 1.7722 0 3.1567-.7753 3.6551-2.4921zm-3.8212-10.0237c-2.0491 0-3.4336 1.2737-3.9874 3.5997h7.5317c-.1107-2.0491-1.3845-3.5997-3.5443-3.5997zm31.4299-6.3134v8.3624c-1.052-.5538-2.215-.7753-3.599-.7753-2.382 0-3.988 1.0522-4.431 2.8244v14.6203h-8.694v-24.921h8.694v2.2152c1.219-1.6614 3.157-2.769 5.649-2.769 1.108 0 1.994.2215 2.381.443zm2.949 25.0318v-24.921h8.694v2.1598c1.385-1.5506 3.821-2.7136 6.701-2.7136 5.538 0 8.806 3.5997 8.806 9.1377v16.3371h-8.64v-14.2327c0-2.049-1.052-3.5443-3.267-3.5443-1.717 0-3.157.9969-3.6 2.7136v15.0634zm50.371 0h-8.363v-1.274c-.83.831-3.323 1.717-5.981 1.717-4.929 0-9.082-2.769-9.082-8.0301 0-4.818 4.153-7.9193 9.581-7.9193 2.049 0 4.485.6646 5.482 1.3845v-1.606c0-1.606-.941-2.9905-3.046-2.9905-1.606 0-2.547.7199-2.935 1.8275h-8.196c.72-4.8181 4.984-8.6393 11.408-8.6393 7.089 0 11.132 3.7659 11.132 10.2453zm-8.363-6.9779v-1.4399c-.554-1.0522-2.049-1.7167-3.655-1.7167-1.717 0-3.433.7199-3.433 2.3813 0 1.7168 1.716 2.4367 3.433 2.4367 1.606 0 3.101-.6645 3.655-1.6614zm20.742-29.0191v35.997h-8.694v-35.997zm13.036 25.9178h9.248c.72 2.326 2.714 3.489 5.483 3.489 2.713 0 4.596-1.163 4.596-3.2674 0-1.6061-1.052-2.326-3.212-2.8244l-6.534-1.3845c-4.985-1.1076-8.751-3.7105-8.751-9.47 0-6.6456 5.538-11.0206 13.07-11.0206 8.307 0 13.014 4.5411 13.956 10.4114h-8.695c-.72-1.8829-2.27-3.3228-5.205-3.3228-2.548 0-4.265 1.1076-4.265 2.9905 0 1.4953 1.052 2.326 2.825 2.7137l6.645 1.5506c5.815 1.3845 9.027 4.5412 9.027 9.8023 0 6.9778-5.87 10.9654-13.291 10.9654-8.141 0-13.679-3.9322-14.897-10.6332zm46.509 1.3845h8.031c-.887 5.7597-5.206 9.2487-11.686 9.2487-7.642 0-12.682-5.2613-12.682-13.0145 0-7.6978 5.317-13.0143 12.516-13.0143 7.643 0 11.962 5.095 11.962 12.5159v2.1598h-16.115c.277 2.9905 1.827 4.5965 4.319 4.5965 1.773 0 3.157-.7753 3.655-2.4921zm-3.821-10.0237c-2.049 0-3.433 1.2737-3.987 3.5997h7.532c-.111-2.0491-1.385-3.5997-3.545-3.5997zm31.431-6.3134v8.3624c-1.053-.5538-2.216-.7753-3.6-.7753-2.381 0-3.988 1.0522-4.431 2.8244v14.6203h-8.694v-24.921h8.694v2.2152c1.219-1.6614 3.157-2.769 5.649-2.769 1.108 0 1.994.2215 2.382.443zm18.288 25.0318h-7.809l-9.47-24.921h8.861l4.763 14.288 4.652-14.288h8.528zm25.614-8.6947h8.03c-.886 5.7597-5.206 9.2487-11.685 9.2487-7.642 0-12.682-5.2613-12.682-13.0145 0-7.6978 5.316-13.0143 12.516-13.0143 7.642 0 11.962 5.095 11.962 12.5159v2.1598h-16.116c.277 2.9905 1.828 4.5965 4.32 4.5965 1.772 0 3.157-.7753 3.655-2.4921zm-3.821-10.0237c-2.049 0-3.434 1.2737-3.988 3.5997h7.532c-.111-2.0491-1.384-3.5997-3.544-3.5997zm31.43-6.3134v8.3624c-1.052-.5538-2.215-.7753-3.6-.7753-2.381 0-3.987 1.0522-4.43 2.8244v14.6203h-8.695v-24.921h8.695v2.2152c1.218-1.6614 3.157-2.769 5.649-2.769 1.107 0 1.993.2215 2.381.443zm13.703-8.9715h24.312v7.6424h-15.562v5.3165h14.232v7.4763h-14.232v5.8703h15.562v7.6978h-24.312zm44.667 8.9715v8.3624c-1.052-.5538-2.215-.7753-3.6-.7753-2.381 0-3.987 1.0522-4.43 2.8244v14.6203h-8.695v-24.921h8.695v2.2152c1.218-1.6614 3.156-2.769 5.648-2.769 1.108 0 1.994.2215 2.382.443zm19.673 0v8.3624c-1.053-.5538-2.216-.7753-3.6-.7753-2.381 0-3.987 1.0522-4.43 2.8244v14.6203h-8.695v-24.921h8.695v2.2152c1.218-1.6614 3.156-2.769 5.648-2.769 1.108 0 1.994.2215 2.382.443zm26.769 12.5713c0 7.6978-5.15 13.0145-12.737 13.0145-7.532 0-12.738-5.3167-12.738-13.0145s5.206-13.0143 12.738-13.0143c7.587 0 12.737 5.3165 12.737 13.0143zm-8.529 0c0-3.4336-1.495-5.8703-4.208-5.8703-2.659 0-4.154 2.4367-4.154 5.8703s1.495 5.8149 4.154 5.8149c2.713 0 4.208-2.3813 4.208-5.8149zm28.082-12.5713v8.3624c-1.052-.5538-2.215-.7753-3.6-.7753-2.381 0-3.987 1.0522-4.43 2.8244v14.6203h-8.695v-24.921h8.695v2.2152c1.218-1.6614 3.157-2.769 5.649-2.769 1.107 0 1.993.2215 2.381.443z" id="error-description"/></svg>
-      </header>
-      <article>
-        <p><strong>We're sorry, but something went wrong.</strong><br> If you're the application owner check the logs for more information.</p>
-      </article>
+          <div class="panel" aria-hidden="true">
+            <div class="glow"></div>
+            <div class="panel-head">
+              <div>
+                <p class="label">STATION INDEX</p>
+                <p class="code">ERROR_500_CRITICAL</p>
+              </div>
+              <div>
+                <p class="label">SIGNAL</p>
+                <p class="signal">OVERPRESSURE</p>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="icon-ring">
+                <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"></path>
+                </svg>
+              </div>
+            </div>
+            <div class="panel-foot">
+              <div class="metric-row">
+                <span class="label">FLOW METRIC</span>
+                <span>CRIT 999.8 L/s</span>
+              </div>
+              <div class="progress"><span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
 
+    <footer class="site-footer">
+      <div class="inner">
+        <div class="footer-brand">
+          <span class="mark" aria-hidden="true">
+            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zm0 18c-3.35 0-6-2.57-6-6.2 0-2.34 1.95-5.44 6-9.14 4.05 3.7 6 6.79 6 9.14 0 3.63-2.65 6.2-6 6.2z"></path></svg>
+          </span>
+          <span>© 2026 WaterLevels.org. Data provided by USGS.</span>
+        </div>
+        <nav class="footer-nav" aria-label="Footer">
+          <a href="/about">About</a>
+          <a href="/contact">Contact</a>
+          <a href="/privacy">Privacy</a>
+        </nav>
+      </div>
+    </footer>
   </body>
-
 </html>

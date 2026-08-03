@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_02_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_03_170000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -22,6 +22,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_000001) do
     t.bigint "time_series_id", null: false
     t.datetime "updated_at", null: false
     t.decimal "value", precision: 16, scale: 6, null: false
+    t.index ["observed_at"], name: "index_continuous_observations_on_observed_at"
     t.index ["time_series_id", "observed_at"], name: "idx_on_time_series_id_observed_at_6d681681d4", unique: true
     t.index ["time_series_id"], name: "index_continuous_observations_on_time_series_id"
   end
@@ -55,10 +56,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_000001) do
   create_table "monitoring_locations", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.string "agency_code", default: "USGS", null: false
+    t.string "agency_name"
     t.string "county_code"
     t.string "county_name"
     t.datetime "created_at", null: false
+    t.string "display_name", null: false
     t.decimal "drainage_area", precision: 12, scale: 3
+    t.string "flood_category"
+    t.datetime "flood_category_observed_at"
+    t.decimal "flood_stage_action", precision: 16, scale: 6
+    t.decimal "flood_stage_major", precision: 16, scale: 6
+    t.decimal "flood_stage_minor", precision: 16, scale: 6
+    t.decimal "flood_stage_moderate", precision: 16, scale: 6
     t.boolean "has_discharge", default: false, null: false
     t.boolean "has_temperature", default: false, null: false
     t.boolean "has_water_level", default: false, null: false
@@ -76,6 +85,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_000001) do
     t.datetime "metadata_synced_at"
     t.string "name", null: false
     t.jsonb "nearby_station_ids", default: [], null: false
+    t.string "nwps_lid"
+    t.boolean "nwps_matched", default: false, null: false
+    t.datetime "nwps_synced_at"
+    t.string "search_name", null: false
     t.string "site_number", null: false
     t.string "site_type_code"
     t.string "site_type_name"
@@ -85,9 +98,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_000001) do
     t.string "time_zone"
     t.datetime "updated_at", null: false
     t.string "usgs_monitoring_location_id", null: false
+    t.index ["flood_category"], name: "index_monitoring_locations_on_flood_category"
     t.index ["has_discharge"], name: "index_monitoring_locations_on_has_discharge", where: "(has_discharge = true)"
     t.index ["has_water_level"], name: "index_monitoring_locations_on_has_water_level", where: "(has_water_level = true)"
     t.index ["latitude", "longitude"], name: "index_monitoring_locations_on_latitude_and_longitude"
+    t.index ["nwps_lid"], name: "index_monitoring_locations_on_nwps_lid", where: "(nwps_lid IS NOT NULL)"
+    t.index ["nwps_matched"], name: "index_monitoring_locations_on_nwps_matched", where: "(nwps_matched = true)"
+    t.index ["search_name"], name: "index_monitoring_locations_on_search_name"
     t.index ["site_number"], name: "index_monitoring_locations_on_site_number", unique: true
     t.index ["state_code", "county_name", "name"], name: "idx_on_state_code_county_name_name_ac7d4d7687"
     t.index ["usgs_monitoring_location_id"], name: "index_monitoring_locations_on_usgs_monitoring_location_id", unique: true

@@ -1,0 +1,91 @@
+<section class="measurements" aria-labelledby="current-heading">
+  <div class="section-head">
+    <h2 id="current-heading">Current conditions</h2>
+    <% if has_temperature? %>
+      <div class="segmented" role="group" aria-label="Temperature units">
+        <button
+          type="button"
+          data-action="temperature-unit#setF"
+          data-temperature-unit-target="button"
+          data-temperature-unit-unit-param="f"
+          aria-pressed="true"
+        >°F</button>
+        <button
+          type="button"
+          data-action="temperature-unit#setC"
+          data-temperature-unit-target="button"
+          data-temperature-unit-unit-param="c"
+          aria-pressed="false"
+        >°C</button>
+      </div>
+    <% end %>
+  </div>
+
+  <div
+    class="cards"
+    role="tablist"
+    aria-label="Measurements"
+    data-parameter-toggle-target="tabs"
+  >
+    <% @measurements.each_with_index do |m, index| %>
+      <%
+        kind = m[:kind] || m["kind"]
+        label = m[:label] || m["label"]
+        value = m[:value] || m["value"]
+        unit = helpers.display_unit(m[:unit] || m["unit"])
+        code = m[:parameter_code] || m["parameter_code"]
+        precision = m[:precision] || m["precision"] || 2
+        trends = m[:trends] || m["trends"] || {}
+        extremes = m[:extremes] || m["extremes"] || {}
+        change_24h = trends[:change_24h] || trends["change_24h"]
+        yoy = trends[:yoy] || trends["yoy"]
+        high = extremes.dig(:high, :value) || extremes.dig("high", "value")
+        low = extremes.dig(:low, :value) || extremes.dig("low", "value")
+        selected = index.zero?
+      %>
+      <button
+        type="button"
+        role="tab"
+        id="measurement-tab-<%= code %>"
+        aria-selected="<%= selected %>"
+        aria-controls="graph-panel"
+        tabindex="<%= selected ? 0 : -1 %>"
+        class="measurement-card"
+        data-action="parameter-toggle#select"
+        data-parameter-toggle-kind-param="<%= kind %>"
+        data-parameter-toggle-parameter-code-param="<%= code %>"
+        data-parameter-toggle-target="tab"
+      >
+        <div class="label"><%= label %></div>
+        <% if kind == "temperature" %>
+          <div
+            class="value"
+            data-temperature-unit-target="display"
+            data-temp-c="<%= value %>"
+          ></div>
+        <% else %>
+          <div class="value-row">
+            <div class="value">
+              <%= number_with_precision(value, precision: precision, delimiter: ",") %>
+            </div>
+            <div class="unit"><%= unit %></div>
+          </div>
+        <% end %>
+        <div class="trends">
+          <% if change_24h %>
+            <p>24h <%= helpers.signed_number(change_24h, precision: precision) %> <%= unit %></p>
+          <% end %>
+          <% if yoy %>
+            <p>YoY <%= helpers.signed_number(yoy, precision: precision) %> <%= unit %></p>
+          <% end %>
+          <% if high || low %>
+            <p>
+              High <%= high ? number_with_precision(high, precision: precision, delimiter: ",") : "—" %>
+              · Low <%= low ? number_with_precision(low, precision: precision, delimiter: ",") : "—" %>
+            </p>
+          <% end %>
+        </div>
+      </button>
+    <% end %>
+  </div>
+</section>

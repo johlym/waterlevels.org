@@ -21,23 +21,33 @@ cp .env.example .env   # add USGS_API_KEY
 bin/dev
 ```
 
-Bootstrap USGS data (rate-limit aware). Prefer a single state while testing:
+Bootstrap USGS data (rate-limit aware; prints progress). Catalog sync keeps **active continuous water-body sites only** (streams/lakes/estuaries with current `latest-continuous` data — not the full USGS well archive).
+
+### Production (preferred)
+
+With the Sidekiq worker running, enqueue staggered per-state catalog+latest jobs:
 
 ```bash
+bin/rails usgs:enqueue_bootstrap
+# optional: STATE=wa DELAY_SECONDS=120
+```
+
+Hourly `LatestObservationSyncJob` keeps readings fresh. Hourly `FloodStageSyncJob` refreshes NWS NWPS flood categories from the national gauge list (by LID), prioritizes linking any currently flooding unlinked gauges, and discovers stage thresholds via USGS site-number detail lookups (`STATE=wa bin/rails nwps:sync_flood_stages`, or `bin/rails nwps:enqueue_sync` for staggered per-state jobs). Bootstrap also runs flood sync per state. Hourly `HistoryBackfillBatchJob` fills 7-day continuous history in batches (gauge page views also enqueue a station when charts are empty). Prefer this over a national one-off `usgs:bootstrap` on a small dyno.
+
+### Local / single-state
+
+```bash
+STATE=wa bin/rails usgs:purge ALL=1   # wipe a bad/partial import
 STATE=wa bin/rails usgs:bootstrap
 ```
 
-National bootstrap (slow):
+Optional history backfill after bootstrap:
 
 ```bash
-bin/rails usgs:bootstrap
+STATE=wa RANGE=1y LIMIT=25 bin/rails usgs:backfill
 ```
 
-Or enqueue:
-
-```bash
-bin/rails runner "StationCatalogSyncJob.perform_later"
-```
+Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_BACKFILL_BATCH` (default `40`).
 
 ## Tests
 
@@ -50,7 +60,11 @@ bin/rails test
 - Dynos: `web`, `worker`
 - Add-ons: Postgres, Redis
 - Set `USGS_API_KEY`, `REDIS_URL`, `DATABASE_URL`
+- Redis TLS: Sidekiq, cache, and Action Cable use `ssl_params.verify_mode = VERIFY_NONE` for Heroku self-signed `rediss://` certs
+- After deploy: `heroku run bin/rails usgs:enqueue_bootstrap -a <app>`
+- Optional: `MALLOC_ARENA_MAX=2` if worker RSS climbs
 - Put Cloudflare in front; honor `Cache-Control` / `Cache-Tag` from the app
+- **Cold first request:** Eco/Hobby web dynos sleep when idle; the next hit waits for Puma/Rails boot (often multi-second). Prefer an always-on web dyno, or ping `/up` every few minutes. Puma also warms DB/Redis/`SiteStats` on boot so a post-sleep origin render is cheaper once the process is up.
 
 ## Contact form
 

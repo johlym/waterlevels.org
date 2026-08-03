@@ -1,20 +1,61 @@
 <% content_for :title, "Contact | WaterLevels.org" %>
 <% @contact_message ||= ContactMessage.new %>
 
-<div class="flex min-h-dvh flex-col">
+<div class="app-shell">
   <%= render Navigation::BarComponent.new %>
-  <main class="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
-    <h1 class="text-3xl font-semibold tracking-tight">Contact</h1>
-    <p class="mt-4 text-rolling-stone-700 dark:text-rolling-stone-300">Send a message about WaterLevels.org. You can also email <a class="text-smalt-800 underline dark:text-smalt-300" href="mailto:hello@waterlevels.org">hello@waterlevels.org</a>.</p>
 
-    <% if flash[:notice].present? %>
-      <p class="mt-6 text-sm font-medium text-smalt-800 dark:text-smalt-300" role="status"><%= flash[:notice] %></p>
-    <% end %>
-    <% if flash[:alert].present? %>
-      <p class="mt-6 text-sm font-medium text-red-700 dark:text-red-300" role="alert"><%= flash[:alert] %></p>
-    <% end %>
+  <section class="contact-hero">
+    <div class="glow" aria-hidden="true"></div>
+    <div class="inner">
+      <div class="intro">
+        <div>
+          <div class="eyebrow">
+            <span class="pulse" aria-hidden="true">
+              <span class="ring"></span>
+              <span class="core"></span>
+            </span>
+            Hydrology desk online
+          </div>
+          <h1>
+            Connect with
+            <span class="accent">WaterLevels.org</span>
+          </h1>
+          <p class="lede">
+            Questions about a gauge page, a data sync issue, or the project itself? Send a message and we will get back to you.
+          </p>
+        </div>
 
-    <%= render Contact::FormComponent.new(contact_message: @contact_message) %>
-  </main>
+        <div class="meta">
+          <div class="meta-row">
+            <div class="icon" aria-hidden="true">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+              </svg>
+            </div>
+            <div>
+              <p class="label">Email</p>
+              <p class="value">
+                <a href="mailto:hello@waterlevels.org">hello@waterlevels.org</a>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-panel">
+        <div class="card">
+          <% if flash[:notice].present? %>
+            <div class="flash notice" role="status"><%= flash[:notice] %></div>
+          <% end %>
+          <% if flash[:alert].present? %>
+            <div class="flash alert" role="alert"><%= flash[:alert] %></div>
+          <% end %>
+
+          <%= render Contact::FormComponent.new(contact_message: @contact_message) %>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <%= render Footer::ThinComponent.new %>
 </div>

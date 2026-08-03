@@ -1,9 +1,242 @@
-<% content_for :title, "Privacy | WaterLevels.org" %>
-<div class="flex min-h-dvh flex-col">
+<% content_for :title, "Privacy Policy | WaterLevels.org" %>
+<% content_for :meta_description, "What information WaterLevels.org collects, why we collect it, and what choices you have." %>
+
+<div class="app-shell">
   <%= render Navigation::BarComponent.new %>
-  <main class="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
-    <h1 class="text-3xl font-semibold tracking-tight">Privacy</h1>
-    <p class="mt-4 text-rolling-stone-700 dark:text-rolling-stone-300">We use a small preference cookie for temperature units (°F/°C). Map location is requested only if you choose “Use my location” and is not sent to our servers. Gauge pages are cached publicly.</p>
+  <main class="page-main narrow">
+    <div class="state-intro">
+      <h1>Privacy Policy</h1>
+      <p>Effective August 2, 2026</p>
+    </div>
+    <div class="prose-page">
+      <section>
+        <p>
+          WaterLevels.org is operated by Bytoro LLC, a Washington limited liability company.
+        </p>
+        <p>
+          This policy explains what information WaterLevels.org collects, why we collect it, and what choices you have.
+        </p>
+      </section>
+
+      <section aria-labelledby="information-you-provide-heading">
+        <h2 id="information-you-provide-heading">Information you provide</h2>
+        <p>WaterLevels.org does not offer user accounts.</p>
+        <p>When you use our contact form, you may provide:</p>
+        <ul role="list">
+          <li>Your name</li>
+          <li>Your email address</li>
+          <li>The contents of your message</li>
+        </ul>
+        <p>
+          We use this information to read and respond to your message. We may also use it to handle related follow-up questions or support requests.
+        </p>
+      </section>
+
+      <section aria-labelledby="optional-location-heading">
+        <h2 id="optional-location-heading">Optional location information</h2>
+        <p>WaterLevels.org can use your device’s precise location to:</p>
+        <ul role="list">
+          <li>Center the map near your current location</li>
+          <li>Find the nearest water monitoring station</li>
+        </ul>
+        <p>
+          Using this feature is optional. Your browser or device will ask for permission before sharing your location.
+        </p>
+        <p>
+          When you use the feature, your location is transmitted to WaterLevels.org so that we can complete the request. We do not use your location for advertising, background tracking, or building a profile about you. We do not sell your location information.
+        </p>
+        <p>
+          WaterLevels.org is designed not to keep a history of your precise locations after completing the requested map or station lookup.
+        </p>
+        <p>
+          You can deny or withdraw location permission through your browser or device settings. The rest of the site can still be used without providing your location.
+        </p>
+      </section>
+
+      <section aria-labelledby="information-collected-automatically-heading">
+        <h2 id="information-collected-automatically-heading">Information collected automatically</h2>
+        <p>Like most websites, WaterLevels.org receives limited technical information when you visit. This may include:</p>
+        <ul role="list">
+          <li>Your IP address</li>
+          <li>The date and time of a request</li>
+          <li>Basic browser and device information</li>
+          <li>Pages or stations you view</li>
+          <li>Searches you perform</li>
+          <li>Technical errors and performance information</li>
+        </ul>
+        <p>This information may appear in server, security, or access logs.</p>
+        <p>
+          We use it to operate the site, respond to requests, prevent abuse, troubleshoot problems, and understand how the site is being used.
+        </p>
+      </section>
+
+      <section aria-labelledby="cookies-heading">
+        <h2 id="cookies-heading">Cookies</h2>
+        <p>WaterLevels.org may use a technical session cookie.</p>
+        <p>
+          This cookie is used only to make the site work correctly. It is not used for advertising or cross-site tracking.
+        </p>
+        <p>
+          You can block or delete cookies using your browser settings. Some site features may not work correctly if technical cookies are blocked.
+        </p>
+      </section>
+
+      <section aria-labelledby="analytics-heading">
+        <h2 id="analytics-heading">Analytics</h2>
+        <p>WaterLevels.org uses Fathom Analytics to understand overall site traffic and usage.</p>
+        <p>
+          Fathom does not use analytics cookies and does not provide us with profiles of individual visitors. Fathom briefly processes technical information, including IP addresses and browser information, to count visits, produce aggregated statistics, and protect its service from abuse.
+        </p>
+        <p>
+          We use these statistics to understand matters such as which pages and stations are viewed most often and how visitors find the site.
+        </p>
+      </section>
+
+      <section aria-labelledby="cloudflare-heading">
+        <h2 id="cloudflare-heading">Cloudflare</h2>
+        <p>WaterLevels.org uses Cloudflare for security, reliability, traffic delivery, and performance.</p>
+        <p>
+          Because requests pass through Cloudflare’s network, Cloudflare may process technical information such as IP addresses, request details, and security information. Cloudflare processes this information under its own privacy and data-protection practices.
+        </p>
+      </section>
+
+      <section aria-labelledby="how-we-use-information-heading">
+        <h2 id="how-we-use-information-heading">How we use information</h2>
+        <p>We use the information described in this policy to:</p>
+        <ul role="list">
+          <li>Provide WaterLevels.org and its map features</li>
+          <li>Center the map or locate nearby stations when requested</li>
+          <li>Respond to contact-form messages</li>
+          <li>Maintain the security and reliability of the site</li>
+          <li>Diagnose errors and performance problems</li>
+          <li>Understand general site usage</li>
+          <li>Prevent spam, abuse, and malicious activity</li>
+        </ul>
+        <p>We do not use personal information for targeted advertising.</p>
+      </section>
+
+      <section aria-labelledby="advertising-heading">
+        <h2 id="advertising-heading">Advertising and sale of information</h2>
+        <p>WaterLevels.org does not display advertising.</p>
+        <p>
+          We do not sell or rent personal information. We do not share personal information for targeted or cross-site behavioral advertising.
+        </p>
+      </section>
+
+      <section aria-labelledby="service-providers-heading">
+        <h2 id="service-providers-heading">Service providers</h2>
+        <p>We use service providers to operate WaterLevels.org. These currently include:</p>
+        <ul role="list">
+          <li>Cloudflare, for security, traffic delivery, and performance</li>
+          <li>Fathom Analytics, for privacy-focused website analytics</li>
+          <li>Our website-hosting and infrastructure providers</li>
+          <li>Any email-delivery provider used to deliver contact-form messages</li>
+        </ul>
+        <p>
+          These providers may process information only as needed to provide their services, maintain security, comply with the law, or protect their legal rights.
+        </p>
+      </section>
+
+      <section aria-labelledby="retention-heading">
+        <h2 id="retention-heading">How long information is kept</h2>
+        <p>
+          Technical logs, error information, and performance records are generally kept for no more than 30 days. Some records may be kept longer when reasonably necessary to investigate abuse, address a security incident, correct a technical problem, or comply with a legal obligation.
+        </p>
+        <p>
+          Contact-form messages may be kept for as long as reasonably necessary to respond to the message, handle follow-up correspondence, and maintain appropriate business records. They are deleted when they are no longer needed.
+        </p>
+        <p>
+          WaterLevels.org does not intentionally maintain a history of the precise locations submitted through the optional location feature.
+        </p>
+        <p>
+          Aggregated analytics statistics may be kept longer because they are not designed to identify individual visitors.
+        </p>
+      </section>
+
+      <section aria-labelledby="security-heading">
+        <h2 id="security-heading">Security</h2>
+        <p>
+          We use reasonable technical and organizational measures to protect the information handled by WaterLevels.org.
+        </p>
+        <p>
+          WaterLevels.org is operated by a solo developer and has no employees. Administrative access to WaterLevels.org systems is limited to the owner of Bytoro LLC. Our service providers may process information as necessary to provide and secure their services.
+        </p>
+        <p>
+          WaterLevels.org does not store user passwords because user accounts are not available.
+        </p>
+        <p>No website or internet transmission can be guaranteed to be completely secure.</p>
+      </section>
+
+      <section aria-labelledby="where-processed-heading">
+        <h2 id="where-processed-heading">Where information is processed</h2>
+        <p>
+          WaterLevels.org’s own stored application data and business records are maintained in the United States.
+        </p>
+        <p>
+          Some service providers, including Cloudflare, operate global networks. As a result, information may be temporarily processed in other locations while providing security, traffic-delivery, analytics, or other technical services.
+        </p>
+      </section>
+
+      <section aria-labelledby="childrens-privacy-heading">
+        <h2 id="childrens-privacy-heading">Children’s privacy</h2>
+        <p>WaterLevels.org is intended for a general audience and is not directed toward children under 13.</p>
+        <p>
+          We do not knowingly collect personal information from children under 13. If you believe that a child has submitted personal information through the site, contact us so that we can review and delete it where appropriate.
+        </p>
+      </section>
+
+      <section aria-labelledby="your-choices-heading">
+        <h2 id="your-choices-heading">Your choices</h2>
+        <p>You may use WaterLevels.org without creating an account.</p>
+        <p>
+          You can choose not to provide your location. You can also change or withdraw location permission through your browser or device settings.
+        </p>
+        <p>
+          You may contact us to ask about personal information you submitted through the contact form or to request that it be corrected or deleted. We may need to verify that the request relates to you before completing it.
+        </p>
+      </section>
+
+      <section aria-labelledby="dnt-heading">
+        <h2 id="dnt-heading">Do Not Track and Global Privacy Control</h2>
+        <p>
+          WaterLevels.org does not use cross-site behavioral advertising and does not sell personal information.
+        </p>
+        <p>
+          Because we do not engage in those activities, enabling a browser’s “Do Not Track” or Global Privacy Control setting does not cause the site to operate differently.
+        </p>
+      </section>
+
+      <section aria-labelledby="legal-requirements-heading">
+        <h2 id="legal-requirements-heading">Legal requirements</h2>
+        <p>We may preserve or disclose information when reasonably necessary to:</p>
+        <ul role="list">
+          <li>Comply with applicable law or a valid legal request</li>
+          <li>Protect the rights, safety, or property of WaterLevels.org, Bytoro LLC, or others</li>
+          <li>Investigate fraud, abuse, or security problems</li>
+          <li>Enforce applicable terms or policies</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="changes-heading">
+        <h2 id="changes-heading">Changes to this policy</h2>
+        <p>
+          We may update this Privacy Policy when WaterLevels.org changes or when legal or operational requirements change.
+        </p>
+        <p>
+          The effective date at the top of the policy will be updated when changes are made. Material changes may also be announced on the site.
+        </p>
+      </section>
+
+      <section aria-labelledby="contact-heading">
+        <h2 id="contact-heading">Contact</h2>
+        <p>Questions or requests about this Privacy Policy can be sent to:</p>
+        <p>
+          Bytoro LLC<br>
+          Washington State<br>
+          <a href="mailto:contact@waterlevels.org">contact@waterlevels.org</a>
+        </p>
+      </section>
+    </div>
   </main>
   <%= render Footer::ThinComponent.new %>
 </div>
