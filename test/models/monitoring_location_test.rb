@@ -116,4 +116,22 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     assert_equal [ location ], MonitoringLocation.search("Lake Travis").to_a
     assert_equal [ location ], MonitoringLocation.search("lk travis").to_a
   end
+
+  test "exact_search_match requires an exact name, site number, or NWPS LID" do
+    location = create(
+      :monitoring_location,
+      site_number: "08154700",
+      usgs_monitoring_location_id: "USGS-08154700",
+      name: "Lk Travis nr Austin, TX",
+      state_code: "tx",
+      state_name: "Texas",
+      nwps_lid: "ATIT2"
+    )
+
+    assert_includes MonitoringLocation.exact_search_match("08154700"), location
+    assert_includes MonitoringLocation.exact_search_match("Lake Travis Near Austin, TX"), location
+    assert_includes MonitoringLocation.exact_search_match("ATIT2"), location
+    assert_not MonitoringLocation.exact_search_match("Texas").exists?
+    assert_not MonitoringLocation.exact_search_match("Lake Travis").exists?
+  end
 end

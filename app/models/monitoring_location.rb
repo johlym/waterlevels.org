@@ -45,6 +45,17 @@ class MonitoringLocation < ApplicationRecord
       )
     )
   }
+  scope :exact_search_match, lambda { |query|
+    q = query.to_s.strip
+    return none if q.blank?
+
+    expanded = Usgs::LocationNames.search_key(q)
+    where(
+      "site_number = :exact OR UPPER(COALESCE(nwps_lid, '')) = UPPER(:exact) OR LOWER(display_name) = LOWER(:exact) OR LOWER(name) = LOWER(:exact) OR search_name = :expanded",
+      exact: q,
+      expanded: expanded
+    )
+  }
   scope :needing_history_backfill, lambda {
     continuous_since = HistoryIngestion::CONTINUOUS_FRESHNESS.ago
     daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date

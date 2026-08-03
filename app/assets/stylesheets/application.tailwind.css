@@ -515,6 +515,10 @@
       &.inactive {
         @apply bg-zinc-800 text-zinc-400;
       }
+
+      &.state {
+        @apply bg-cyan-500/15 text-cyan-300;
+      }
     }
   }
 

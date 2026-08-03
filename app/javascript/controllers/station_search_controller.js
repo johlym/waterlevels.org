@@ -67,7 +67,18 @@ export default class extends Controller {
     }
   }
 
-  submit() {
+  async submit() {
+    this.query = (this.inputTarget.value || "").trim()
+
+    if (this.searchTimer) {
+      clearTimeout(this.searchTimer)
+      this.searchTimer = null
+    }
+
+    if (this.query.length >= 2) {
+      await this.fetchResults()
+    }
+
     if (this.results[0]?.path) {
       window.location.href = this.results[0].path
       return
@@ -135,24 +146,7 @@ export default class extends Controller {
       return
     }
 
-    const items = this.results.map((station) => {
-      const status = station.stale ? "Inactive" : "Active"
-      const statusClass = station.stale ? "inactive" : "active"
-      return `
-        <a href="${this.escapeHtml(station.path)}" class="item">
-          <div class="icon" aria-hidden="true">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-            </svg>
-          </div>
-          <div class="copy">
-            <p class="name">${this.escapeHtml(station.name)}</p>
-            <p class="meta">Station ID: ${this.escapeHtml(station.id)} · ${this.escapeHtml((station.state || "").toUpperCase())}</p>
-          </div>
-          <span class="status ${statusClass}">${status}</span>
-        </a>
-      `
-    }).join("")
+    const items = this.results.map((result) => this.resultItemHtml(result)).join("")
 
     const browse = this.hasMapUrlValue
       ? `<div class="footer">
@@ -166,6 +160,42 @@ export default class extends Controller {
       : ""
 
     this.resultsTarget.innerHTML = items + browse
+  }
+
+  resultItemHtml(result) {
+    if (result.type === "state") {
+      return `
+        <a href="${this.escapeHtml(result.path)}" class="item">
+          <div class="icon" aria-hidden="true">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
+            </svg>
+          </div>
+          <div class="copy">
+            <p class="name">${this.escapeHtml(result.name)}</p>
+            <p class="meta">Browse all stations in ${this.escapeHtml(result.name)}</p>
+          </div>
+          <span class="status state">State</span>
+        </a>
+      `
+    }
+
+    const status = result.stale ? "Inactive" : "Active"
+    const statusClass = result.stale ? "inactive" : "active"
+    return `
+      <a href="${this.escapeHtml(result.path)}" class="item">
+        <div class="icon" aria-hidden="true">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+          </svg>
+        </div>
+        <div class="copy">
+          <p class="name">${this.escapeHtml(result.name)}</p>
+          <p class="meta">Station ID: ${this.escapeHtml(result.id)} · ${this.escapeHtml((result.state || "").toUpperCase())}</p>
+        </div>
+        <span class="status ${statusClass}">${status}</span>
+      </a>
+    `
   }
 
   hideResults() {
