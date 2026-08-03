@@ -30,32 +30,42 @@ export default class extends Controller {
     year: Number
   }
 
+  static DEFAULT_VIEW = { lat: 39.5, lon: -98.35, zoom: 4 }
+  static MAX_ZOOM = 18
+
   connect() {
     this.stations = []
     this.searchResults = []
     this.markersById = new Map()
     this.query = ""
     this.searchRequestId = 0
+    this.syncingHashFromMap = false
     this.layers = {
       discharge: true,
       water_level: true,
       temperature: true
     }
 
-    this.map = L.map(this.canvasTarget, { zoomControl: false, attributionControl: false }).setView([39.5, -98.35], 4)
+    const initialView = this.viewFromUrl() || this.constructor.DEFAULT_VIEW
+    this.map = L.map(this.canvasTarget, { zoomControl: false, attributionControl: false }).setView(
+      [initialView.lat, initialView.lon],
+      initialView.zoom
+    )
     L.control.attribution({
       position: "bottomleft",
       prefix: this.attributionPrefix()
     }).addTo(this.map)
     L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      maxZoom: 18
+      maxZoom: this.constructor.MAX_ZOOM
     }).addTo(this.map)
 
     this.cluster = L.markerClusterGroup()
     this.map.addLayer(this.cluster)
-    this.map.on("moveend", () => this.loadStations())
-    this.loadStations()
+    this.map.on("moveend", () => this.onMoveEnd())
+    this.onHashChange = this.onHashChange.bind(this)
+    window.addEventListener("hashchange", this.onHashChange)
+    this.onMoveEnd()
 
     this.onKeydown = this.onKeydown.bind(this)
     document.addEventListener("keydown", this.onKeydown)
@@ -63,8 +73,68 @@ export default class extends Controller {
 
   disconnect() {
     document.removeEventListener("keydown", this.onKeydown)
+    window.removeEventListener("hashchange", this.onHashChange)
     if (this.searchTimer) clearTimeout(this.searchTimer)
     if (this.map) this.map.remove()
+  }
+
+  onMoveEnd() {
+    this.syncUrlFromMap()
+    this.loadStations()
+  }
+
+  onHashChange() {
+    if (this.syncingHashFromMap || !this.map) return
+
+    const view = this.viewFromUrl()
+    if (!view) return
+
+    const center = this.map.getCenter()
+    const zoom = this.map.getZoom()
+    if (
+      Math.abs(center.lat - view.lat) < 1e-6 &&
+      Math.abs(center.lng - view.lon) < 1e-6 &&
+      Math.abs(zoom - view.zoom) < 1e-6
+    ) {
+      return
+    }
+
+    this.map.setView([view.lat, view.lon], view.zoom)
+  }
+
+  viewFromUrl() {
+    const hash = window.location.hash.replace(/^#/, "")
+    const match = hash.match(/^(\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)$/)
+    if (!match) return null
+
+    const zoom = Number(match[1])
+    const lat = Number(match[2])
+    const lon = Number(match[3])
+    if (![zoom, lat, lon].every(Number.isFinite)) return null
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null
+    if (zoom < 0 || zoom > this.constructor.MAX_ZOOM) return null
+
+    return { lat, lon, zoom }
+  }
+
+  syncUrlFromMap() {
+    if (!this.map) return
+
+    const center = this.map.getCenter()
+    const zoom = this.map.getZoom()
+    const nextHash = this.formatMapHash(center.lat, center.lng, zoom)
+    if (window.location.hash === `#${nextHash}`) return
+
+    const url = new URL(window.location.href)
+    url.hash = nextHash
+    this.syncingHashFromMap = true
+    history.replaceState(history.state, "", url)
+    this.syncingHashFromMap = false
+  }
+
+  formatMapHash(lat, lon, zoom) {
+    const precision = Math.max(0, Math.ceil(Math.log(zoom) / Math.LN2))
+    return `${Number(zoom.toFixed(2))}/${lat.toFixed(precision)}/${lon.toFixed(precision)}`
   }
 
   attributionPrefix() {
