@@ -1,7 +1,9 @@
 import { Controller } from "@hotwired/stimulus"
+import { geolocationErrorMessage } from "../lib/geolocation_errors"
 
 export default class extends Controller {
   static targets = ["input", "results", "locateButton"]
+  static outlets = ["dialog"]
   static values = {
     searchUrl: String,
     nearestUrl: String,
@@ -90,7 +92,12 @@ export default class extends Controller {
   }
 
   locate() {
-    if (!navigator.geolocation || !this.hasNearestUrlValue) return
+    if (!this.hasNearestUrlValue) return
+
+    if (!navigator.geolocation) {
+      this.showGeolocationError()
+      return
+    }
 
     this.setLocateBusy(true)
     navigator.geolocation.getCurrentPosition(
@@ -111,9 +118,17 @@ export default class extends Controller {
           this.setLocateBusy(false)
         }
       },
-      () => this.setLocateBusy(false),
+      (error) => {
+        this.setLocateBusy(false)
+        this.showGeolocationError(error)
+      },
       { enableHighAccuracy: true, timeout: 10000 }
     )
+  }
+
+  showGeolocationError(error) {
+    if (!this.hasDialogOutlet) return
+    this.dialogOutlet.show(geolocationErrorMessage(error))
   }
 
   async fetchResults() {

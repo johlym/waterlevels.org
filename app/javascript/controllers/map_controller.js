@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 import L from "leaflet"
 import "leaflet.markercluster"
+import { geolocationErrorMessage } from "../lib/geolocation_errors"
 
 export default class extends Controller {
   static targets = [
@@ -15,6 +16,7 @@ export default class extends Controller {
     "settingsButton",
     "mobileSearch"
   ]
+  static outlets = ["dialog"]
 
   static FLOOD_COLORS = {
     action: { color: "#fbbf24", fill: "#f59e0b" },
@@ -87,7 +89,13 @@ export default class extends Controller {
   }
 
   locate() {
-    if (!navigator.geolocation || !this.map) return
+    if (!this.map) return
+
+    if (!navigator.geolocation) {
+      this.showGeolocationError()
+      return
+    }
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords
@@ -101,9 +109,14 @@ export default class extends Controller {
           weight: 2
         }).addTo(this.map)
       },
-      () => {},
+      (error) => this.showGeolocationError(error),
       { enableHighAccuracy: true, timeout: 10000 }
     )
+  }
+
+  showGeolocationError(error) {
+    if (!this.hasDialogOutlet) return
+    this.dialogOutlet.show(geolocationErrorMessage(error))
   }
 
   toggleSettings() {
