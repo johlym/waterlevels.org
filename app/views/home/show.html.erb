@@ -128,8 +128,8 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
           </div>
-          <p class="value"><%= number_with_delimiter(@stats[:updates_per_hour]) %></p>
-          <p class="label">Updates per hour</p>
+          <p class="value"><%= number_with_delimiter(@stats[:updates_today]) %></p>
+          <p class="label">Updates today</p>
         </article>
 
         <%= link_to alerts_path, class: "stat-card" do %>
