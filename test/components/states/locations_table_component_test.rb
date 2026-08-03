@@ -65,4 +65,3 @@ class States::LocationsTableComponentTest < ViewComponent::TestCase
     assert_operator html.index("Texas"), :<, html.index("Washington")
   end
 end
-
