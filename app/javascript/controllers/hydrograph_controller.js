@@ -227,9 +227,9 @@ export default class extends Controller {
     })
   }
 
-  // Only pull flood thresholds into the Y domain when they sit near the
-  // observed series. Distant major/moderate lines otherwise leave a large
-  // empty band above normal gage heights.
+  // Keep the Y domain anchored to the observed series. Only overlay flood
+  // thresholds that already fall inside (or just above) that window so
+  // distant major/moderate lines do not leave a large empty band.
   visibleFloodStages(pointValues, stageEntries) {
     if (!stageEntries.length) return []
 
@@ -239,19 +239,11 @@ export default class extends Controller {
     const dataMax = Math.max(...points)
     const dataMin = Math.min(...points)
     const span = Math.max(dataMax - dataMin, Math.abs(dataMax) * 0.08, 0.25)
-    const headroom = Math.max(span * 2.5, 1.5)
+    // Allow the next stage only when it is a near-term proximity cue.
+    const proximity = Math.max(span * 0.75, Math.abs(dataMax) * 0.12, 0.5)
+    const ceiling = dataMax + proximity
 
-    const atOrBelow = stageEntries.filter((stage) => stage.value <= dataMax)
-    const above = stageEntries
-      .filter((stage) => stage.value > dataMax)
-      .sort((a, b) => a.value - b.value)
-    const nextAbove = above[0]
-
-    const visible = [...atOrBelow]
-    if (nextAbove && (nextAbove.value - dataMax) <= headroom) {
-      visible.push(nextAbove)
-    }
-    return visible
+    return stageEntries.filter((stage) => stage.value <= ceiling)
   }
 
   renderStats(points) {
