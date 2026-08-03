@@ -87,7 +87,10 @@ export default class extends Controller {
     if (this.syncingHashFromMap || !this.map) return
 
     const view = this.viewFromUrl()
-    if (!view) return
+    if (!view) {
+      this.syncUrlFromMap()
+      return
+    }
 
     const center = this.map.getCenter()
     const zoom = this.map.getZoom()
@@ -133,7 +136,7 @@ export default class extends Controller {
   }
 
   formatMapHash(lat, lon, zoom) {
-    const precision = Math.max(0, Math.ceil(Math.log(zoom) / Math.LN2))
+    const precision = Math.max(0, Math.ceil(Math.log(Math.max(zoom, 1)) / Math.LN2))
     return `${Number(zoom.toFixed(2))}/${lat.toFixed(precision)}/${lon.toFixed(precision)}`
   }
 
