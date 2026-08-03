@@ -1,0 +1,49 @@
+require "test_helper"
+
+class States::LocationsTableComponentTest < ViewComponent::TestCase
+  test "exposes alert helpers when locations have flood alerts" do
+    locations = [
+      { name: "Quiet Creek", flood_alert: false, county_name: "King" },
+      { name: "Flood Creek", flood_alert: true, county_name: "King" }
+    ]
+
+    component = States::LocationsTableComponent.new(locations: locations)
+
+    assert component.any_alerts?
+    assert_equal 1, component.alert_count
+    assert_equal [ locations.last ], component.alert_locations
+  end
+
+  test "reports no alerts when none are present" do
+    locations = [
+      { name: "Quiet Creek", flood_alert: false, county_name: "King" }
+    ]
+
+    component = States::LocationsTableComponent.new(locations: locations)
+
+    assert_not component.any_alerts?
+    assert_equal 0, component.alert_count
+  end
+
+  test "renders alerts filter only when alerts exist" do
+    with_alerts = render_inline(
+      States::LocationsTableComponent.new(
+        locations: [ { name: "Flood Creek", flood_alert: true, county_name: "King", path: "/gauges/wa/1", site_number: "1" } ]
+      )
+    )
+
+    assert_includes with_alerts.to_html, "Stations with alerts"
+    assert_includes with_alerts.to_html, 'data-state-directory-target="alertsOnly"'
+    assert_includes with_alerts.to_html, 'data-alert="true"'
+
+    without_alerts = render_inline(
+      States::LocationsTableComponent.new(
+        locations: [ { name: "Quiet Creek", flood_alert: false, county_name: "King", path: "/gauges/wa/2", site_number: "2" } ]
+      )
+    )
+
+    assert_not_includes without_alerts.to_html, "Stations with alerts"
+    assert_not_includes without_alerts.to_html, 'data-state-directory-target="alertsOnly"'
+    assert_includes without_alerts.to_html, 'data-alert="false"'
+  end
+end

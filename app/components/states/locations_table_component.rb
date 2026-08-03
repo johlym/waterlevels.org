@@ -37,6 +37,18 @@ module States
       truthy?(loc[:flood_alert] || loc["flood_alert"])
     end
 
+    def alert_locations
+      @alert_locations ||= @locations.select { |loc| flood_alert?(loc) }
+    end
+
+    def alert_count
+      alert_locations.size
+    end
+
+    def any_alerts?
+      alert_count.positive?
+    end
+
     private
 
     def county_key(loc)

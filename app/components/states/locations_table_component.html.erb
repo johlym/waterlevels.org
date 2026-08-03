@@ -54,6 +54,23 @@
         </div>
       </div>
 
+      <% if any_alerts? %>
+        <div class="filter-block">
+          <span class="filter-label">Alerts</span>
+          <div class="type-filters" role="group" aria-label="Alert filters">
+            <label class="filter-check filter-check-alert">
+              <input
+                type="checkbox"
+                value="alerts"
+                data-state-directory-target="alertsOnly"
+                data-action="change->state-directory#filter"
+              >
+              <span>Stations with alerts (<%= alert_count %>)</span>
+            </label>
+          </div>
+        </div>
+      <% end %>
+
       <% if county_jump_links.any? %>
         <details class="filter-block county-jump" data-state-directory-target="countyJump">
           <summary>
@@ -124,7 +141,8 @@
                   data: {
                     state_directory_target: "card",
                     name: search_blob,
-                    types: tokens.join(" ")
+                    types: tokens.join(" "),
+                    alert: flood_alert ? "true" : "false"
                   } do %>
               <div class="card-head">
                 <div>
