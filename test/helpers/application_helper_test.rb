@@ -5,6 +5,11 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_equal "Lake Tapps Near Sumner, WA", display_location_name("LAKE TAPPS NEAR SUMNER, WA")
   end
 
+  test "expands USGS location abbreviations for display" do
+    assert_equal "Lake Travis Near Austin, TX", display_location_name("Lk Travis nr Austin, TX")
+    assert_equal "Nueces River Near Three Rivers, TX", display_location_name("Nueces Rv nr Three Rivers, TX")
+  end
+
   test "strips trailing County from county names" do
     assert_equal "King", display_county_name("King County")
     assert_equal "King", display_county_name("King")

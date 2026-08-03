@@ -4,6 +4,9 @@ module Nwps
     ALL = %w[no_flooding action minor moderate major].freeze
     ALERT = %w[action minor moderate major].freeze
 
+    # Higher index = more severe. Used when combining observed + forecast.
+    SEVERITY = ALL.each_with_index.to_h.freeze
+
     LABELS = {
       "no_flooding" => "Normal",
       "action" => "Action Stage",
@@ -28,6 +31,15 @@ module Nwps
       return key if ALL.include?(key)
 
       nil
+    end
+
+    # Prefer the more severe of observed vs forecast. Ignores NWPS sentinels
+    # like obs_not_current / fcst_not_current (normalize → nil).
+    def effective(observed_value, forecast_value = nil)
+      candidates = [ normalize(observed_value), normalize(forecast_value) ].compact
+      return if candidates.empty?
+
+      candidates.max_by { |key| SEVERITY.fetch(key) }
     end
 
     def label_for(value)

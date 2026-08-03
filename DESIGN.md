@@ -97,7 +97,7 @@ External data flows in through namespaced clients → sync objects → Sidekiq j
 - **Sync objects (`app/models/*_sync.rb`, `history_ingestion.rb`, `display_series_selection.rb`):**
   - `StationCatalogSync` (weekly / bootstrap) — discover active continuous water-body sites, filter via `Usgs::SiteTypes`, upsert series + latest, select display series, prune inactive, warm caches.
   - `LatestObservationSync` (hourly) — refresh `selected_for_display` series, denormalize location columns, warm caches.
-  - `FloodStageSync` (hourly, offset) — match NWPS gauges by site number, set/clear flood fields.
+  - `FloodStageSync` (hourly, offset) — refresh flood categories from the NWPS gauge list by LID, prioritize detail-matching for any unlinked action+ gauges (LID → usgsId → site), then discover/refresh remaining thresholds via USGS site-number lookups. Also runs at the end of each `BootstrapStateJob`.
   - `HistoryIngestion` (on-demand/batch) — fetch continuous/daily/peaks for charts; gap-aware.
   - `DisplaySeriesSelection` — choose one discharge + one temperature + ranked water-level series; set `has_*` flags and denormalized columns.
 - **Jobs (`app/jobs`) + schedule (`config/sidekiq.yml`):** catalog (Sun 03:00), latest (hourly), flood (hourly :20), history backfill batch (Mon–Sat :30), prune (daily). Queues: `default`, `sync`, `backfill`.
@@ -111,7 +111,7 @@ External data flows in through namespaced clients → sync objects → Sidekiq j
 Caching is layered; keep all three layers consistent when adding a surface.
 
 1. **HTTP edge headers** via `CacheableResponse`: default `public, max-age=60, s-maxage=3600, stale-while-revalidate=86400` plus a `Cache-Tag`. Every gauge tags `gauge:{site_number}`; states tag `state:{code}`; home/map/static/sitemap have their own tags. The contact page is explicitly `private, no-store`.
-2. **Redis payload snapshots:** `StationSnapshotCache` (per gauge, versioned key + TTL) and `StateListingCache` (per state) hold fully-shaped read models so page renders avoid joins. Caches are **warmed** at the end of the relevant sync and **rebuilt lazily** on `fetch` when stale/schema-bumped. `SiteStats` and `Sitemap` are similarly cached.
+2. **Redis payload snapshots:** `StationSnapshotCache` (per gauge, versioned key + TTL) and `StateListingCache` (per state) hold fully-shaped read models so page renders avoid joins. Caches are **warmed** at the end of the relevant sync and **rebuilt lazily** on `fetch` when stale/schema-bumped. `SiteStats` is warmed by latest/flood syncs and on Puma boot (not only busted); measurement totals may use Postgres `reltuples` estimates when tables are large. `Sitemap` is similarly cached.
 3. **Rails cache store:** Redis in production, memory store in development.
 
 **Conventions:** bump the version segment in a snapshot cache key when its shape changes; emit a `Cache-Tag` for any new cacheable surface and purge it from Cloudflare after the corresponding sync; treat snapshots as derived and always warmable from the DB.

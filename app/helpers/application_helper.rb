@@ -1,9 +1,8 @@
 module ApplicationHelper
-  # USGS names arrive in ALL CAPS; present them in title case while keeping
-  # trailing 2-letter state abbreviations uppercase (e.g. ", WA").
+  # Prefer persisted display_name when available; otherwise expand USGS
+  # abbreviations and title-case (keeping trailing ", WA" state codes).
   def display_location_name(name)
-    titleized = name.to_s.titleize
-    titleized.gsub(/,\s*([A-Za-z]{2})\z/) { ", #{$1.upcase}" }
+    Usgs::LocationNames.format(name)
   end
 
   # Breadcrumbs / headings should not repeat the word "County".

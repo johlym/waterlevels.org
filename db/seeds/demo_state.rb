@@ -11,6 +11,15 @@ module DemoStateSeed
   # USGS instantaneous values are commonly published on a 15-minute cadence.
   CONTINUOUS_INTERVAL = 15.minutes
   SITE_NUMBER_BASE = 99_000_000
+  # One station kept in major flood with gage height above the major threshold so
+  # map/state/detail/chart UIs all have a coherent flood-alert example offline.
+  FLOOD_DEMO_N = 20
+  FLOOD_DEMO_STAGES = {
+    action: 8.0,
+    minor: 10.0,
+    moderate: 12.0,
+    major: 14.0
+  }.freeze
 
   COLORS = %w[Blue Red Green Amber Silver Crimson Ivory Azure Coral Jade].freeze
   FLOWERS = %w[Rose Lily Iris Daisy Tulip Violet Orchid Poppy Jasmine Lotus].freeze
@@ -104,6 +113,7 @@ module DemoStateSeed
     rows = (1..STATION_COUNT).map do |n|
       site_number = format("%08d", SITE_NUMBER_BASE + n)
       name = station_name(n)
+      derived_names = MonitoringLocation.derived_names_for(name)
       county_code, county_name = COUNTIES[(n - 1) % COUNTIES.size]
       # Spread stations across Washington's approximate bounding box.
       lat = 45.55 + ((n - 1) % 10) * 0.32 + ((n - 1) / 10) * 0.01
@@ -114,6 +124,8 @@ module DemoStateSeed
         usgs_monitoring_location_id: "USGS-#{site_number}",
         site_number: site_number,
         name: name,
+        display_name: derived_names[:display_name],
+        search_name: derived_names[:search_name],
         slug: MonitoringLocation.slug_for(name),
         site_type_code: n.even? ? "ST" : "LK",
         site_type_name: n.even? ? "Stream" : "Lake, Reservoir, Impoundment",
@@ -131,15 +143,15 @@ module DemoStateSeed
         has_discharge: true,
         has_temperature: true,
         nearby_station_ids: [],
-        nwps_matched: n % 5 == 0,
+        nwps_matched: nwps_station?(n),
         flood_category: flood_category_for(n),
-        flood_stage_action: n % 5 == 0 ? 8.0 : nil,
-        flood_stage_minor: n % 5 == 0 ? 10.0 : nil,
-        flood_stage_moderate: n % 5 == 0 ? 12.0 : nil,
-        flood_stage_major: n % 5 == 0 ? 14.0 : nil,
-        flood_category_observed_at: n % 5 == 0 ? now : nil,
-        nwps_lid: n % 5 == 0 ? format("SEED%02d", n) : nil,
-        nwps_synced_at: n % 5 == 0 ? now : nil,
+        flood_stage_action: nwps_station?(n) ? FLOOD_DEMO_STAGES[:action] : nil,
+        flood_stage_minor: nwps_station?(n) ? FLOOD_DEMO_STAGES[:minor] : nil,
+        flood_stage_moderate: nwps_station?(n) ? FLOOD_DEMO_STAGES[:moderate] : nil,
+        flood_stage_major: nwps_station?(n) ? FLOOD_DEMO_STAGES[:major] : nil,
+        flood_category_observed_at: nwps_station?(n) ? now : nil,
+        nwps_lid: nwps_station?(n) ? format("SEED%02d", n) : nil,
+        nwps_synced_at: nwps_station?(n) ? now : nil,
         metadata_synced_at: now,
         created_at: now,
         updated_at: now
@@ -150,8 +162,17 @@ module DemoStateSeed
     MonitoringLocation.where(site_number: site_numbers).order(:site_number).to_a
   end
 
+  def nwps_station?(n)
+    n % 5 == 0
+  end
+
+  def flood_demo?(n)
+    n == FLOOD_DEMO_N
+  end
+
   def flood_category_for(n)
-    return unless n % 5 == 0
+    return "major" if flood_demo?(n)
+    return unless nwps_station?(n)
 
     Nwps::FloodCategories::ALL[(n / 5) % Nwps::FloodCategories::ALL.size]
   end
@@ -232,7 +253,9 @@ module DemoStateSeed
           phase = index * 0.04 + n * 0.17
           wobble = Math.sin(phase) * amplitude + Math.sin(phase / 7.0) * (amplitude * 0.35)
           jitter = Math.sin((index + 1) * (n + 3) * 0.613) * noise
-          value = (base + wobble + jitter).round(3)
+          value = base + wobble + jitter
+          value += flood_demo_boost(series.measurement_kind, index, timestamps.size) if flood_demo?(n)
+          value = value.round(3)
           approval = observed_at > 7.days.ago ? "Provisional" : "Approved"
 
           continuous_batch << {
@@ -311,6 +334,25 @@ module DemoStateSeed
     PeakObservation.insert_all!(peak_batch) if peak_batch.any?
   end
 
+  # Ramp the flood-demo station into major flooding over the last ~5 days so the
+  # hydrograph crosses action/minor/moderate/major reference lines and the tip
+  # reading matches the major flood_category badge.
+  def flood_demo_boost(measurement_kind, index, total_points)
+    return 0.0 if total_points <= 1
+
+    progress = index.to_f / (total_points - 1)
+    rise = [ (progress - 0.82) / 0.18, 0.0 ].max # last ~18% of the series (~5.4 days)
+    case measurement_kind
+    when "water_level"
+      # Target tip ~15.8 ft (above major 14.0); earlier history stays below action.
+      13.5 * rise
+    when "discharge"
+      2_400.0 * rise
+    else
+      0.0
+    end
+  end
+
   def finalize!(locations)
     MonitoringLocation.where(id: locations.map(&:id)).includes(time_series: :latest_observation).find_each do |location|
       DisplaySeriesSelection.apply!(location)
@@ -319,6 +361,7 @@ module DemoStateSeed
 
     NearbyStations.refresh_all
     StateListingCache.warm(STATE_CODE)
+    SiteStats.warm!
   end
 end
 

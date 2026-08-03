@@ -20,5 +20,22 @@ module Nwps
 
       assert_nil Client.new(request_pause_ms: 0).gauge("99999999")
     end
+
+    test "gauges returns the national list payload" do
+      stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges")
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: {
+            gauges: [
+              { lid: "THET2", status: { observed: { floodCategory: "major" } } }
+            ]
+          }.to_json
+        )
+
+      list = Client.new(request_pause_ms: 0).gauges
+      assert_equal 1, list.size
+      assert_equal "THET2", list.first["lid"]
+    end
   end
 end

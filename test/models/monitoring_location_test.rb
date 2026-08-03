@@ -75,4 +75,45 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     assert_includes MonitoringLocation.search("maryland"), river
     assert_not_includes MonitoringLocation.search("potomac"), other
   end
+
+  test "search matches NWPS LID" do
+    location = create(
+      :monitoring_location,
+      site_number: "08210000",
+      usgs_monitoring_location_id: "USGS-08210000",
+      name: "Nueces Rv nr Three Rivers, TX",
+      state_code: "tx",
+      state_name: "Texas",
+      nwps_lid: "THET2",
+      nwps_matched: true,
+      flood_category: "major"
+    )
+
+    assert_equal [ location ], MonitoringLocation.search("THET2").to_a
+    assert_equal [ location ], MonitoringLocation.search("thet2").to_a
+  end
+
+  test "persists expanded titlecase display_name and search_name from USGS shorthand" do
+    location = create(
+      :monitoring_location,
+      name: "Lk Travis nr Austin, TX"
+    )
+
+    assert_equal "Lake Travis Near Austin, TX", location.display_name
+    assert_equal "lake travis near austin, tx", location.search_name
+  end
+
+  test "search matches expanded names when query uses full words" do
+    location = create(
+      :monitoring_location,
+      site_number: "08154700",
+      usgs_monitoring_location_id: "USGS-08154700",
+      name: "Lk Travis nr Austin, TX",
+      state_code: "tx",
+      state_name: "Texas"
+    )
+
+    assert_equal [ location ], MonitoringLocation.search("Lake Travis").to_a
+    assert_equal [ location ], MonitoringLocation.search("lk travis").to_a
+  end
 end

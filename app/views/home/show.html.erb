@@ -167,7 +167,7 @@
                 <% region.stations.each do |station| %>
                   <li>
                     <%= link_to gauge_path(station.path_state, station) do %>
-                      <span class="name"><%= display_location_name(station.name) %></span>
+                      <span class="name"><%= station.display_name %></span>
                       <span class="meta"><%= station.site_number %> · <%= station.state_code.upcase %></span>
                     <% end %>
                   </li>

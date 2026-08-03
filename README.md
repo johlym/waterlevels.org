@@ -32,7 +32,7 @@ bin/rails usgs:enqueue_bootstrap
 # optional: STATE=wa DELAY_SECONDS=120
 ```
 
-Hourly `LatestObservationSyncJob` keeps readings fresh. Hourly `FloodStageSyncJob` joins NWS NWPS flood categories/thresholds to USGS sites (`STATE=wa bin/rails nwps:sync_flood_stages` for a manual run). Hourly `HistoryBackfillBatchJob` fills 7-day continuous history in batches (gauge page views also enqueue a station when charts are empty). Prefer this over a national one-off `usgs:bootstrap` on a small dyno.
+Hourly `LatestObservationSyncJob` keeps readings fresh. Hourly `FloodStageSyncJob` refreshes NWS NWPS flood categories from the national gauge list (by LID), prioritizes linking any currently flooding unlinked gauges, and discovers stage thresholds via USGS site-number detail lookups (`STATE=wa bin/rails nwps:sync_flood_stages`, or `bin/rails nwps:enqueue_sync` for staggered per-state jobs). Bootstrap also runs flood sync per state. Hourly `HistoryBackfillBatchJob` fills 7-day continuous history in batches (gauge page views also enqueue a station when charts are empty). Prefer this over a national one-off `usgs:bootstrap` on a small dyno.
 
 ### Local / single-state
 
@@ -64,6 +64,7 @@ bin/rails test
 - After deploy: `heroku run bin/rails usgs:enqueue_bootstrap -a <app>`
 - Optional: `MALLOC_ARENA_MAX=2` if worker RSS climbs
 - Put Cloudflare in front; honor `Cache-Control` / `Cache-Tag` from the app
+- **Cold first request:** Eco/Hobby web dynos sleep when idle; the next hit waits for Puma/Rails boot (often multi-second). Prefer an always-on web dyno, or ping `/up` every few minutes. Puma also warms DB/Redis/`SiteStats` on boot so a post-sleep origin render is cheaper once the process is up.
 
 ## Contact form
 

@@ -8,6 +8,7 @@
   data-controller="parameter-toggle temperature-unit hydrograph"
   data-hydrograph-url-value="<%= api_gauge_observations_path(@snapshot[:site_number]) %>"
   data-hydrograph-measurements-value="<%= ERB::Util.json_escape(measurements.to_json) %>"
+  data-hydrograph-flood-stages-value="<%= ERB::Util.json_escape((@snapshot[:flood_stages] || @snapshot["flood_stages"] || {}).to_json) %>"
   data-hydrograph-time-zone-value="<%= @snapshot[:time_zone_identifier] %>"
   data-hydrograph-time-zone-label-value="<%= @snapshot[:time_zone] %>"
   data-temperature-unit-url-value="<%= temperature_unit_path %>"
@@ -223,7 +224,7 @@
                   <% end %>
                 </div>
                 <h3 class="name-scroll">
-                  <span><%= display_location_name(n[:name] || n["name"]) %></span>
+                  <span><%= n[:name] || n["name"] %></span>
                 </h3>
                 <p class="site-id">ID: <%= site %></p>
                 <div class="card-foot">
