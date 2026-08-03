@@ -201,6 +201,27 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Action"
     assert_includes response.body, "status flood-action"
     assert_includes response.body, "elevated"
+    assert_includes response.body, "Stations with alerts"
+    assert_includes response.body, 'data-state-directory-target="alertsOnly"'
+    assert_includes response.body, 'data-alert="true"'
+  end
+
+  test "state listing hides alerts filter when no stations have alerts" do
+    create(
+      :monitoring_location,
+      site_number: "201",
+      usgs_monitoring_location_id: "USGS-201",
+      county_name: "King",
+      name: "QUIET CREEK NEAR TOWN, WA",
+      state_code: "wa",
+      flood_category: "no_flooding"
+    )
+
+    get "/gauges/wa"
+    assert_response :success
+    assert_not_includes response.body, "Stations with alerts"
+    assert_not_includes response.body, 'data-state-directory-target="alertsOnly"'
+    assert_includes response.body, 'data-alert="false"'
   end
 
   test "returns map stations for a bbox" do

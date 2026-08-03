@@ -1658,6 +1658,10 @@
     &:hover span {
       @apply text-white;
     }
+
+    &.filter-check-alert input {
+      @apply text-rose-500 focus:ring-rose-500/20;
+    }
   }
 
   .county-jump {
