@@ -33,6 +33,10 @@ module States
       truthy?(loc[:stale] || loc["stale"])
     end
 
+    def flood_alert?(loc)
+      truthy?(loc[:flood_alert] || loc["flood_alert"])
+    end
+
     private
 
     def county_key(loc)

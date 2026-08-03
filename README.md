@@ -32,7 +32,7 @@ bin/rails usgs:enqueue_bootstrap
 # optional: STATE=wa DELAY_SECONDS=120
 ```
 
-Hourly `LatestObservationSyncJob` keeps readings fresh. Hourly `HistoryBackfillBatchJob` fills 7-day continuous history in batches (gauge page views also enqueue a station when charts are empty). Prefer this over a national one-off `usgs:bootstrap` on a small dyno.
+Hourly `LatestObservationSyncJob` keeps readings fresh. Hourly `FloodStageSyncJob` joins NWS NWPS flood categories/thresholds to USGS sites (`STATE=wa bin/rails nwps:sync_flood_stages` for a manual run). Hourly `HistoryBackfillBatchJob` fills 7-day continuous history in batches (gauge page views also enqueue a station when charts are empty). Prefer this over a national one-off `usgs:bootstrap` on a small dyno.
 
 ### Local / single-state
 

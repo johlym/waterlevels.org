@@ -2,6 +2,7 @@
 <% locations = Array(@listing[:locations]) %>
 <% total_count = @listing[:total_count] || @listing["total_count"] || locations.size %>
 <% offline_count = @listing[:offline_count] || @listing["offline_count"] || locations.count { |loc| loc[:stale] || loc["stale"] } %>
+<% critical_count = @listing[:critical_count] || @listing["critical_count"] || locations.count { |loc| loc[:flood_alert] || loc["flood_alert"] } %>
 <% content_for :title, "Water Gauges in #{state_label} | WaterLevels.org" %>
 <% content_for :meta_description, "Browse USGS monitoring locations in #{state_label} with water level, flow, and temperature availability." %>
 
@@ -28,8 +29,13 @@
         </div>
         <div class="divider" aria-hidden="true"></div>
         <div class="stat">
+          <div class="label">Critical Alerts</div>
+          <div class="value<%= " alert" if critical_count.to_i.positive? %>"><%= number_with_delimiter(critical_count) %></div>
+        </div>
+        <div class="divider" aria-hidden="true"></div>
+        <div class="stat">
           <div class="label">Offline / Stale</div>
-          <div class="value alert"><%= number_with_delimiter(offline_count) %></div>
+          <div class="value"><%= number_with_delimiter(offline_count) %></div>
         </div>
       </div>
     </div>

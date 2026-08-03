@@ -9,6 +9,17 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     assert_equal "America/Phoenix", arizona.time_zone_identifier
   end
 
+  test "flood helpers classify NWS categories" do
+    location = build(:monitoring_location, flood_category: "major", flood_stage_minor: 10)
+    assert location.flood_alert?
+    assert_equal "Major Flooding", location.flood_category_label
+    assert location.has_flood_stages?
+
+    normal = build(:monitoring_location, flood_category: "no_flooding")
+    assert_not normal.flood_alert?
+    assert_equal "Normal", normal.flood_category_label
+  end
+
   test "needing_history_backfill includes locations missing recent continuous or year daily" do
     needs_continuous = create(:monitoring_location, site_number: "20000001")
     create(:time_series, monitoring_location: needs_continuous, selected_for_display: true)

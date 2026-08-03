@@ -26,7 +26,7 @@ Shipped in UI shape: breadcrumb, Active/Stale badges, station meta (ID, coordina
 - [ ] Fourth card: **Specific conductance** (µS/cm @ 25°C) and other WQ parameters
 - [ ] Per-card icon treatments and long unit blurbs from the mockup
 - [ ] Streamflow **% vs daily average** chip (we show absolute 24h/YoY deltas when available)
-- [ ] Gauge-height **Normal / within expected range** status chip (needs flood-stage / normal-range thresholds)
+- [x] Gauge-height **Normal / within expected range** status chip (NWS flood category via NWPS)
 - [ ] Temperature **change from yesterday** chip as a dedicated callout
 - [ ] Conductance **Good / water quality** status chip
 - [ ] Always show a fixed 4-up mock layout when parameters are missing (today we only render available series)
@@ -55,7 +55,7 @@ Shipped in UI shape: breadcrumb, Active/Stale badges, station meta (ID, coordina
 ### Detail-page data dependencies
 
 - [ ] Ingest conductance (and optional DO / other WQ) for cards + table columns
-- [ ] Flood stage / watch / normal-range thresholds for status chips and table dots
+- [x] Flood stage / watch / normal-range thresholds for status chips (NWS NWPS categories; table dots still completeness-only)
 - [ ] Day-of-year or climatology series for historical median
 - [ ] Expand `NearbyStations` limit/radius and include richer snapshot fields for alert styling
 
@@ -65,12 +65,12 @@ Shipped in UI shape: hero, filter sidebar (search + type checkboxes + county jum
 
 Still missing vs `state.html`:
 
-- [ ] **Critical alerts** count and flood/watch semantics (hero shows **Offline / Stale** count instead of “Critical Alerts”)
-- [ ] Alert statuses on cards: **Flood Watch**, **Low Flow**, **Zero Flow**, dry-flow callouts (we only use **Nominal** vs **Offline**)
+- [x] **Critical alerts** count and flood/watch semantics (NWS action+ categories)
+- [x] Alert statuses on cards for flood categories (Low Flow / Zero Flow still TODO; Offline retained)
 - [ ] Water-quality metrics beyond temperature (**conductivity**, **dissolved O₂**, etc.)
 - [ ] “Quality” measurement type as true water-quality filters (checkbox maps to temperature availability only)
 - [ ] Persist filter state in the URL / shareable filtered views
-- [ ] Highlight elevated stage values in rose (needs flood-stage thresholds)
+- [x] Highlight elevated stage values in rose when NWS flood category is action+
 
 ## Map / homepage
 
@@ -80,6 +80,6 @@ Still missing vs `state.html`:
 ## Data pipeline
 
 - [ ] Ingest and store conductance / DO / other WQ parameters when available from USGS
-- [ ] Flood stage / watch thresholds for alert coloring
+- [x] Flood stage / watch thresholds for alert coloring (NWPS sync)
 - [ ] Historical daily medians (or climatology) for period-stats fourth tile
 - [ ] Expand nearby-station graph (limit + radius) and warm richer nearby snapshots

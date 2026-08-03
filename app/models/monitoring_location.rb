@@ -12,6 +12,7 @@ class MonitoringLocation < ApplicationRecord
   scope :in_bbox, lambda { |west, south, east, north|
     where(latitude: south..north, longitude: west..east)
   }
+  scope :flood_alert, -> { where(flood_category: Nwps::FloodCategories::ALERT) }
   scope :search, lambda { |query|
     q = query.to_s.strip
     return none if q.blank?
@@ -56,6 +57,23 @@ class MonitoringLocation < ApplicationRecord
 
   def stale?
     latest_observed_at.blank? || latest_observed_at < STALE_AFTER.ago
+  end
+
+  def flood_alert?
+    Nwps::FloodCategories.alert?(flood_category)
+  end
+
+  def flood_category_label
+    Nwps::FloodCategories.label_for(flood_category)
+  end
+
+  def flood_category_short_label
+    Nwps::FloodCategories.short_label_for(flood_category)
+  end
+
+  def has_flood_stages?
+    flood_stage_action.present? || flood_stage_minor.present? ||
+      flood_stage_moderate.present? || flood_stage_major.present?
   end
 
   def needs_history_backfill?
