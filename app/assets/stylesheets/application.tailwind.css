@@ -519,6 +519,10 @@
       &.state {
         @apply bg-cyan-500/15 text-cyan-300;
       }
+
+      &.zip {
+        @apply bg-sky-500/15 text-sky-300;
+      }
     }
   }
 

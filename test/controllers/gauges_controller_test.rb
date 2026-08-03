@@ -344,4 +344,72 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_equal near.site_number, station["id"]
     assert_equal "/gauges/#{near.path_state}/#{near.to_param}", station["path"]
   end
+
+  test "station search returns a ZIP result that links to a zoomed map view" do
+    stub_request(:get, "https://api.zippopotam.us/us/98101")
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: {
+          "post code" => "98101",
+          "places" => [
+            {
+              "place name" => "Seattle",
+              "longitude" => "-122.3305",
+              "latitude" => "47.6114",
+              "state" => "Washington",
+              "state abbreviation" => "WA"
+            }
+          ]
+        }.to_json
+      )
+
+    get "/api/map/stations/search", params: { q: "98101" }
+    assert_response :success
+    results = JSON.parse(response.body)["stations"]
+
+    assert_equal "zip", results.first["type"]
+    assert_equal "98101", results.first["id"]
+    assert_equal "98101 — Seattle, WA", results.first["name"]
+    assert_equal "/map?lat=47.6114&lon=-122.3305&zoom=12", results.first["path"]
+    assert_not results.first.key?("lat")
+  end
+
+  test "station search accepts ZIP+4 and still returns the five-digit map result" do
+    stub_request(:get, "https://api.zippopotam.us/us/78701")
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: {
+          "post code" => "78701",
+          "places" => [
+            {
+              "place name" => "Austin",
+              "longitude" => "-97.7428",
+              "latitude" => "30.2711",
+              "state" => "Texas",
+              "state abbreviation" => "TX"
+            }
+          ]
+        }.to_json
+      )
+
+    get "/api/map/stations/search", params: { q: "78701-0143" }
+    assert_response :success
+    results = JSON.parse(response.body)["stations"]
+
+    assert_equal "zip", results.first["type"]
+    assert_equal "/map?lat=30.2711&lon=-97.7428&zoom=12", results.first["path"]
+  end
+
+  test "station search omits ZIP results when the provider has no match" do
+    stub_request(:get, "https://api.zippopotam.us/us/00000")
+      .to_return(status: 404, body: "{}")
+
+    get "/api/map/stations/search", params: { q: "00000" }
+    assert_response :success
+    results = JSON.parse(response.body)["stations"]
+
+    assert results.none? { |row| row["type"] == "zip" }
+  end
 end
