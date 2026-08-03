@@ -149,4 +149,3 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "/gauges/#{near.path_state}/#{near.to_param}", station["path"]
   end
 end
-

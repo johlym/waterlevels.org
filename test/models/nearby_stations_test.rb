@@ -29,4 +29,3 @@ class NearbyStationsTest < ActiveSupport::TestCase
     assert_equal near, NearbyStations.nearest_to(47.021, -122.021)
   end
 end
-
