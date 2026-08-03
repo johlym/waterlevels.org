@@ -102,6 +102,31 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "No flood stage data"
   end
 
+  test "shows history callout when full-year daily history is missing" do
+    series = create(:time_series, monitoring_location: @location, selected_for_display: true)
+    ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_includes response.body, "Historical trends"
+    assert_includes response.body, 'class="history-callout"'
+    assert_includes response.body, "Full-year history is still loading"
+  end
+
+  test "hides history callout when full-year daily history is present" do
+    series = create(:time_series, monitoring_location: @location, selected_for_display: true)
+    ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 10.0)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_includes response.body, "Historical trends"
+    assert_not_includes response.body, 'class="history-callout"'
+    assert_not_includes response.body, "Full-year history is still loading"
+  end
+
   test "nearby stations show all available measurements" do
     neighbor = create(
       :monitoring_location,
