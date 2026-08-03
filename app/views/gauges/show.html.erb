@@ -32,7 +32,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
               </svg>
             </li>
-            <li class="current"><%= @snapshot[:county_name].to_s.sub(/\s+County\z/i, "") %></li>
+            <li class="current"><%= display_county_name(@snapshot[:county_name]) %></li>
           <% end %>
         </ol>
       </nav>
@@ -93,7 +93,7 @@
             <% if @snapshot[:county_name].present? %>
               <div>
                 <p class="label">County</p>
-                <p class="value"><%= @snapshot[:county_name] %></p>
+                <p class="value"><%= display_county_name(@snapshot[:county_name]) %></p>
               </div>
             <% end %>
             <div>

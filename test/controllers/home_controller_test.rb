@@ -26,6 +26,9 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Great Lakes"
     assert_includes response.body, "Pacific Northwest"
     assert_includes response.body, "Colorado River At Lees Ferry, AZ"
+    assert_includes response.body, "View Arizona stations"
+    assert_includes response.body, "/gauges/az"
+    assert_includes response.body, 'class="search-stack"'
     assert_includes response.body, 'data-controller="station-search"'
     assert_includes response.headers["Cache-Tag"], "home"
   end
@@ -36,6 +39,9 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'data-controller="map"'
     assert_includes response.body, "map-mobile-search"
     assert_includes response.body, "Map settings"
+    assert_includes response.body, '<details class="map-legend">'
+    assert_includes response.body, "Flood stage"
+    assert_includes response.body, "Station status"
     assert_not_includes response.body, "At / above flood stage"
     assert_not_includes response.body, 'data-map-target="floodCount"'
     assert_not_includes response.body, 'class="site-footer"'

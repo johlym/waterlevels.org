@@ -64,7 +64,7 @@
           </summary>
           <div class="county-jumps">
             <% county_jump_links.each do |name, count, dom_id| %>
-              <a href="#<%= dom_id %>"><%= name.sub(/\s+County\z/i, "") %> (<%= count %>)</a>
+              <a href="#<%= dom_id %>"><%= helpers.display_county_name(name) %> (<%= count %>)</a>
             <% end %>
           </div>
         </details>
@@ -110,6 +110,9 @@
               flood_label = loc[:flood_category_label] || loc["flood_category_label"]
               flood_alert = flood_alert?(loc)
               stage_elevated = flood_alert && stage.present?
+              observed_at = loc[:latest_observed_at] || loc["latest_observed_at"]
+              time_zone = loc[:time_zone] || loc["time_zone"]
+              state_code = loc[:state_code] || loc["state_code"]
             %>
             <%= link_to path,
                   class: "station-card#{" is-alert" if flood_alert && !offline}",
@@ -122,6 +125,9 @@
                 <div>
                   <span class="site-id">ID: <%= site %></span>
                   <h3><%= helpers.display_location_name(name) %></h3>
+                  <% if observed_at.present? %>
+                    <p class="updated-at"><%= helpers.display_timestamp(observed_at, time_zone: time_zone, state_code: state_code) %></p>
+                  <% end %>
                   <% if lat.present? && lon.present? %>
                     <p class="coords"><%= helpers.format_coordinates_dms(lat, lon) %></p>
                   <% end %>

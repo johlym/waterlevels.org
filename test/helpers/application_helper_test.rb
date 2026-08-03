@@ -5,6 +5,12 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_equal "Lake Tapps Near Sumner, WA", display_location_name("LAKE TAPPS NEAR SUMNER, WA")
   end
 
+  test "strips trailing County from county names" do
+    assert_equal "King", display_county_name("King County")
+    assert_equal "King", display_county_name("King")
+    assert_equal "St. Louis", display_county_name("St. Louis County")
+  end
+
   test "formats timestamps as Month Day, Year at HH:MM:SS AM/PM" do
     time = Time.utc(2026, 8, 2, 4, 30, 0)
     assert_equal "August 2, 2026 at 04:30:00 AM UTC", display_timestamp(time)

@@ -1,5 +1,5 @@
 class StateListingCache
-  PREFIX = "state_listing:v4".freeze
+  PREFIX = "state_listing:v5".freeze
   TTL = 6.hours
 
   def self.key_for(state_code)
@@ -28,6 +28,8 @@ class StateListingCache
         latest_discharge_unit: UnitLabel.format(loc.latest_discharge_unit),
         latest_temperature_c: loc.latest_temperature_c&.to_f,
         latest_observed_at: loc.latest_observed_at&.iso8601,
+        time_zone: loc.time_zone,
+        state_code: loc.state_code,
         stale: loc.stale?,
         nwps_matched: loc.nwps_matched,
         flood_category: loc.flood_category,
@@ -62,7 +64,18 @@ class StateListingCache
     return warm(state_code) if cached.blank?
     return warm(state_code) if cached.is_a?(Hash) && !cached.key?(:total_count) && !cached.key?("total_count")
     return warm(state_code) if cached.is_a?(Hash) && !cached.key?(:critical_count) && !cached.key?("critical_count")
+    return warm(state_code) if cached_missing_time_zone?(cached)
 
     cached
+  end
+
+  def self.cached_missing_time_zone?(cached)
+    return false unless cached.is_a?(Hash)
+
+    locations = cached[:locations] || cached["locations"]
+    return false if locations.blank?
+
+    sample = locations.first
+    sample.is_a?(Hash) && !sample.key?(:time_zone) && !sample.key?("time_zone")
   end
 end

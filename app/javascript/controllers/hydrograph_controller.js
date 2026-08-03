@@ -409,9 +409,27 @@ export default class extends Controller {
 
     const primaryPoints = primary.points || []
     const labels = primaryPoints.map((point) => this.formatAxisLabel(point.t))
+    const dayKeys = this.range === "24h"
+      ? primaryPoints.map((point) => {
+          const date = new Date(point.t)
+          return Number.isNaN(date.getTime()) ? null : this.dayKeyFromDate(date)
+        })
+      : null
+    const dayLabels = this.range === "24h"
+      ? primaryPoints.map((point) => {
+          const date = new Date(point.t)
+          if (Number.isNaN(date.getTime())) return null
+          return date.toLocaleDateString("en-US", this.localeOptions({
+            month: "short",
+            day: "numeric"
+          }))
+        })
+      : null
     const colors = SERIES_COLORS[primary.kind] || SERIES_COLORS.discharge
     const grid = "rgba(255,255,255,0.08)"
     const tick = "#a1a1aa"
+    const narrow = typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches
+    const maxTicksLimit = this.range === "24h" ? (narrow ? 4 : 6) : (narrow ? 4 : 5)
 
     const datasets = [{
       label: primary.label || primary.kind,
@@ -478,9 +496,28 @@ export default class extends Controller {
               grid: { color: grid },
               ticks: {
                 color: tick,
-                maxTicksLimit: 5,
+                maxTicksLimit,
                 maxRotation: 0,
-                autoSkip: true
+                minRotation: 0,
+                autoSkip: true,
+                autoSkipPadding: narrow ? 12 : 8,
+                callback: (value, index, ticks) => {
+                  const label = labels[value] ?? labels[index]
+                  if (!dayKeys) return label
+
+                  const dayKey = dayKeys[value] ?? dayKeys[index]
+                  if (!dayKey) return label
+
+                  const firstForDay = ticks.find((candidate) => {
+                    const candidateIndex = candidate.value ?? candidate
+                    return dayKeys[candidateIndex] === dayKey
+                  })
+                  const firstIndex = firstForDay?.value ?? firstForDay
+                  if (firstIndex === value || firstIndex === index) {
+                    return dayLabels[value] ?? dayLabels[index] ?? label
+                  }
+                  return label
+                }
               }
             },
             y: {
@@ -537,6 +574,13 @@ export default class extends Controller {
     }
     if (this.range === "1y") {
       return date.toLocaleDateString("en-US", this.localeOptions({ month: "short", day: "numeric" }))
+    }
+    const narrow = typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches
+    if (narrow) {
+      return date.toLocaleDateString("en-US", this.localeOptions({
+        month: "short",
+        day: "numeric"
+      }))
     }
     return date.toLocaleDateString("en-US", this.localeOptions({
       month: "short",
