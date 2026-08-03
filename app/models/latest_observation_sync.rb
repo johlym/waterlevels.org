@@ -17,6 +17,7 @@ class LatestObservationSync
     denormalize_locations
     progress&.step("warming state listing caches")
     StateListingCache.warm_all
+    AlertsListingCache.warm
     SiteStats.warm!
     progress&.finish("latest_observations=#{latest_scope.count}")
     true

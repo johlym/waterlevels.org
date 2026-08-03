@@ -242,6 +242,7 @@ class FloodStageSync
   def warm_caches
     # Recompute in-process so the next home origin hit is not a cold COUNT(*) miss.
     SiteStats.warm!
+    AlertsListingCache.warm
     if postal_code
       StateListingCache.warm(postal_code)
     else

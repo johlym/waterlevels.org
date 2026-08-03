@@ -55,6 +55,7 @@ class StationCatalogCleanup
     deleted = MonitoringLocation.purge_ids!(removable_ids)
     NearbyStations.refresh_all
     StateListingCache.warm_all
+    AlertsListingCache.warm
 
     report.merge(
       deleted: deleted,

@@ -21,6 +21,8 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Updates per hour"
     assert_includes response.body, "Flood alerts"
     assert_includes response.body, 'class="value alert">1</p>'
+    assert_includes response.body, 'href="/alerts"'
+
     assert_includes response.body, "Colorado River"
     assert_includes response.body, "Mississippi Basin"
     assert_includes response.body, "Great Lakes"

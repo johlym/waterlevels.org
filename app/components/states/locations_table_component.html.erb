@@ -54,7 +54,7 @@
         </div>
       </div>
 
-      <% if any_alerts? %>
+      <% if show_alerts_filter? %>
         <div class="filter-block">
           <span class="filter-label">Alerts</span>
           <div class="type-filters" role="group" aria-label="Alert filters">
@@ -71,17 +71,17 @@
         </div>
       <% end %>
 
-      <% if county_jump_links.any? %>
+      <% if group_jump_links.any? %>
         <details class="filter-block county-jump" data-state-directory-target="countyJump">
           <summary>
-            <span class="filter-label">Quick county jump</span>
+            <span class="filter-label"><%= group_jump_label %></span>
             <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
             </svg>
           </summary>
           <div class="county-jumps">
-            <% county_jump_links.each do |name, count, dom_id| %>
-              <a href="#<%= dom_id %>"><%= helpers.display_county_name(name) %> (<%= count %>)</a>
+            <% group_jump_links.each do |name, count, dom_id| %>
+              <a href="#<%= dom_id %>"><%= name %> (<%= count %>)</a>
             <% end %>
           </div>
         </details>
@@ -94,15 +94,15 @@
       No stations match these filters.
     </p>
 
-    <% counties.each do |county_name, locations| %>
+    <% groups.each do |group_name, locations| %>
       <section
         class="county-group"
-        id="<%= county_dom_id(county_name) %>"
+        id="<%= group_dom_id(group_name) %>"
         data-state-directory-target="county"
-        data-county-name="<%= county_name %>"
+        data-county-name="<%= group_name %>"
       >
         <div class="county-head">
-          <h2><%= county_name %></h2>
+          <h2><%= group_name %></h2>
           <span data-state-directory-target="countyCount">
             <%= locations.size %> <%= locations.size == 1 ? "station" : "stations" %>
           </span>
@@ -130,10 +130,15 @@
               observed_at = loc[:latest_observed_at] || loc["latest_observed_at"]
               time_zone = loc[:time_zone] || loc["time_zone"]
               state_code = loc[:state_code] || loc["state_code"]
+              state_name = loc[:state_name] || loc["state_name"]
+              county_name = loc[:county_name] || loc["county_name"]
               search_blob = [
                 loc[:search_name] || loc["search_name"] || name,
                 loc[:raw_name] || loc["raw_name"],
-                name
+                name,
+                state_name,
+                state_code,
+                county_name
               ].compact.map { |value| value.to_s.downcase }.uniq.join(" ")
             %>
             <%= link_to path,

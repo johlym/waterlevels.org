@@ -37,6 +37,7 @@ class StationCatalogSync
     NearbyStations.refresh_all
     progress&.step("warming state listing caches")
     StateListingCache.warm_all
+    AlertsListingCache.warm
     progress&.step("warming station snapshots")
     location_scope.find_each { |location| StationSnapshotCache.warm(location) }
     progress&.finish("locations=#{location_scope.count} time_series=#{time_series_scope.count}")
