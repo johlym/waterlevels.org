@@ -32,19 +32,23 @@ export default class extends Controller {
     year: Number
   }
 
+  static DEFAULT_VIEW = { lat: 39.5, lon: -98.35, zoom: 4 }
+  static MAX_ZOOM = 18
+
   connect() {
     this.stations = []
     this.searchResults = []
     this.markersById = new Map()
     this.query = ""
     this.searchRequestId = 0
+    this.syncingHashFromMap = false
     this.layers = {
       discharge: true,
       water_level: true,
       temperature: true
     }
 
-    const initial = this.initialView()
+const initial = this.initialView()
     this.map = L.map(this.canvasTarget, { zoomControl: false, attributionControl: false }).setView(initial.center, initial.zoom)
     L.control.attribution({
       position: "bottomleft",
@@ -52,13 +56,15 @@ export default class extends Controller {
     }).addTo(this.map)
     L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      maxZoom: 18
+      maxZoom: this.constructor.MAX_ZOOM
     }).addTo(this.map)
 
     this.cluster = L.markerClusterGroup()
     this.map.addLayer(this.cluster)
-    this.map.on("moveend", () => this.loadStations())
-    this.loadStations()
+    this.map.on("moveend", () => this.onMoveEnd())
+    this.onHashChange = this.onHashChange.bind(this)
+    window.addEventListener("hashchange", this.onHashChange)
+    this.onMoveEnd()
 
     this.onKeydown = this.onKeydown.bind(this)
     document.addEventListener("keydown", this.onKeydown)
@@ -66,8 +72,94 @@ export default class extends Controller {
 
   disconnect() {
     document.removeEventListener("keydown", this.onKeydown)
+    window.removeEventListener("hashchange", this.onHashChange)
     if (this.searchTimer) clearTimeout(this.searchTimer)
     if (this.map) this.map.remove()
+  }
+
+  onMoveEnd() {
+    this.syncUrlFromMap()
+    this.loadStations()
+  }
+
+  onHashChange() {
+    if (this.syncingHashFromMap || !this.map) return
+
+    const view = this.viewFromUrl()
+    if (!view) {
+      this.syncUrlFromMap()
+      return
+    }
+
+    const center = this.map.getCenter()
+    const zoom = this.map.getZoom()
+    if (
+      Math.abs(center.lat - view.lat) < 1e-6 &&
+      Math.abs(center.lng - view.lon) < 1e-6 &&
+      Math.abs(zoom - view.zoom) < 1e-6
+    ) {
+      return
+    }
+
+    this.map.setView([view.lat, view.lon], view.zoom)
+  }
+
+  viewFromUrl() {
+    const hash = window.location.hash.replace(/^#/, "")
+    const match = hash.match(/^(\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)$/)
+    if (!match) return null
+
+    const zoom = Number(match[1])
+    const lat = Number(match[2])
+    const lon = Number(match[3])
+    if (![zoom, lat, lon].every(Number.isFinite)) return null
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null
+    if (zoom < 0 || zoom > this.constructor.MAX_ZOOM) return null
+
+    return { lat, lon, zoom }
+  }
+
+  syncUrlFromMap() {
+    if (!this.map) return
+
+    const center = this.map.getCenter()
+    const zoom = this.map.getZoom()
+    const url = new URL(window.location.href)
+    const searchView = this.viewFromSearchParams(url.searchParams)
+
+    // ZIP/query deep links win until the user moves away from that view.
+    if (searchView && this.sameView(center.lat, center.lng, zoom, searchView)) {
+      if (window.location.hash) {
+        this.syncingHashFromMap = true
+        history.replaceState(history.state, "", `${url.pathname}${url.search}`)
+        this.syncingHashFromMap = false
+      }
+      return
+    }
+
+    ;["lat", "lon", "zoom"].forEach((key) => url.searchParams.delete(key))
+    url.hash = this.formatMapHash(center.lat, center.lng, zoom)
+
+    const next = `${url.pathname}${url.search}${url.hash}`
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    if (current === next) return
+
+    this.syncingHashFromMap = true
+    history.replaceState(history.state, "", next)
+    this.syncingHashFromMap = false
+  }
+
+  sameView(lat, lon, zoom, view) {
+    return (
+      Math.abs(lat - view.center[0]) < 1e-5 &&
+      Math.abs(lon - view.center[1]) < 1e-5 &&
+      Math.abs(zoom - view.zoom) < 1e-5
+    )
+  }
+
+  formatMapHash(lat, lon, zoom) {
+    const precision = Math.max(0, Math.ceil(Math.log(Math.max(zoom, 1)) / Math.LN2))
+    return `${Number(zoom.toFixed(2))}/${lat.toFixed(precision)}/${lon.toFixed(precision)}`
   }
 
   attributionPrefix() {
@@ -82,20 +174,29 @@ export default class extends Controller {
   }
 
   initialView() {
-    return this.viewFromSearchParams(new URLSearchParams(window.location.search)) || {
-      center: [39.5, -98.35],
-      zoom: 4
-    }
+    const fromSearch = this.viewFromSearchParams(new URLSearchParams(window.location.search))
+    if (fromSearch) return fromSearch
+
+    const fromHash = this.viewFromUrl()
+    if (fromHash) return { center: [fromHash.lat, fromHash.lon], zoom: fromHash.zoom }
+
+    const fallback = this.constructor.DEFAULT_VIEW
+    return { center: [fallback.lat, fallback.lon], zoom: fallback.zoom }
   }
 
   viewFromSearchParams(params) {
-    const lat = Number(params.get("lat"))
-    const lon = Number(params.get("lon"))
+    const latParam = params.get("lat")
+    const lonParam = params.get("lon")
+    if (latParam == null || lonParam == null || latParam === "" || lonParam === "") return null
+
+    const lat = Number(latParam)
+    const lon = Number(lonParam)
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
     if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null
 
     const parsedZoom = Number(params.get("zoom"))
-    const zoom = Number.isFinite(parsedZoom) && parsedZoom >= 1 && parsedZoom <= 18 ? parsedZoom : 12
+    const maxZoom = this.constructor.MAX_ZOOM
+    const zoom = Number.isFinite(parsedZoom) && parsedZoom >= 1 && parsedZoom <= maxZoom ? parsedZoom : 12
     return { center: [lat, lon], zoom }
   }
 
@@ -112,14 +213,15 @@ export default class extends Controller {
 
     const url = new URL(link.href, window.location.origin)
     if (url.pathname !== "/map") return
+    if (!this.viewFromSearchParams(url.searchParams)) return
 
-    if (this.applyMapViewFromParams(url.searchParams)) {
-      event.preventDefault()
-      this.closeMobileSearch()
-      if (window.history?.replaceState) {
-        window.history.replaceState({}, "", `${url.pathname}${url.search}`)
-      }
+    event.preventDefault()
+    this.closeMobileSearch()
+    // Write ZIP query params before setView so moveend keeps them until the user pans/zooms.
+    if (window.history?.replaceState) {
+      window.history.replaceState({}, "", `${url.pathname}${url.search}`)
     }
+    this.applyMapViewFromParams(url.searchParams)
   }
 
   zoomIn() {
@@ -254,11 +356,13 @@ export default class extends Controller {
     if (!first?.path) return
 
     const url = new URL(first.path, window.location.origin)
-    if (url.pathname === "/map" && this.applyMapViewFromParams(url.searchParams)) {
+    if (url.pathname === "/map" && this.viewFromSearchParams(url.searchParams)) {
       this.closeMobileSearch()
+      // Write ZIP query params before setView so moveend keeps them until the user pans/zooms.
       if (window.history?.replaceState) {
         window.history.replaceState({}, "", `${url.pathname}${url.search}`)
       }
+      this.applyMapViewFromParams(url.searchParams)
       return
     }
 
