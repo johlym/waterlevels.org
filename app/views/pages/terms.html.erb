@@ -1,14 +1,316 @@
-<% content_for :title, "Terms | WaterLevels.org" %>
+<% content_for :title, "Terms of Service | WaterLevels.org" %>
+<% content_for :meta_description, "Rules for using WaterLevels.org, including data limitations, acceptable use, and liability terms." %>
+
 <div class="app-shell">
   <%= render Navigation::BarComponent.new %>
   <main class="page-main narrow">
     <div class="state-intro">
-      <h1>Terms</h1>
+      <h1>Terms of Service</h1>
+      <p>Effective August 2, 2026</p>
     </div>
     <div class="prose-page">
       <section>
+        <p>These Terms of Service explain the rules for using WaterLevels.org.</p>
         <p>
-          WaterLevels.org republishes USGS provisional and approved data for informational purposes. Do not rely on provisional observations for public-safety decisions without consulting official sources.
+          WaterLevels.org is operated by Bytoro LLC, a Washington limited liability company. In these terms, “WaterLevels.org,” “we,” “us,” and “our” refer to Bytoro LLC.
+        </p>
+        <p>
+          By using WaterLevels.org, you agree to these terms. If you do not agree, please do not use the site.
+        </p>
+      </section>
+
+      <section aria-labelledby="what-we-provide-heading">
+        <h2 id="what-we-provide-heading">What WaterLevels.org provides</h2>
+        <p>WaterLevels.org provides maps and information about water monitoring stations in the United States.</p>
+        <p>The site may display information such as:</p>
+        <ul role="list">
+          <li>Water levels</li>
+          <li>Streamflow or discharge</li>
+          <li>Monitoring-station locations</li>
+          <li>Current and historical readings</li>
+          <li>Information about the type of measurement being reported</li>
+        </ul>
+        <p>
+          WaterLevels.org is provided free of charge. User accounts are not available, and no purchase is required to use the site.
+        </p>
+      </section>
+
+      <section aria-labelledby="data-sources-heading">
+        <h2 id="data-sources-heading">Data sources</h2>
+        <p>
+          Much of the water data displayed on WaterLevels.org comes from the United States Geological Survey, or USGS.
+        </p>
+        <p>
+          WaterLevels.org is independently operated. It is not operated by, affiliated with, sponsored by, or endorsed by the USGS or the United States government.
+        </p>
+        <p>
+          We may also use maps, geographic information, or other data provided by outside services.
+        </p>
+      </section>
+
+      <section aria-labelledby="data-accuracy-heading">
+        <h2 id="data-accuracy-heading">Data may be incomplete or inaccurate</h2>
+        <p>
+          We try to display water information accurately, but we cannot guarantee that any information on WaterLevels.org is accurate, complete, current, or available at all times.
+        </p>
+        <p>Water-monitoring data can be affected by:</p>
+        <ul role="list">
+          <li>Delayed transmissions</li>
+          <li>Equipment failures</li>
+          <li>Incorrect sensor readings</li>
+          <li>Network or software problems</li>
+          <li>Changes at a monitoring location</li>
+          <li>Later review or correction by the data provider</li>
+        </ul>
+        <p>
+          Some data may be preliminary or provisional. A data provider may revise a reading after it has already appeared on WaterLevels.org.
+        </p>
+        <p>
+          Information shown on WaterLevels.org may also differ from information shown directly by the original data provider.
+        </p>
+      </section>
+
+      <section aria-labelledby="not-for-emergencies-heading">
+        <h2 id="not-for-emergencies-heading">Not for emergencies or safety decisions</h2>
+        <p>WaterLevels.org is an informational tool. It is not an emergency-warning service.</p>
+        <p>Do not rely only on WaterLevels.org when making decisions involving:</p>
+        <ul role="list">
+          <li>Flooding</li>
+          <li>Evacuation</li>
+          <li>Personal or public safety</li>
+          <li>Boating or navigation</li>
+          <li>Property protection</li>
+          <li>Emergency response</li>
+          <li>Business or financial risk</li>
+          <li>Any other decision that could result in injury, death, property damage, or significant loss</li>
+        </ul>
+        <p>
+          For emergencies, follow instructions from local emergency-management agencies, the National Weather Service, law enforcement, fire departments, and other appropriate public authorities.
+        </p>
+        <p>
+          When accuracy is important, confirm the information with the USGS or another authoritative source.
+        </p>
+      </section>
+
+      <section aria-labelledby="your-responsibility-heading">
+        <h2 id="your-responsibility-heading">Your responsibility when using the site</h2>
+        <p>
+          You are responsible for deciding whether information from WaterLevels.org is appropriate for your situation.
+        </p>
+        <p>
+          You agree to use reasonable judgment and to check important information with an authoritative source before acting on it.
+        </p>
+        <p>Your use of WaterLevels.org is at your own risk.</p>
+      </section>
+
+      <section aria-labelledby="acceptable-use-heading">
+        <h2 id="acceptable-use-heading">Acceptable use</h2>
+        <p>You may use WaterLevels.org for lawful personal, educational, research, or business purposes.</p>
+        <p>You may not:</p>
+        <ul role="list">
+          <li>Use the site for unlawful activity</li>
+          <li>Attempt to gain unauthorized access to the site or its systems</li>
+          <li>Interfere with the operation or security of the site</li>
+          <li>Introduce malicious code, automated attacks, or harmful traffic</li>
+          <li>Deliberately overload the site or bypass reasonable technical limits</li>
+          <li>Scrape or access the site in a way that harms its availability for others</li>
+          <li>Misrepresent WaterLevels.org as an official government service</li>
+          <li>Use WaterLevels.org’s name, branding, or design in a way that suggests our endorsement or approval</li>
+        </ul>
+        <p>
+          Reasonable use of publicly available pages by ordinary web browsers, search engines, and accessibility tools is allowed.
+        </p>
+      </section>
+
+      <section aria-labelledby="automated-access-heading">
+        <h2 id="automated-access-heading">Automated access</h2>
+        <p>
+          Automated access must not disrupt the site or place an unreasonable burden on its systems.
+        </p>
+        <p>
+          If you need large amounts of USGS data, you should obtain that data directly from the USGS rather than repeatedly collecting it through WaterLevels.org.
+        </p>
+        <p>
+          We may limit or block automated traffic that affects the site’s security, cost, performance, or availability.
+        </p>
+      </section>
+
+      <section aria-labelledby="intellectual-property-heading">
+        <h2 id="intellectual-property-heading">Intellectual property</h2>
+        <p>
+          USGS-produced data and information are generally public-domain government materials. The USGS may request that it be credited as the source.
+        </p>
+        <p>WaterLevels.org does not claim ownership of USGS data.</p>
+        <p>
+          However, the parts of WaterLevels.org created by Bytoro LLC—including its software, design, organization, written explanations, branding, logos, and original graphics—belong to Bytoro LLC or its licensors and may be protected by copyright, trademark, and other laws.
+        </p>
+        <p>
+          You may link to WaterLevels.org. You may not copy or reproduce substantial portions of our original site design, branding, or written content without permission.
+        </p>
+      </section>
+
+      <section aria-labelledby="third-party-heading">
+        <h2 id="third-party-heading">Third-party services and links</h2>
+        <p>WaterLevels.org depends on outside data and technology providers.</p>
+        <p>
+          The site may also contain links to third-party websites. We do not control those websites and are not responsible for their content, availability, security, or privacy practices.
+        </p>
+        <p>
+          A link does not mean that WaterLevels.org or Bytoro LLC endorses the linked site, organization, product, or service.
+        </p>
+        <p>
+          Your use of a third-party service may be governed by that provider’s own terms and policies.
+        </p>
+      </section>
+
+      <section aria-labelledby="location-features-heading">
+        <h2 id="location-features-heading">Location features</h2>
+        <p>
+          WaterLevels.org may let you optionally share your device’s location to center the map or find a nearby monitoring station.
+        </p>
+        <p>
+          You are responsible for deciding whether to grant location permission. You can deny or withdraw that permission through your browser or device settings.
+        </p>
+        <p>
+          Our handling of location and other information is described in the
+          <%= link_to "WaterLevels.org Privacy Policy", privacy_path %>.
+        </p>
+      </section>
+
+      <section aria-labelledby="availability-heading">
+        <h2 id="availability-heading">Availability of the service</h2>
+        <p>
+          We hope to keep WaterLevels.org useful and available, but we do not promise that it will always be online or operate without errors.
+        </p>
+        <p>We may:</p>
+        <ul role="list">
+          <li>Change or remove features</li>
+          <li>Correct or update displayed information</li>
+          <li>Limit traffic or access</li>
+          <li>Perform maintenance</li>
+          <li>Suspend parts of the site</li>
+          <li>Stop operating the site</li>
+        </ul>
+        <p>We may do these things at any time and without advance notice.</p>
+      </section>
+
+      <section aria-labelledby="no-warranties-heading">
+        <h2 id="no-warranties-heading">No warranties</h2>
+        <p>WaterLevels.org is provided “as is” and “as available.”</p>
+        <p>
+          To the fullest extent allowed by law, Bytoro LLC makes no warranties, express or implied, about WaterLevels.org or the information it displays.
+        </p>
+        <p>This includes warranties that the site will be:</p>
+        <ul role="list">
+          <li>Accurate</li>
+          <li>Complete</li>
+          <li>Current</li>
+          <li>Reliable</li>
+          <li>Available</li>
+          <li>Secure</li>
+          <li>Error-free</li>
+          <li>Suitable for a particular purpose</li>
+        </ul>
+        <p>
+          We do not guarantee that errors will be corrected or that the site will always be free from harmful components.
+        </p>
+        <p>
+          Some laws may not allow certain warranty exclusions. In that case, these exclusions apply only to the extent permitted by law.
+        </p>
+      </section>
+
+      <section aria-labelledby="liability-heading">
+        <h2 id="liability-heading">Limits on our liability</h2>
+        <p>
+          To the fullest extent allowed by law, Bytoro LLC and its owner will not be liable for losses or damages resulting from your use of, or inability to use, WaterLevels.org.
+        </p>
+        <p>This includes losses or damages caused by:</p>
+        <ul role="list">
+          <li>Incorrect, incomplete, delayed, or revised data</li>
+          <li>Decisions made using information from the site</li>
+          <li>Service interruptions or technical problems</li>
+          <li>Missing monitoring stations or measurements</li>
+          <li>Third-party websites or services</li>
+          <li>Unauthorized access or malicious activity</li>
+          <li>Loss of data, property, revenue, profits, or business opportunities</li>
+          <li>Personal injury, property damage, or other consequences of relying on the site</li>
+        </ul>
+        <p>
+          This limitation applies whether the claim is based on contract, negligence, another legal theory, or otherwise.
+        </p>
+        <p>If the law does not allow us to exclude liability completely, our total liability for a claim relating to WaterLevels.org will be limited to the greater of:</p>
+        <ul role="list">
+          <li>The amount you paid us to use WaterLevels.org during the 12 months before the claim, or</li>
+          <li>$100</li>
+        </ul>
+        <p>Because WaterLevels.org is free, the first amount will normally be zero.</p>
+        <p>These limits do not apply where the law does not permit them.</p>
+      </section>
+
+      <section aria-labelledby="suspending-access-heading">
+        <h2 id="suspending-access-heading">Suspending access</h2>
+        <p>We may restrict or block access to WaterLevels.org when we reasonably believe someone is:</p>
+        <ul role="list">
+          <li>Violating these terms</li>
+          <li>Attacking or disrupting the site</li>
+          <li>Creating a security risk</li>
+          <li>Using excessive automated traffic</li>
+          <li>Breaking the law</li>
+          <li>Harming WaterLevels.org or other users</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="changes-heading">
+        <h2 id="changes-heading">Changes to these terms</h2>
+        <p>
+          We may update these terms when the site, our practices, or applicable requirements change.
+        </p>
+        <p>
+          When we make changes, we will update the effective date at the top of this page. Material changes may also be announced on the site.
+        </p>
+        <p>
+          Your continued use of WaterLevels.org after revised terms take effect means that you accept the revised terms.
+        </p>
+      </section>
+
+      <section aria-labelledby="governing-law-heading">
+        <h2 id="governing-law-heading">Governing law</h2>
+        <p>
+          These terms are governed by the laws of Washington State, without regard to conflict-of-law rules.
+        </p>
+        <p>
+          Any legal dispute relating to WaterLevels.org or these terms must be brought in an appropriate state or federal court located in Washington State, unless applicable law requires otherwise.
+        </p>
+      </section>
+
+      <section aria-labelledby="severability-heading">
+        <h2 id="severability-heading">Severability</h2>
+        <p>
+          If a court decides that part of these terms cannot be enforced, the remaining parts will continue to apply.
+        </p>
+      </section>
+
+      <section aria-labelledby="no-waiver-heading">
+        <h2 id="no-waiver-heading">No waiver</h2>
+        <p>
+          If we do not immediately enforce part of these terms, that does not mean we have permanently given up the right to enforce it.
+        </p>
+      </section>
+
+      <section aria-labelledby="entire-agreement-heading">
+        <h2 id="entire-agreement-heading">Entire agreement</h2>
+        <p>
+          These terms and the <%= link_to "WaterLevels.org Privacy Policy", privacy_path %> form the entire agreement between you and Bytoro LLC regarding your use of WaterLevels.org.
+        </p>
+      </section>
+
+      <section aria-labelledby="contact-heading">
+        <h2 id="contact-heading">Contact</h2>
+        <p>Questions about these terms can be sent to:</p>
+        <p>
+          Bytoro LLC<br>
+          Washington State<br>
+          <a href="mailto:contact@waterlevels.org">contact@waterlevels.org</a>
         </p>
       </section>
     </div>
