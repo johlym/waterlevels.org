@@ -185,8 +185,12 @@ const initial = this.initialView()
   }
 
   viewFromSearchParams(params) {
-    const lat = Number(params.get("lat"))
-    const lon = Number(params.get("lon"))
+    const latParam = params.get("lat")
+    const lonParam = params.get("lon")
+    if (latParam == null || lonParam == null || latParam === "" || lonParam === "") return null
+
+    const lat = Number(latParam)
+    const lon = Number(lonParam)
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
     if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null
 
