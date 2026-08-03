@@ -1,6 +1,7 @@
 class NearbyStations
   EARTH_RADIUS_KM = 6371.0
   GRID_DEG = 0.5
+  NEAREST_SEARCH_DEG = 2.0
 
   def self.refresh_all
     locations = MonitoringLocation.pluck(:id, :latitude, :longitude)
@@ -11,6 +12,21 @@ class NearbyStations
       candidates = candidates_for(lat.to_f, lon.to_f, grid)
       nearest = nearest_ids(id, lat.to_f, lon.to_f, candidates, limit: 4)
       MonitoringLocation.where(id: id).update_all(nearby_station_ids: nearest, updated_at: Time.current)
+    end
+  end
+
+  def self.nearest_to(lat, lon)
+    lat = lat.to_f
+    lon = lon.to_f
+    return if lat.zero? && lon.zero?
+    return unless lat.between?(-90, 90) && lon.between?(-180, 180)
+
+    pad = NEAREST_SEARCH_DEG
+    scope = MonitoringLocation.in_bbox(lon - pad, lat - pad, lon + pad, lat + pad)
+    scope = MonitoringLocation.all if scope.none?
+
+    scope.min_by do |loc|
+      haversine_km(lat, lon, loc.latitude.to_f, loc.longitude.to_f)
     end
   end
 

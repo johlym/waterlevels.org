@@ -10,29 +10,44 @@
     </a>
 
     <nav class="desktop-nav" aria-label="Primary">
-      <%= link_to "Map", root_path, class: "nav-link" %>
+      <%= link_to "Map", map_path, class: "nav-link" %>
       <%= link_to "About", about_path, class: "nav-link" %>
       <%= link_to "Contact", contact_path, class: "nav-link" %>
     </nav>
 
-    <button
-      type="button"
-      class="menu-toggle"
-      data-action="mobile-nav#toggle"
-      aria-label="Open main menu"
-    >
-      <svg data-mobile-nav-target="openIcon" class="open-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-      </svg>
-      <svg data-mobile-nav-target="closeIcon" class="close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-      </svg>
-    </button>
+    <div class="header-actions">
+      <% if @map_controls %>
+        <button
+          type="button"
+          class="map-search-toggle"
+          data-action="map#openMobileSearch"
+          aria-label="Search stations"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+          </svg>
+        </button>
+      <% end %>
+
+      <button
+        type="button"
+        class="menu-toggle"
+        data-action="mobile-nav#toggle"
+        aria-label="Open main menu"
+      >
+        <svg data-mobile-nav-target="openIcon" class="open-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+        </svg>
+        <svg data-mobile-nav-target="closeIcon" class="close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
   </div>
 
   <div class="mobile-panel" data-mobile-nav-target="panel">
     <nav aria-label="Mobile primary">
-      <%= link_to "Map", root_path, class: "nav-link", data: { action: "mobile-nav#close" } %>
+      <%= link_to "Map", map_path, class: "nav-link", data: { action: "mobile-nav#close" } %>
       <%= link_to "About", about_path, class: "nav-link", data: { action: "mobile-nav#close" } %>
       <%= link_to "Contact", contact_path, class: "nav-link", data: { action: "mobile-nav#close" } %>
     </nav>

@@ -20,4 +20,13 @@ class NearbyStationsTest < ActiveSupport::TestCase
     assert_includes origin.nearby_station_ids, near.id
     refute_includes origin.nearby_station_ids.first(1), far.id
   end
+
+  test "nearest_to returns the closest monitoring location" do
+    create(:monitoring_location, site_number: "10000011", latitude: 47.0, longitude: -122.0)
+    near = create(:monitoring_location, site_number: "10000012", latitude: 47.02, longitude: -122.02)
+    create(:monitoring_location, site_number: "10000013", latitude: 48.5, longitude: -121.0)
+
+    assert_equal near, NearbyStations.nearest_to(47.021, -122.021)
+  end
 end
+
