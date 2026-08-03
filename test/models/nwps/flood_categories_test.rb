@@ -22,5 +22,12 @@ module Nwps
       assert_nil FloodCategories.stage_value(0)
       assert_nil FloodCategories.stage_value(nil)
     end
+
+    test "effective picks the more severe of observed and forecast" do
+      assert_equal "major", FloodCategories.effective("minor", "major")
+      assert_equal "action", FloodCategories.effective("action", "no_flooding")
+      assert_equal "moderate", FloodCategories.effective("obs_not_current", "moderate")
+      assert_nil FloodCategories.effective("obs_not_current", "fcst_not_current")
+    end
   end
 end

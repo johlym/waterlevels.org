@@ -3,6 +3,7 @@ require "faraday/retry"
 module Nwps
   class Client
     BASE_URL = "https://api.water.noaa.gov/nwps/v1/".freeze
+    LIST_TIMEOUT_SECONDS = 90
 
     Error = Class.new(StandardError)
     NotFoundError = Class.new(Error)
@@ -13,7 +14,8 @@ module Nwps
       @first_request = true
     end
 
-    # Returns gauge Hash or nil when NWPS has no point for this identifier.
+    # Returns gauge Hash or nil when NWPS has no point for this identifier
+    # (USGS site number or NWS LID).
     def gauge(identifier)
       pause_between_requests!
       response = @connection.get("gauges/#{identifier}") do |req|
@@ -22,6 +24,25 @@ module Nwps
       return nil if response.status == 404
 
       handle_response(response)
+    end
+
+    # Returns the national NWPS gauge list (status + LID; no usgsId / thresholds).
+    # Optional bbox hash: { xmin:, ymin:, xmax:, ymax:, srid: "EPSG_4326" }.
+    def gauges(bbox: nil)
+      pause_between_requests!
+      response = @connection.get("gauges") do |req|
+        req.headers["Accept"] = "application/json"
+        req.options.timeout = LIST_TIMEOUT_SECONDS
+        if bbox
+          req.params["bbox.xmin"] = bbox[:xmin]
+          req.params["bbox.ymin"] = bbox[:ymin]
+          req.params["bbox.xmax"] = bbox[:xmax]
+          req.params["bbox.ymax"] = bbox[:ymax]
+          req.params["srid"] = bbox[:srid] || "EPSG_4326"
+        end
+      end
+      body = handle_response(response)
+      Array(body["gauges"])
     end
 
     private

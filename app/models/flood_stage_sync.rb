@@ -3,6 +3,8 @@ class FloodStageSync
 
   # Re-check unmatched USGS sites periodically — most will keep 404ing.
   UNMATCHED_RETRY_AFTER = 7.days
+  # Detail GETs for thresholds / LID crosswalk; categories refresh via list.
+  MATCHED_DETAIL_REFRESH_AFTER = 24.hours
 
   attr_accessor :client, :state, :progress
 
@@ -14,13 +16,79 @@ class FloodStageSync
 
   def perform
     progress&.step(scope_label)
+    list_updated = refresh_categories_from_list
+    matched, unmatched, skipped, errors = discover_and_refresh_details
+
+    progress&.step("warming caches")
+    warm_caches
+    progress&.finish(
+      "list_updated=#{list_updated} matched=#{matched} unmatched=#{unmatched} " \
+      "skipped=#{skipped} errors=#{errors}"
+    )
+    true
+  end
+
+  private
+
+  def scope_label
+    postal_code ? "state=#{postal_code}" : "national"
+  end
+
+  def postal_code
+    @postal_code ||= state && Usgs::StateCodes.normalize_postal(state)
+  end
+
+  def sync_scope
+    scope = MonitoringLocation.where(active: true)
+    postal_code ? scope.in_state(postal_code) : scope
+  end
+
+  # Phase 1: one national (or filtered) list call updates flood_category for
+  # every site we already crosswalked by NWPS LID. List payloads include
+  # status.observed/forecast.floodCategory but not usgsId or stage thresholds.
+  def refresh_categories_from_list
+    gauges = client.gauges
+    gauges = filter_gauges_for_state(gauges) if postal_code
+
+    by_lid = gauges.each_with_object({}) do |gauge, memo|
+      lid = gauge["lid"].to_s.upcase.presence
+      next unless lid
+
+      memo[lid] = gauge
+    end
+    progress&.step("nwps list gauges=#{by_lid.size}")
+
+    updated = 0
+    sync_scope.where.not(nwps_lid: [ nil, "" ]).find_each do |location|
+      gauge = by_lid[location.nwps_lid.to_s.upcase]
+      next unless gauge
+
+      apply_list_status!(location, gauge)
+      updated += 1
+      progress&.increment
+    end
+    updated
+  rescue Nwps::Client::Error => e
+    progress&.step("list refresh skipped: #{e.message}")
+    0
+  end
+
+  def filter_gauges_for_state(gauges)
+    abbrev = postal_code.to_s.upcase
+    gauges.select { |gauge| gauge.dig("state", "abbreviation").to_s.upcase == abbrev }
+  end
+
+  # Phase 2: USGS site-number detail lookups for first-time matches and
+  # periodic threshold refresh. Never-synced sites are ordered first so
+  # coverage expands before we re-detail known matches.
+  def discover_and_refresh_details
     matched = 0
     unmatched = 0
     skipped = 0
     errors = 0
 
-    sync_scope.find_each do |location|
-      unless due_for_sync?(location)
+    detail_scope.find_each do |location|
+      unless due_for_detail_sync?(location)
         skipped += 1
         next
       end
@@ -42,39 +110,35 @@ class FloodStageSync
       progress&.increment
     end
 
-    progress&.step("warming caches")
-    warm_caches
-    progress&.finish("matched=#{matched} unmatched=#{unmatched} skipped=#{skipped} errors=#{errors}")
-    true
+    [ matched, unmatched, skipped, errors ]
   end
 
-  private
-
-  def scope_label
-    postal_code ? "state=#{postal_code}" : "national"
+  def detail_scope
+    sync_scope.order(Arel.sql("nwps_synced_at ASC NULLS FIRST, site_number ASC"))
   end
 
-  def postal_code
-    @postal_code ||= state && Usgs::StateCodes.normalize_postal(state)
-  end
-
-  def sync_scope
-    scope = MonitoringLocation.where(active: true).order(:site_number)
-    postal_code ? scope.in_state(postal_code) : scope
-  end
-
-  def due_for_sync?(location)
+  def due_for_detail_sync?(location)
     return true if location.nwps_synced_at.blank?
-    return true if location.nwps_matched?
+    return true if location.nwps_matched? && location.nwps_synced_at < MATCHED_DETAIL_REFRESH_AFTER.ago
 
-    location.nwps_synced_at < UNMATCHED_RETRY_AFTER.ago
+    !location.nwps_matched? && location.nwps_synced_at < UNMATCHED_RETRY_AFTER.ago
+  end
+
+  def apply_list_status!(location, gauge)
+    category, category_at = category_from_status(gauge["status"])
+    attrs = {
+      nwps_matched: true,
+      flood_category: category,
+      flood_category_observed_at: category_at || location.flood_category_observed_at
+    }
+    # List responses omit thresholds; keep existing stage columns.
+    location.update!(attrs)
+    StationSnapshotCache.warm(location)
   end
 
   def apply_match!(location, gauge)
     categories = gauge.dig("flood", "categories") || {}
-    observed = gauge.dig("status", "observed") || {}
-    category = Nwps::FloodCategories.normalize(observed["floodCategory"])
-    category_at = parse_time(observed["validTime"])
+    category, category_at = category_from_status(gauge["status"])
 
     location.update!(
       nwps_lid: gauge["lid"].presence || location.nwps_lid,
@@ -103,6 +167,15 @@ class FloodStageSync
       flood_category_observed_at: nil
     )
     StationSnapshotCache.warm(location)
+  end
+
+  def category_from_status(status)
+    status = status || {}
+    observed = status["observed"] || {}
+    forecast = status["forecast"] || {}
+    category = Nwps::FloodCategories.effective(observed["floodCategory"], forecast["floodCategory"])
+    category_at = parse_time(observed["validTime"]) || parse_time(forecast["validTime"])
+    [ category, category_at ]
   end
 
   def warm_caches

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_03_040000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_03_053000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -98,6 +98,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_03_040000) do
     t.index ["has_discharge"], name: "index_monitoring_locations_on_has_discharge", where: "(has_discharge = true)"
     t.index ["has_water_level"], name: "index_monitoring_locations_on_has_water_level", where: "(has_water_level = true)"
     t.index ["latitude", "longitude"], name: "index_monitoring_locations_on_latitude_and_longitude"
+    t.index ["nwps_lid"], name: "index_monitoring_locations_on_nwps_lid", where: "(nwps_lid IS NOT NULL)"
     t.index ["nwps_matched"], name: "index_monitoring_locations_on_nwps_matched", where: "(nwps_matched = true)"
     t.index ["site_number"], name: "index_monitoring_locations_on_site_number", unique: true
     t.index ["state_code", "county_name", "name"], name: "idx_on_state_code_county_name_name_ac7d4d7687"
