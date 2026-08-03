@@ -181,7 +181,10 @@ export default class extends Controller {
     const primary = this.primarySeries()
     const companion = this.companionSeries(primary)
     const items = [primary, companion].filter(Boolean)
-    const floodStages = primary?.kind === "water_level" ? this.floodStageEntries() : []
+    const pointValues = (primary?.points || []).map((point) => point.v)
+    const floodStages = primary?.kind === "water_level"
+      ? this.visibleFloodStages(pointValues, this.floodStageEntries())
+      : []
 
     if (!items.length && !floodStages.length) {
       this.legendTarget.innerHTML = ""
@@ -222,6 +225,25 @@ export default class extends Controller {
       if (!Number.isFinite(value) || value <= 0) return []
       return [{ key, value }]
     })
+  }
+
+  // Keep the Y domain anchored to the observed series. Only overlay flood
+  // thresholds that already fall inside (or just above) that window so
+  // distant major/moderate lines do not leave a large empty band.
+  visibleFloodStages(pointValues, stageEntries) {
+    if (!stageEntries.length) return []
+
+    const points = pointValues.filter((value) => Number.isFinite(value))
+    if (!points.length) return stageEntries
+
+    const dataMax = Math.max(...points)
+    const dataMin = Math.min(...points)
+    const span = Math.max(dataMax - dataMin, Math.abs(dataMax) * 0.08, 0.25)
+    // Allow the next stage only when it is a near-term proximity cue.
+    const proximity = Math.max(span * 0.75, Math.abs(dataMax) * 0.12, 0.5)
+    const ceiling = dataMax + proximity
+
+    return stageEntries.filter((stage) => stage.value <= ceiling)
   }
 
   renderStats(points) {
@@ -504,7 +526,10 @@ export default class extends Controller {
       })
     }
 
-    const floodStages = primary.kind === "water_level" ? this.floodStageEntries() : []
+    const pointValues = primaryPoints.map((point) => point.v)
+    const floodStages = primary.kind === "water_level"
+      ? this.visibleFloodStages(pointValues, this.floodStageEntries())
+      : []
     floodStages.forEach(({ key, value }) => {
       const stageColors = FLOOD_STAGE_COLORS[key]
       datasets.push({
@@ -525,10 +550,11 @@ export default class extends Controller {
 
     if (!labels.length && floodStages.length) labels.push("")
 
-    const ySuggestedMax = this.suggestedMaxForAxis(
-      primaryPoints.map((point) => point.v),
-      floodStages.map((stage) => stage.value)
-    )
+    // Only nudge the axis when visible flood stages are present. Without
+    // thresholds, leave scaling to Chart.js so the series fills the plot.
+    const ySuggestedMax = floodStages.length
+      ? this.suggestedMaxForAxis(pointValues, floodStages.map((stage) => stage.value))
+      : undefined
 
     try {
       this.chart = new Chart(this.canvasTarget.getContext("2d"), {
