@@ -42,7 +42,39 @@ module ApplicationHelper
     value.to_f.positive? ? "+#{formatted}" : formatted
   end
 
+  # Wrap known glossary terms (datum, NGVD, NAVD, Provisional, …) in CSS tooltips.
+  # Set focusable: false inside buttons so we do not nest focus targets.
+  def annotate_glossary_terms(text, focusable: true)
+    source = text.to_s
+    return "".html_safe if source.blank?
+
+    parts = []
+    cursor = 0
+    source.scan(GlossaryTerms::PATTERN) do
+      match = Regexp.last_match
+      parts << ERB::Util.html_escape(source[cursor...match.begin(0)])
+      parts << glossary_term_span(match[0], focusable: focusable)
+      cursor = match.end(0)
+    end
+    parts << ERB::Util.html_escape(source[cursor..])
+    safe_join(parts)
+  end
+
   private
+
+  def glossary_term_span(term, focusable:)
+    definition = GlossaryTerms.definition_for(term)
+    return ERB::Util.html_escape(term) if definition.blank?
+
+    tag.span(class: "term-tip", tabindex: (focusable ? 0 : nil)) do
+      safe_join(
+        [
+          ERB::Util.html_escape(term),
+          tag.span(definition, class: "term-tip-bubble", role: "tooltip")
+        ]
+      )
+    end
+  end
 
   def degrees_to_dms(value, positive_hemisphere, negative_hemisphere)
     absolute = value.abs

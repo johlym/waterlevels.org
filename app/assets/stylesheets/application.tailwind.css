@@ -1492,14 +1492,14 @@
 }
 
 .measurement-card {
-  @apply relative flex flex-col gap-3 overflow-hidden rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-6 text-left transition-all hover:border-cyan-500/30 hover:bg-zinc-900/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-500;
+  @apply relative flex flex-col gap-3 rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-6 text-left transition-all hover:border-cyan-500/30 hover:bg-zinc-900/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-500;
 
   &[aria-selected="true"] {
     @apply border-cyan-500/40 bg-zinc-900 ring-2 ring-cyan-500/20;
   }
 
   .label {
-    @apply truncate text-sm font-medium text-zinc-400;
+    @apply text-sm font-medium text-zinc-400;
   }
 
   .value {
@@ -1516,6 +1516,31 @@
 
   .trends {
     @apply flex flex-col gap-1 text-sm text-zinc-400;
+  }
+}
+
+/* —— Glossary term tooltips (gauge detail) —— */
+.term-tip {
+  @apply relative inline cursor-help border-b border-dotted border-zinc-500 text-inherit;
+
+  .term-tip-bubble {
+    @apply pointer-events-none absolute top-[calc(100%+0.4rem)] left-1/2 z-50 w-max max-w-64 -translate-x-1/2 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-left text-xs leading-snug font-normal tracking-normal text-zinc-200 opacity-0 shadow-lg shadow-black/40 transition-opacity duration-150;
+  }
+
+  &:hover .term-tip-bubble,
+  &:focus-visible .term-tip-bubble,
+  &:focus-within .term-tip-bubble {
+    @apply opacity-100;
+  }
+
+  &:focus-visible {
+    @apply rounded-sm outline-2 outline-offset-2 outline-cyan-500;
+  }
+}
+
+@media (hover: none) {
+  .term-tip:active .term-tip-bubble {
+    @apply opacity-100;
   }
 }
 
