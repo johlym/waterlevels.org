@@ -4,6 +4,9 @@ require "sidekiq-scheduler/web"
 Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
 
+  # Temporary Sentry verification route — remove after confirming capture.
+  get "/debug-sentry", to: "sentry_debug#show" if Rails.env.development?
+
   root "home#show"
   get "/map", to: "maps#show", as: :map
   get "/alerts", to: "alerts#show", as: :alerts
