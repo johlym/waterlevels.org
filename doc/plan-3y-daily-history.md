@@ -163,17 +163,17 @@ Assume deep batch = 10/hour × 24 × 6 days ≈ **1,440 deep station-attempts/we
 
 ## Implementation checklist
 
-- [ ] Constants + `"3y"` window in `HistoryIngestion`; prune follows `DAILY_RETENTION`
-- [ ] `missing_deep_history?` / scope; do **not** fold into `needs_history_backfill?`
-- [ ] Batch job phase split + `HISTORY_DEEP_BACKFILL_BATCH`
-- [ ] `HydrographSeries` + API allowlist + gauge range tab + axis formatting
-- [ ] FAQ / DESIGN retention copy
-- [ ] Tests listed above
-- [ ] Production: enable deep batch gradually; confirm circuit stays quiet
-- [ ] Leave POR / multi-chunk continuous to [`future.md`](./future.md)
+- [x] Constants + `"3y"` window in `HistoryIngestion`; prune follows `DAILY_RETENTION`
+- [x] `missing_deep_history?` / scope; do **not** fold into `needs_history_backfill?`
+- [x] Batch job phase split + `HISTORY_DEEP_BACKFILL_BATCH`
+- [x] `HydrographSeries` + API allowlist + gauge range tab (shown only when `has_deep_history?`) + axis formatting
+- [x] FAQ / DESIGN retention copy
+- [x] Tests listed above
+- [ ] Production: confirm circuit stays quiet after deploy (`HISTORY_DEEP_BACKFILL_BATCH` default `10`)
+- [x] Leave POR / multi-chunk continuous to [`future.md`](./future.md)
 
-## Open decisions
+## Decisions
 
-1. **Kill-switch default:** deep batch default `0` (explicit enable) vs `10` (slow drip from day one)? Recommendation: default `10` in code comments/README, but ship the first PR with default `0` if production latest-sync is already near the USGS ceiling.
-2. **UI label:** replace “1 Year” with “3 Years”, or keep both tabs? Recommendation: **keep both** — 1y stays the dense recent daily view users already know; 3y is opt-in longer context.
+1. **Deep batch default:** `HISTORY_DEEP_BACKFILL_BATCH=10` (set `0` to pause).
+2. **UI:** keep **1 Year**; show **3 Years** only when `has_deep_history?`.
 3. **Rename prune job?** `ContinuousPruneJob` also prunes daily — out of scope; optional rename later.

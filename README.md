@@ -45,9 +45,13 @@ Optional history backfill after bootstrap:
 
 ```bash
 STATE=wa RANGE=1y LIMIT=25 bin/rails usgs:backfill
+# optional deep daily fill after year history exists:
+STATE=wa RANGE=3y LIMIT=25 bin/rails usgs:backfill
 ```
 
-Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_BACKFILL_BATCH` (default `40`).
+Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_BACKFILL_BATCH` (default `40`), `HISTORY_DEEP_BACKFILL_BATCH` (default `10`; set `0` to pause 3y deep fills).
+
+See `doc/plan-3y-daily-history.md` and `doc/future.md` for retention tiers and longer POR notes.
 
 ## Tests
 

@@ -184,6 +184,59 @@ class HistoryIngestionTest < ActiveSupport::TestCase
     end
   end
 
+  test "3y ingest requests the older daily gap beyond existing year history" do
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do
+      ContinuousObservation.create!(time_series: @series, observed_at: 1.hour.ago, value: 1.0)
+      DailyObservation.create!(time_series: @series, observed_on: 11.months.ago.to_date, value: 1.0)
+      DailyObservation.create!(time_series: @series, observed_on: Date.current, value: 1.1)
+      PeakObservation.create!(time_series: @series, water_year: 2025, value: 9.0, peak_kind: "high")
+
+      captured = nil
+      stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/daily/items})
+        .to_return do |request|
+          captured = CGI.unescape(request.uri.query.to_s)
+          {
+            status: 200,
+            headers: { "Content-Type" => "application/geo+json" },
+            body: {
+              features: [
+                {
+                  id: "d3",
+                  properties: {
+                    time_series_id: @series.usgs_time_series_id,
+                    parameter_code: "62614",
+                    time: 35.months.ago.to_date.iso8601,
+                    value: 537.0,
+                    approval_status: "Approved"
+                  }
+                }
+              ],
+              links: []
+            }.to_json
+          }
+        end
+
+      HistoryIngestion.new(monitoring_location: @location, range: "3y").perform
+
+      assert_match(%r{datetime=2023-08-03/}, captured)
+      refute_match(%r{datetime=2025-08-03/2026-08-03}, captured)
+      assert_equal 35.months.ago.to_date, @series.daily_observations.minimum(:observed_on)
+    end
+  end
+
+  test "1y ingest does not pull the 3y daily gap when year history is already present" do
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do
+      ContinuousObservation.create!(time_series: @series, observed_at: 1.hour.ago, value: 1.0)
+      DailyObservation.create!(time_series: @series, observed_on: 11.months.ago.to_date, value: 1.0)
+      DailyObservation.create!(time_series: @series, observed_on: Date.current, value: 1.1)
+      PeakObservation.create!(time_series: @series, water_year: 2025, value: 9.0, peak_kind: "high")
+
+      HistoryIngestion.new(monitoring_location: @location, range: "1y").perform
+
+      assert_not_requested :get, %r{api\.waterdata\.usgs\.gov}
+    end
+  end
+
   test "coalesces multiple parameter codes into one continuous request per location" do
     discharge = create(
       :time_series,

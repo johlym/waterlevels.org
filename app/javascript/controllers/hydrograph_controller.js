@@ -680,6 +680,13 @@ export default class extends Controller {
     if (this.range === "1y") {
       return date.toLocaleDateString("en-US", this.localeOptions({ month: "short", day: "numeric" }))
     }
+    if (this.range === "3y") {
+      return date.toLocaleDateString("en-US", this.localeOptions({
+        month: "short",
+        day: "numeric",
+        year: "2-digit"
+      }))
+    }
     const narrow = typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches
     if (narrow) {
       return date.toLocaleDateString("en-US", this.localeOptions({

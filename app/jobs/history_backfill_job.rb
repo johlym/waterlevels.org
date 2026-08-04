@@ -35,10 +35,12 @@ class HistoryBackfillJob < ApplicationJob
 
     # Only cooldown after a successful attempt that still left gaps. Failed
     # writes (e.g. read-only DB) must not park the station for 6 hours.
-    if location.needs_history_backfill?
+    still_needs = location.needs_history_backfill? ||
+      (range.to_s == HistoryIngestion::DEEP_RANGE && location.missing_deep_history?)
+    if still_needs
       HistoryBackfillLock.cooldown!(monitoring_location_id)
       Rails.logger.info(
-        "HistoryBackfillJob cooldown site=#{location.site_number} still_needs_backfill=true"
+        "HistoryBackfillJob cooldown site=#{location.site_number} range=#{range} still_needs_backfill=true"
       )
     end
   ensure
