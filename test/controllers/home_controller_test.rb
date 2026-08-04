@@ -38,6 +38,10 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Couldn’t get your location"
     assert_includes response.headers["Cache-Tag"], "home"
     assert_includes response.headers["Cache-Control"], "s-maxage=3600"
+    assert_not_includes response.headers["Cache-Control"], "stale-while-revalidate"
+    assert_includes response.headers["Cloudflare-CDN-Cache-Control"], "max-age=3600"
+    assert_includes response.headers["Cloudflare-CDN-Cache-Control"], "stale-while-revalidate=86400"
+    assert_includes response.body, 'name="turbo-cache-control" content="no-cache"'
   end
 
   test "map lives at /map without the site footer" do
@@ -56,5 +60,8 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, 'data-map-target="floodCount"'
     assert_not_includes response.body, 'class="site-footer"'
     assert_includes response.headers["Cache-Tag"], "map"
+    assert_not_includes response.headers["Cache-Control"], "stale-while-revalidate"
+    assert_includes response.headers["Cloudflare-CDN-Cache-Control"], "stale-while-revalidate=86400"
+    assert_includes response.body, 'name="turbo-cache-control" content="no-cache"'
   end
 end

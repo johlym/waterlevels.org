@@ -24,6 +24,8 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
+    <%# Live gauge/map data — do not restore Turbo's in-memory page snapshots. %>
+    <meta name="turbo-cache-control" content="no-cache">
     <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
     <%= javascript_include_tag "application", "data-turbo-track": "reload", type: "module" %>
     <script src="https://cdn.usefathom.com/script.js" data-site="ZARCBYJB" defer></script>

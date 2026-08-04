@@ -59,6 +59,8 @@ class AlertsControllerTest < ActionDispatch::IntegrationTest
     assert_operator response.body.index("Texas"), :<, response.body.index("Washington")
     assert_includes response.headers["Cache-Tag"], "alerts"
     assert_includes response.headers["Cache-Control"], "s-maxage=3600"
+    assert_not_includes response.headers["Cache-Control"], "stale-while-revalidate"
+    assert_includes response.headers["Cloudflare-CDN-Cache-Control"], "stale-while-revalidate=86400"
   end
 
   test "renders empty state when no stations have alerts" do
