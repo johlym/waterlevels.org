@@ -81,7 +81,7 @@ Design the schema so the hot read paths (map viewport, state listing, gauge snap
 - **Observation tables**, all FK → `time_series`, all upserted on natural keys:
   - `latest_observations` — one row per series (unique `time_series_id`).
   - `continuous_observations` — sub-daily points (unique `(time_series_id, observed_at)`); ~90-day retention.
-  - `daily_observations` — daily means (unique `(time_series_id, observed_on)`); ~1-year retention.
+  - `daily_observations` — daily means (unique `(time_series_id, observed_on)`); ~3-year retention (1y filled first; 3y deep-fill is gated).
   - `peak_observations` — annual peaks (unique `(time_series_id, water_year, peak_kind)`).
 
 **Conventions:**
@@ -98,10 +98,10 @@ External data flows in through namespaced clients → sync objects → Sidekiq j
   - `StationCatalogSync` (weekly / bootstrap) — discover active continuous water-body sites, filter via `Usgs::SiteTypes`, upsert series + latest, select display series, prune inactive, warm caches.
   - `LatestObservationSync` (hourly) — refresh `selected_for_display` series, denormalize location columns, warm caches.
   - `FloodStageSync` (hourly, offset) — refresh flood categories from the NWPS gauge list by LID, prioritize detail-matching for any unlinked action+ gauges (LID → usgsId → site), then discover/refresh remaining thresholds via USGS site-number lookups. Also runs at the end of each `BootstrapStateJob`.
-  - `HistoryIngestion` (on-demand/batch) — fetch continuous/daily/peaks for charts; gap-aware.
+  - `HistoryIngestion` (on-demand/batch) — fetch continuous/daily/peaks for charts; gap-aware. Cold/lazy path uses `1y`; deep `3y` daily only for year-ready stations.
   - `DisplaySeriesSelection` — choose one discharge + one temperature + ranked water-level series; set `has_*` flags and denormalized columns.
 - **Jobs (`app/jobs`) + schedule (`config/sidekiq.yml`):** catalog (Sun 03:00), latest (hourly), flood (hourly :20), history backfill batch (Mon–Sat :30), prune (daily). Queues: `default`, `sync`, `backfill`.
-- **Rate-limit protection:** `ApplicationJob` retries transient `Usgs::Client::Error` but **discards** `RateLimitError`. `Usgs::RateLimitCircuit` opens on HTTP 429 (Redis key, TTL = rest of the UTC hour). Jobs check `open?` and skip. History backfill additionally no-ops on Sundays, honors `HistoryBackfillLock` (1h TTL, 6h cooldown), and is enqueued lazily from `GaugesController#show` when a station `needs_history_backfill?`.
+- **Rate-limit protection:** `ApplicationJob` retries transient `Usgs::Client::Error` but **discards** `RateLimitError`. `Usgs::RateLimitCircuit` opens on HTTP 429 (Redis key, TTL = rest of the UTC hour). Jobs check `open?` and skip. History backfill additionally no-ops on Sundays, honors `HistoryBackfillLock` (1h TTL, 6h cooldown), and is enqueued lazily from `GaugesController#show` when a station `needs_history_backfill?` (phase-1 `1y` only). The hourly batch then spends a separate `HISTORY_DEEP_BACKFILL_BATCH` budget on year-ready stations missing ~3y daily.
 - **Progress:** long operations report through `SyncProgress` (stdout + logger).
 
 **Convention:** never call an external API from a controller action on a cacheable path or from a view. Add new ingestion as a sync PORO invoked by a job and a rake task, and reuse the pacing/circuit-breaker guards.

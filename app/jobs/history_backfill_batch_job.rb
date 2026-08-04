@@ -17,8 +17,35 @@ class HistoryBackfillBatchJob < ApplicationJob
       raise DatabaseReadOnlyError, "database read-only circuit open"
     end
 
-    batch_size = (limit || ENV.fetch("HISTORY_BACKFILL_BATCH", "40")).to_i
-    batch_size = 40 if batch_size <= 0
+    phase1_budget = (limit || ENV.fetch("HISTORY_BACKFILL_BATCH", "40")).to_i
+    phase1_budget = 40 if phase1_budget <= 0
+    deep_budget = ENV.fetch("HISTORY_DEEP_BACKFILL_BATCH", "10").to_i
+    deep_budget = 0 if deep_budget.negative?
+
+    phase1_enqueued = enqueue_candidates(
+      MonitoringLocation.needing_history_backfill,
+      range: range,
+      budget: phase1_budget
+    )
+    deep_enqueued = enqueue_candidates(
+      MonitoringLocation.needing_deep_history_backfill,
+      range: HistoryIngestion::DEEP_RANGE,
+      budget: deep_budget
+    )
+
+    total = phase1_enqueued + deep_enqueued
+    Rails.logger.info(
+      "HistoryBackfillBatchJob enqueued=#{total} phase1_enqueued=#{phase1_enqueued} " \
+      "deep_enqueued=#{deep_enqueued} phase1_budget=#{phase1_budget} " \
+      "deep_budget=#{deep_budget} range=#{range}"
+    )
+    total
+  end
+
+  private
+
+  def enqueue_candidates(scope, range:, budget:)
+    return 0 if budget <= 0
 
     enqueued = 0
     skipped = 0
@@ -26,9 +53,9 @@ class HistoryBackfillBatchJob < ApplicationJob
     last_id = 0
 
     loop do
-      break if enqueued >= batch_size
+      break if enqueued >= budget
 
-      ids = MonitoringLocation.needing_history_backfill
+      ids = scope
         .where("monitoring_locations.id > ?", last_id)
         .order(:id)
         .limit(CANDIDATE_PAGE)
@@ -38,7 +65,7 @@ class HistoryBackfillBatchJob < ApplicationJob
       ids.each do |id|
         last_id = id
         scanned += 1
-        break if enqueued >= batch_size
+        break if enqueued >= budget
 
         if HistoryBackfillJob.enqueue(id, range)
           enqueued += 1
@@ -49,8 +76,8 @@ class HistoryBackfillBatchJob < ApplicationJob
     end
 
     Rails.logger.info(
-      "HistoryBackfillBatchJob enqueued=#{enqueued} skipped=#{skipped} " \
-      "scanned=#{scanned} batch_size=#{batch_size} range=#{range}"
+      "HistoryBackfillBatchJob phase range=#{range} enqueued=#{enqueued} " \
+      "skipped=#{skipped} scanned=#{scanned} budget=#{budget}"
     )
     enqueued
   end

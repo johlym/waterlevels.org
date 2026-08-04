@@ -4,11 +4,16 @@ class HistoryIngestion
   attr_accessor :client, :monitoring_location, :range, :progress
 
   DEFAULT_RANGE = "1y"
-  # High-resolution continuous is capped; 1y charts use daily values.
+  DEEP_RANGE = "3y"
+  # High-resolution continuous is capped; 1y/3y charts use daily values.
   CONTINUOUS_RETENTION = 90.days
-  DAILY_RETENTION = 1.year
+  DAILY_RETENTION = 3.years
+  # Phase-1 window for cold/lazy backfill (DEFAULT_RANGE). Retention may be longer.
+  DAILY_YEAR_WINDOW = 1.year
   # A selected series is considered year-loaded once it has a daily point this old.
   DAILY_HISTORY_ANCHOR = 11.months
+  # Deep (3y) history is ready once a daily point reaches this age.
+  DAILY_DEEP_HISTORY_ANCHOR = 35.months
   CONTINUOUS_FRESHNESS = 7.days
   # Refresh daily tips when the newest local day is older than this.
   DAILY_FRESHNESS = 2.days
@@ -39,11 +44,11 @@ class HistoryIngestion
   private
 
   def continuous_range?
-    %w[24h 7d 30d 1y].include?(range)
+    %w[24h 7d 30d 1y 3y].include?(range)
   end
 
   def daily_range?
-    %w[1y 30d].include?(range) || range == "por"
+    %w[1y 3y 30d].include?(range) || range == "por"
   end
 
   def needs_continuous?(series)
@@ -51,10 +56,17 @@ class HistoryIngestion
   end
 
   def needs_daily?(series)
-    return true if series.daily_observations.where(observed_on: ..DAILY_HISTORY_ANCHOR.ago.to_date).none?
+    return true if series.daily_observations.where(observed_on: ..daily_history_anchor).none?
 
     newest = series.daily_observations.maximum(:observed_on)
     newest.blank? || newest < DAILY_FRESHNESS.ago.to_date
+  end
+
+  def daily_history_anchor
+    case range
+    when "3y", "por" then DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
+    else DAILY_HISTORY_ANCHOR.ago.to_date
+    end
   end
 
   def needs_peaks?(series)
@@ -68,7 +80,7 @@ class HistoryIngestion
     when "24h" then 24.hours.ago.utc
     when "7d" then 7.days.ago.utc
     when "30d" then 30.days.ago.utc
-    when "1y" then CONTINUOUS_RETENTION.ago.utc
+    when "1y", "3y" then CONTINUOUS_RETENTION.ago.utc
     else
       CONTINUOUS_RETENTION.ago.utc
     end
@@ -76,7 +88,8 @@ class HistoryIngestion
 
   def daily_window_start
     case range
-    when "1y", "por" then DAILY_RETENTION.ago.to_date
+    when "3y", "por" then DAILY_RETENTION.ago.to_date
+    when "1y" then DAILY_YEAR_WINDOW.ago.to_date
     else
       30.days.ago.to_date
     end

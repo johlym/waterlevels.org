@@ -76,6 +76,60 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     refute location.missing_year_history?
   end
 
+  test "missing_deep_history? is false until year history exists" do
+    location = create(:monitoring_location)
+    series = create(:time_series, monitoring_location: location, selected_for_display: true)
+    ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+
+    refute location.missing_deep_history?
+    refute location.has_deep_history?
+  end
+
+  test "missing_deep_history? is true when year-ready but deep daily is absent" do
+    location = create(:monitoring_location)
+    series = create(:time_series, monitoring_location: location, selected_for_display: true)
+    ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 10.0)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+
+    assert location.missing_deep_history?
+    refute location.has_deep_history?
+  end
+
+  test "has_deep_history? is true when deep daily anchor is present" do
+    location = create(:monitoring_location)
+    series = create(:time_series, monitoring_location: location, selected_for_display: true)
+    DailyObservation.create!(time_series: series, observed_on: 35.months.ago.to_date, value: 9.0)
+    DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 10.0)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+
+    refute location.missing_deep_history?
+    assert location.has_deep_history?
+  end
+
+  test "needing_deep_history_backfill includes year-ready stations missing deep daily" do
+    year_ready = create(:monitoring_location, site_number: "20000010")
+    year_series = create(:time_series, monitoring_location: year_ready, selected_for_display: true)
+    ContinuousObservation.create!(time_series: year_series, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: year_series, observed_on: 11.months.ago.to_date, value: 10.0)
+    DailyObservation.create!(time_series: year_series, observed_on: Date.current, value: 11.0)
+
+    cold = create(:monitoring_location, site_number: "20000011")
+    create(:time_series, monitoring_location: cold, selected_for_display: true)
+
+    deep_ready = create(:monitoring_location, site_number: "20000012")
+    deep_series = create(:time_series, monitoring_location: deep_ready, selected_for_display: true)
+    ContinuousObservation.create!(time_series: deep_series, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: deep_series, observed_on: 35.months.ago.to_date, value: 9.0)
+    DailyObservation.create!(time_series: deep_series, observed_on: Date.current, value: 11.0)
+
+    ids = MonitoringLocation.needing_deep_history_backfill.pluck(:id)
+    assert_includes ids, year_ready.id
+    refute_includes ids, cold.id
+    refute_includes ids, deep_ready.id
+  end
+
   test "search matches name, site number, and state across the collection" do
     river = create(
       :monitoring_location,

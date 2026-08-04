@@ -75,6 +75,23 @@ class MonitoringLocation < ApplicationRecord
       .or(where(id: stale_daily_tip.select(:monitoring_location_id)))
       .distinct
   }
+  # Year-ready stations that still lack ~3-year daily history. Excludes phase-1
+  # candidates so the deep batch never competes with cold/lazy 1y fills.
+  scope :needing_deep_history_backfill, lambda {
+    year_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
+    deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
+
+    missing_year = TimeSeries.selected.where.not(
+      id: DailyObservation.where(observed_on: ..year_anchor).select(:time_series_id)
+    )
+    missing_deep = TimeSeries.selected.where.not(
+      id: DailyObservation.where(observed_on: ..deep_anchor).select(:time_series_id)
+    )
+    where(id: missing_deep.select(:monitoring_location_id))
+      .where.not(id: missing_year.select(:monitoring_location_id))
+      .where.not(id: needing_history_backfill.select(:id))
+      .distinct
+  }
 
   def stale?
     latest_observed_at.blank? || latest_observed_at < STALE_AFTER.ago
@@ -112,7 +129,7 @@ class MonitoringLocation < ApplicationRecord
     end
   end
 
-  # True when a selected series lacks daily points near the ~1-year retention
+  # True when a selected series lacks daily points near the ~1-year
   # anchor — i.e. the 1 Year chart is not fully loaded yet.
   def missing_year_history?
     series = time_series.selected
@@ -120,6 +137,27 @@ class MonitoringLocation < ApplicationRecord
 
     daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     series.any? { |s| s.daily_observations.where(observed_on: ..daily_anchor).none? }
+  end
+
+  # True when year history is present but a selected series still lacks daily
+  # points near the ~3-year deep anchor.
+  def missing_deep_history?
+    series = time_series.selected
+    return false if series.none?
+    return false if missing_year_history?
+
+    deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
+    series.any? { |s| s.daily_observations.where(observed_on: ..deep_anchor).none? }
+  end
+
+  # True when every selected series has daily points near the ~3-year anchor —
+  # used to expose the 3 Years chart tab.
+  def has_deep_history?
+    series = time_series.selected
+    return false if series.none?
+
+    deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
+    series.all? { |s| s.daily_observations.where(observed_on: ..deep_anchor).exists? }
   end
 
   def to_param
