@@ -16,6 +16,10 @@ class ContactsController < ApplicationController
 
   private
 
+  def enable_session?
+    true
+  end
+
   def contact_params
     params.require(:contact_message).permit(:name, :email, :subject, :message)
   end

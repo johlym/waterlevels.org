@@ -56,6 +56,7 @@ class StationCatalogCleanup
     NearbyStations.refresh_all
     StateListingCache.warm_all
     AlertsListingCache.warm
+    EdgeCacheInvalidation.after_catalog_sync!(state: @state)
 
     report.merge(
       deleted: deleted,
