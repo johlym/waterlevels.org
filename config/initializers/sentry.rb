@@ -11,4 +11,5 @@ Sentry.init do |config|
 
   config.environment = ENV.fetch("SENTRY_ENVIRONMENT", Rails.env)
   config.release = ENV["SENTRY_RELEASE"] if ENV["SENTRY_RELEASE"].present?
+  config.debug = ActiveModel::Type::Boolean.new.cast(ENV.fetch("SENTRY_DEBUG", "false"))
 end
