@@ -47,4 +47,25 @@ class LatestObservationSyncTest < ActiveSupport::TestCase
     continuous = ContinuousObservation.find_by!(time_series_id: @series.id, observed_at: latest.observed_at)
     assert_in_delta 12.5, continuous.value, 0.001
   end
+
+  test "purges Cloudflare cache tags after warming when credentials are set" do
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/latest-continuous/items})
+      .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+
+    purge = stub_request(:post, "https://api.cloudflare.com/client/v4/zones/zone-test/purge_cache")
+      .to_return(status: 200, body: { success: true }.to_json, headers: { "Content-Type" => "application/json" })
+
+    previous_token = ENV["CLOUDFLARE_API_TOKEN"]
+    previous_zone = ENV["CLOUDFLARE_ZONE_ID"]
+    ENV["CLOUDFLARE_API_TOKEN"] = "token-test"
+    ENV["CLOUDFLARE_ZONE_ID"] = "zone-test"
+    begin
+      LatestObservationSync.new(state: "wa").perform
+    ensure
+      previous_token ? ENV["CLOUDFLARE_API_TOKEN"] = previous_token : ENV.delete("CLOUDFLARE_API_TOKEN")
+      previous_zone ? ENV["CLOUDFLARE_ZONE_ID"] = previous_zone : ENV.delete("CLOUDFLARE_ZONE_ID")
+    end
+
+    assert_requested purge
+  end
 end

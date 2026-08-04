@@ -10,6 +10,19 @@ class ContactsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.headers["Cache-Control"], "no-store"
   end
 
+  test "contact enables a Rails session and CSRF meta tags" do
+    previous = ActionController::Base.allow_forgery_protection
+    ActionController::Base.allow_forgery_protection = true
+    get contact_path
+    assert_response :success
+    assert_includes response.headers["Set-Cookie"].to_s, "_waterlevels_session"
+    assert_includes response.body, 'name="csrf-token"'
+  ensure
+    ActionController::Base.allow_forgery_protection = previous
+  end
+
+
+
   test "delivers a contact message" do
     assert_enqueued_emails 1 do
       post contact_path, params: {

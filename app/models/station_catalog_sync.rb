@@ -40,9 +40,12 @@ class StationCatalogSync
     AlertsListingCache.warm
     progress&.step("warming station snapshots")
     location_scope.find_each { |location| StationSnapshotCache.warm(location) }
+    progress&.step("purging edge cache tags")
+    EdgeCacheInvalidation.after_catalog_sync!(state: state)
     progress&.finish("locations=#{location_scope.count} time_series=#{time_series_scope.count}")
     true
   end
+
 
   private
 

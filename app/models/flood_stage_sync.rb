@@ -248,7 +248,9 @@ class FloodStageSync
     else
       StateListingCache.warm_all
     end
+    EdgeCacheInvalidation.after_flood_sync!(state: state)
   end
+
 
   def parse_time(value)
     return if value.blank?

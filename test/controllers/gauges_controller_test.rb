@@ -39,6 +39,10 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, ">Provisional<span"
     assert_includes response.body, "not finished review"
     assert_includes response.headers["Cache-Tag"], "gauge:#{@location.site_number}"
+    assert_includes response.headers["Cache-Control"], "max-age=60"
+    assert_not_includes response.headers["Cache-Control"], "stale-while-revalidate"
+    assert_includes response.headers["Cloudflare-CDN-Cache-Control"], "stale-while-revalidate=86400"
+    assert_includes response.body, 'name="turbo-cache-control" content="no-cache"'
   end
 
   test "measurement labels include glossary tooltips for datum terms" do

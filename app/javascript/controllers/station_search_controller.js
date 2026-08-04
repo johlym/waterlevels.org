@@ -105,7 +105,7 @@ export default class extends Controller {
         try {
           const { latitude, longitude } = pos.coords
           const url = `${this.nearestUrlValue}?lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`
-          const response = await fetch(url, { headers: { Accept: "application/json" } })
+          const response = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" })
           if (!response.ok) throw new Error("nearest lookup failed")
           const data = await response.json()
           if (data.station?.path) {
@@ -137,7 +137,7 @@ export default class extends Controller {
     const requestId = ++this.requestId
     const query = this.query
     const url = `${this.searchUrlValue}?q=${encodeURIComponent(query)}`
-    const response = await fetch(url, { headers: { Accept: "application/json" } })
+    const response = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" })
     if (!response.ok) return
     if (requestId !== this.requestId || query !== this.query) return
 

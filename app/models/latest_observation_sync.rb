@@ -19,9 +19,12 @@ class LatestObservationSync
     StateListingCache.warm_all
     AlertsListingCache.warm
     SiteStats.warm!
+    progress&.step("purging edge cache tags")
+    EdgeCacheInvalidation.after_latest_sync!(state: state)
     progress&.finish("latest_observations=#{latest_scope.count}")
     true
   end
+
 
   private
 

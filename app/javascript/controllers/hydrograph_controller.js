@@ -120,7 +120,8 @@ export default class extends Controller {
         if (measurement.parameter_code) params.set("parameter_code", measurement.parameter_code)
         if (measurement.kind) params.set("kind", measurement.kind)
         const response = await fetch(`${this.urlValue}?${params.toString()}`, {
-          headers: { Accept: "application/json" }
+          headers: { Accept: "application/json" },
+          cache: "no-store"
         })
         if (!response.ok) return null
         return response.json()

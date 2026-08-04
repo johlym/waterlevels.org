@@ -63,13 +63,13 @@ bin/rails test
 
 - Dynos: `web`, `worker`
 - Add-ons: Postgres, Redis
-- Set `USGS_API_KEY`, `REDIS_URL`, `DATABASE_URL`, `APP_HOST`, `SENTRY_DSN`
+- Set `USGS_API_KEY`, `REDIS_URL`, `DATABASE_URL`, `APP_HOST`, `SENTRY_DSN`; optional `CLOUDFLARE_ZONE_ID` + `CLOUDFLARE_API_TOKEN` for post-sync Cache-Tag purge
 - Enable [runtime dyno metadata](https://devcenter.heroku.com/articles/dyno-metadata) so `HEROKU_RELEASE_VERSION` is available; Sentry uses it as the release and tags environment as `production`
 - Open Graph PNGs are rendered with `rsvg-convert` (`Aptfile` → `librsvg2-bin`). Requires [`heroku-community/apt`](https://elements.heroku.com/buildpacks/heroku/heroku-buildpack-apt) as buildpack **#1** (before Ruby) so the Aptfile packages install on the dyno.
 - Redis TLS: Sidekiq, cache, and Action Cable use `ssl_params.verify_mode = VERIFY_NONE` for Heroku self-signed `rediss://` certs
 - After deploy: `heroku run bin/rails usgs:enqueue_bootstrap -a <app>`
 - Optional: `MALLOC_ARENA_MAX=2` if worker RSS climbs
-- Put Cloudflare in front; honor `Cache-Control` / `Cache-Tag` from the app
+- Put Cloudflare in front; honor `Cache-Control` / `Cache-Tag` from the app. Use a Cache Rule (Eligible for cache + Origin Cache Control) for public HTML/JSON; bypass `/contact`. Public pages skip the Rails session cookie so HTML is not forced to `BYPASS`.
 - **Cold first request:** Eco/Hobby web dynos sleep when idle; the next hit waits for Puma/Rails boot (often multi-second). Prefer an always-on web dyno, or ping `/up` every few minutes. Puma also warms DB/Redis/`SiteStats` on boot so a post-sleep origin render is cheaper once the process is up.
 
 ## Contact form

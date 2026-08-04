@@ -37,9 +37,11 @@ class HistoryIngestion
     ingest_peaks_for(series_list.select { |s| needs_peaks?(s) })
 
     StationSnapshotCache.warm(monitoring_location)
+    EdgeCacheInvalidation.after_station_history!(monitoring_location)
     progress&.finish("site=#{monitoring_location.site_number}")
     true
   end
+
 
   private
 

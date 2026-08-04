@@ -110,11 +110,15 @@ External data flows in through namespaced clients → sync objects → Sidekiq j
 
 Caching is layered; keep all three layers consistent when adding a surface.
 
-1. **HTTP edge headers** via `CacheableResponse`: default `public, max-age=60, s-maxage=3600, stale-while-revalidate=86400` plus a `Cache-Tag`. Every gauge tags `gauge:{site_number}`; states tag `state:{code}`; home/map/static/sitemap have their own tags. The contact page is explicitly `private, no-store`.
+1. **HTTP edge headers** via `CacheableResponse`: browser `Cache-Control` defaults to `public, max-age=60, s-maxage=3600` (no long browser `stale-while-revalidate` — that caused Turbo revisits to keep last visit’s HTML until a hard reload). Edge freshness uses `Cloudflare-CDN-Cache-Control: max-age={s_maxage}, stale-while-revalidate=86400` plus a `Cache-Tag`. Every gauge tags `gauge:{site_number}` **and** aggregate `gauges`; states tag `state:{code}` **and** `states`; home/map/static/sitemap/alerts/map APIs have their own tags. The contact page is explicitly `private, no-store`. HTML layouts also set `turbo-cache-control: no-cache` so Turbo Drive does not restore in-memory page snapshots for live data.
 2. **Redis payload snapshots:** `StationSnapshotCache` (per gauge, versioned key + TTL) and `StateListingCache` (per state) hold fully-shaped read models so page renders avoid joins. Caches are **warmed** at the end of the relevant sync and **rebuilt lazily** on `fetch` when stale/schema-bumped. `SiteStats` is warmed by latest/flood syncs and on Puma boot (not only busted); measurement totals may use Postgres `reltuples` estimates when tables are large. `Sitemap` is similarly cached.
 3. **Rails cache store:** Redis in production, memory store in development.
+4. **Cloudflare tag purge** via `Cloudflare::CachePurge` + `EdgeCacheInvalidation` after latest/flood/catalog syncs (and per-station after history ingestion). Requires `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ZONE_ID`; no-ops when unset. National syncs purge aggregate tags (`gauges`, `states`, `home`, `map`, `alerts`, map API tags); state-scoped syncs also purge that state’s gauges. Purge failures are logged/Sentry’d and do **not** fail the sync.
+5. **No Rails session on cacheable pages.** `ApplicationController` sets `request.session_options[:skip] = true` by default so public HTML/JSON does not emit `_waterlevels_session`. Cloudflare treats `Set-Cookie` as `BYPASS` even when a Cache Rule marks the path Eligible for cache. **Only the contact form opts into sessions** (`PagesController` / `ContactsController` via `enable_session?`) for CSRF + flash. `csrf_meta_tags` render only when the session is enabled. `PUT /temperature_unit` skips forgery protection (preference cookie is also set client-side). **If you add another form or anything that needs CSRF/flash/session, you must opt that controller into `enable_session?` and keep its path out of the edge cache (or accept that it cannot be CDN-cached).** Do not put CSRF meta tags back on the global layout for cacheable pages.
 
-**Conventions:** bump the version segment in a snapshot cache key when its shape changes; emit a `Cache-Tag` for any new cacheable surface and purge it from Cloudflare after the corresponding sync; treat snapshots as derived and always warmable from the DB.
+**Cloudflare dashboard (ops):** public HTML/JSON need a Cache Rule with **Eligible for cache** + **Origin Cache Control: On**. Bypass `/contact*` (and any future session-backed paths). Without that rule, HTML stays `DYNAMIC`/`BYPASS` and tag purge has nothing to invalidate.
+
+**Conventions:** bump the version segment in a snapshot cache key when its shape changes; emit a `Cache-Tag` for any new cacheable surface and purge it from Cloudflare after the corresponding sync; treat snapshots as derived and always warmable from the DB; never write a session cookie on a cacheable GET.
 
 ## 9. Frontend
 
@@ -127,7 +131,7 @@ Caching is layered; keep all three layers consistent when adding a surface.
 
 ## 10. Contact form
 
-`GET /contact` renders `Contact::FormComponent` with a Turnstile widget and is served `private, no-store`. `POST /contact` runs an `invisible_captcha` honeypot, validates a `ContactMessage`, verifies Cloudflare Turnstile (`TurnstileVerification`; bypassed in test when the secret is unset), and enqueues `ContactMailer` (delivered via bento-actionmailer in production, with premailer-rails inlining CSS). Recipient/from configured via `CONTACT_TO_EMAIL` / `MAIL_FROM`.
+`GET /contact` renders `Contact::FormComponent` with a Turnstile widget and is served `private, no-store`. It is the only public HTML surface that enables the Rails session (CSRF meta tags + flash). `POST /contact` runs an `invisible_captcha` honeypot, validates a `ContactMessage`, verifies Cloudflare Turnstile (`TurnstileVerification`; bypassed in test when the secret is unset), and enqueues `ContactMailer` (delivered via bento-actionmailer in production, with premailer-rails inlining CSS). Recipient/from configured via `CONTACT_TO_EMAIL` / `MAIL_FROM`.
 
 ## 11. Domain/value objects
 
@@ -147,14 +151,14 @@ Encapsulate domain knowledge in small, well-named objects rather than scattering
 - **Processes:** `Procfile` → `web` (Puma) + `worker` (Sidekiq) + `release` (`db:migrate`); `Procfile.dev` → Rails + JS/CSS watchers.
 - **Environments:** development uses memory cache + `:async` jobs + suppressed mail errors; production uses Redis cache + Sidekiq + Bento mail + `force_ssl`.
 - **Heroku target:** web + worker dynos, Postgres + Redis add-ons; env `USGS_API_KEY`, `REDIS_URL`, `DATABASE_URL`; post-deploy `bin/rails usgs:enqueue_bootstrap`. `lib/redis_config.rb` sets `ssl_params.verify_mode = VERIFY_NONE` for Heroku self-signed `rediss://`.
-- **Edge:** Cloudflare in front, honoring `Cache-Control`/`Cache-Tag` for targeted purges.
+- **Edge:** Cloudflare in front, honoring `Cache-Control`/`Cache-Tag` for targeted purges. Set `CLOUDFLARE_ZONE_ID` + `CLOUDFLARE_API_TOKEN` (Zone.Cache Purge permission) so syncs can call Instant Purge by tag.
 
 ## 14. Extending the app (checklist)
 
 When adding a feature, keep the design intact:
 
 1. New logic → a model/PORO (namespaced for external integrations), not a controller/helper/service.
-2. New read surface → denormalize or snapshot for speed; add a `Cache-Tag`; warm on the relevant sync and rebuild lazily on `fetch`.
+2. New read surface → denormalize or snapshot for speed; add a `Cache-Tag` (and aggregate tag if per-entity); warm on the relevant sync, purge via `EdgeCacheInvalidation`, and rebuild lazily on `fetch`. Do not enable a Rails session on cacheable GETs.
 3. New external data → a namespaced Faraday client + a sync PORO + a Sidekiq job + a rake task, reusing pacing + `RateLimitCircuit`; never call it inline on a cached path.
 4. New URL → lowercase slug + canonical redirect + sitemap entry.
 5. New UI → a ViewComponent sidecar and, if interactive, a single registered Stimulus controller.
