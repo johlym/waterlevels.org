@@ -9,7 +9,9 @@ Sentry.init do |config|
   # Full sampling in non-production; keep production volume reasonable.
   config.traces_sample_rate = Rails.env.production? ? 0.1 : 1.0
 
-  config.environment = ENV.fetch("SENTRY_ENVIRONMENT", Rails.env)
-  config.release = ENV["SENTRY_RELEASE"] if ENV["SENTRY_RELEASE"].present?
+  # Production is the only deployed environment; local uses Rails.env.
+  config.environment = Rails.env.production? ? "production" : Rails.env
+  # Set by Heroku dyno metadata (labs: runtime-dyno-metadata).
+  config.release = ENV["HEROKU_RELEASE_VERSION"] if ENV["HEROKU_RELEASE_VERSION"].present?
   config.debug = ActiveModel::Type::Boolean.new.cast(ENV.fetch("SENTRY_DEBUG", "false"))
 end
