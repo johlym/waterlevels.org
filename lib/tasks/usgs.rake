@@ -62,9 +62,13 @@ namespace :usgs do
     total = scope.count
     puts "USGS history backfill starting state=#{state} range=#{range} locations=#{total}"
 
-    scope.find_each.with_index(1) do |location, index|
-      progress = SyncProgress.new("usgs:backfill #{index}/#{total}")
-      HistoryIngestion.new(monitoring_location: location, range: range, progress: progress).perform
+    # Coalesce Cloudflare tag purges across stations — one (or few) Instant Purge
+    # calls instead of one per location (avoids Cloudflare rate limits).
+    EdgeCacheInvalidation.coalesce do
+      scope.find_each.with_index(1) do |location, index|
+        progress = SyncProgress.new("usgs:backfill #{index}/#{total}")
+        HistoryIngestion.new(monitoring_location: location, range: range, progress: progress).perform
+      end
     end
 
     puts "USGS history backfill finished"
