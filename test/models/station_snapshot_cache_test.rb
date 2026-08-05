@@ -97,6 +97,88 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
     assert_in_delta 3.5, payload[:measurements].first[:value], 0.001
   end
 
+  test "warm avoids per-series observation N+1 queries" do
+    observed_at = Time.utc(2026, 8, 4, 18, 0, 0)
+    location = create(:monitoring_location, latest_observed_at: observed_at)
+
+    series_specs = [
+      { parameter_code: "00065", measurement_kind: "water_level", unit: "ft", value: 4.5, usgs_time_series_id: "ts-wl-n1" },
+      { parameter_code: "00060", measurement_kind: "discharge", unit: "ft3/s", value: 1200.0, usgs_time_series_id: "ts-q-n1" },
+      { parameter_code: "00010", measurement_kind: "temperature", unit: "degC", value: 14.2, usgs_time_series_id: "ts-t-n1" }
+    ]
+
+    series_specs.each_with_index do |spec, index|
+      series = create(
+        :time_series,
+        monitoring_location: location,
+        parameter_code: spec[:parameter_code],
+        measurement_kind: spec[:measurement_kind],
+        selected_for_display: true,
+        usgs_time_series_id: spec[:usgs_time_series_id],
+        unit_of_measure: spec[:unit]
+      )
+      LatestObservation.create!(
+        time_series: series,
+        value: spec[:value],
+        unit_of_measure: spec[:unit],
+        observed_at: observed_at,
+        synced_at: Time.current
+      )
+      ContinuousObservation.create!(
+        time_series: series,
+        value: spec[:value] - 1,
+        observed_at: observed_at - 25.hours
+      )
+      DailyObservation.create!(
+        time_series: series,
+        value: spec[:value] - 2,
+        observed_on: observed_at.to_date - 1.year
+      )
+      DailyObservation.create!(
+        time_series: series,
+        value: spec[:value] - 3,
+        observed_on: observed_at.to_date - 2.days
+      )
+      PeakObservation.create!(
+        time_series: series,
+        peak_kind: "high",
+        water_year: 2025 + index,
+        value: spec[:value] + 10,
+        observed_at: observed_at - 30.days
+      )
+    end
+
+    sql = []
+    callback = lambda do |_name, _start, _finish, _id, payload|
+      next if payload[:cached]
+      next if payload[:name] == "SCHEMA"
+      sql << payload[:sql].to_s
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      payload = StationSnapshotCache.warm(location.reload)
+      assert_equal 3, payload[:measurements].size
+      payload[:measurements].each do |measurement|
+        assert_not_nil measurement.dig(:trends, :change_24h)
+        assert_not_nil measurement.dig(:trends, :yoy)
+        assert_not_nil measurement.dig(:extremes, :high)
+        assert_not_nil measurement.dig(:extremes, :low)
+      end
+    end
+
+    continuous_priors = sql.count { |q| q.include?("continuous_observations") && q.include?("DISTINCT ON") }
+    continuous_lookups = sql.count { |q| q.include?("FROM \"continuous_observations\"") }
+    peak_scoped = sql.count { |q| q.include?("FROM \"peak_observations\"") && q.include?("peak_kind") }
+    daily_ordered = sql.count { |q| q.include?("FROM \"daily_observations\"") && q.include?("ORDER BY") }
+    daily_yoy = sql.count { |q| q.include?("FROM \"daily_observations\"") && q.include?("observed_on") && q.include?("LIMIT") }
+
+    assert_equal 1, continuous_priors, "expected one batched continuous prior query, got:\n#{sql.join("\n")}"
+    assert_equal 0, continuous_lookups, "expected no per-series continuous lookups, got:\n#{sql.join("\n")}"
+    assert_equal 0, peak_scoped, "expected peaks from preload, got:\n#{sql.join("\n")}"
+    assert_equal 0, daily_ordered, "expected daily extremes from preload, got:\n#{sql.join("\n")}"
+    assert_equal 0, daily_yoy, "expected YoY from preload, got:\n#{sql.join("\n")}"
+  end
+
   test "nearby payload includes all available measurements for a neighbor" do
     origin = create(:monitoring_location, site_number: "00000001", usgs_monitoring_location_id: "USGS-00000001")
     neighbor = create(
