@@ -1,9 +1,14 @@
 module States
   class LocationsTableComponent < ViewComponent::Base
-    def initialize(locations:, state_label: nil, group_by: :county, show_alerts_filter: nil)
+    FLOOD_STAGE_FILTERS = Nwps::FloodCategories::ALERT.map { |key|
+      [ key, Nwps::FloodCategories.label_for(key) ]
+    }.freeze
+
+    def initialize(locations:, state_label: nil, group_by: :county, show_alerts_filter: nil, show_flood_stages_filter: false)
       @locations = Array(locations)
       @group_by = group_by.to_sym
       @show_alerts_filter = show_alerts_filter
+      @show_flood_stages_filter = show_flood_stages_filter
     end
 
     def groups
@@ -53,6 +58,18 @@ module States
       return @show_alerts_filter unless @show_alerts_filter.nil?
 
       any_alerts?
+    end
+
+    def show_flood_stages_filter?
+      @show_flood_stages_filter
+    end
+
+    def flood_stage_filters
+      FLOOD_STAGE_FILTERS
+    end
+
+    def flood_stage_token(loc)
+      Nwps::FloodCategories.normalize(loc[:flood_category] || loc["flood_category"])
     end
 
     def type_tokens(loc)

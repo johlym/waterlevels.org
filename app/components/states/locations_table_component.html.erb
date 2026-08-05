@@ -18,6 +18,26 @@
         </div>
       </div>
 
+      <% if show_flood_stages_filter? %>
+        <div class="filter-block">
+          <span class="filter-label">Flood stages</span>
+          <div class="type-filters" role="group" aria-label="Flood stages">
+            <% flood_stage_filters.each do |value, label| %>
+              <label class="filter-check">
+                <input
+                  type="checkbox"
+                  checked
+                  value="<%= value %>"
+                  data-state-directory-target="floodStage"
+                  data-action="change->state-directory#filter"
+                >
+                <span><%= label %></span>
+              </label>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
       <div class="filter-block">
         <span class="filter-label">Measurement types</span>
         <div class="type-filters" role="group" aria-label="Measurement types">
@@ -124,6 +144,7 @@
               temp_c = loc[:latest_temperature_c] || loc["latest_temperature_c"]
               offline = stale?(loc)
               flood_category = loc[:flood_category] || loc["flood_category"]
+              flood_stage = flood_stage_token(loc)
               flood_label = loc[:flood_category_label] || loc["flood_category_label"]
               flood_alert = flood_alert?(loc)
               stage_elevated = flood_alert && stage.present?
@@ -147,6 +168,7 @@
                     state_directory_target: "card",
                     name: search_blob,
                     types: tokens.join(" "),
+                    flood_stage: flood_stage,
                     alert: flood_alert ? "true" : "false"
                   } do %>
               <div class="card-head">

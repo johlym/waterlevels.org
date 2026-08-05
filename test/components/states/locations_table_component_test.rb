@@ -62,6 +62,51 @@ class States::LocationsTableComponentTest < ViewComponent::TestCase
     assert_includes html, "Washington"
     assert_includes html, "Texas"
     assert_not_includes html, "Stations with alerts"
+    assert_not_includes html, "Flood stages"
     assert_operator html.index("Texas"), :<, html.index("Washington")
+  end
+
+  test "renders flood stage filters above measurement types when enabled" do
+    locations = [
+      {
+        name: "Flood Creek",
+        flood_alert: true,
+        flood_category: "action",
+        county_name: "King",
+        state_code: "wa",
+        state_name: "Washington",
+        path: "/gauges/wa/1",
+        site_number: "1"
+      },
+      {
+        name: "Major River",
+        flood_alert: true,
+        flood_category: "major",
+        county_name: "Travis",
+        state_code: "tx",
+        state_name: "Texas",
+        path: "/gauges/tx/2",
+        site_number: "2"
+      }
+    ]
+
+    html = render_inline(
+      States::LocationsTableComponent.new(
+        locations: locations,
+        group_by: :state,
+        show_alerts_filter: false,
+        show_flood_stages_filter: true
+      )
+    ).to_html
+
+    assert_includes html, "Flood stages"
+    assert_includes html, 'data-state-directory-target="floodStage"'
+    assert_includes html, "Action Stage"
+    assert_includes html, "Minor Flooding"
+    assert_includes html, "Moderate Flooding"
+    assert_includes html, "Major Flooding"
+    assert_includes html, 'data-flood-stage="action"'
+    assert_includes html, 'data-flood-stage="major"'
+    assert_operator html.index("Flood stages"), :<, html.index("Measurement types")
   end
 end
