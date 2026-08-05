@@ -100,7 +100,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Minor Flooding"
     assert_includes response.body, "badge flood-minor"
     assert_includes response.body, "NWS flood stages"
-    assert_includes response.body, "Action 5.0 ft"
+    assert_includes response.body, "Action 5 ft"
     assert_includes response.body, "data-hydrograph-flood-stages-value"
     assert_includes response.body, "&quot;minor&quot;:10.0"
     assert_not_includes response.body, "No flood stage data"

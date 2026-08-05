@@ -2,6 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 import L from "leaflet"
 import "leaflet.markercluster"
 import { geolocationErrorMessage } from "../lib/geolocation_errors"
+import { formatGaugeValue } from "../lib/gauge_value"
 
 export default class extends Controller {
   static targets = [
@@ -540,10 +541,12 @@ export default class extends Controller {
 
     if (station.water_level != null) {
       const label = station.water_level_label || "Water level"
-      rows.push(`<div class="popup-meta">${label}: <strong>${station.water_level} ${this.formatUnit(station.water_level_unit)}</strong></div>`)
+      const level = formatGaugeValue(station.water_level, 2) ?? station.water_level
+      rows.push(`<div class="popup-meta">${label}: <strong>${level} ${this.formatUnit(station.water_level_unit)}</strong></div>`)
     }
     if (station.discharge != null) {
-      rows.push(`<div class="popup-meta">Streamflow: <strong>${station.discharge} ${this.formatUnit(station.discharge_unit)}</strong></div>`)
+      const flow = formatGaugeValue(station.discharge, 0) ?? station.discharge
+      rows.push(`<div class="popup-meta">Streamflow: <strong>${flow} ${this.formatUnit(station.discharge_unit)}</strong></div>`)
     }
     if (station.temperature_c != null) {
       const unit = this.tempUnit()

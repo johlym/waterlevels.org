@@ -112,10 +112,10 @@
                 <p class="label">NWS flood stages</p>
                 <p class="value flood-stages">
                   <% bits = [] %>
-                  <% bits << "Action #{number_with_precision(action_ft, precision: 1)} ft" if action_ft.present? %>
-                  <% bits << "Minor #{number_with_precision(minor_ft, precision: 1)} ft" if minor_ft.present? %>
-                  <% bits << "Mod #{number_with_precision(moderate_ft, precision: 1)} ft" if moderate_ft.present? %>
-                  <% bits << "Major #{number_with_precision(major_ft, precision: 1)} ft" if major_ft.present? %>
+                  <% bits << "Action #{display_gauge_value(action_ft)} ft" if action_ft.present? %>
+                  <% bits << "Minor #{display_gauge_value(minor_ft)} ft" if minor_ft.present? %>
+                  <% bits << "Mod #{display_gauge_value(moderate_ft)} ft" if moderate_ft.present? %>
+                  <% bits << "Major #{display_gauge_value(major_ft)} ft" if major_ft.present? %>
                   <%= bits.join(" · ") %>
                 </p>
               </div>
@@ -260,7 +260,7 @@
                         <% else %>
                           <span>
                             <%= label %>:
-                            <%= number_with_precision(value, precision: precision, delimiter: ",") %>
+                            <%= display_gauge_value(value, precision: precision) %>
                             <%= unit %>
                           </span>
                         <% end %>

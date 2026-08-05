@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import Chart from "chart.js/auto"
+import { formatGaugeValue } from "../lib/gauge_value"
 
 const SERIES_COLORS = {
   discharge: { border: "#22d3ee", fill: "rgba(34, 211, 238, 0.18)", legend: "bg-cyan" },
@@ -728,12 +729,9 @@ export default class extends Controller {
       })
     }
     if (kind === "discharge") {
-      return Math.round(value).toLocaleString("en-US")
+      return formatGaugeValue(value, 0) ?? "—"
     }
-    return Number(value).toLocaleString("en-US", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2
-    })
+    return formatGaugeValue(value, 2) ?? "—"
   }
 
   unitLabel(series) {

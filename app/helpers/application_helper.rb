@@ -69,11 +69,16 @@ module ApplicationHelper
     UnitLabel.format(unit)
   end
 
+  # e.g. 541.10 / 540 — pad fractional gauge readings to +precision+ places.
+  def display_gauge_value(value, precision: 2)
+    GaugeValue.format(value, precision: precision)
+  end
+
   # e.g. +1,234.50 / -12
   def signed_number(value, precision:)
     return if value.nil?
 
-    formatted = number_with_precision(value, precision: precision, delimiter: ",")
+    formatted = display_gauge_value(value, precision: precision)
     value.to_f.positive? ? "+#{formatted}" : formatted
   end
 
