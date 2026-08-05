@@ -14,6 +14,10 @@ class HistoryIngestion
   DAILY_HISTORY_ANCHOR = 11.months
   # Deep (3y) history is ready once a daily point reaches this age.
   DAILY_DEEP_HISTORY_ANCHOR = 35.months
+  # Continuous is considered loaded once a point reaches this age (~retention slack).
+  # Tip-only stations from LatestObservationSync must still pull the older IV window.
+  CONTINUOUS_HISTORY_ANCHOR = 85.days
+  # Refresh continuous tips when the newest local point is older than this.
   CONTINUOUS_FRESHNESS = 7.days
   # Refresh daily tips when the newest local day is older than this.
   DAILY_FRESHNESS = 2.days
@@ -58,7 +62,10 @@ class HistoryIngestion
   end
 
   def needs_continuous?(series)
-    series.continuous_observations.where(observed_at: CONTINUOUS_FRESHNESS.ago..).none?
+    return true if series.continuous_observations.where(observed_at: ..continuous_history_anchor).none?
+
+    newest = series.continuous_observations.maximum(:observed_at)
+    newest.blank? || newest < CONTINUOUS_FRESHNESS.ago
   end
 
   def needs_daily?(series)
@@ -66,6 +73,16 @@ class HistoryIngestion
 
     newest = series.daily_observations.maximum(:observed_on)
     newest.blank? || newest < DAILY_FRESHNESS.ago.to_date
+  end
+
+  def continuous_history_anchor
+    case range
+    when "24h" then 20.hours.ago.utc
+    when "7d" then 6.days.ago.utc
+    when "30d" then 25.days.ago.utc
+    else
+      CONTINUOUS_HISTORY_ANCHOR.ago.utc
+    end
   end
 
   def daily_history_anchor
@@ -107,23 +124,47 @@ class HistoryIngestion
 
   # USGS continuous rejects bare ISO-8601 durations (P7D/PT24H) despite docs;
   # use an explicit RFC3339 interval instead.
-  # For a location batch, use the earliest gap start among series that need data.
-  def continuous_start_for(series)
+  # Gap-aware like daily: fill the older archive hole, and separately refresh a
+  # stale tip. Tip-only stations (LatestObservationSync / catalog) must still
+  # pull window_start → oldest so 30d/90d charts are complete.
+  def continuous_datetime_ranges(series)
     window_start = continuous_window_start
+    ends = Time.current.utc
+    oldest = series.continuous_observations.minimum(:observed_at)&.utc
     newest = series.continuous_observations.maximum(:observed_at)&.utc
-    if newest && newest > window_start
-      [ newest - CONTINUOUS_OVERLAP, window_start ].max
+    ranges = []
+
+    if oldest.nil?
+      ranges << [ window_start, ends ]
     else
-      window_start
+      if oldest > window_start
+        ranges << [ window_start, oldest ] if window_start < oldest
+      end
+
+      if newest.nil? || newest < CONTINUOUS_FRESHNESS.ago
+        tip_start = newest ? (newest - CONTINUOUS_OVERLAP) : window_start
+        tip_start = [ tip_start, window_start ].max
+        ranges << [ tip_start, ends ] if tip_start < ends
+      end
     end
+
+    ranges
   end
 
-  def continuous_datetime_param(series_list)
-    ends = Time.current.utc
-    starts = series_list.map { |series| continuous_start_for(series) }.min
-    return if starts.blank? || starts >= ends
+  # Cover every series gap with as few location-level requests as possible.
+  def coalesced_continuous_ranges(series_list)
+    ranges = series_list.flat_map { |series| continuous_datetime_ranges(series) }
+    return [] if ranges.empty?
 
-    "#{starts.iso8601}/#{ends.iso8601}"
+    merged = []
+    ranges.sort_by(&:first).each do |start_at, end_at|
+      if merged.empty? || start_at > merged.last[1]
+        merged << [ start_at, end_at ]
+      else
+        merged.last[1] = [ merged.last[1], end_at ].max
+      end
+    end
+    merged
   end
 
   def daily_datetime_ranges(series)
@@ -218,43 +259,46 @@ class HistoryIngestion
       return
     end
 
-    datetime = continuous_datetime_param(series_list)
-    unless datetime
+    ranges = coalesced_continuous_ranges(series_list)
+    if ranges.empty?
       progress&.step("continuous skipped (already covered)")
       return
     end
 
     codes = parameter_codes_param(series_list)
-    progress&.step("continuous location batch parameters=#{codes} datetime=#{datetime}")
+    progress&.step("continuous location batch parameters=#{codes} ranges=#{ranges.size}")
     count = 0
-    client.each_collection_item(
-      "continuous",
-      monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
-      parameter_code: codes,
-      datetime: datetime
-    ) do |item|
-      series = resolve_series(item, series_list)
-      next unless series
+    ranges.each do |starts, ends|
+      datetime = "#{starts.iso8601}/#{ends.iso8601}"
+      client.each_collection_item(
+        "continuous",
+        monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
+        parameter_code: codes,
+        datetime: datetime
+      ) do |item|
+        series = resolve_series(item, series_list)
+        next unless series
 
-      observed_at = Time.zone.parse(item["time"] || item["datetime"].to_s) rescue nil
-      value = item["value"]
-      next if observed_at.blank? || value.blank?
-      next if temperature_outlier?(series, value)
+        observed_at = Time.zone.parse(item["time"] || item["datetime"].to_s) rescue nil
+        value = item["value"]
+        next if observed_at.blank? || value.blank?
+        next if temperature_outlier?(series, value)
 
-      ContinuousObservation.upsert(
-        {
-          time_series_id: series.id,
-          observed_at: observed_at,
-          value: value,
-          approval_status: item["approval_status"],
-          qualifier: item["qualifier"],
-          created_at: Time.current,
-          updated_at: Time.current
-        },
-        unique_by: %i[time_series_id observed_at]
-      )
-      count += 1
-      progress&.increment
+        ContinuousObservation.upsert(
+          {
+            time_series_id: series.id,
+            observed_at: observed_at,
+            value: value,
+            approval_status: item["approval_status"],
+            qualifier: item["qualifier"],
+            created_at: Time.current,
+            updated_at: Time.current
+          },
+          unique_by: %i[time_series_id observed_at]
+        )
+        count += 1
+        progress&.increment
+      end
     end
     progress&.step("continuous upserted=#{count}")
   end

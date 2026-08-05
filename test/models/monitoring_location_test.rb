@@ -40,15 +40,37 @@ class MonitoringLocationTest < ActiveSupport::TestCase
 
     needs_daily = create(:monitoring_location, site_number: "20000002")
     daily_series = create(:time_series, monitoring_location: needs_daily, selected_for_display: true)
+    ContinuousObservation.create!(
+      time_series: daily_series,
+      observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
+      value: 11.0
+    )
     ContinuousObservation.create!(time_series: daily_series, observed_at: 1.day.ago, value: 12.3)
 
     needs_daily_tip = create(:monitoring_location, site_number: "20000004")
     tip_series = create(:time_series, monitoring_location: needs_daily_tip, selected_for_display: true)
+    ContinuousObservation.create!(
+      time_series: tip_series,
+      observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
+      value: 11.0
+    )
     ContinuousObservation.create!(time_series: tip_series, observed_at: 1.day.ago, value: 12.3)
     DailyObservation.create!(time_series: tip_series, observed_on: 11.months.ago.to_date, value: 10.0)
 
+    # Tip-only continuous + year daily still needs the older IV archive.
+    needs_continuous_anchor = create(:monitoring_location, site_number: "20000005")
+    tip_only = create(:time_series, monitoring_location: needs_continuous_anchor, selected_for_display: true)
+    ContinuousObservation.create!(time_series: tip_only, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: tip_only, observed_on: 11.months.ago.to_date, value: 10.0)
+    DailyObservation.create!(time_series: tip_only, observed_on: Date.current, value: 11.0)
+
     complete = create(:monitoring_location, site_number: "20000003")
     series = create(:time_series, monitoring_location: complete, selected_for_display: true)
+    ContinuousObservation.create!(
+      time_series: series,
+      observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
+      value: 11.0
+    )
     ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)
     DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 10.0)
     DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
@@ -57,7 +79,10 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     assert_includes ids, needs_continuous.id
     assert_includes ids, needs_daily.id
     assert_includes ids, needs_daily_tip.id
+    assert_includes ids, needs_continuous_anchor.id
     refute_includes ids, complete.id
+    assert needs_continuous_anchor.needs_history_backfill?
+    refute complete.needs_history_backfill?
   end
 
   test "needs_history_backfill? is false without selected series" do
@@ -125,6 +150,11 @@ class MonitoringLocationTest < ActiveSupport::TestCase
   test "needing_deep_history_backfill includes year-ready stations missing deep daily" do
     year_ready = create(:monitoring_location, site_number: "20000010")
     year_series = create(:time_series, monitoring_location: year_ready, selected_for_display: true)
+    ContinuousObservation.create!(
+      time_series: year_series,
+      observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
+      value: 11.0
+    )
     ContinuousObservation.create!(time_series: year_series, observed_at: 1.day.ago, value: 12.3)
     DailyObservation.create!(time_series: year_series, observed_on: 11.months.ago.to_date, value: 10.0)
     DailyObservation.create!(time_series: year_series, observed_on: Date.current, value: 11.0)
@@ -134,6 +164,11 @@ class MonitoringLocationTest < ActiveSupport::TestCase
 
     deep_ready = create(:monitoring_location, site_number: "20000012")
     deep_series = create(:time_series, monitoring_location: deep_ready, selected_for_display: true)
+    ContinuousObservation.create!(
+      time_series: deep_series,
+      observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
+      value: 11.0
+    )
     ContinuousObservation.create!(time_series: deep_series, observed_at: 1.day.ago, value: 12.3)
     DailyObservation.create!(time_series: deep_series, observed_on: 35.months.ago.to_date, value: 9.0)
     DailyObservation.create!(time_series: deep_series, observed_on: Date.current, value: 11.0)

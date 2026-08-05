@@ -143,6 +143,16 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
           body: {
             features: [
               {
+                id: "0",
+                properties: {
+                  time_series_id: series.usgs_time_series_id,
+                  parameter_code: series.parameter_code,
+                  time: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago.utc.iso8601,
+                  value: 3.0,
+                  approval_status: "Approved"
+                }
+              },
+              {
                 id: "1",
                 properties: {
                   time_series_id: series.usgs_time_series_id,
@@ -204,6 +214,11 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
     series = create(:time_series, monitoring_location: location, selected_for_display: true)
 
     travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      ContinuousObservation.create!(
+        time_series: series,
+        observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
+        value: 0.9
+      )
       ContinuousObservation.create!(time_series: series, observed_at: 1.hour.ago, value: 1.0)
       DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 1.1)
       DailyObservation.create!(time_series: series, observed_on: Date.current, value: 1.2)

@@ -116,6 +116,11 @@ class HistoryIngestionTest < ActiveSupport::TestCase
   end
 
   test "skips USGS calls when continuous daily and peaks are already loaded" do
+    ContinuousObservation.create!(
+      time_series: @series,
+      observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
+      value: 0.9
+    )
     ContinuousObservation.create!(time_series: @series, observed_at: 1.hour.ago, value: 1.0)
     DailyObservation.create!(time_series: @series, observed_on: 11.months.ago.to_date, value: 1.0)
     DailyObservation.create!(time_series: @series, observed_on: Date.current, value: 1.1)
@@ -126,16 +131,46 @@ class HistoryIngestionTest < ActiveSupport::TestCase
     assert_not_requested :get, %r{api\.waterdata\.usgs\.gov}
   end
 
-  test "continuous request starts from newest local tip instead of full window" do
+  test "continuous request fills older gap when only recent tips exist" do
     travel_to Time.zone.parse("2026-08-03 12:00:00") do
+      # Mimic LatestObservationSync tip-only archive: a few recent IV points and
+      # complete daily year history, but nothing for the rest of the 30d/90d window.
       ContinuousObservation.create!(
         time_series: @series,
         observed_at: Time.zone.parse("2026-08-01 00:00:00"),
         value: 1.0
       )
-      # Tip within CONTINUOUS_FRESHNESS would skip continuous; use an older tip
-      # so a gap pull is required and we can assert the narrowed datetime bound.
-      @series.continuous_observations.delete_all
+      ContinuousObservation.create!(
+        time_series: @series,
+        observed_at: Time.zone.parse("2026-08-03 11:00:00"),
+        value: 1.1
+      )
+      DailyObservation.create!(time_series: @series, observed_on: 11.months.ago.to_date, value: 1.0)
+      DailyObservation.create!(time_series: @series, observed_on: Date.current, value: 1.1)
+      PeakObservation.create!(time_series: @series, water_year: 2025, value: 9.0, peak_kind: "high")
+
+      captured = nil
+      stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/continuous/items})
+        .to_return do |request|
+          captured = CGI.unescape(request.uri.query.to_s)
+          { status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json }
+        end
+
+      HistoryIngestion.new(monitoring_location: @location, range: "1y").perform
+
+      # Older gap only: retention window → oldest local tip (fresh tip skips tip refresh).
+      assert_match(%r{datetime=2026-05-05T.*/2026-08-01T00:00:00}, captured)
+      refute_match(%r{datetime=2026-05-05T.*/2026-08-03T}, captured)
+    end
+  end
+
+  test "continuous tip refresh uses overlap when newest tip is stale" do
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do
+      ContinuousObservation.create!(
+        time_series: @series,
+        observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
+        value: 0.9
+      )
       ContinuousObservation.create!(
         time_series: @series,
         observed_at: Time.zone.parse("2026-07-20 12:00:00"),
@@ -155,7 +190,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
 
       HistoryIngestion.new(monitoring_location: @location, range: "1y").perform
 
-      # 30-minute overlap from newest tip 2026-07-20T12:00:00
+      # 30-minute overlap from newest tip 2026-07-20T12:00:00; older archive already present.
       assert_match(%r{datetime=2026-07-20T11:30:00}, captured)
       refute_match(%r{datetime=2026-05-05T}, captured)
     end
@@ -186,6 +221,11 @@ class HistoryIngestionTest < ActiveSupport::TestCase
 
   test "3y ingest requests the older daily gap beyond existing year history" do
     travel_to Time.zone.parse("2026-08-03 12:00:00") do
+      ContinuousObservation.create!(
+        time_series: @series,
+        observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
+        value: 0.9
+      )
       ContinuousObservation.create!(time_series: @series, observed_at: 1.hour.ago, value: 1.0)
       DailyObservation.create!(time_series: @series, observed_on: 11.months.ago.to_date, value: 1.0)
       DailyObservation.create!(time_series: @series, observed_on: Date.current, value: 1.1)
@@ -226,6 +266,11 @@ class HistoryIngestionTest < ActiveSupport::TestCase
 
   test "1y ingest does not pull the 3y daily gap when year history is already present" do
     travel_to Time.zone.parse("2026-08-03 12:00:00") do
+      ContinuousObservation.create!(
+        time_series: @series,
+        observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
+        value: 0.9
+      )
       ContinuousObservation.create!(time_series: @series, observed_at: 1.hour.ago, value: 1.0)
       DailyObservation.create!(time_series: @series, observed_on: 11.months.ago.to_date, value: 1.0)
       DailyObservation.create!(time_series: @series, observed_on: Date.current, value: 1.1)
@@ -252,6 +297,11 @@ class HistoryIngestionTest < ActiveSupport::TestCase
       unit_of_measure: "ft",
       observed_at: older,
       synced_at: older
+    )
+    ContinuousObservation.create!(
+      time_series: @series,
+      observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
+      value: 499.0
     )
     ContinuousObservation.create!(time_series: @series, observed_at: older, value: 500.0)
     ContinuousObservation.create!(time_series: @series, observed_at: newer, value: 541.5)
