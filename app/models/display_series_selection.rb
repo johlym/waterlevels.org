@@ -20,9 +20,8 @@ class DisplaySeriesSelection
     denormalize!(location, selected: selected)
   end
 
-  # Rewrite denormalized map/listing tip columns from selected series tips.
-  # Safe to call after LatestObservation upserts without re-running selection.
-  def self.denormalize!(location, selected: nil)
+  # Tip hash derived from selected series' LatestObservation rows (no write).
+  def self.tip_attributes(location, selected: nil)
     selected ||= location.time_series.selected.includes(:latest_observation).to_a
     attrs = {
       latest_water_level_value: nil,
@@ -65,7 +64,13 @@ class DisplaySeriesSelection
       end
     end
     attrs[:latest_observed_at] = times.compact.max
-    location.update!(attrs)
+    attrs
+  end
+
+  # Rewrite denormalized map/listing tip columns from selected series tips.
+  # Safe to call after LatestObservation upserts without re-running selection.
+  def self.denormalize!(location, selected: nil)
+    location.update!(tip_attributes(location, selected: selected))
     location
   end
 

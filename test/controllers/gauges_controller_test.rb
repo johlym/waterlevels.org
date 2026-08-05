@@ -296,6 +296,40 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_equal observed_at.iso8601, station["observed_at"]
   end
 
+  test "map station popup prefers fresher LatestObservation over lagging columns" do
+    older = Time.utc(2026, 8, 2, 7, 30, 0)
+    newer = Time.utc(2026, 8, 5, 18, 30, 0)
+    @location.update!(
+      latitude: 47.5,
+      longitude: -121.8,
+      latest_water_level_value: 23.95,
+      latest_water_level_unit: "ft",
+      latest_water_level_parameter_code: "00065",
+      latest_observed_at: older
+    )
+    series = create(
+      :time_series,
+      monitoring_location: @location,
+      parameter_code: "00065",
+      measurement_kind: "water_level",
+      selected_for_display: true
+    )
+    LatestObservation.create!(
+      time_series: series,
+      value: 23.80,
+      unit_of_measure: "ft",
+      observed_at: newer,
+      synced_at: Time.current
+    )
+
+    get "/api/map/stations", params: { bbox: "-125,45,-120,49" }
+    assert_response :success
+    station = JSON.parse(response.body)["stations"].find { |row| row["id"] == @location.site_number }
+    assert station
+    assert_in_delta 23.80, station["water_level"], 0.001
+    assert_equal newer.iso8601, station["observed_at"]
+  end
+
   test "searches all monitoring locations without a bbox" do
     in_view = create(
       :monitoring_location,
