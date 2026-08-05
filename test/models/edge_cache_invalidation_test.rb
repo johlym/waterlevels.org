@@ -42,13 +42,15 @@ class EdgeCacheInvalidationTest < ActiveSupport::TestCase
     assert_not_includes tags, "gauge:09380000"
   end
 
-  test "station history purges gauge and state tags" do
+  test "station history purges gauge, state, and map API tags" do
     location = create(:monitoring_location, site_number: "12101000", state_code: "wa")
     @invalidation.after_station_history!(location)
     tags = @purger.calls.first
     assert_includes tags, "gauge:12101000"
     assert_includes tags, "gauges"
     assert_includes tags, "state:wa"
+    assert_includes tags, "map-stations"
+    assert_includes tags, "map"
   end
 
   test "catalog sync also purges sitemap" do

@@ -10,18 +10,32 @@ class LatestObservationSync
   end
 
   def perform
+    sync_error = nil
     progress&.step(scope_label)
-    Usgs::ParameterCodes::ALL.each do |parameter_code|
-      sync_parameter(parameter_code)
+    begin
+      Usgs::ParameterCodes::ALL.each do |parameter_code|
+        sync_parameter(parameter_code)
+      end
+    rescue StandardError => e
+      # Tip upserts may have succeeded for earlier parameters. Always denormalize
+      # so map popups (which read MonitoringLocation tip columns) catch up.
+      sync_error = e
     end
+
     denormalize_locations
-    progress&.step("warming state listing caches")
-    StateListingCache.warm_all
-    AlertsListingCache.warm
-    SiteStats.warm!
+
+    unless sync_error
+      progress&.step("warming state listing caches")
+      StateListingCache.warm_all
+      AlertsListingCache.warm
+      SiteStats.warm!
+    end
+
     progress&.step("purging edge cache tags")
     EdgeCacheInvalidation.after_latest_sync!(state: state)
     progress&.finish("latest_observations=#{latest_scope.count}")
+    raise sync_error if sync_error
+
     true
   end
 
@@ -113,49 +127,8 @@ class LatestObservationSync
     count = 0
 
     scope.find_each do |location|
-      attrs = {
-        latest_water_level_value: nil,
-        latest_water_level_parameter_code: nil,
-        latest_water_level_unit: nil,
-        latest_discharge_value: nil,
-        latest_discharge_unit: nil,
-        latest_temperature_c: nil,
-        latest_observed_at: nil,
-        latest_approval_status: nil
-      }
-
       selected = location.time_series.select(&:selected_for_display?)
-      water_levels = selected
-        .select { |s| s.measurement_kind == "water_level" && s.latest_observation }
-        .sort_by { |s| Usgs::ParameterCodes.preference_rank(s.parameter_code) }
-      preferred_water_level = water_levels.first
-
-      if preferred_water_level
-        obs = preferred_water_level.latest_observation
-        attrs[:latest_water_level_value] = obs.value
-        attrs[:latest_water_level_parameter_code] = preferred_water_level.parameter_code
-        attrs[:latest_water_level_unit] = obs.unit_of_measure
-        attrs[:latest_approval_status] = obs.approval_status
-      end
-
-      times = []
-      selected.each do |series|
-        obs = series.latest_observation
-        next unless obs
-
-        times << obs.observed_at
-        case series.measurement_kind
-        when "discharge"
-          attrs[:latest_discharge_value] = obs.value
-          attrs[:latest_discharge_unit] = obs.unit_of_measure
-          attrs[:latest_approval_status] ||= obs.approval_status
-        when "temperature"
-          attrs[:latest_temperature_c] = obs.value
-          attrs[:latest_approval_status] ||= obs.approval_status
-        end
-      end
-      attrs[:latest_observed_at] = times.compact.max
-      location.update!(attrs)
+      DisplaySeriesSelection.denormalize!(location, selected: selected)
       StationSnapshotCache.warm(location)
       count += 1
       progress&.increment

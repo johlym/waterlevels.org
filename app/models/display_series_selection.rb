@@ -15,16 +15,57 @@ class DisplaySeriesSelection
     location.update!(
       has_water_level: preferred_water_level.present?,
       has_discharge: discharge.present?,
-      has_temperature: temperature.present?,
-      latest_water_level_value: latest_value_for(preferred_water_level),
-      latest_water_level_parameter_code: preferred_water_level&.parameter_code,
-      latest_water_level_unit: latest_unit_for(preferred_water_level),
-      latest_discharge_value: latest_value_for(discharge),
-      latest_discharge_unit: latest_unit_for(discharge),
-      latest_temperature_c: latest_value_for(temperature),
-      latest_observed_at: selected.map { |s| s.latest_observation&.observed_at }.compact.max,
-      latest_approval_status: selected.map { |s| s.latest_observation&.approval_status }.compact.first
+      has_temperature: temperature.present?
     )
+    denormalize!(location, selected: selected)
+  end
+
+  # Rewrite denormalized map/listing tip columns from selected series tips.
+  # Safe to call after LatestObservation upserts without re-running selection.
+  def self.denormalize!(location, selected: nil)
+    selected ||= location.time_series.selected.includes(:latest_observation).to_a
+    attrs = {
+      latest_water_level_value: nil,
+      latest_water_level_parameter_code: nil,
+      latest_water_level_unit: nil,
+      latest_discharge_value: nil,
+      latest_discharge_unit: nil,
+      latest_temperature_c: nil,
+      latest_observed_at: nil,
+      latest_approval_status: nil
+    }
+
+    water_levels = selected
+      .select { |s| s.measurement_kind == "water_level" && s.latest_observation }
+      .sort_by { |s| Usgs::ParameterCodes.preference_rank(s.parameter_code) }
+    preferred_water_level = water_levels.first
+
+    if preferred_water_level
+      obs = preferred_water_level.latest_observation
+      attrs[:latest_water_level_value] = obs.value
+      attrs[:latest_water_level_parameter_code] = preferred_water_level.parameter_code
+      attrs[:latest_water_level_unit] = obs.unit_of_measure
+      attrs[:latest_approval_status] = obs.approval_status
+    end
+
+    times = []
+    selected.each do |series|
+      obs = series.latest_observation
+      next unless obs
+
+      times << obs.observed_at
+      case series.measurement_kind
+      when "discharge"
+        attrs[:latest_discharge_value] = obs.value
+        attrs[:latest_discharge_unit] = obs.unit_of_measure
+        attrs[:latest_approval_status] ||= obs.approval_status
+      when "temperature"
+        attrs[:latest_temperature_c] = obs.value
+        attrs[:latest_approval_status] ||= obs.approval_status
+      end
+    end
+    attrs[:latest_observed_at] = times.compact.max
+    location.update!(attrs)
     location
   end
 
@@ -42,14 +83,4 @@ class DisplaySeriesSelection
       series.find { |s| s.measurement_kind == kind }
   end
   private_class_method :pick_one
-
-  def self.latest_value_for(series)
-    series&.latest_observation&.value
-  end
-  private_class_method :latest_value_for
-
-  def self.latest_unit_for(series)
-    series&.latest_observation&.unit_of_measure || series&.unit_of_measure
-  end
-  private_class_method :latest_unit_for
 end

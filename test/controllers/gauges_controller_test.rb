@@ -274,6 +274,28 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_kind_of Array, json["stations"]
   end
 
+  test "map station popup payload reflects denormalized tip columns" do
+    observed_at = Time.utc(2026, 8, 5, 14, 15, 0)
+    @location.update!(
+      latitude: 47.5,
+      longitude: -121.8,
+      latest_water_level_value: 7.5,
+      latest_water_level_unit: "ft",
+      latest_water_level_parameter_code: "00065",
+      latest_discharge_value: 1200.0,
+      latest_discharge_unit: "ft3/s",
+      latest_observed_at: observed_at
+    )
+
+    get "/api/map/stations", params: { bbox: "-125,45,-120,49" }
+    assert_response :success
+    station = JSON.parse(response.body)["stations"].find { |row| row["id"] == @location.site_number }
+    assert station
+    assert_in_delta 7.5, station["water_level"], 0.001
+    assert_in_delta 1200.0, station["discharge"], 0.001
+    assert_equal observed_at.iso8601, station["observed_at"]
+  end
+
   test "searches all monitoring locations without a bbox" do
     in_view = create(
       :monitoring_location,
