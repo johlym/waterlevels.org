@@ -1,7 +1,19 @@
 # Purges Cloudflare edge cache by Cache-Tag after Redis snapshots are rewarmed.
 # Requires CLOUDFLARE_API_TOKEN + CLOUDFLARE_ZONE_ID; otherwise no-ops.
+#
+# History ingestions coalesce tags via EdgeCachePurgeBuffer so a backfill does
+# not fire one Instant Purge per station (Cloudflare rate limits are tight on
+# Free/Pro). Latest/flood/catalog syncs still purge immediately.
 class EdgeCacheInvalidation
   include ActiveModel::Model
+
+  HISTORY_SHARED_TAGS = %w[
+    map
+    map-stations
+    map-station-search
+    map-station-nearest
+    gauges
+  ].freeze
 
   attr_accessor :purger
 
@@ -25,6 +37,22 @@ class EdgeCacheInvalidation
     new(purger: purger).after_station_history!(location)
   end
 
+  def self.flush_pending!(purger: Cloudflare::CachePurge.new)
+    new(purger: purger).flush_pending!
+  end
+
+  # Buffer history purge tags in-process and flush once at the end. Used by
+  # synchronous bulk rake tasks (usgs:backfill).
+  def self.coalesce(purger: Cloudflare::CachePurge.new)
+    previous = Thread.current[:edge_cache_coalesce]
+    Thread.current[:edge_cache_coalesce] = []
+    yield
+    tags = Array(Thread.current[:edge_cache_coalesce]).uniq
+    new(purger: purger).purge!(tags) if tags.present?
+  ensure
+    Thread.current[:edge_cache_coalesce] = previous
+  end
+
   def after_latest_sync!(state: nil)
     purge!(sync_tags(state: state, include_map_apis: true))
   end
@@ -41,16 +69,45 @@ class EdgeCacheInvalidation
   def after_station_history!(location)
     return :empty unless location
 
-    # History can advance tip columns used by map popups — purge map APIs too.
-    tags = %w[map map-stations map-station-search map-station-nearest]
-    tags << "gauge:#{location.site_number}"
-    tags << "gauges"
-    tags << "state:#{location.state_code}" if location.state_code.present?
-    tags << "states" if location.state_code.present?
+    tags = history_tags_for(location)
+    if (buffer = Thread.current[:edge_cache_coalesce])
+      buffer.concat(tags)
+      return :coalesced
+    end
+
+    EdgeCachePurgeBuffer.add(tags)
+    EdgeCachePurgeBuffer.schedule_flush!
+    :queued
+  end
+
+  def flush_pending!
+    tags = EdgeCachePurgeBuffer.drain
     purge!(tags)
   end
 
+  def purge!(tags)
+    result = purger.purge_tags(tags)
+    Rails.logger.info("[EdgeCacheInvalidation] purge_tags=#{Array(tags).size} result=#{result}")
+    result
+  rescue Cloudflare::CachePurge::Error => e
+    Rails.logger.error("[EdgeCacheInvalidation] #{e.message}")
+    Sentry.capture_exception(e) if defined?(Sentry)
+    :failed
+  end
+
   private
+
+  def history_tags_for(location)
+    # Shared tags are deduped in the buffer / coalesce list so N stations become
+    # one purge of those aggregates plus up to N gauge:/state: tags.
+    tags = HISTORY_SHARED_TAGS.dup
+    tags << "gauge:#{location.site_number}"
+    if location.state_code.present?
+      tags << "state:#{location.state_code}"
+      tags << "states"
+    end
+    tags
+  end
 
   def sync_tags(state:, include_map_apis:)
     tags = %w[home map alerts]
@@ -66,15 +123,5 @@ class EdgeCacheInvalidation
       tags.concat(%w[gauges states])
     end
     tags
-  end
-
-  def purge!(tags)
-    result = purger.purge_tags(tags)
-    Rails.logger.info("[EdgeCacheInvalidation] purge_tags=#{Array(tags).size} result=#{result}")
-    result
-  rescue Cloudflare::CachePurge::Error => e
-    Rails.logger.error("[EdgeCacheInvalidation] #{e.message}")
-    Sentry.capture_exception(e) if defined?(Sentry)
-    :failed
   end
 end
