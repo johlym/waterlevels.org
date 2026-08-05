@@ -84,6 +84,11 @@ class LatestObservationSync
         skipped += 1
         next
       end
+      # USGS fault sentinels (e.g. -100000 degC) overflow latest_temperature_c.
+      if series.measurement_kind == "temperature" && !Usgs::ParameterCodes.plausible_temperature_c?(value)
+        skipped += 1
+        next
+      end
 
       LatestObservation.upsert(
         {

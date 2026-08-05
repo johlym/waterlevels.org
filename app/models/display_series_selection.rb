@@ -59,8 +59,11 @@ class DisplaySeriesSelection
         attrs[:latest_discharge_unit] = obs.unit_of_measure
         attrs[:latest_approval_status] ||= obs.approval_status
       when "temperature"
-        attrs[:latest_temperature_c] = obs.value
-        attrs[:latest_approval_status] ||= obs.approval_status
+        # Skip USGS sentinel / fault values (e.g. -100000) that overflow decimal(8,3).
+        if Usgs::ParameterCodes.plausible_temperature_c?(obs.value)
+          attrs[:latest_temperature_c] = obs.value
+          attrs[:latest_approval_status] ||= obs.approval_status
+        end
       end
     end
     attrs[:latest_observed_at] = times.compact.max

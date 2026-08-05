@@ -270,6 +270,62 @@ class HistoryIngestionTest < ActiveSupport::TestCase
     assert_equal newer, @location.latest_observed_at
   end
 
+  test "skips USGS temperature fault sentinels during continuous ingest and tip denormalize" do
+    temperature = create(
+      :time_series,
+      monitoring_location: @location,
+      parameter_code: "00010",
+      measurement_kind: "temperature",
+      selected_for_display: true,
+      usgs_time_series_id: "ts-temperature"
+    )
+    @location.update!(has_temperature: true, latest_temperature_c: 11.0)
+
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/continuous/items})
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/geo+json" },
+        body: {
+          features: [
+            {
+              id: "1",
+              properties: {
+                time_series_id: temperature.usgs_time_series_id,
+                parameter_code: "00010",
+                time: 1.hour.ago.utc.iso8601,
+                value: -100_000,
+                approval_status: "Provisional"
+              }
+            },
+            {
+              id: "2",
+              properties: {
+                time_series_id: temperature.usgs_time_series_id,
+                parameter_code: "00010",
+                time: 2.hours.ago.utc.iso8601,
+                value: 14.2,
+                approval_status: "Provisional"
+              }
+            }
+          ],
+          links: []
+        }.to_json
+      )
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/daily/items})
+      .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/peaks/items})
+      .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+
+    assert_nothing_raised do
+      HistoryIngestion.new(monitoring_location: @location, range: "7d").perform
+    end
+
+    assert_equal [ 14.2 ], temperature.continuous_observations.order(:observed_at).map { |o| o.value.to_f }
+    latest = LatestObservation.find_by!(time_series_id: temperature.id)
+    assert_in_delta 14.2, latest.value, 0.001
+    assert_in_delta 14.2, @location.reload.latest_temperature_c, 0.001
+  end
+
   test "coalesces multiple parameter codes into one continuous request per location" do
     discharge = create(
       :time_series,
