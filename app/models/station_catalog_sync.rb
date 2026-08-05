@@ -235,6 +235,9 @@ class StationCatalogSync
 
       observed_at = parse_time(row[:observed_at])
       next if observed_at.blank? || row[:value].blank?
+      if row[:measurement_kind] == "temperature" && !Usgs::ParameterCodes.plausible_temperature_c?(row[:value])
+        next
+      end
 
       LatestObservation.upsert(
         {

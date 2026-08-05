@@ -193,6 +193,7 @@ class HistoryIngestion
 
       tip = series.continuous_observations.find_by(observed_at: tip_at)
       next unless tip
+      next if temperature_outlier?(series, tip.value)
 
       LatestObservation.upsert(
         {
@@ -238,6 +239,7 @@ class HistoryIngestion
       observed_at = Time.zone.parse(item["time"] || item["datetime"].to_s) rescue nil
       value = item["value"]
       next if observed_at.blank? || value.blank?
+      next if temperature_outlier?(series, value)
 
       ContinuousObservation.upsert(
         {
@@ -285,6 +287,7 @@ class HistoryIngestion
         day = Date.parse(item["time"] || item["date"] || item["datetime"].to_s) rescue nil
         value = item["value"]
         next if day.blank? || value.blank?
+        next if temperature_outlier?(series, value)
 
         DailyObservation.upsert(
           {
@@ -350,5 +353,9 @@ class HistoryIngestion
 
   def water_year_for(time)
     time.month >= 10 ? time.year + 1 : time.year
+  end
+
+  def temperature_outlier?(series, value)
+    series.measurement_kind == "temperature" && !Usgs::ParameterCodes.plausible_temperature_c?(value)
   end
 end

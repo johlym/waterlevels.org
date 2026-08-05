@@ -15,6 +15,13 @@ module Usgs
       TEMPERATURE => "Temperature"
     }.freeze
 
+    # USGS publishes sensor-fault / no-data sentinels as degC (notably -100000).
+    # monitoring_locations.latest_temperature_c is decimal(8,3) ⇒ |v| < 1e5, so
+    # those sentinels raise PG::NumericValueOutOfRange during tip denormalize
+    # (history backfill / latest sync). Keep a generous physical band for water.
+    TEMPERATURE_C_MIN = BigDecimal("-100")
+    TEMPERATURE_C_MAX = BigDecimal("200")
+
     module_function
 
     def measurement_kind_for(parameter_code)
@@ -36,6 +43,18 @@ module Usgs
     def label_for(parameter_code, fallback: nil)
       code = parameter_code.to_s
       LABELS[code].presence || fallback.presence || code.presence || "Measurement"
+    end
+
+    def plausible_temperature_c?(value)
+      return false if value.nil?
+
+      raw = value.to_s.strip
+      return false if raw.empty?
+
+      temp = BigDecimal(raw)
+      temp >= TEMPERATURE_C_MIN && temp <= TEMPERATURE_C_MAX
+    rescue ArgumentError, TypeError
+      false
     end
   end
 end

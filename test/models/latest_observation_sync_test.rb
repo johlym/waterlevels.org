@@ -121,4 +121,47 @@ class LatestObservationSyncTest < ActiveSupport::TestCase
     assert_equal Time.zone.parse("2026-08-05T16:00:00Z"), @location.latest_observed_at
     assert_includes seen, "00065"
   end
+
+  test "skips USGS temperature fault sentinels instead of overflowing tip columns" do
+    temperature = create(
+      :time_series,
+      monitoring_location: @location,
+      usgs_time_series_id: "ts-temp-sync",
+      parameter_code: "00010",
+      measurement_kind: "temperature",
+      selected_for_display: true
+    )
+    @location.update!(has_temperature: true, latest_temperature_c: 10.0)
+
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/latest-continuous/items})
+      .to_return do |request|
+        features =
+          if request.uri.query.to_s.include?("parameter_code=00010")
+            [ {
+              id: "ts-temp-sync",
+              properties: {
+                time_series_id: "ts-temp-sync",
+                time: "2026-08-05T18:00:00Z",
+                value: -100_000,
+                unit_of_measure: "degC",
+                approval_status: "Provisional"
+              }
+            } ]
+          else
+            []
+          end
+        {
+          status: 200,
+          headers: { "Content-Type" => "application/geo+json" },
+          body: { features: features, links: [] }.to_json
+        }
+      end
+
+    assert_nothing_raised { LatestObservationSync.new(state: "wa").perform }
+
+    assert_nil LatestObservation.find_by(time_series_id: temperature.id)
+    assert_equal 0, ContinuousObservation.where(time_series_id: temperature.id).count
+    # No plausible tip remains, so denormalize clears the map column instead of writing -100000.
+    assert_nil @location.reload.latest_temperature_c
+  end
 end
