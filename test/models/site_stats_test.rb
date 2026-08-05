@@ -10,6 +10,8 @@ class SiteStatsTest < ActiveSupport::TestCase
       location = create(:monitoring_location, flood_category: "minor", nwps_matched: true)
       create(:monitoring_location, flood_category: "no_flooding")
       create(:monitoring_location, active: false)
+      create(:monitoring_location, latest_observed_at: 2.weeks.ago)
+      create(:monitoring_location, latest_observed_at: nil)
       series = create(:time_series, monitoring_location: location, parameter_code: "00060")
       ContinuousObservation.create!(
         time_series: series,
@@ -36,9 +38,11 @@ class SiteStatsTest < ActiveSupport::TestCase
     end
   end
 
-  test "station_count excludes inactive locations" do
-    create(:monitoring_location, active: true)
-    create(:monitoring_location, active: false)
+  test "station_count excludes inactive and stale locations" do
+    create(:monitoring_location, active: true, latest_observed_at: 1.hour.ago)
+    create(:monitoring_location, active: false, latest_observed_at: 1.hour.ago)
+    create(:monitoring_location, active: true, latest_observed_at: 2.weeks.ago)
+    create(:monitoring_location, active: true, latest_observed_at: nil)
 
     assert_equal 1, SiteStats.compute[:station_count]
   end

@@ -9,6 +9,20 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     assert_equal "America/Phoenix", arizona.time_zone_identifier
   end
 
+  test "not_stale matches stations the map labels Active" do
+    fresh = create(:monitoring_location, latest_observed_at: 1.hour.ago)
+    stale = create(:monitoring_location, latest_observed_at: 2.weeks.ago)
+    missing = create(:monitoring_location, latest_observed_at: nil)
+
+    ids = MonitoringLocation.not_stale.pluck(:id)
+    assert_includes ids, fresh.id
+    refute_includes ids, stale.id
+    refute_includes ids, missing.id
+    refute fresh.stale?
+    assert stale.stale?
+    assert missing.stale?
+  end
+
   test "flood helpers classify NWS categories" do
     location = build(:monitoring_location, flood_category: "major", flood_stage_minor: 10)
     assert location.flood_alert?
