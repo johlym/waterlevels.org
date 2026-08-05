@@ -41,7 +41,7 @@ class FloodStageSync
   end
 
   def sync_scope
-    scope = MonitoringLocation.where(active: true)
+    scope = MonitoringLocation.active
     postal_code ? scope.in_state(postal_code) : scope
   end
 
