@@ -23,8 +23,6 @@ const FLOOD_STAGE_LABELS = {
 
 const FLOOD_STAGE_ORDER = ["action", "minor", "moderate", "major"]
 
-const PAGE_SIZE = 8
-
 export default class extends Controller {
   static targets = ["canvas", "history", "rangeButton", "legend", "stats", "daySelect"]
   static values = {
@@ -41,7 +39,6 @@ export default class extends Controller {
     this.parameterCode = first.parameter_code
     this.range = "7d"
     this.selectedDayKey = null
-    this.pageOffset = 0
     this.seriesByKey = {}
     this.load()
     this.element.addEventListener("parameter-toggle:changed", (event) => {
@@ -62,24 +59,12 @@ export default class extends Controller {
       button.setAttribute("aria-pressed", button.dataset.hydrographRangeParam === this.range ? "true" : "false")
     })
     this.selectedDayKey = null
-    this.pageOffset = 0
     this.load()
   }
 
   selectDay() {
     if (!this.hasDaySelectTarget) return
     this.selectedDayKey = this.daySelectTarget.value
-    this.pageOffset = 0
-    this.renderHistory()
-  }
-
-  loadMore() {
-    this.pageOffset += PAGE_SIZE
-    this.renderHistory()
-  }
-
-  loadPrevious() {
-    this.pageOffset = Math.max(0, this.pageOffset - PAGE_SIZE)
     this.renderHistory()
   }
 
@@ -303,7 +288,6 @@ export default class extends Controller {
     this.daySelectTarget.disabled = false
     if (!this.selectedDayKey || !days.some((day) => day.key === this.selectedDayKey)) {
       this.selectedDayKey = days[0].key
-      this.pageOffset = 0
     }
 
     const now = new Date()
@@ -352,11 +336,10 @@ export default class extends Controller {
     }
 
     const columns = this.tableColumns()
-    const visible = day.rows.slice(this.pageOffset, this.pageOffset + PAGE_SIZE)
-    const showingEnd = Math.min(day.rows.length, this.pageOffset + visible.length)
+    const count = day.rows.length
 
     const head = columns.map((col) => `<th class="num">${this.escapeHtml(col.header)}</th>`).join("")
-    const body = visible.map((row) => {
+    const body = day.rows.map((row) => {
       const cells = columns.map((col) => {
         const value = row.values[col.key]
         return `<td class="num">${value == null ? "—" : this.escapeHtml(this.formatCellValue(value, col.kind))}</td>`
@@ -386,11 +369,7 @@ export default class extends Controller {
         </table>
       </div>
       <div class="table-foot">
-        <p>Showing ${showingEnd ? this.pageOffset + 1 : 0}–${showingEnd} of ${day.rows.length} readings</p>
-        <div class="pager">
-          <button type="button" class="toolbar-btn" data-action="hydrograph#loadPrevious" ${this.pageOffset === 0 ? "disabled" : ""}>Previous</button>
-          <button type="button" class="toolbar-btn" data-action="hydrograph#loadMore" ${this.pageOffset + PAGE_SIZE >= day.rows.length ? "disabled" : ""}>Load more</button>
-        </div>
+        <p>${count} ${count === 1 ? "reading" : "readings"}</p>
       </div>
     `
   }

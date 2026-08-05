@@ -1410,18 +1410,10 @@ body.dialog-open {
   }
 
   .table-foot {
-    @apply flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 px-6 py-4;
+    @apply flex flex-wrap items-center border-t border-zinc-800 px-6 py-4;
 
     p {
       @apply text-sm text-zinc-500;
-    }
-
-    .pager {
-      @apply flex items-center gap-2;
-    }
-
-    .toolbar-btn {
-      @apply px-3 py-1.5;
     }
   }
 }
