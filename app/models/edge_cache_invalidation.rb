@@ -41,7 +41,10 @@ class EdgeCacheInvalidation
   def after_station_history!(location)
     return :empty unless location
 
-    tags = [ "gauge:#{location.site_number}", "gauges" ]
+    # History can advance tip columns used by map popups — purge map APIs too.
+    tags = %w[map map-stations map-station-search map-station-nearest]
+    tags << "gauge:#{location.site_number}"
+    tags << "gauges"
     tags << "state:#{location.state_code}" if location.state_code.present?
     tags << "states" if location.state_code.present?
     purge!(tags)

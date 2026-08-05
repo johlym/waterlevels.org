@@ -237,6 +237,39 @@ class HistoryIngestionTest < ActiveSupport::TestCase
     end
   end
 
+  test "advances latest tips and denormalized map columns from fresher continuous points" do
+    older = 4.days.ago.change(sec: 0)
+    newer = 1.hour.ago.change(sec: 0)
+    @location.update!(
+      latest_water_level_value: 500.0,
+      latest_water_level_parameter_code: "62614",
+      latest_water_level_unit: "ft",
+      latest_observed_at: older
+    )
+    LatestObservation.create!(
+      time_series: @series,
+      value: 500.0,
+      unit_of_measure: "ft",
+      observed_at: older,
+      synced_at: older
+    )
+    ContinuousObservation.create!(time_series: @series, observed_at: older, value: 500.0)
+    ContinuousObservation.create!(time_series: @series, observed_at: newer, value: 541.5)
+    DailyObservation.create!(time_series: @series, observed_on: 11.months.ago.to_date, value: 500.0)
+    DailyObservation.create!(time_series: @series, observed_on: Date.current, value: 541.0)
+    PeakObservation.create!(time_series: @series, water_year: 2025, value: 9.0, peak_kind: "high")
+
+    HistoryIngestion.new(monitoring_location: @location, range: "1y").perform
+
+    latest = LatestObservation.find_by!(time_series_id: @series.id)
+    assert_equal newer, latest.observed_at
+    assert_in_delta 541.5, latest.value, 0.001
+
+    @location.reload
+    assert_in_delta 541.5, @location.latest_water_level_value, 0.001
+    assert_equal newer, @location.latest_observed_at
+  end
+
   test "coalesces multiple parameter codes into one continuous request per location" do
     discharge = create(
       :time_series,

@@ -68,4 +68,57 @@ class LatestObservationSyncTest < ActiveSupport::TestCase
 
     assert_requested purge
   end
+
+  test "denormalizes map tip columns even when a later parameter sync fails" do
+    @location.update!(
+      latest_water_level_value: 1.0,
+      latest_water_level_parameter_code: "00065",
+      latest_water_level_unit: "ft",
+      latest_observed_at: 3.days.ago
+    )
+
+    seen = []
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/latest-continuous/items})
+      .to_return do |request|
+        code = request.uri.query.to_s[/parameter_code=(\d+)/, 1]
+        seen << code
+        if code == "00065"
+          {
+            status: 200,
+            headers: { "Content-Type" => "application/geo+json" },
+            body: {
+              features: [ {
+                id: "ts-latest-sync",
+                properties: {
+                  time_series_id: "ts-latest-sync",
+                  time: "2026-08-05T16:00:00Z",
+                  value: 9.75,
+                  unit_of_measure: "ft",
+                  approval_status: "Provisional"
+                }
+              } ],
+              links: []
+            }.to_json
+          }
+        elsif seen.include?("00065")
+          # Fail after the tip upsert so denormalize must still run.
+          raise Usgs::Client::RateLimitError, "429 too many requests"
+        else
+          {
+            status: 200,
+            headers: { "Content-Type" => "application/geo+json" },
+            body: { features: [], links: [] }.to_json
+          }
+        end
+      end
+
+    assert_raises(Usgs::Client::RateLimitError) do
+      LatestObservationSync.new(state: "wa").perform
+    end
+
+    @location.reload
+    assert_in_delta 9.75, @location.latest_water_level_value, 0.001
+    assert_equal Time.zone.parse("2026-08-05T16:00:00Z"), @location.latest_observed_at
+    assert_includes seen, "00065"
+  end
 end

@@ -36,6 +36,10 @@ class HistoryIngestion
     ingest_daily_for(series_list.select { |s| needs_daily?(s) }) if daily_range?
     ingest_peaks_for(series_list.select { |s| needs_peaks?(s) })
 
+    # History may write fresher continuous points while hourly tip sync lagged.
+    # Advance LatestObservation + denormalized map columns so popups/cards match.
+    advance_latest_tips!(series_list)
+    DisplaySeriesSelection.denormalize!(monitoring_location)
     StationSnapshotCache.warm(monitoring_location)
     EdgeCacheInvalidation.after_station_history!(monitoring_location)
     progress&.finish("site=#{monitoring_location.site_number}")
@@ -177,6 +181,34 @@ class HistoryIngestion
 
     # Single-series requests (or sparse USGS payloads) can omit identifiers.
     series_list.first if series_list.size == 1
+  end
+
+  def advance_latest_tips!(series_list)
+    series_list.each do |series|
+      tip_at = series.continuous_observations.maximum(:observed_at)
+      next if tip_at.blank?
+
+      latest = series.latest_observation
+      next if latest && latest.observed_at.to_i >= tip_at.to_i
+
+      tip = series.continuous_observations.find_by(observed_at: tip_at)
+      next unless tip
+
+      LatestObservation.upsert(
+        {
+          time_series_id: series.id,
+          observed_at: tip.observed_at,
+          value: tip.value,
+          unit_of_measure: series.unit_of_measure,
+          approval_status: tip.approval_status,
+          qualifier: tip.qualifier,
+          synced_at: Time.current,
+          created_at: Time.current,
+          updated_at: Time.current
+        },
+        unique_by: :time_series_id
+      )
+    end
   end
 
   def ingest_continuous_for(series_list)
