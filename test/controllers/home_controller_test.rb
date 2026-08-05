@@ -16,7 +16,8 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     get root_path
     assert_response :success
     assert_includes response.body, "Monitor water levels"
-    assert_includes response.body, "Total stations"
+    assert_includes response.body, "Active stations"
+    assert_includes response.body, "Live data from"
     assert_includes response.body, "Total measurements"
     assert_includes response.body, "Updates today"
     assert_includes response.body, "Flood alerts"

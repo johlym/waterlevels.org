@@ -9,6 +9,7 @@ class SiteStatsTest < ActiveSupport::TestCase
     travel_to Time.find_zone!("America/Los_Angeles").local(2026, 8, 3, 15, 0, 0) do
       location = create(:monitoring_location, flood_category: "minor", nwps_matched: true)
       create(:monitoring_location, flood_category: "no_flooding")
+      create(:monitoring_location, active: false)
       series = create(:time_series, monitoring_location: location, parameter_code: "00060")
       ContinuousObservation.create!(
         time_series: series,
@@ -33,6 +34,13 @@ class SiteStatsTest < ActiveSupport::TestCase
       assert_equal 1, stats[:updates_today]
       assert_equal 1, stats[:flood_alert_count]
     end
+  end
+
+  test "station_count excludes inactive locations" do
+    create(:monitoring_location, active: true)
+    create(:monitoring_location, active: false)
+
+    assert_equal 1, SiteStats.compute[:station_count]
   end
 
   test "warm! returns a freshly computed snapshot" do

@@ -1,5 +1,5 @@
 class SiteStats
-  CACHE_KEY = "site_stats/v3".freeze
+  CACHE_KEY = "site_stats/v4".freeze
   TTL = 10.minutes
   # Marketing totals don't need exact row counts; fall back to COUNT for small tables.
   APPROX_COUNT_THRESHOLD = 1_000
@@ -20,7 +20,7 @@ class SiteStats
 
     def compute
       {
-        station_count: MonitoringLocation.count,
+        station_count: MonitoringLocation.active.count,
         measurement_count: approximate_or_exact_count(ContinuousObservation) +
           approximate_or_exact_count(DailyObservation) +
           approximate_or_exact_count(PeakObservation),

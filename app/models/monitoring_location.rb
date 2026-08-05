@@ -9,6 +9,7 @@ class MonitoringLocation < ApplicationRecord
   validates :usgs_monitoring_location_id, :site_number, :name, :display_name, :search_name, :slug, :state_code, :latitude, :longitude, presence: true
   validates :usgs_monitoring_location_id, :site_number, uniqueness: true
 
+  scope :active, -> { where(active: true) }
   scope :in_state, ->(code) { where(state_code: code.to_s.downcase) }
   scope :ordered_for_state_table, -> { order(Arel.sql("LOWER(COALESCE(county_name, '')) ASC, LOWER(display_name) ASC")) }
   scope :in_bbox, lambda { |west, south, east, north|
