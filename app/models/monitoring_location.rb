@@ -10,6 +10,8 @@ class MonitoringLocation < ApplicationRecord
   validates :usgs_monitoring_location_id, :site_number, uniqueness: true
 
   scope :active, -> { where(active: true) }
+  # Matches #stale? inverted — recent enough for the map "Active" status.
+  scope :not_stale, -> { where(latest_observed_at: STALE_AFTER.ago..) }
   scope :in_state, ->(code) { where(state_code: code.to_s.downcase) }
   scope :ordered_for_state_table, -> { order(Arel.sql("LOWER(COALESCE(county_name, '')) ASC, LOWER(display_name) ASC")) }
   scope :in_bbox, lambda { |west, south, east, north|
