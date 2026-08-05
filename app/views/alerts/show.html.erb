@@ -46,7 +46,7 @@
         <p>No stations currently have flood alerts. Check back as conditions change.</p>
       </div>
     <% else %>
-      <%= render States::LocationsTableComponent.new(locations: locations, group_by: :state, show_alerts_filter: false) %>
+      <%= render States::LocationsTableComponent.new(locations: locations, group_by: :state, show_alerts_filter: false, show_flood_stages_filter: true) %>
     <% end %>
   </main>
 

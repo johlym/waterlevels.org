@@ -56,6 +56,13 @@ class AlertsControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "Quick county jump"
     assert_not_includes response.body, "Stations with alerts"
     assert_not_includes response.body, 'data-state-directory-target="alertsOnly"'
+    assert_includes response.body, "Flood stages"
+    assert_includes response.body, 'data-state-directory-target="floodStage"'
+    assert_includes response.body, "Action Stage"
+    assert_includes response.body, "Major Flooding"
+    assert_includes response.body, 'data-flood-stage="action"'
+    assert_includes response.body, 'data-flood-stage="major"'
+    assert_operator response.body.index("Flood stages"), :<, response.body.index("Measurement types")
     assert_operator response.body.index("Texas"), :<, response.body.index("Washington")
     assert_includes response.headers["Cache-Tag"], "alerts"
     assert_includes response.headers["Cache-Control"], "s-maxage=3600"
