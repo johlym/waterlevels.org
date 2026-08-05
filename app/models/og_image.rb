@@ -281,9 +281,7 @@ class OgImage
 
     precision = measurement[:precision]
     precision = kind == "discharge" ? 0 : 2 if precision.nil?
-    formatted = ActiveSupport::NumberHelper.number_to_delimited(
-      ActiveSupport::NumberHelper.number_to_rounded(value.to_f, precision: precision.to_i)
-    )
+    formatted = GaugeValue.format(value, precision: precision.to_i)
     unit = UnitLabel.format(measurement[:unit]).to_s
     [ formatted, unit ]
   end

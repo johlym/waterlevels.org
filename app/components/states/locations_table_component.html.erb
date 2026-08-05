@@ -177,13 +177,13 @@
                 <% if discharge.present? %>
                   <div>
                     <span class="label">Flow Rate</span>
-                    <span class="value"><%= number_with_precision(discharge, precision: 0, delimiter: ",") %> <%= discharge_unit %></span>
+                    <span class="value"><%= helpers.display_gauge_value(discharge, precision: 0) %> <%= discharge_unit %></span>
                   </div>
                 <% end %>
                 <% if stage.present? %>
                   <div>
                     <span class="label">Stage Height</span>
-                    <span class="value<%= " elevated" if stage_elevated %>"><%= number_with_precision(stage, precision: 2) %> <%= stage_unit %></span>
+                    <span class="value<%= " elevated" if stage_elevated %>"><%= helpers.display_gauge_value(stage, precision: 2) %> <%= stage_unit %></span>
                   </div>
                 <% elsif temp_c.present? %>
                   <div>

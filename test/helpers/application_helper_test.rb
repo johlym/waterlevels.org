@@ -16,6 +16,13 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_equal "St. Louis", display_county_name("St. Louis County")
   end
 
+  test "formats gauge values with two decimal places when fractional" do
+    assert_equal "541.10", display_gauge_value(541.1)
+    assert_equal "540", display_gauge_value(540)
+    assert_equal "+1.50", signed_number(1.5, precision: 2)
+    assert_equal "-2", signed_number(-2, precision: 2)
+  end
+
   test "formats timestamps as Month Day, Year at HH:MM:SS AM/PM" do
     time = Time.utc(2026, 8, 2, 4, 30, 0)
     assert_equal "August 2, 2026 at 04:30:00 AM UTC", display_timestamp(time)
