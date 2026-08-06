@@ -34,6 +34,15 @@ Rails.application.routes.draw do
 
   get "/admin", to: "admin/dashboard#show", as: :admin
 
+  # Same DASHBOARD_PW gate as /admin. Constraint is per-request (unset → 404).
+  # Auth middleware is attached once; reloads must not stack duplicates.
+  unless Sidekiq::Web.middlewares.any? { |(args, _block)| args.first == Rack::Auth::Basic }
+    Sidekiq::Web.use(Rack::Auth::Basic, Admin::HttpBasic::REALM, &Admin::HttpBasic.rack_authenticate)
+  end
+  constraints(->(_req) { Admin::HttpBasic.configured? }) do
+    mount Sidekiq::Web => "/admin/sidekiq"
+  end
+
   namespace :api do
     namespace :map do
       resources :stations, only: :index do
@@ -45,6 +54,4 @@ Rails.application.routes.draw do
       resources :observations, only: :index, module: :gauges
     end
   end
-
-  mount Sidekiq::Web => "/sidekiq" if Rails.env.development?
 end

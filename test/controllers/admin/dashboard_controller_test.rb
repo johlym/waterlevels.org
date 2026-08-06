@@ -82,8 +82,27 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Updated in last tip refresh"
     assert_includes response.body, ">7<"
     assert_includes response.body, "Total measurements"
+    assert_includes response.body, "Tip freshness"
+    assert_includes response.body, "Station &amp; backfill backlog"
+    assert_includes response.body, "Open Sidekiq"
+    assert_includes response.body, "/admin/sidekiq"
     assert_includes response.body, 'name="robots"'
     assert_includes response.body, "noindex, nofollow"
+  end
+
+  test "sidekiq UI is gated like the dashboard" do
+    get "/admin/sidekiq"
+    assert_response :not_found
+
+    ENV["DASHBOARD_PW"] = "secret-dashboard"
+    get "/admin/sidekiq"
+    assert_response :unauthorized
+
+    get "/admin/sidekiq", headers: basic_auth_headers("admin", "wrong")
+    assert_response :unauthorized
+
+    get "/admin/sidekiq", headers: basic_auth_headers("admin", "secret-dashboard")
+    assert_response :success
   end
 
   private

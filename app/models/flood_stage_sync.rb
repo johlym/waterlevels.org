@@ -27,6 +27,13 @@ class FloodStageSync
       "list_updated=#{list_updated} alert_matched=#{alert_matched} " \
       "matched=#{matched} unmatched=#{unmatched} skipped=#{skipped} errors=#{errors}"
     )
+    AdminDashboardStats.record_job_finish!(
+      :flood_sync,
+      state: postal_code,
+      list_updated: list_updated,
+      matched: matched,
+      unmatched: unmatched
+    )
     true
   end
 

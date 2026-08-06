@@ -27,24 +27,14 @@ module Admin
     end
 
     def ensure_dashboard_configured
-      return if ENV["DASHBOARD_PW"].to_s.present?
+      return if Admin::HttpBasic.configured?
 
       head :not_found
     end
 
     def authenticate_dashboard
-      authenticate_or_request_with_http_basic("WaterLevels Admin") do |username, password|
-        expected_user = "admin"
-        expected_password = ENV.fetch("DASHBOARD_PW")
-        user_ok = ActiveSupport::SecurityUtils.secure_compare(
-          Digest::SHA256.hexdigest(username.to_s),
-          Digest::SHA256.hexdigest(expected_user)
-        )
-        password_ok = ActiveSupport::SecurityUtils.secure_compare(
-          Digest::SHA256.hexdigest(password.to_s),
-          Digest::SHA256.hexdigest(expected_password)
-        )
-        user_ok && password_ok
+      authenticate_or_request_with_http_basic(Admin::HttpBasic::REALM) do |username, password|
+        Admin::HttpBasic.authenticates?(username, password)
       end
     end
   end
