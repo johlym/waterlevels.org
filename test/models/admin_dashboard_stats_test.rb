@@ -72,6 +72,12 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
 
   test "counts history backfill locks and cooldowns from Redis" do
     redis = Redis.new(RedisConfig.options)
+    begin
+      redis.ping
+    rescue Redis::BaseError
+      skip "Redis unavailable"
+    end
+
     redis.set("#{HistoryBackfillLock::KEY_PREFIX}1", "1")
     redis.set("#{HistoryBackfillLock::KEY_PREFIX}2", "1")
     redis.set("#{HistoryBackfillLock::COOLDOWN_PREFIX}9", "1")

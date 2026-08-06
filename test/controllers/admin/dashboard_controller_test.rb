@@ -99,6 +99,12 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     get "/admin/sidekiq", headers: basic_auth_headers("admin", "wrong")
     assert_response :unauthorized
 
+    begin
+      Redis.new(RedisConfig.options).ping
+    rescue Redis::BaseError
+      skip "Redis unavailable"
+    end
+
     get "/admin/sidekiq", headers: basic_auth_headers("admin", "secret-dashboard")
     assert_response :success
   end
