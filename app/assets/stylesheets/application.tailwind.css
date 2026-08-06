@@ -2035,7 +2035,7 @@ body.dialog-open {
 }
 
 .admin-dashboard .tool-button {
-  @apply cursor-pointer border-0 bg-transparent p-0 font-inherit;
+  @apply cursor-pointer border-0 bg-transparent p-0 font-sans;
 }
 
 .admin-dashboard .lede-link {
