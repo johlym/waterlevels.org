@@ -46,6 +46,11 @@ class LatestObservationSyncTest < ActiveSupport::TestCase
 
     continuous = ContinuousObservation.find_by!(time_series_id: @series.id, observed_at: latest.observed_at)
     assert_in_delta 12.5, continuous.value, 0.001
+
+    tip = AdminDashboardStats.last_tip_refresh
+    assert_equal 1, tip[:stations_updated]
+    assert_equal 1, tip[:series_upserted]
+    assert_equal "wa", tip[:state]
   end
 
   test "purges Cloudflare cache tags after warming when credentials are set" do

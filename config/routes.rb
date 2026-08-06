@@ -32,6 +32,8 @@ Rails.application.routes.draw do
 
   resource :temperature_unit, only: :update
 
+  get "/admin", to: "admin/dashboard#show", as: :admin
+
   namespace :api do
     namespace :map do
       resources :stations, only: :index do

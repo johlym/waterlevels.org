@@ -11,6 +11,7 @@ class LatestObservationSync
 
   def perform
     sync_error = nil
+    @upserted_series_ids = Set.new
     progress&.step(scope_label)
     begin
       Usgs::ParameterCodes::ALL.each do |parameter_code|
@@ -23,6 +24,7 @@ class LatestObservationSync
     end
 
     denormalize_locations
+    record_tip_refresh_stats!
 
     unless sync_error
       progress&.step("warming state listing caches")
@@ -41,6 +43,24 @@ class LatestObservationSync
 
 
   private
+
+  def record_tip_refresh_stats!
+    series_ids = @upserted_series_ids.to_a
+    stations_updated =
+      if series_ids.empty?
+        0
+      else
+        TimeSeries.where(id: series_ids).distinct.count(:monitoring_location_id)
+      end
+
+    AdminDashboardStats.record_tip_refresh!(
+      stations_updated: stations_updated,
+      series_upserted: series_ids.size,
+      finished_at: Time.current,
+      state: postal_code
+    )
+  end
+
 
   def scope_label
     postal_code ? "state=#{postal_code}" : "national"
@@ -118,6 +138,7 @@ class LatestObservationSync
         },
         unique_by: %i[time_series_id observed_at]
       )
+      @upserted_series_ids << series.id
       count += 1
       progress&.increment
     end
