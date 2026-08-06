@@ -1,8 +1,8 @@
 # Live ops snapshot for the password-gated /admin dashboard.
-# Tip-refresh totals come from LatestObservationSync (cached); everything else
-# is computed from the DB / Redis circuits on each request.
+# Tip-refresh totals are written by LatestObservationSync (Redis + process-local
+# fallback); everything else is computed from the DB / circuits on each request.
 class AdminDashboardStats
-  TIP_REFRESH_CACHE_KEY = "admin/last_tip_refresh".freeze
+  TIP_REFRESH_CACHE_KEY = "admin:last_tip_refresh".freeze
   TIP_REFRESH_TTL = 7.days
   APPROX_COUNT_THRESHOLD = SiteStats::APPROX_COUNT_THRESHOLD
 
@@ -18,12 +18,48 @@ class AdminDashboardStats
         finished_at: finished_at.iso8601,
         state: state.presence
       }
-      Rails.cache.write(TIP_REFRESH_CACHE_KEY, payload, expires_in: TIP_REFRESH_TTL)
+      write_tip_refresh(payload)
       payload
     end
 
     def last_tip_refresh
-      Rails.cache.read(TIP_REFRESH_CACHE_KEY)
+      redis_read_tip_refresh || memory_tip_refresh
+    end
+
+    def clear_tip_refresh!
+      self.memory_tip_refresh = nil
+      redis_with_rescue { |r| r.del(TIP_REFRESH_CACHE_KEY) }
+    end
+
+    private
+
+    attr_accessor :memory_tip_refresh
+
+    def write_tip_refresh(payload)
+      self.memory_tip_refresh = payload
+      redis_with_rescue do |r|
+        r.set(TIP_REFRESH_CACHE_KEY, payload.to_json, ex: TIP_REFRESH_TTL.to_i)
+      end
+    end
+
+    def redis_read_tip_refresh
+      raw = redis_with_rescue { |r| r.get(TIP_REFRESH_CACHE_KEY) }
+      return if raw.blank?
+
+      JSON.parse(raw, symbolize_names: true)
+    rescue JSON::ParserError
+      nil
+    end
+
+    def redis_with_rescue
+      yield redis
+    rescue StandardError => e
+      Rails.logger.warn("[AdminDashboardStats] redis #{e.class}: #{e.message}")
+      nil
+    end
+
+    def redis
+      @redis ||= Redis.new(RedisConfig.options)
     end
   end
 

@@ -3,6 +3,7 @@ require "test_helper"
 class AdminDashboardStatsTest < ActiveSupport::TestCase
   setup do
     Rails.cache.clear
+    AdminDashboardStats.clear_tip_refresh!
   end
 
   test "snapshot reports station measurement and tip refresh stats" do

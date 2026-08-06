@@ -2,6 +2,7 @@ require "test_helper"
 
 class LatestObservationSyncTest < ActiveSupport::TestCase
   setup do
+    AdminDashboardStats.clear_tip_refresh!
     @location = create(:monitoring_location, site_number: "12101000", state_code: "wa")
     @series = create(
       :time_series,

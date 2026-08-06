@@ -4,6 +4,7 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
   setup do
     @previous_pw = ENV["DASHBOARD_PW"]
     ENV.delete("DASHBOARD_PW")
+    AdminDashboardStats.clear_tip_refresh!
   end
 
   teardown do
@@ -12,6 +13,7 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     else
       ENV["DASHBOARD_PW"] = @previous_pw
     end
+    AdminDashboardStats.clear_tip_refresh!
   end
 
   test "returns not found when DASHBOARD_PW is unset" do
@@ -39,7 +41,7 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
 
   test "renders dashboard with stats when authenticated" do
     ENV["DASHBOARD_PW"] = "secret-dashboard"
-    location = create(:monitoring_location, display_name: "Cedar River near Renton")
+    location = create(:monitoring_location, name: "Cedar River near Renton")
     series = create(:time_series, monitoring_location: location)
     ContinuousObservation.create!(time_series: series, value: 3.2, observed_at: 1.hour.ago)
     AdminDashboardStats.record_tip_refresh!(
@@ -57,11 +59,11 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Active stations"
     assert_includes response.body, "Needing full history"
     assert_includes response.body, "Last station updated"
-    assert_includes response.body, "Cedar River near Renton"
+    assert_includes response.body, location.reload.display_name
     assert_includes response.body, "Updated in last tip refresh"
     assert_includes response.body, ">7<"
     assert_includes response.body, "Total measurements"
-    assert_includes response.body, "name=\"robots\""
+    assert_includes response.body, 'name="robots"'
     assert_includes response.body, "noindex, nofollow"
   end
 
