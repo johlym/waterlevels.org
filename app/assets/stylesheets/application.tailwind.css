@@ -458,7 +458,15 @@
   }
 
   .search-btn {
-    @apply hidden shrink-0 cursor-pointer rounded-xl bg-cyan-500 px-6 py-3 text-sm font-semibold text-zinc-950 transition-all hover:bg-cyan-400 active:scale-95 sm:inline-flex;
+    @apply inline-flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-cyan-500 text-zinc-950 transition-all hover:bg-cyan-400 active:scale-95 sm:h-auto sm:w-auto sm:px-6 sm:py-3 sm:text-sm sm:font-semibold;
+
+    .search-btn-icon {
+      @apply size-5 sm:hidden;
+    }
+
+    .search-btn-label {
+      @apply hidden sm:inline;
+    }
   }
 
   .popular-chips {

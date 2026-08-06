@@ -38,6 +38,8 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'data-controller="dialog"'
     assert_includes response.body, "Couldn’t get your location"
     assert_not_includes response.body, 'class="search-icon"'
+    assert_includes response.body, 'class="search-btn-icon"'
+    assert_includes response.body, 'class="search-btn-label"'
     locate_index = response.body.index('class="locate-btn"')
     input_index = response.body.index('data-station-search-target="input"')
     search_btn_index = response.body.index('class="search-btn"')
