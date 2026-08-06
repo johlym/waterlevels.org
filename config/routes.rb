@@ -32,6 +32,18 @@ Rails.application.routes.draw do
 
   resource :temperature_unit, only: :update
 
+  get "/admin", to: "admin/dashboard#show", as: :admin
+  get "/admin/login", to: "admin/sessions#new", as: :admin_login
+  post "/admin/login", to: "admin/sessions#create"
+  delete "/admin/logout", to: "admin/sessions#destroy", as: :admin_logout
+
+  # Session gate (same login as /admin). Unset DASHBOARD_PW → 404 inside the gate.
+  # Attach once; reloads must not stack duplicates.
+  unless Sidekiq::Web.middlewares.any? { |(args, _block)| args.first == Admin::SidekiqSessionGate }
+    Sidekiq::Web.use Admin::SidekiqSessionGate
+  end
+  mount Sidekiq::Web => "/admin/sidekiq"
+
   namespace :api do
     namespace :map do
       resources :stations, only: :index do
@@ -43,6 +55,4 @@ Rails.application.routes.draw do
       resources :observations, only: :index, module: :gauges
     end
   end
-
-  mount Sidekiq::Web => "/sidekiq" if Rails.env.development?
 end

@@ -1,0 +1,363 @@
+<% content_for :title, "Admin | WaterLevels.org" %>
+<% content_for :head do %>
+  <meta name="robots" content="noindex, nofollow">
+<% end %>
+
+<div class="app-shell">
+  <%= render Navigation::BarComponent.new %>
+
+  <main class="page-main admin-dashboard">
+    <section class="admin-stats" aria-labelledby="admin-core-heading">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Network</p>
+          <h2 id="admin-core-heading">Core stats</h2>
+        </div>
+        <div class="lede-link">
+          <%= link_to "Sidekiq UI →", "/admin/sidekiq", class: "tool-link" %>
+          <span class="sep" aria-hidden="true">·</span>
+          <%= button_to "Sign out", admin_logout_path, method: :delete, class: "tool-link tool-button", form: { data: { turbo: false } } %>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <article>
+          <p class="value"><%= number_with_delimiter(@stats[:station_count]) %></p>
+          <p class="label">Active stations</p>
+        </article>
+
+        <article>
+          <p class="value"><%= number_with_delimiter(@stats[:stations_needing_history]) %></p>
+          <p class="label">Needing full history</p>
+          <p class="hint">Phase-1 continuous + 1y daily gaps</p>
+        </article>
+
+        <article>
+          <% last = @stats[:last_station_updated] %>
+          <% if last %>
+            <p class="value value-sm">
+              <%= link_to last[:display_name], gauge_path(last[:path_state], last[:to_param]), class: "station-link" %>
+            </p>
+            <p class="label">Last station updated</p>
+            <p class="hint">
+              <%= last[:site_number] %> · <%= last[:state_code].to_s.upcase %> ·
+              <%= time_ago_in_words(last[:updated_at]) %> ago
+            </p>
+          <% else %>
+            <p class="value">—</p>
+            <p class="label">Last station updated</p>
+          <% end %>
+        </article>
+
+        <article>
+          <% tip_count = @stats[:last_tip_refresh_stations_updated] %>
+          <p class="value"><%= tip_count.nil? ? "—" : number_with_delimiter(tip_count) %></p>
+          <p class="label">Updated in last tip refresh</p>
+          <% if @stats[:last_tip_refresh_finished_at] %>
+            <p class="hint">
+              <%= time_ago_in_words(@stats[:last_tip_refresh_finished_at]) %> ago
+              <% if @stats[:last_tip_refresh_state] %>
+                · state <%= @stats[:last_tip_refresh_state].upcase %>
+              <% else %>
+                · national
+              <% end %>
+            </p>
+          <% else %>
+            <p class="hint">No tip sync recorded yet</p>
+          <% end %>
+        </article>
+
+        <article>
+          <p class="value"><%= number_to_human(@stats[:measurement_count], precision: 2, significant: true, units: { thousand: "K", million: "M", billion: "B" }) %></p>
+          <p class="label">Total measurements</p>
+          <p class="hint">
+            <%= number_to_human(@stats[:continuous_observation_count], precision: 2, significant: true, units: { thousand: "K", million: "M", billion: "B" }) %> continuous ·
+            <%= number_to_human(@stats[:daily_observation_count], precision: 2, significant: true, units: { thousand: "K", million: "M", billion: "B" }) %> daily ·
+            <%= number_to_human(@stats[:peak_observation_count], precision: 2, significant: true, units: { thousand: "K", million: "M", billion: "B" }) %> peaks
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section class="admin-stats" aria-labelledby="admin-pipeline-heading">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Pipeline</p>
+          <h2 id="admin-pipeline-heading">Backfill &amp; freshness</h2>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <article>
+          <p class="value"><%= number_with_delimiter(@stats[:stations_needing_deep_history]) %></p>
+          <p class="label">Needing 3y deep history</p>
+        </article>
+
+        <article>
+          <p class="value"><%= number_with_delimiter(@stats[:stale_station_count]) %></p>
+          <p class="label">Stale stations</p>
+          <p class="hint">Active but no tip within <%= distance_of_time_in_words(MonitoringLocation::STALE_AFTER) %></p>
+        </article>
+
+        <article>
+          <p class="value<%= " alert" if @stats[:flood_alert_count].to_i.positive? %>"><%= number_with_delimiter(@stats[:flood_alert_count]) %></p>
+          <p class="label">Flood alerts</p>
+        </article>
+
+        <article>
+          <p class="value"><%= number_with_delimiter(@stats[:updates_today]) %></p>
+          <p class="label">Continuous updates today</p>
+          <p class="hint">Pacific calendar day</p>
+        </article>
+
+        <article>
+          <p class="value"><%= number_with_delimiter(@stats[:nwps_matched_count]) %></p>
+          <p class="label">NWPS-matched stations</p>
+        </article>
+
+        <article>
+          <p class="value"><%= number_with_delimiter(@stats[:history_backfill_locks]) %></p>
+          <p class="label">Active backfill locks</p>
+          <p class="hint"><%= number_with_delimiter(@stats[:history_backfill_cooldowns]) %> on cooldown</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="admin-stats" aria-labelledby="admin-growth-heading">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Growth</p>
+          <h2 id="admin-growth-heading">Measurements &amp; tip freshness</h2>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <article>
+          <p class="value"><%= number_with_delimiter(@stats[:continuous_last_24h]) %></p>
+          <p class="label">Continuous points (24h)</p>
+          <p class="hint">By observed_at</p>
+        </article>
+
+        <article>
+          <p class="value"><%= number_with_delimiter(@stats[:continuous_last_7d]) %></p>
+          <p class="label">Continuous points (7d)</p>
+          <p class="hint">By observed_at</p>
+        </article>
+      </div>
+
+      <% freshness = @stats[:tip_freshness] %>
+      <% freshness_total = freshness.values.sum %>
+      <div class="freshness-panel">
+        <h3>Tip freshness</h3>
+        <p class="hint">Active stations by latest_observed_at age</p>
+        <ul class="freshness-bars">
+          <% [
+            [ :under_1h, "< 1 hour" ],
+            [ :h1_to_6h, "1–6 hours" ],
+            [ :h6_to_24h, "6–24 hours" ],
+            [ :d1_to_7d, "1–7 days" ],
+            [ :stale, "Stale / missing" ]
+          ].each do |key, label| %>
+            <% count = freshness[key].to_i %>
+            <% pct = freshness_total.positive? ? (count * 100.0 / freshness_total) : 0 %>
+            <li>
+              <div class="row">
+                <span class="name"><%= label %></span>
+                <span class="meta"><%= number_with_delimiter(count) %></span>
+              </div>
+              <div class="bar" aria-hidden="true">
+                <span style="width: <%= pct %>%"></span>
+              </div>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+    </section>
+
+    <section class="admin-stats" aria-labelledby="admin-jobs-heading">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Jobs</p>
+          <h2 id="admin-jobs-heading">Last finished</h2>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <article>
+          <p class="value value-sm">
+            <%= @stats[:last_tip_refresh_finished_at] ? "#{time_ago_in_words(@stats[:last_tip_refresh_finished_at])} ago" : "—" %>
+          </p>
+          <p class="label">Latest tip sync</p>
+          <p class="hint">
+            <% if @stats[:last_tip_refresh_state] %>
+              State <%= @stats[:last_tip_refresh_state].upcase %>
+            <% elsif @stats[:last_tip_refresh_finished_at] %>
+              National
+            <% else %>
+              Not recorded yet
+            <% end %>
+          </p>
+        </article>
+
+        <article>
+          <p class="value value-sm">
+            <%= @stats[:last_catalog_sync_at] ? "#{time_ago_in_words(@stats[:last_catalog_sync_at])} ago" : "—" %>
+          </p>
+          <p class="label">Catalog sync</p>
+          <p class="hint">
+            <% if @stats[:last_catalog_sync_state] %>
+              State <%= @stats[:last_catalog_sync_state].upcase %>
+            <% elsif @stats[:last_catalog_sync_at] %>
+              National
+            <% else %>
+              Not recorded yet
+            <% end %>
+          </p>
+        </article>
+
+        <article>
+          <p class="value value-sm">
+            <%= @stats[:last_flood_sync_at] ? "#{time_ago_in_words(@stats[:last_flood_sync_at])} ago" : "—" %>
+          </p>
+          <p class="label">Flood stage sync</p>
+          <p class="hint">
+            <% if @stats[:last_flood_sync_state] %>
+              State <%= @stats[:last_flood_sync_state].upcase %>
+            <% elsif @stats[:last_flood_sync_at] %>
+              National
+            <% else %>
+              Not recorded yet
+            <% end %>
+          </p>
+        </article>
+
+        <article>
+          <p class="value value-sm">
+            <%= @stats[:last_prune_at] ? "#{time_ago_in_words(@stats[:last_prune_at])} ago" : "—" %>
+          </p>
+          <p class="label">Continuous prune</p>
+          <p class="hint">Retention cleanup</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="admin-stats" aria-labelledby="admin-states-heading">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">States</p>
+          <h2 id="admin-states-heading">Station &amp; backfill backlog</h2>
+        </div>
+      </div>
+
+      <% if @stats[:per_state].blank? %>
+        <p class="hint">No active stations yet.</p>
+      <% else %>
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th scope="col">State</th>
+                <th scope="col">Stations</th>
+                <th scope="col">Need history</th>
+                <th scope="col">Need 3y deep</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @stats[:per_state].each do |row| %>
+                <tr>
+                  <td>
+                    <%= link_to "#{row[:state_name]} (#{row[:state_code].upcase})", state_gauges_path(row[:state_code]), class: "station-link" %>
+                  </td>
+                  <td><%= number_with_delimiter(row[:station_count]) %></td>
+                  <td><%= number_with_delimiter(row[:needing_history]) %></td>
+                  <td><%= number_with_delimiter(row[:needing_deep_history]) %></td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% end %>
+    </section>
+
+    <section class="admin-stats" aria-labelledby="admin-health-heading">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Health</p>
+          <h2 id="admin-health-heading">Circuits &amp; Sidekiq</h2>
+        </div>
+        <p class="lede-link">
+          <%= link_to "Sidekiq UI →", "/admin/sidekiq", class: "tool-link" %>
+        </p>
+      </div>
+
+      <div class="health-grid">
+        <article>
+          <h3>USGS rate-limit circuits</h3>
+          <ul class="status-list">
+            <li>
+              <span class="name">tip</span>
+              <span class="badge <%= @stats[:tip_circuit_open] ? "bad" : "ok" %>">
+                <%= @stats[:tip_circuit_open] ? "Open" : "Clear" %>
+              </span>
+            </li>
+            <% @stats[:history_circuits].each do |circuit| %>
+              <li>
+                <span class="name"><%= circuit[:key] %><%= " (unset)" unless circuit[:configured] %></span>
+                <span class="badge <%= circuit[:open] ? "bad" : "ok" %>">
+                  <%= circuit[:open] ? "Open" : "Clear" %>
+                </span>
+              </li>
+            <% end %>
+            <li>
+              <span class="name">history pool</span>
+              <span class="badge <%= @stats[:history_keys_exhausted] ? "bad" : "ok" %>">
+                <%= @stats[:history_keys_exhausted] ? "Exhausted" : "Available" %>
+              </span>
+            </li>
+            <li>
+              <span class="name">database</span>
+              <span class="badge <%= @stats[:database_read_only] ? "bad" : "ok" %>">
+                <%= @stats[:database_read_only] ? "Read-only circuit" : "Writable" %>
+              </span>
+            </li>
+          </ul>
+        </article>
+
+        <article>
+          <h3>Sidekiq</h3>
+          <% if @stats[:sidekiq][:error] %>
+            <p class="hint"><%= @stats[:sidekiq][:error] %></p>
+          <% else %>
+            <ul class="status-list">
+              <li>
+                <span class="name">Enqueued</span>
+                <span class="meta"><%= number_with_delimiter(@stats[:sidekiq][:enqueued]) %></span>
+              </li>
+              <li>
+                <span class="name">Retries</span>
+                <span class="meta"><%= number_with_delimiter(@stats[:sidekiq][:retry_size]) %></span>
+              </li>
+              <li>
+                <span class="name">Dead</span>
+                <span class="meta"><%= number_with_delimiter(@stats[:sidekiq][:dead_size]) %></span>
+              </li>
+              <li>
+                <span class="name">Failed (lifetime)</span>
+                <span class="meta"><%= number_with_delimiter(@stats[:sidekiq][:failed]) %></span>
+              </li>
+            </ul>
+            <% if @stats[:sidekiq][:queues].present? %>
+              <p class="hint queues">
+                <% @stats[:sidekiq][:queues].each do |name, size| %>
+                  <span><%= name %>: <%= number_with_delimiter(size) %></span>
+                <% end %>
+              </p>
+            <% end %>
+          <% end %>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <%= render Footer::ThinComponent.new %>
+</div>

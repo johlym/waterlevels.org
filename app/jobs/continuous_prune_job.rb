@@ -6,7 +6,16 @@ class ContinuousPruneJob < ApplicationJob
       raise DatabaseReadOnlyError, "database read-only circuit open"
     end
 
-    ContinuousObservation.where("observed_at < ?", HistoryIngestion::CONTINUOUS_RETENTION.ago).delete_all
-    DailyObservation.where("observed_on < ?", HistoryIngestion::DAILY_RETENTION.ago.to_date).delete_all
+    continuous_deleted = ContinuousObservation.where(
+      "observed_at < ?", HistoryIngestion::CONTINUOUS_RETENTION.ago
+    ).delete_all
+    daily_deleted = DailyObservation.where(
+      "observed_on < ?", HistoryIngestion::DAILY_RETENTION.ago.to_date
+    ).delete_all
+    AdminDashboardStats.record_job_finish!(
+      :prune,
+      continuous_deleted: continuous_deleted,
+      daily_deleted: daily_deleted
+    )
   end
 end

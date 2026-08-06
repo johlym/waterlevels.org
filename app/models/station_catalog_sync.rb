@@ -42,7 +42,13 @@ class StationCatalogSync
     location_scope.find_each { |location| StationSnapshotCache.warm(location) }
     progress&.step("purging edge cache tags")
     EdgeCacheInvalidation.after_catalog_sync!(state: state)
-    progress&.finish("locations=#{location_scope.count} time_series=#{time_series_scope.count}")
+    location_count = location_scope.count
+    progress&.finish("locations=#{location_count} time_series=#{time_series_scope.count}")
+    AdminDashboardStats.record_job_finish!(
+      :catalog_sync,
+      state: postal_code,
+      locations: location_count
+    )
     true
   end
 
