@@ -6,26 +6,6 @@
 <div class="app-shell">
   <%= render Navigation::BarComponent.new %>
 
-  <section class="page-hero">
-    <div class="glow" aria-hidden="true">
-      <div class="blob-a"></div>
-      <div class="blob-b"></div>
-    </div>
-    <div class="inner">
-      <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Operations</span>
-      <h1>
-        Admin
-        <span class="accent">dashboard</span>
-      </h1>
-      <p class="lede">
-        Live ingestion health for the monitoring network — stations, history backfill, tip refresh, and worker queues.
-      </p>
-      <p class="admin-tools">
-        <%= link_to "Open Sidekiq", "/admin/sidekiq", class: "tool-link" %>
-      </p>
-    </div>
-  </section>
-
   <main class="page-main admin-dashboard">
     <section class="admin-stats" aria-labelledby="admin-core-heading">
       <div class="section-header">
@@ -33,6 +13,9 @@
           <p class="eyebrow">Network</p>
           <h2 id="admin-core-heading">Core stats</h2>
         </div>
+        <p class="lede-link">
+          <%= link_to "Sidekiq UI →", "/admin/sidekiq", class: "tool-link" %>
+        </p>
       </div>
 
       <div class="stats-grid">

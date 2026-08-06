@@ -73,8 +73,6 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.headers["Cache-Control"], "no-store"
-    assert_includes response.body, "Admin"
-    assert_includes response.body, "dashboard"
     assert_includes response.body, "Active stations"
     assert_includes response.body, "Needing full history"
     assert_includes response.body, "Last station updated"
@@ -84,7 +82,7 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Total measurements"
     assert_includes response.body, "Tip freshness"
     assert_includes response.body, "Station &amp; backfill backlog"
-    assert_includes response.body, "Open Sidekiq"
+    assert_includes response.body, "Sidekiq UI"
     assert_includes response.body, "/admin/sidekiq"
     assert_includes response.body, 'name="robots"'
     assert_includes response.body, "noindex, nofollow"

@@ -1985,11 +1985,6 @@ body.dialog-open {
 }
 
 /* —— Admin dashboard —— */
-.page-hero .admin-tools {
-  @apply mt-8;
-}
-
-.page-hero .tool-link,
 .admin-dashboard .tool-link {
   @apply text-sm font-medium text-cyan-400 no-underline transition-colors hover:text-cyan-300;
 }
