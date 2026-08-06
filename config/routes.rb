@@ -33,15 +33,16 @@ Rails.application.routes.draw do
   resource :temperature_unit, only: :update
 
   get "/admin", to: "admin/dashboard#show", as: :admin
+  get "/admin/login", to: "admin/sessions#new", as: :admin_login
+  post "/admin/login", to: "admin/sessions#create"
+  delete "/admin/logout", to: "admin/sessions#destroy", as: :admin_logout
 
-  # Same DASHBOARD_PW gate as /admin. Constraint is per-request (unset → 404).
-  # Auth middleware is attached once; reloads must not stack duplicates.
-  unless Sidekiq::Web.middlewares.any? { |(args, _block)| args.first == Rack::Auth::Basic }
-    Sidekiq::Web.use(Rack::Auth::Basic, Admin::HttpBasic::REALM, &Admin::HttpBasic.rack_authenticate)
+  # Session gate (same login as /admin). Unset DASHBOARD_PW → 404 inside the gate.
+  # Attach once; reloads must not stack duplicates.
+  unless Sidekiq::Web.middlewares.any? { |(args, _block)| args.first == Admin::SidekiqSessionGate }
+    Sidekiq::Web.use Admin::SidekiqSessionGate
   end
-  constraints(->(_req) { Admin::HttpBasic.configured? }) do
-    mount Sidekiq::Web => "/admin/sidekiq"
-  end
+  mount Sidekiq::Web => "/admin/sidekiq"
 
   namespace :api do
     namespace :map do

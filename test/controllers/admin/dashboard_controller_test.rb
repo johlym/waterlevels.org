@@ -5,7 +5,6 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     @previous_pw = ENV["DASHBOARD_PW"]
     ENV.delete("DASHBOARD_PW")
     AdminDashboardStats.clear_tip_refresh!
-    Admin::DashboardController::RATE_LIMIT_STORE.clear
   end
 
   teardown do
@@ -15,7 +14,6 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
       ENV["DASHBOARD_PW"] = @previous_pw
     end
     AdminDashboardStats.clear_tip_refresh!
-    Admin::DashboardController::RATE_LIMIT_STORE.clear
   end
 
   test "returns not found when DASHBOARD_PW is unset" do
@@ -23,42 +21,13 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-  test "requires http basic auth when DASHBOARD_PW is set" do
+  test "redirects to login when signed out" do
     ENV["DASHBOARD_PW"] = "secret-dashboard"
     get admin_path
-    assert_response :unauthorized
+    assert_redirected_to admin_login_path
   end
 
-  test "rejects wrong password" do
-    ENV["DASHBOARD_PW"] = "secret-dashboard"
-    get admin_path, headers: basic_auth_headers("admin", "wrong")
-    assert_response :unauthorized
-  end
-
-  test "rejects wrong username" do
-    ENV["DASHBOARD_PW"] = "secret-dashboard"
-    get admin_path, headers: basic_auth_headers("root", "secret-dashboard")
-    assert_response :unauthorized
-  end
-
-  test "rate limits repeated password attempts from the same IP" do
-    ENV["DASHBOARD_PW"] = "secret-dashboard"
-    limit = Admin::DashboardController::RATE_LIMIT_TO
-
-    limit.times do |i|
-      get admin_path, headers: basic_auth_headers("admin", "wrong-#{i}")
-      assert_response :unauthorized
-    end
-
-    get admin_path, headers: basic_auth_headers("admin", "wrong-overflow")
-    assert_response :too_many_requests
-
-    # Even the correct password is blocked until the window resets.
-    get admin_path, headers: basic_auth_headers("admin", "secret-dashboard")
-    assert_response :too_many_requests
-  end
-
-  test "renders dashboard with stats when authenticated" do
+  test "renders dashboard with stats when signed in" do
     ENV["DASHBOARD_PW"] = "secret-dashboard"
     location = create(:monitoring_location, name: "Cedar River near Renton")
     series = create(:time_series, monitoring_location: location)
@@ -69,7 +38,8 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
       finished_at: 30.minutes.ago
     )
 
-    get admin_path, headers: basic_auth_headers("admin", "secret-dashboard")
+    post admin_login_path, params: { password: "secret-dashboard" }
+    get admin_path
 
     assert_response :success
     assert_includes response.headers["Cache-Control"], "no-store"
@@ -84,6 +54,7 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Station &amp; backfill backlog"
     assert_includes response.body, "Sidekiq UI"
     assert_includes response.body, "/admin/sidekiq"
+    assert_includes response.body, "Sign out"
     assert_includes response.body, 'name="robots"'
     assert_includes response.body, "noindex, nofollow"
   end
@@ -94,10 +65,7 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
 
     ENV["DASHBOARD_PW"] = "secret-dashboard"
     get "/admin/sidekiq"
-    assert_response :unauthorized
-
-    get "/admin/sidekiq", headers: basic_auth_headers("admin", "wrong")
-    assert_response :unauthorized
+    assert_redirected_to admin_login_path
 
     begin
       Redis.new(RedisConfig.options).ping
@@ -105,15 +73,8 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
       skip "Redis unavailable"
     end
 
-    get "/admin/sidekiq", headers: basic_auth_headers("admin", "secret-dashboard")
+    post admin_login_path, params: { password: "secret-dashboard" }
+    get "/admin/sidekiq"
     assert_response :success
-  end
-
-  private
-
-  def basic_auth_headers(username, password)
-    {
-      "HTTP_AUTHORIZATION" => ActionController::HttpAuthentication::Basic.encode_credentials(username, password)
-    }
   end
 end

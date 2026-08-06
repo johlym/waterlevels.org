@@ -13,9 +13,11 @@
           <p class="eyebrow">Network</p>
           <h2 id="admin-core-heading">Core stats</h2>
         </div>
-        <p class="lede-link">
+        <div class="lede-link">
           <%= link_to "Sidekiq UI →", "/admin/sidekiq", class: "tool-link" %>
-        </p>
+          <span class="sep" aria-hidden="true">·</span>
+          <%= button_to "Sign out", admin_logout_path, method: :delete, class: "tool-link tool-button", form: { data: { turbo: false } } %>
+        </div>
       </div>
 
       <div class="stats-grid">
