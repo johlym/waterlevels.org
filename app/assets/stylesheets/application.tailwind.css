@@ -2058,6 +2058,10 @@ body.dialog-open {
       @apply mb-2 text-sm font-semibold tracking-wider text-cyan-400 uppercase;
     }
 
+    .section-lede {
+      @apply mt-3 max-w-3xl text-sm leading-relaxed text-zinc-500;
+    }
+
     h2 {
       @apply font-display text-2xl font-semibold text-white;
     }
@@ -2140,18 +2144,22 @@ body.dialog-open {
   }
 
   .admin-table {
-    @apply w-full min-w-[36rem] border-collapse text-left text-sm;
+    @apply w-full min-w-[42rem] border-collapse text-left text-sm;
 
     th {
       @apply border-b border-zinc-800 bg-zinc-900/80 px-4 py-3 font-medium text-zinc-400;
     }
 
     td {
-      @apply border-b border-zinc-800/60 px-4 py-3 text-zinc-200;
+      @apply border-b border-zinc-800/60 px-4 py-3 align-top text-zinc-200;
     }
 
     tbody tr:last-child td {
       @apply border-b-0;
+    }
+
+    .cell-hint {
+      @apply mt-1 block text-xs text-zinc-600;
     }
 
     .station-link {
