@@ -1,8 +1,12 @@
+# Single basic/eco worker dyno (~512MB): keep this modest. USGS history throughput
+# is capped at ~1000 req/hr/key (~0.6 req/s with two keys), so a few threads are
+# enough to soak the budget without blowing RAM/DB connections.
 :concurrency: 3
 :queues:
   - default
   - sync
   - backfill
+
 
 :scheduler:
   :schedule:

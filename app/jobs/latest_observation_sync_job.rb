@@ -2,8 +2,8 @@ class LatestObservationSyncJob < ApplicationJob
   queue_as :sync
 
   def perform(state = nil)
-    if Usgs::RateLimitCircuit.open?
-      Rails.logger.warn("LatestObservationSyncJob skipped: USGS rate limit circuit open")
+    if Usgs::RateLimitCircuit.open?(Usgs::RateLimitCircuit::TIP_KEY)
+      Rails.logger.warn("LatestObservationSyncJob skipped: USGS tip rate limit circuit open")
       return
     end
     if DatabaseReadOnlyCircuit.open?

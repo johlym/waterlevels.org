@@ -10,11 +10,23 @@ module Usgs
     Error = Class.new(StandardError)
     RateLimitError = Class.new(Error)
 
-    def initialize(api_key: ENV["USGS_API_KEY"], connection: nil, request_pause_ms: nil)
+    def self.for_tip
+      new(api_key: ENV["USGS_API_KEY"], circuit_key: RateLimitCircuit::TIP_KEY)
+    end
+
+    def self.for_history
+      entry = HistoryKeyPool.claim!
+      new(api_key: entry[:api_key], circuit_key: entry[:circuit_key])
+    end
+
+    def initialize(api_key: ENV["USGS_API_KEY"], connection: nil, request_pause_ms: nil, circuit_key: RateLimitCircuit::TIP_KEY)
       @api_key = api_key
+      @circuit_key = circuit_key.presence || RateLimitCircuit::TIP_KEY
       @request_pause_ms = request_pause_ms.nil? ? default_request_pause_ms : request_pause_ms.to_i
       @connection = connection || build_connection
     end
+
+    attr_reader :circuit_key
 
     def each_collection_item(collection, params = {})
       next_url = nil
@@ -60,9 +72,9 @@ module Usgs
     private
 
     def raise_if_circuit_open!
-      return unless RateLimitCircuit.open?
+      return unless RateLimitCircuit.open?(@circuit_key)
 
-      raise RateLimitError, "USGS rate limit circuit open"
+      raise RateLimitError, "USGS rate limit circuit open key=#{@circuit_key}"
     end
 
     def default_request_pause_ms
@@ -104,8 +116,8 @@ module Usgs
 
     def handle_response(response)
       if response.status == 429
-        RateLimitCircuit.open!
-        raise RateLimitError, "USGS rate limited"
+        RateLimitCircuit.open!(key_id: @circuit_key)
+        raise RateLimitError, "USGS rate limited key=#{@circuit_key}"
       end
       unless response.success?
         raise Error, "USGS #{response.status}: #{response.body}"

@@ -137,6 +137,65 @@ class HistoryBackfillBatchJobTest < ActiveSupport::TestCase
     end
   end
 
+  test "scales default phase-1 budget by available history keys" do
+    locations = 3.times.map do |i|
+      loc = create(:monitoring_location, site_number: format("3000004%d", i))
+      create(:time_series, monitoring_location: loc, selected_for_display: true)
+      loc
+    end
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      with_env(
+        "USGS_API_HISTORY_1_KEY" => "hist-1",
+        "USGS_API_HISTORY_2_KEY" => "hist-2",
+        "HISTORY_BACKFILL_BATCH" => "1",
+        "HISTORY_DEEP_BACKFILL_BATCH" => "0"
+      ) do
+        # 1 station/key × 2 keys = 2 enqueues (third candidate waits).
+        assert_equal 2, HistoryBackfillBatchJob.perform_now
+        enqueued_ids = enqueued_jobs
+          .select { |job| job[:job] == HistoryBackfillJob }
+          .map { |job| job[:args].first }
+        assert_equal 2, enqueued_ids.size
+        assert_empty enqueued_ids - locations.map(&:id)
+      end
+    end
+  end
+
+  test "deep budget uses leftover request capacity after phase-1" do
+    cold = create(:monitoring_location, site_number: "30000050")
+    create(:time_series, monitoring_location: cold, selected_for_display: true)
+
+    year_ready = create(:monitoring_location, site_number: "30000051")
+    series = create(:time_series, monitoring_location: year_ready, selected_for_display: true)
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      ContinuousObservation.create!(
+        time_series: series,
+        observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
+        value: 0.9
+      )
+      ContinuousObservation.create!(time_series: series, observed_at: 1.hour.ago, value: 1.0)
+      DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 1.1)
+      DailyObservation.create!(time_series: series, observed_on: Date.current, value: 1.2)
+
+      # One fallback key, phase-1 cost 1000 ⇒ one cold station consumes the whole
+      # hourly request budget, so deep must stay at zero despite a high ceiling.
+      with_env(
+        "HISTORY_BACKFILL_BATCH" => "1",
+        "HISTORY_DEEP_BACKFILL_BATCH" => "400",
+        "HISTORY_PHASE1_REQUESTS_PER_STATION" => "1000"
+      ) do
+        assert_enqueued_with(job: HistoryBackfillJob, args: [ cold.id, "1y" ]) do
+          assert_equal 1, HistoryBackfillBatchJob.perform_now
+        end
+        refute enqueued_jobs.any? { |job|
+          job[:job] == HistoryBackfillJob && job[:args] == [ year_ready.id, "3y" ]
+        }
+      end
+    end
+  end
+
   private
 
   def with_env(vars)

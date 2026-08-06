@@ -24,10 +24,10 @@ class HistoryIngestion
   # Overlap when extending from an existing tip so revised USGS points are picked up.
   CONTINUOUS_OVERLAP = 30.minutes
 
-  def initialize(monitoring_location:, range: DEFAULT_RANGE, client: Usgs::Client.new, progress: nil)
+  def initialize(monitoring_location:, range: DEFAULT_RANGE, client: nil, progress: nil)
     @monitoring_location = monitoring_location
     @range = range
-    @client = client
+    @client = client || Usgs::Client.for_history
     @progress = progress
   end
 
