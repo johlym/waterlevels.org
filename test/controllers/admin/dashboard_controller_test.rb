@@ -5,6 +5,7 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     @previous_pw = ENV["DASHBOARD_PW"]
     ENV.delete("DASHBOARD_PW")
     AdminDashboardStats.clear_tip_refresh!
+    Admin::DashboardController::RATE_LIMIT_STORE.clear
   end
 
   teardown do
@@ -14,6 +15,7 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
       ENV["DASHBOARD_PW"] = @previous_pw
     end
     AdminDashboardStats.clear_tip_refresh!
+    Admin::DashboardController::RATE_LIMIT_STORE.clear
   end
 
   test "returns not found when DASHBOARD_PW is unset" do
@@ -37,6 +39,23 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     ENV["DASHBOARD_PW"] = "secret-dashboard"
     get admin_path, headers: basic_auth_headers("root", "secret-dashboard")
     assert_response :unauthorized
+  end
+
+  test "rate limits repeated password attempts from the same IP" do
+    ENV["DASHBOARD_PW"] = "secret-dashboard"
+    limit = Admin::DashboardController::RATE_LIMIT_TO
+
+    limit.times do |i|
+      get admin_path, headers: basic_auth_headers("admin", "wrong-#{i}")
+      assert_response :unauthorized
+    end
+
+    get admin_path, headers: basic_auth_headers("admin", "wrong-overflow")
+    assert_response :too_many_requests
+
+    # Even the correct password is blocked until the window resets.
+    get admin_path, headers: basic_auth_headers("admin", "secret-dashboard")
+    assert_response :too_many_requests
   end
 
   test "renders dashboard with stats when authenticated" do
