@@ -28,6 +28,7 @@
       <div
         class="home-search"
         data-controller="station-search"
+        data-station-search-dialog-outlet="#home-geolocation-dialog"
         data-station-search-search-url-value="<%= search_api_map_stations_path %>"
         data-station-search-nearest-url-value="<%= nearest_api_map_stations_path %>"
         data-station-search-map-url-value="<%= map_path %>"
@@ -45,7 +46,7 @@
               >
               <input
                 type="search"
-                placeholder="Search by station name, river, state, or location..."
+                placeholder="Search by station name, river, state, or ZIP..."
                 autocomplete="off"
                 data-station-search-target="input"
                 data-action="input->station-search#search keydown->station-search#keydown"
@@ -78,6 +79,8 @@
             <a href="#<%= region.key %>"><%= region.name %></a>
           <% end %>
         </div>
+
+        <%= render Geolocation::ErrorDialogComponent.new(id: "home-geolocation-dialog") %>
       </div>
     </div>
   </section>
@@ -101,7 +104,7 @@
             </svg>
           </div>
           <p class="value"><%= number_with_delimiter(@stats[:station_count]) %></p>
-          <p class="label">Total stations</p>
+          <p class="label">Active stations</p>
         </article>
 
         <article>
@@ -120,11 +123,11 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
           </div>
-          <p class="value"><%= number_with_delimiter(@stats[:updates_per_hour]) %></p>
-          <p class="label">Updates per hour</p>
+          <p class="value"><%= number_with_delimiter(@stats[:updates_today]) %></p>
+          <p class="label">Updates today</p>
         </article>
 
-        <article>
+        <%= link_to alerts_path, class: "stat-card" do %>
           <div class="icon rose" aria-hidden="true">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"></path>
@@ -132,7 +135,7 @@
           </div>
           <p class="value<%= " alert" if @stats[:flood_alert_count].to_i.positive? %>"><%= number_with_delimiter(@stats[:flood_alert_count]) %></p>
           <p class="label">Flood alerts</p>
-        </article>
+        <% end %>
       </div>
     </div>
   </section>

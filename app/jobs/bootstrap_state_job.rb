@@ -2,9 +2,12 @@ class BootstrapStateJob < ApplicationJob
   queue_as :sync
 
   def perform(state)
-    if Usgs::RateLimitCircuit.open?
-      Rails.logger.warn("BootstrapStateJob skipped: USGS rate limit circuit open state=#{state}")
+    if Usgs::RateLimitCircuit.open?(Usgs::RateLimitCircuit::TIP_KEY)
+      Rails.logger.warn("BootstrapStateJob skipped: USGS tip rate limit circuit open state=#{state}")
       return
+    end
+    if DatabaseReadOnlyCircuit.open?
+      raise DatabaseReadOnlyError, "database read-only circuit open state=#{state}"
     end
 
     progress = SyncProgress.new("BootstrapStateJob##{state}", io: nil)

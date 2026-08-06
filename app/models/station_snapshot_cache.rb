@@ -68,7 +68,10 @@ class StationSnapshotCache
       .to_a
       .sort_by { |s| [ kind_order(s.measurement_kind), Usgs::ParameterCodes.preference_rank(s.parameter_code) ] }
 
-    measurements = selected.filter_map { |series| measurement_payload(series) }
+    prior_24h_by_series_id = TrendComparison.prior_24h_continuous_by_series(selected)
+    measurements = selected.filter_map do |series|
+      measurement_payload(series, prior_continuous: prior_24h_by_series_id[series.id])
+    end
     measurements = denormalized_measurements(location) if measurements.empty?
 
     current = {}
@@ -149,14 +152,29 @@ class StationSnapshotCache
   end
   private_class_method :coerce_time
 
-  def self.measurement_payload(series)
+  def self.measurement_payload(series, prior_continuous: :lookup)
     obs = series.latest_observation
     return unless obs
 
-    trend_24h = TrendComparison.for_series(series, current_value: obs.value, observed_at: obs.observed_at)
+    # Prefer preloaded associations / batched continuous priors so gauge show
+    # does not N+1 across selected time series (Sentry WATER-4).
+    trend_24h = TrendComparison.for_series(
+      series,
+      current_value: obs.value,
+      observed_at: obs.observed_at,
+      prior_continuous: prior_continuous
+    )
     yoy = TrendComparison.yoy_for_series(series, current_value: obs.value, observed_at: obs.observed_at)
-    high = series.peak_observations.where(peak_kind: "high").order(value: :desc).first
-    low_daily = series.daily_observations.order(:value).first
+    high = if series.association(:peak_observations).loaded?
+      series.peak_observations.select { |p| p.peak_kind == "high" }.max_by { |p| p.value.to_f }
+    else
+      series.peak_observations.where(peak_kind: "high").order(value: :desc).first
+    end
+    low_daily = if series.association(:daily_observations).loaded?
+      series.daily_observations.min_by { |d| d.value.to_f }
+    else
+      series.daily_observations.order(:value).first
+    end
     label = Usgs::ParameterCodes.label_for(series.parameter_code, fallback: series.parameter_description)
 
     {

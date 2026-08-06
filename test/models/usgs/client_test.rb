@@ -57,7 +57,21 @@ module Usgs
         Client.new(api_key: nil).each_collection_item("monitoring-locations", limit: 1) { }
       end
 
-      assert RateLimitCircuit.open?
+      assert RateLimitCircuit.open?(RateLimitCircuit::TIP_KEY)
+      assert_requested(stub, times: 1)
+    end
+
+    test "429 on a history client only trips that history circuit" do
+      stub = stub_request(:get, %r{\Ahttps://api\.waterdata\.usgs\.gov/ogcapi/v0/collections/monitoring-locations/items})
+        .to_return(status: 429, body: "rate limited", headers: { "Content-Type" => "text/plain" })
+
+      assert_raises(Client::RateLimitError) do
+        Client.new(api_key: "hist-1", circuit_key: "history_1")
+          .each_collection_item("monitoring-locations", limit: 1) { }
+      end
+
+      assert RateLimitCircuit.open?("history_1")
+      refute RateLimitCircuit.open?(RateLimitCircuit::TIP_KEY)
       assert_requested(stub, times: 1)
     end
 
@@ -70,6 +84,27 @@ module Usgs
       end
 
       assert_not_requested(stub)
+    end
+
+    test "for_tip and for_history select distinct keys when history keys are set" do
+      previous = {
+        "USGS_API_KEY" => ENV["USGS_API_KEY"],
+        "USGS_API_HISTORY_1_KEY" => ENV["USGS_API_HISTORY_1_KEY"],
+        "USGS_API_HISTORY_2_KEY" => ENV["USGS_API_HISTORY_2_KEY"]
+      }
+      ENV["USGS_API_KEY"] = "tip-key"
+      ENV["USGS_API_HISTORY_1_KEY"] = "hist-1"
+      ENV["USGS_API_HISTORY_2_KEY"] = "hist-2"
+
+      tip = Client.for_tip
+      history = Client.for_history
+
+      assert_equal RateLimitCircuit::TIP_KEY, tip.circuit_key
+      assert_includes %w[history_1 history_2], history.circuit_key
+    ensure
+      previous.each do |key, value|
+        value.nil? ? ENV.delete(key) : ENV[key] = value
+      end
     end
   end
 end

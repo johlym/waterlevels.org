@@ -5,6 +5,41 @@ module ApplicationHelper
     Usgs::LocationNames.format(name)
   end
 
+  # Absolute URL for Open Graph / Twitter card images.
+  def social_image_url
+    path = if content_for?(:og_image_path)
+      content_for(:og_image_path)
+    else
+      og_default_path
+    end
+    "#{app_base_url}#{path}"
+  end
+
+  def app_base_url
+    if !Rails.env.local? && ENV["APP_HOST"].present?
+      "https://#{ENV["APP_HOST"]}"
+    else
+      request.base_url
+    end
+  end
+
+  def social_page_url
+    "#{app_base_url}#{request.path}"
+  end
+
+  def social_title
+    content_for?(:title) ? content_for(:title) : "WaterLevels.org"
+  end
+
+  def social_description
+    if content_for?(:meta_description)
+      content_for(:meta_description)
+    else
+      "Live USGS streamflow, water level, and temperature gauges across the United States."
+    end
+  end
+
+
   # Breadcrumbs / headings should not repeat the word "County".
   def display_county_name(name)
     name.to_s.gsub(/\s+County\z/i, "").strip
@@ -34,11 +69,16 @@ module ApplicationHelper
     UnitLabel.format(unit)
   end
 
+  # e.g. 541.10 / 540 — pad fractional gauge readings to +precision+ places.
+  def display_gauge_value(value, precision: 2)
+    GaugeValue.format(value, precision: precision)
+  end
+
   # e.g. +1,234.50 / -12
   def signed_number(value, precision:)
     return if value.nil?
 
-    formatted = number_with_precision(value, precision: precision, delimiter: ",")
+    formatted = display_gauge_value(value, precision: precision)
     value.to_f.positive? ? "+#{formatted}" : formatted
   end
 

@@ -17,4 +17,10 @@ class PagesController < ApplicationController
 
     render template: "pages/#{@page}"
   end
+
+  private
+
+  def enable_session?
+    params[:id].to_s == "contact"
+  end
 end

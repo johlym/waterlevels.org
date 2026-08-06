@@ -14,13 +14,10 @@ export default class extends Controller {
   async setUnit(unit) {
     document.cookie = `temperature_unit=${unit}; path=/; max-age=31536000; SameSite=Lax`
     if (this.hasUrlValue) {
-      const token = document.querySelector("meta[name='csrf-token']")?.content
+      // No CSRF: public pages skip the Rails session so HTML can be edge-cached.
       await fetch(this.urlValue, {
         method: "PUT",
-        headers: {
-          "X-CSRF-Token": token,
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ unit })
       })
     }

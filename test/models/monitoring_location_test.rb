@@ -9,6 +9,20 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     assert_equal "America/Phoenix", arizona.time_zone_identifier
   end
 
+  test "not_stale matches stations the map labels Active" do
+    fresh = create(:monitoring_location, latest_observed_at: 1.hour.ago)
+    stale = create(:monitoring_location, latest_observed_at: 2.weeks.ago)
+    missing = create(:monitoring_location, latest_observed_at: nil)
+
+    ids = MonitoringLocation.not_stale.pluck(:id)
+    assert_includes ids, fresh.id
+    refute_includes ids, stale.id
+    refute_includes ids, missing.id
+    refute fresh.stale?
+    assert stale.stale?
+    assert missing.stale?
+  end
+
   test "flood helpers classify NWS categories" do
     location = build(:monitoring_location, flood_category: "major", flood_stage_minor: 10)
     assert location.flood_alert?
@@ -26,15 +40,37 @@ class MonitoringLocationTest < ActiveSupport::TestCase
 
     needs_daily = create(:monitoring_location, site_number: "20000002")
     daily_series = create(:time_series, monitoring_location: needs_daily, selected_for_display: true)
+    ContinuousObservation.create!(
+      time_series: daily_series,
+      observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
+      value: 11.0
+    )
     ContinuousObservation.create!(time_series: daily_series, observed_at: 1.day.ago, value: 12.3)
 
     needs_daily_tip = create(:monitoring_location, site_number: "20000004")
     tip_series = create(:time_series, monitoring_location: needs_daily_tip, selected_for_display: true)
+    ContinuousObservation.create!(
+      time_series: tip_series,
+      observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
+      value: 11.0
+    )
     ContinuousObservation.create!(time_series: tip_series, observed_at: 1.day.ago, value: 12.3)
     DailyObservation.create!(time_series: tip_series, observed_on: 11.months.ago.to_date, value: 10.0)
 
+    # Tip-only continuous + year daily still needs the older IV archive.
+    needs_continuous_anchor = create(:monitoring_location, site_number: "20000005")
+    tip_only = create(:time_series, monitoring_location: needs_continuous_anchor, selected_for_display: true)
+    ContinuousObservation.create!(time_series: tip_only, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: tip_only, observed_on: 11.months.ago.to_date, value: 10.0)
+    DailyObservation.create!(time_series: tip_only, observed_on: Date.current, value: 11.0)
+
     complete = create(:monitoring_location, site_number: "20000003")
     series = create(:time_series, monitoring_location: complete, selected_for_display: true)
+    ContinuousObservation.create!(
+      time_series: series,
+      observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
+      value: 11.0
+    )
     ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)
     DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 10.0)
     DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
@@ -43,13 +79,104 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     assert_includes ids, needs_continuous.id
     assert_includes ids, needs_daily.id
     assert_includes ids, needs_daily_tip.id
+    assert_includes ids, needs_continuous_anchor.id
     refute_includes ids, complete.id
+    assert needs_continuous_anchor.needs_history_backfill?
+    refute complete.needs_history_backfill?
   end
 
   test "needs_history_backfill? is false without selected series" do
     location = create(:monitoring_location)
     create(:time_series, monitoring_location: location, selected_for_display: false)
     refute location.needs_history_backfill?
+  end
+
+  test "missing_year_history? is true without a daily point near the year anchor" do
+    location = create(:monitoring_location)
+    series = create(:time_series, monitoring_location: location, selected_for_display: true)
+    ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+
+    assert location.missing_year_history?
+  end
+
+  test "missing_year_history? is false when year daily history is present" do
+    location = create(:monitoring_location)
+    series = create(:time_series, monitoring_location: location, selected_for_display: true)
+    DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 10.0)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+
+    refute location.missing_year_history?
+  end
+
+  test "missing_year_history? is false without selected series" do
+    location = create(:monitoring_location)
+    create(:time_series, monitoring_location: location, selected_for_display: false)
+    refute location.missing_year_history?
+  end
+
+  test "missing_deep_history? is false until year history exists" do
+    location = create(:monitoring_location)
+    series = create(:time_series, monitoring_location: location, selected_for_display: true)
+    ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+
+    refute location.missing_deep_history?
+    refute location.has_deep_history?
+  end
+
+  test "missing_deep_history? is true when year-ready but deep daily is absent" do
+    location = create(:monitoring_location)
+    series = create(:time_series, monitoring_location: location, selected_for_display: true)
+    ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 10.0)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+
+    assert location.missing_deep_history?
+    refute location.has_deep_history?
+  end
+
+  test "has_deep_history? is true when deep daily anchor is present" do
+    location = create(:monitoring_location)
+    series = create(:time_series, monitoring_location: location, selected_for_display: true)
+    DailyObservation.create!(time_series: series, observed_on: 35.months.ago.to_date, value: 9.0)
+    DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 10.0)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+
+    refute location.missing_deep_history?
+    assert location.has_deep_history?
+  end
+
+  test "needing_deep_history_backfill includes year-ready stations missing deep daily" do
+    year_ready = create(:monitoring_location, site_number: "20000010")
+    year_series = create(:time_series, monitoring_location: year_ready, selected_for_display: true)
+    ContinuousObservation.create!(
+      time_series: year_series,
+      observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
+      value: 11.0
+    )
+    ContinuousObservation.create!(time_series: year_series, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: year_series, observed_on: 11.months.ago.to_date, value: 10.0)
+    DailyObservation.create!(time_series: year_series, observed_on: Date.current, value: 11.0)
+
+    cold = create(:monitoring_location, site_number: "20000011")
+    create(:time_series, monitoring_location: cold, selected_for_display: true)
+
+    deep_ready = create(:monitoring_location, site_number: "20000012")
+    deep_series = create(:time_series, monitoring_location: deep_ready, selected_for_display: true)
+    ContinuousObservation.create!(
+      time_series: deep_series,
+      observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
+      value: 11.0
+    )
+    ContinuousObservation.create!(time_series: deep_series, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: deep_series, observed_on: 35.months.ago.to_date, value: 9.0)
+    DailyObservation.create!(time_series: deep_series, observed_on: Date.current, value: 11.0)
+
+    ids = MonitoringLocation.needing_deep_history_backfill.pluck(:id)
+    assert_includes ids, year_ready.id
+    refute_includes ids, cold.id
+    refute_includes ids, deep_ready.id
   end
 
   test "search matches name, site number, and state across the collection" do

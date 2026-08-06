@@ -39,6 +39,10 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, ">Provisional<span"
     assert_includes response.body, "not finished review"
     assert_includes response.headers["Cache-Tag"], "gauge:#{@location.site_number}"
+    assert_includes response.headers["Cache-Control"], "max-age=60"
+    assert_not_includes response.headers["Cache-Control"], "stale-while-revalidate"
+    assert_includes response.headers["Cloudflare-CDN-Cache-Control"], "stale-while-revalidate=86400"
+    assert_includes response.body, 'name="turbo-cache-control" content="no-cache"'
   end
 
   test "measurement labels include glossary tooltips for datum terms" do
@@ -96,10 +100,49 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Minor Flooding"
     assert_includes response.body, "badge flood-minor"
     assert_includes response.body, "NWS flood stages"
-    assert_includes response.body, "Action 5.0 ft"
+    assert_includes response.body, "Action 5 ft"
     assert_includes response.body, "data-hydrograph-flood-stages-value"
     assert_includes response.body, "&quot;minor&quot;:10.0"
     assert_not_includes response.body, "No flood stage data"
+  end
+
+  test "shows history callout when full-year daily history is missing" do
+    series = create(:time_series, monitoring_location: @location, selected_for_display: true)
+    ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_includes response.body, "Historical trends"
+    assert_includes response.body, 'class="history-callout"'
+    assert_includes response.body, "Full-year history is still loading"
+  end
+
+  test "hides history callout when full-year daily history is present" do
+    series = create(:time_series, monitoring_location: @location, selected_for_display: true)
+    ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 10.0)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_includes response.body, "Historical trends"
+    assert_not_includes response.body, 'class="history-callout"'
+    assert_not_includes response.body, "Full-year history is still loading"
+    assert_includes response.body, 'data-hydrograph-range-param="1y"'
+    assert_not_includes response.body, 'data-hydrograph-range-param="3y"'
+  end
+
+  test "shows 3 year range tab when deep daily history is present" do
+    series = create(:time_series, monitoring_location: @location, selected_for_display: true)
+    ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: series, observed_on: 35.months.ago.to_date, value: 9.0)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_includes response.body, 'data-hydrograph-range-param="3y"'
+    assert_includes response.body, "3 Years"
   end
 
   test "nearby stations show all available measurements" do
@@ -201,6 +244,27 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Action"
     assert_includes response.body, "status flood-action"
     assert_includes response.body, "elevated"
+    assert_includes response.body, "Stations with alerts"
+    assert_includes response.body, 'data-state-directory-target="alertsOnly"'
+    assert_includes response.body, 'data-alert="true"'
+  end
+
+  test "state listing hides alerts filter when no stations have alerts" do
+    create(
+      :monitoring_location,
+      site_number: "201",
+      usgs_monitoring_location_id: "USGS-201",
+      county_name: "King",
+      name: "QUIET CREEK NEAR TOWN, WA",
+      state_code: "wa",
+      flood_category: "no_flooding"
+    )
+
+    get "/gauges/wa"
+    assert_response :success
+    assert_not_includes response.body, "Stations with alerts"
+    assert_not_includes response.body, 'data-state-directory-target="alertsOnly"'
+    assert_includes response.body, 'data-alert="false"'
   end
 
   test "returns map stations for a bbox" do
@@ -208,6 +272,62 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     json = JSON.parse(response.body)
     assert_kind_of Array, json["stations"]
+  end
+
+  test "map station popup payload reflects denormalized tip columns" do
+    observed_at = Time.utc(2026, 8, 5, 14, 15, 0)
+    @location.update!(
+      latitude: 47.5,
+      longitude: -121.8,
+      latest_water_level_value: 7.5,
+      latest_water_level_unit: "ft",
+      latest_water_level_parameter_code: "00065",
+      latest_discharge_value: 1200.0,
+      latest_discharge_unit: "ft3/s",
+      latest_observed_at: observed_at
+    )
+
+    get "/api/map/stations", params: { bbox: "-125,45,-120,49" }
+    assert_response :success
+    station = JSON.parse(response.body)["stations"].find { |row| row["id"] == @location.site_number }
+    assert station
+    assert_in_delta 7.5, station["water_level"], 0.001
+    assert_in_delta 1200.0, station["discharge"], 0.001
+    assert_equal observed_at.iso8601, station["observed_at"]
+  end
+
+  test "map station popup prefers fresher LatestObservation over lagging columns" do
+    older = Time.utc(2026, 8, 2, 7, 30, 0)
+    newer = Time.utc(2026, 8, 5, 18, 30, 0)
+    @location.update!(
+      latitude: 47.5,
+      longitude: -121.8,
+      latest_water_level_value: 23.95,
+      latest_water_level_unit: "ft",
+      latest_water_level_parameter_code: "00065",
+      latest_observed_at: older
+    )
+    series = create(
+      :time_series,
+      monitoring_location: @location,
+      parameter_code: "00065",
+      measurement_kind: "water_level",
+      selected_for_display: true
+    )
+    LatestObservation.create!(
+      time_series: series,
+      value: 23.80,
+      unit_of_measure: "ft",
+      observed_at: newer,
+      synced_at: Time.current
+    )
+
+    get "/api/map/stations", params: { bbox: "-125,45,-120,49" }
+    assert_response :success
+    station = JSON.parse(response.body)["stations"].find { |row| row["id"] == @location.site_number }
+    assert station
+    assert_in_delta 23.80, station["water_level"], 0.001
+    assert_equal newer.iso8601, station["observed_at"]
   end
 
   test "searches all monitoring locations without a bbox" do
@@ -297,5 +417,73 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     station = JSON.parse(response.body)["station"]
     assert_equal near.site_number, station["id"]
     assert_equal "/gauges/#{near.path_state}/#{near.to_param}", station["path"]
+  end
+
+  test "station search returns a ZIP result that links to a zoomed map view" do
+    stub_request(:get, "https://api.zippopotam.us/us/98101")
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: {
+          "post code" => "98101",
+          "places" => [
+            {
+              "place name" => "Seattle",
+              "longitude" => "-122.3305",
+              "latitude" => "47.6114",
+              "state" => "Washington",
+              "state abbreviation" => "WA"
+            }
+          ]
+        }.to_json
+      )
+
+    get "/api/map/stations/search", params: { q: "98101" }
+    assert_response :success
+    results = JSON.parse(response.body)["stations"]
+
+    assert_equal "zip", results.first["type"]
+    assert_equal "98101", results.first["id"]
+    assert_equal "98101 — Seattle, WA", results.first["name"]
+    assert_equal "/map?lat=47.6114&lon=-122.3305&zoom=12", results.first["path"]
+    assert_not results.first.key?("lat")
+  end
+
+  test "station search accepts ZIP+4 and still returns the five-digit map result" do
+    stub_request(:get, "https://api.zippopotam.us/us/78701")
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: {
+          "post code" => "78701",
+          "places" => [
+            {
+              "place name" => "Austin",
+              "longitude" => "-97.7428",
+              "latitude" => "30.2711",
+              "state" => "Texas",
+              "state abbreviation" => "TX"
+            }
+          ]
+        }.to_json
+      )
+
+    get "/api/map/stations/search", params: { q: "78701-0143" }
+    assert_response :success
+    results = JSON.parse(response.body)["stations"]
+
+    assert_equal "zip", results.first["type"]
+    assert_equal "/map?lat=30.2711&lon=-97.7428&zoom=12", results.first["path"]
+  end
+
+  test "station search omits ZIP results when the provider has no match" do
+    stub_request(:get, "https://api.zippopotam.us/us/00000")
+      .to_return(status: 404, body: "{}")
+
+    get "/api/map/stations/search", params: { q: "00000" }
+    assert_response :success
+    results = JSON.parse(response.body)["stations"]
+
+    assert results.none? { |row| row["type"] == "zip" }
   end
 end

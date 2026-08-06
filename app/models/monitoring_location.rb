@@ -9,6 +9,9 @@ class MonitoringLocation < ApplicationRecord
   validates :usgs_monitoring_location_id, :site_number, :name, :display_name, :search_name, :slug, :state_code, :latitude, :longitude, presence: true
   validates :usgs_monitoring_location_id, :site_number, uniqueness: true
 
+  scope :active, -> { where(active: true) }
+  # Matches #stale? inverted — recent enough for the map "Active" status.
+  scope :not_stale, -> { where(latest_observed_at: STALE_AFTER.ago..) }
   scope :in_state, ->(code) { where(state_code: code.to_s.downcase) }
   scope :ordered_for_state_table, -> { order(Arel.sql("LOWER(COALESCE(county_name, '')) ASC, LOWER(display_name) ASC")) }
   scope :in_bbox, lambda { |west, south, east, north|
@@ -58,11 +61,15 @@ class MonitoringLocation < ApplicationRecord
   }
   scope :needing_history_backfill, lambda {
     continuous_since = HistoryIngestion::CONTINUOUS_FRESHNESS.ago
+    continuous_anchor = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
     daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
 
-    missing_continuous = TimeSeries.selected.where.not(
+    missing_continuous_tip = TimeSeries.selected.where.not(
       id: ContinuousObservation.where(observed_at: continuous_since..).select(:time_series_id)
+    )
+    missing_continuous_anchor = TimeSeries.selected.where.not(
+      id: ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id)
     )
     missing_daily_anchor = TimeSeries.selected.where.not(
       id: DailyObservation.where(observed_on: ..daily_anchor).select(:time_series_id)
@@ -70,9 +77,27 @@ class MonitoringLocation < ApplicationRecord
     stale_daily_tip = TimeSeries.selected.where.not(
       id: DailyObservation.where(observed_on: daily_fresh_since..).select(:time_series_id)
     )
-    where(id: missing_continuous.select(:monitoring_location_id))
+    where(id: missing_continuous_tip.select(:monitoring_location_id))
+      .or(where(id: missing_continuous_anchor.select(:monitoring_location_id)))
       .or(where(id: missing_daily_anchor.select(:monitoring_location_id)))
       .or(where(id: stale_daily_tip.select(:monitoring_location_id)))
+      .distinct
+  }
+  # Year-ready stations that still lack ~3-year daily history. Excludes phase-1
+  # candidates so the deep batch never competes with cold/lazy 1y fills.
+  scope :needing_deep_history_backfill, lambda {
+    year_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
+    deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
+
+    missing_year = TimeSeries.selected.where.not(
+      id: DailyObservation.where(observed_on: ..year_anchor).select(:time_series_id)
+    )
+    missing_deep = TimeSeries.selected.where.not(
+      id: DailyObservation.where(observed_on: ..deep_anchor).select(:time_series_id)
+    )
+    where(id: missing_deep.select(:monitoring_location_id))
+      .where.not(id: missing_year.select(:monitoring_location_id))
+      .where.not(id: needing_history_backfill.select(:id))
       .distinct
   }
 
@@ -102,14 +127,47 @@ class MonitoringLocation < ApplicationRecord
     return false if series.none?
 
     continuous_since = HistoryIngestion::CONTINUOUS_FRESHNESS.ago
+    continuous_anchor = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
     daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
 
     series.any? do |s|
       s.continuous_observations.where(observed_at: continuous_since..).none? ||
+        s.continuous_observations.where(observed_at: ..continuous_anchor).none? ||
         s.daily_observations.where(observed_on: ..daily_anchor).none? ||
         s.daily_observations.where(observed_on: daily_fresh_since..).none?
     end
+  end
+
+  # True when a selected series lacks daily points near the ~1-year
+  # anchor — i.e. the 1 Year chart is not fully loaded yet.
+  def missing_year_history?
+    series = time_series.selected
+    return false if series.none?
+
+    daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
+    series.any? { |s| s.daily_observations.where(observed_on: ..daily_anchor).none? }
+  end
+
+  # True when year history is present but a selected series still lacks daily
+  # points near the ~3-year deep anchor.
+  def missing_deep_history?
+    series = time_series.selected
+    return false if series.none?
+    return false if missing_year_history?
+
+    deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
+    series.any? { |s| s.daily_observations.where(observed_on: ..deep_anchor).none? }
+  end
+
+  # True when every selected series has daily points near the ~3-year anchor —
+  # used to expose the 3 Years chart tab.
+  def has_deep_history?
+    series = time_series.selected
+    return false if series.none?
+
+    deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
+    series.all? { |s| s.daily_observations.where(observed_on: ..deep_anchor).exists? }
   end
 
   def to_param

@@ -1,6 +1,8 @@
 import { Controller } from "@hotwired/stimulus"
 import L from "leaflet"
 import "leaflet.markercluster"
+import { geolocationErrorMessage } from "../lib/geolocation_errors"
+import { formatGaugeValue } from "../lib/gauge_value"
 
 export default class extends Controller {
   static targets = [
@@ -15,6 +17,7 @@ export default class extends Controller {
     "settingsButton",
     "mobileSearch"
   ]
+  static outlets = ["dialog"]
 
   static FLOOD_COLORS = {
     action: { color: "#fbbf24", fill: "#f59e0b" },
@@ -30,32 +33,39 @@ export default class extends Controller {
     year: Number
   }
 
+  static DEFAULT_VIEW = { lat: 39.5, lon: -98.35, zoom: 5 }
+  static MAX_ZOOM = 18
+
   connect() {
     this.stations = []
     this.searchResults = []
     this.markersById = new Map()
     this.query = ""
     this.searchRequestId = 0
+    this.syncingHashFromMap = false
     this.layers = {
       discharge: true,
       water_level: true,
       temperature: true
     }
 
-    this.map = L.map(this.canvasTarget, { zoomControl: false, attributionControl: false }).setView([39.5, -98.35], 4)
+    const initial = this.initialView()
+    this.map = L.map(this.canvasTarget, { zoomControl: false, attributionControl: false }).setView(initial.center, initial.zoom)
     L.control.attribution({
       position: "bottomleft",
       prefix: this.attributionPrefix()
     }).addTo(this.map)
     L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      maxZoom: 18
+      maxZoom: this.constructor.MAX_ZOOM
     }).addTo(this.map)
 
     this.cluster = L.markerClusterGroup()
     this.map.addLayer(this.cluster)
-    this.map.on("moveend", () => this.loadStations())
-    this.loadStations()
+    this.map.on("moveend", () => this.onMoveEnd())
+    this.onHashChange = this.onHashChange.bind(this)
+    window.addEventListener("hashchange", this.onHashChange)
+    this.onMoveEnd()
 
     this.onKeydown = this.onKeydown.bind(this)
     document.addEventListener("keydown", this.onKeydown)
@@ -63,8 +73,94 @@ export default class extends Controller {
 
   disconnect() {
     document.removeEventListener("keydown", this.onKeydown)
+    window.removeEventListener("hashchange", this.onHashChange)
     if (this.searchTimer) clearTimeout(this.searchTimer)
     if (this.map) this.map.remove()
+  }
+
+  onMoveEnd() {
+    this.syncUrlFromMap()
+    this.loadStations()
+  }
+
+  onHashChange() {
+    if (this.syncingHashFromMap || !this.map) return
+
+    const view = this.viewFromUrl()
+    if (!view) {
+      this.syncUrlFromMap()
+      return
+    }
+
+    const center = this.map.getCenter()
+    const zoom = this.map.getZoom()
+    if (
+      Math.abs(center.lat - view.lat) < 1e-6 &&
+      Math.abs(center.lng - view.lon) < 1e-6 &&
+      Math.abs(zoom - view.zoom) < 1e-6
+    ) {
+      return
+    }
+
+    this.map.setView([view.lat, view.lon], view.zoom)
+  }
+
+  viewFromUrl() {
+    const hash = window.location.hash.replace(/^#/, "")
+    const match = hash.match(/^(\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)$/)
+    if (!match) return null
+
+    const zoom = Number(match[1])
+    const lat = Number(match[2])
+    const lon = Number(match[3])
+    if (![zoom, lat, lon].every(Number.isFinite)) return null
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null
+    if (zoom < 0 || zoom > this.constructor.MAX_ZOOM) return null
+
+    return { lat, lon, zoom }
+  }
+
+  syncUrlFromMap() {
+    if (!this.map) return
+
+    const center = this.map.getCenter()
+    const zoom = this.map.getZoom()
+    const url = new URL(window.location.href)
+    const searchView = this.viewFromSearchParams(url.searchParams)
+
+    // ZIP/query deep links win until the user moves away from that view.
+    if (searchView && this.sameView(center.lat, center.lng, zoom, searchView)) {
+      if (window.location.hash) {
+        this.syncingHashFromMap = true
+        history.replaceState(history.state, "", `${url.pathname}${url.search}`)
+        this.syncingHashFromMap = false
+      }
+      return
+    }
+
+    ;["lat", "lon", "zoom"].forEach((key) => url.searchParams.delete(key))
+    url.hash = this.formatMapHash(center.lat, center.lng, zoom)
+
+    const next = `${url.pathname}${url.search}${url.hash}`
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    if (current === next) return
+
+    this.syncingHashFromMap = true
+    history.replaceState(history.state, "", next)
+    this.syncingHashFromMap = false
+  }
+
+  sameView(lat, lon, zoom, view) {
+    return (
+      Math.abs(lat - view.center[0]) < 1e-5 &&
+      Math.abs(lon - view.center[1]) < 1e-5 &&
+      Math.abs(zoom - view.zoom) < 1e-5
+    )
+  }
+
+  formatMapHash(lat, lon, zoom) {
+    const precision = Math.max(0, Math.ceil(Math.log(Math.max(zoom, 1)) / Math.LN2))
+    return `${Number(zoom.toFixed(2))}/${lat.toFixed(precision)}/${lon.toFixed(precision)}`
   }
 
   attributionPrefix() {
@@ -78,6 +174,57 @@ export default class extends Controller {
     ].join(" | ")
   }
 
+  initialView() {
+    const fromSearch = this.viewFromSearchParams(new URLSearchParams(window.location.search))
+    if (fromSearch) return fromSearch
+
+    const fromHash = this.viewFromUrl()
+    if (fromHash) return { center: [fromHash.lat, fromHash.lon], zoom: fromHash.zoom }
+
+    const fallback = this.constructor.DEFAULT_VIEW
+    return { center: [fallback.lat, fallback.lon], zoom: fallback.zoom }
+  }
+
+  viewFromSearchParams(params) {
+    const latParam = params.get("lat")
+    const lonParam = params.get("lon")
+    if (latParam == null || lonParam == null || latParam === "" || lonParam === "") return null
+
+    const lat = Number(latParam)
+    const lon = Number(lonParam)
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null
+
+    const parsedZoom = Number(params.get("zoom"))
+    const maxZoom = this.constructor.MAX_ZOOM
+    const zoom = Number.isFinite(parsedZoom) && parsedZoom >= 1 && parsedZoom <= maxZoom ? parsedZoom : 12
+    return { center: [lat, lon], zoom }
+  }
+
+  applyMapViewFromParams(params) {
+    const view = this.viewFromSearchParams(params)
+    if (!view || !this.map) return false
+    this.map.setView(view.center, view.zoom)
+    return true
+  }
+
+  selectSearchResult(event) {
+    const link = event.currentTarget
+    if (!link?.href) return
+
+    const url = new URL(link.href, window.location.origin)
+    if (url.pathname !== "/map") return
+    if (!this.viewFromSearchParams(url.searchParams)) return
+
+    event.preventDefault()
+    this.closeMobileSearch()
+    // Write ZIP query params before setView so moveend keeps them until the user pans/zooms.
+    if (window.history?.replaceState) {
+      window.history.replaceState({}, "", `${url.pathname}${url.search}`)
+    }
+    this.applyMapViewFromParams(url.searchParams)
+  }
+
   zoomIn() {
     this.map?.zoomIn()
   }
@@ -87,7 +234,13 @@ export default class extends Controller {
   }
 
   locate() {
-    if (!navigator.geolocation || !this.map) return
+    if (!this.map) return
+
+    if (!navigator.geolocation) {
+      this.showGeolocationError()
+      return
+    }
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords
@@ -101,9 +254,14 @@ export default class extends Controller {
           weight: 2
         }).addTo(this.map)
       },
-      () => {},
+      (error) => this.showGeolocationError(error),
       { enableHighAccuracy: true, timeout: 10000 }
     )
+  }
+
+  showGeolocationError(error) {
+    if (!this.hasDialogOutlet) return
+    this.dialogOutlet.show(geolocationErrorMessage(error))
   }
 
   toggleSettings() {
@@ -195,9 +353,21 @@ export default class extends Controller {
       await this.fetchSearchResults()
     }
 
-    if (this.searchResults[0]?.path) {
-      window.location.href = this.searchResults[0].path
+    const first = this.searchResults[0]
+    if (!first?.path) return
+
+    const url = new URL(first.path, window.location.origin)
+    if (url.pathname === "/map" && this.viewFromSearchParams(url.searchParams)) {
+      this.closeMobileSearch()
+      // Write ZIP query params before setView so moveend keeps them until the user pans/zooms.
+      if (window.history?.replaceState) {
+        window.history.replaceState({}, "", `${url.pathname}${url.search}`)
+      }
+      this.applyMapViewFromParams(url.searchParams)
+      return
     }
+
+    window.location.href = first.path
   }
 
   async fetchSearchResults() {
@@ -206,7 +376,7 @@ export default class extends Controller {
     const requestId = ++this.searchRequestId
     const query = this.query
     const url = `${this.searchUrlValue}?q=${encodeURIComponent(query)}`
-    const response = await fetch(url, { headers: { Accept: "application/json" } })
+    const response = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" })
     if (!response.ok) return
     if (requestId !== this.searchRequestId || query !== this.query) return
 
@@ -219,7 +389,7 @@ export default class extends Controller {
     const bounds = this.map.getBounds()
     const bbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()].join(",")
     const url = `${this.stationsUrlValue}?bbox=${encodeURIComponent(bbox)}`
-    const response = await fetch(url, { headers: { Accept: "application/json" } })
+    const response = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" })
     if (!response.ok) return
     const data = await response.json()
     this.stations = data.stations || []
@@ -326,6 +496,24 @@ export default class extends Controller {
       `
     }
 
+    if (result.type === "zip") {
+      return `
+        <a href="${this.escapeHtml(result.path)}" class="item" data-action="click->map#selectSearchResult">
+          <div class="icon" aria-hidden="true">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+          </div>
+          <div class="copy">
+            <p class="name">${this.escapeHtml(result.name)}</p>
+            <p class="meta">Show this ZIP code on the map</p>
+          </div>
+          <span class="status zip">ZIP</span>
+        </a>
+      `
+    }
+
     const status = result.stale ? "Inactive" : "Active"
     const statusClass = result.stale ? "inactive" : "active"
     return `
@@ -353,10 +541,12 @@ export default class extends Controller {
 
     if (station.water_level != null) {
       const label = station.water_level_label || "Water level"
-      rows.push(`<div class="popup-meta">${label}: <strong>${station.water_level} ${this.formatUnit(station.water_level_unit)}</strong></div>`)
+      const level = formatGaugeValue(station.water_level, 2) ?? station.water_level
+      rows.push(`<div class="popup-meta">${label}: <strong>${level} ${this.formatUnit(station.water_level_unit)}</strong></div>`)
     }
     if (station.discharge != null) {
-      rows.push(`<div class="popup-meta">Streamflow: <strong>${station.discharge} ${this.formatUnit(station.discharge_unit)}</strong></div>`)
+      const flow = formatGaugeValue(station.discharge, 0) ?? station.discharge
+      rows.push(`<div class="popup-meta">Streamflow: <strong>${flow} ${this.formatUnit(station.discharge_unit)}</strong></div>`)
     }
     if (station.temperature_c != null) {
       const unit = this.tempUnit()

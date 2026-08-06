@@ -1,8 +1,9 @@
 class SiteStats
-  CACHE_KEY = "site_stats/v2".freeze
+  CACHE_KEY = "site_stats/v5".freeze
   TTL = 10.minutes
   # Marketing totals don't need exact row counts; fall back to COUNT for small tables.
   APPROX_COUNT_THRESHOLD = 1_000
+  UPDATES_TIME_ZONE = "America/Los_Angeles".freeze
 
   class << self
     def snapshot
@@ -19,16 +20,22 @@ class SiteStats
 
     def compute
       {
-        station_count: MonitoringLocation.count,
+        # Homepage "active" matches map Active status (not stale), not only the DB flag.
+        station_count: MonitoringLocation.active.not_stale.count,
         measurement_count: approximate_or_exact_count(ContinuousObservation) +
           approximate_or_exact_count(DailyObservation) +
           approximate_or_exact_count(PeakObservation),
-        updates_per_hour: ContinuousObservation.where(observed_at: 1.hour.ago..).count,
+        updates_today: ContinuousObservation.where(observed_at: pacific_today_range).count,
         flood_alert_count: MonitoringLocation.flood_alert.count
       }
     end
 
     private
+
+    def pacific_today_range
+      zone = Time.find_zone!(UPDATES_TIME_ZONE)
+      zone.now.all_day
+    end
 
     def approximate_or_exact_count(model)
       estimate = connection.select_value(

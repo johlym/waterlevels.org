@@ -1,7 +1,9 @@
 import { Controller } from "@hotwired/stimulus"
+import { geolocationErrorMessage } from "../lib/geolocation_errors"
 
 export default class extends Controller {
   static targets = ["input", "results", "locateButton"]
+  static outlets = ["dialog"]
   static values = {
     searchUrl: String,
     nearestUrl: String,
@@ -90,7 +92,12 @@ export default class extends Controller {
   }
 
   locate() {
-    if (!navigator.geolocation || !this.hasNearestUrlValue) return
+    if (!this.hasNearestUrlValue) return
+
+    if (!navigator.geolocation) {
+      this.showGeolocationError()
+      return
+    }
 
     this.setLocateBusy(true)
     navigator.geolocation.getCurrentPosition(
@@ -98,7 +105,7 @@ export default class extends Controller {
         try {
           const { latitude, longitude } = pos.coords
           const url = `${this.nearestUrlValue}?lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`
-          const response = await fetch(url, { headers: { Accept: "application/json" } })
+          const response = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" })
           if (!response.ok) throw new Error("nearest lookup failed")
           const data = await response.json()
           if (data.station?.path) {
@@ -111,9 +118,17 @@ export default class extends Controller {
           this.setLocateBusy(false)
         }
       },
-      () => this.setLocateBusy(false),
+      (error) => {
+        this.setLocateBusy(false)
+        this.showGeolocationError(error)
+      },
       { enableHighAccuracy: true, timeout: 10000 }
     )
+  }
+
+  showGeolocationError(error) {
+    if (!this.hasDialogOutlet) return
+    this.dialogOutlet.show(geolocationErrorMessage(error))
   }
 
   async fetchResults() {
@@ -122,7 +137,7 @@ export default class extends Controller {
     const requestId = ++this.requestId
     const query = this.query
     const url = `${this.searchUrlValue}?q=${encodeURIComponent(query)}`
-    const response = await fetch(url, { headers: { Accept: "application/json" } })
+    const response = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" })
     if (!response.ok) return
     if (requestId !== this.requestId || query !== this.query) return
 
@@ -176,6 +191,24 @@ export default class extends Controller {
             <p class="meta">Browse all stations in ${this.escapeHtml(result.name)}</p>
           </div>
           <span class="status state">State</span>
+        </a>
+      `
+    }
+
+    if (result.type === "zip") {
+      return `
+        <a href="${this.escapeHtml(result.path)}" class="item">
+          <div class="icon" aria-hidden="true">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+          </div>
+          <div class="copy">
+            <p class="name">${this.escapeHtml(result.name)}</p>
+            <p class="meta">Show this ZIP code on the map</p>
+          </div>
+          <span class="status zip">ZIP</span>
         </a>
       `
     }

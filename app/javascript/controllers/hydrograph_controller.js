@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import Chart from "chart.js/auto"
+import { formatGaugeValue } from "../lib/gauge_value"
 
 const SERIES_COLORS = {
   discharge: { border: "#22d3ee", fill: "rgba(34, 211, 238, 0.18)", legend: "bg-cyan" },
@@ -23,8 +24,6 @@ const FLOOD_STAGE_LABELS = {
 
 const FLOOD_STAGE_ORDER = ["action", "minor", "moderate", "major"]
 
-const PAGE_SIZE = 8
-
 export default class extends Controller {
   static targets = ["canvas", "history", "rangeButton", "legend", "stats", "daySelect"]
   static values = {
@@ -41,7 +40,6 @@ export default class extends Controller {
     this.parameterCode = first.parameter_code
     this.range = "7d"
     this.selectedDayKey = null
-    this.pageOffset = 0
     this.seriesByKey = {}
     this.load()
     this.element.addEventListener("parameter-toggle:changed", (event) => {
@@ -62,24 +60,12 @@ export default class extends Controller {
       button.setAttribute("aria-pressed", button.dataset.hydrographRangeParam === this.range ? "true" : "false")
     })
     this.selectedDayKey = null
-    this.pageOffset = 0
     this.load()
   }
 
   selectDay() {
     if (!this.hasDaySelectTarget) return
     this.selectedDayKey = this.daySelectTarget.value
-    this.pageOffset = 0
-    this.renderHistory()
-  }
-
-  loadMore() {
-    this.pageOffset += PAGE_SIZE
-    this.renderHistory()
-  }
-
-  loadPrevious() {
-    this.pageOffset = Math.max(0, this.pageOffset - PAGE_SIZE)
     this.renderHistory()
   }
 
@@ -120,7 +106,8 @@ export default class extends Controller {
         if (measurement.parameter_code) params.set("parameter_code", measurement.parameter_code)
         if (measurement.kind) params.set("kind", measurement.kind)
         const response = await fetch(`${this.urlValue}?${params.toString()}`, {
-          headers: { Accept: "application/json" }
+          headers: { Accept: "application/json" },
+          cache: "no-store"
         })
         if (!response.ok) return null
         return response.json()
@@ -181,7 +168,10 @@ export default class extends Controller {
     const primary = this.primarySeries()
     const companion = this.companionSeries(primary)
     const items = [primary, companion].filter(Boolean)
-    const floodStages = primary?.kind === "water_level" ? this.floodStageEntries() : []
+    const pointValues = (primary?.points || []).map((point) => point.v)
+    const floodStages = primary?.kind === "water_level"
+      ? this.visibleFloodStages(pointValues, this.floodStageEntries())
+      : []
 
     if (!items.length && !floodStages.length) {
       this.legendTarget.innerHTML = ""
@@ -222,6 +212,25 @@ export default class extends Controller {
       if (!Number.isFinite(value) || value <= 0) return []
       return [{ key, value }]
     })
+  }
+
+  // Keep the Y domain anchored to the observed series. Only overlay flood
+  // thresholds that already fall inside (or just above) that window so
+  // distant major/moderate lines do not leave a large empty band.
+  visibleFloodStages(pointValues, stageEntries) {
+    if (!stageEntries.length) return []
+
+    const points = pointValues.filter((value) => Number.isFinite(value))
+    if (!points.length) return stageEntries
+
+    const dataMax = Math.max(...points)
+    const dataMin = Math.min(...points)
+    const span = Math.max(dataMax - dataMin, Math.abs(dataMax) * 0.08, 0.25)
+    // Allow the next stage only when it is a near-term proximity cue.
+    const proximity = Math.max(span * 0.75, Math.abs(dataMax) * 0.12, 0.5)
+    const ceiling = dataMax + proximity
+
+    return stageEntries.filter((stage) => stage.value <= ceiling)
   }
 
   renderStats(points) {
@@ -280,7 +289,6 @@ export default class extends Controller {
     this.daySelectTarget.disabled = false
     if (!this.selectedDayKey || !days.some((day) => day.key === this.selectedDayKey)) {
       this.selectedDayKey = days[0].key
-      this.pageOffset = 0
     }
 
     const now = new Date()
@@ -329,11 +337,10 @@ export default class extends Controller {
     }
 
     const columns = this.tableColumns()
-    const visible = day.rows.slice(this.pageOffset, this.pageOffset + PAGE_SIZE)
-    const showingEnd = Math.min(day.rows.length, this.pageOffset + visible.length)
+    const count = day.rows.length
 
     const head = columns.map((col) => `<th class="num">${this.escapeHtml(col.header)}</th>`).join("")
-    const body = visible.map((row) => {
+    const body = day.rows.map((row) => {
       const cells = columns.map((col) => {
         const value = row.values[col.key]
         return `<td class="num">${value == null ? "—" : this.escapeHtml(this.formatCellValue(value, col.kind))}</td>`
@@ -363,11 +370,7 @@ export default class extends Controller {
         </table>
       </div>
       <div class="table-foot">
-        <p>Showing ${showingEnd ? this.pageOffset + 1 : 0}–${showingEnd} of ${day.rows.length} readings</p>
-        <div class="pager">
-          <button type="button" class="toolbar-btn" data-action="hydrograph#loadPrevious" ${this.pageOffset === 0 ? "disabled" : ""}>Previous</button>
-          <button type="button" class="toolbar-btn" data-action="hydrograph#loadMore" ${this.pageOffset + PAGE_SIZE >= day.rows.length ? "disabled" : ""}>Load more</button>
-        </div>
+        <p>${count} ${count === 1 ? "reading" : "readings"}</p>
       </div>
     `
   }
@@ -504,7 +507,10 @@ export default class extends Controller {
       })
     }
 
-    const floodStages = primary.kind === "water_level" ? this.floodStageEntries() : []
+    const pointValues = primaryPoints.map((point) => point.v)
+    const floodStages = primary.kind === "water_level"
+      ? this.visibleFloodStages(pointValues, this.floodStageEntries())
+      : []
     floodStages.forEach(({ key, value }) => {
       const stageColors = FLOOD_STAGE_COLORS[key]
       datasets.push({
@@ -525,10 +531,11 @@ export default class extends Controller {
 
     if (!labels.length && floodStages.length) labels.push("")
 
-    const ySuggestedMax = this.suggestedMaxForAxis(
-      primaryPoints.map((point) => point.v),
-      floodStages.map((stage) => stage.value)
-    )
+    // Only nudge the axis when visible flood stages are present. Without
+    // thresholds, leave scaling to Chart.js so the series fills the plot.
+    const ySuggestedMax = floodStages.length
+      ? this.suggestedMaxForAxis(pointValues, floodStages.map((stage) => stage.value))
+      : undefined
 
     try {
       this.chart = new Chart(this.canvasTarget.getContext("2d"), {
@@ -654,6 +661,13 @@ export default class extends Controller {
     if (this.range === "1y") {
       return date.toLocaleDateString("en-US", this.localeOptions({ month: "short", day: "numeric" }))
     }
+    if (this.range === "3y") {
+      return date.toLocaleDateString("en-US", this.localeOptions({
+        month: "short",
+        day: "numeric",
+        year: "2-digit"
+      }))
+    }
     const narrow = typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches
     if (narrow) {
       return date.toLocaleDateString("en-US", this.localeOptions({
@@ -694,12 +708,9 @@ export default class extends Controller {
       })
     }
     if (kind === "discharge") {
-      return Math.round(value).toLocaleString("en-US")
+      return formatGaugeValue(value, 0) ?? "—"
     }
-    return Number(value).toLocaleString("en-US", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2
-    })
+    return formatGaugeValue(value, 2) ?? "—"
   }
 
   unitLabel(series) {

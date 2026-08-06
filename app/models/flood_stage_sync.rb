@@ -41,7 +41,7 @@ class FloodStageSync
   end
 
   def sync_scope
-    scope = MonitoringLocation.where(active: true)
+    scope = MonitoringLocation.active
     postal_code ? scope.in_state(postal_code) : scope
   end
 
@@ -242,12 +242,15 @@ class FloodStageSync
   def warm_caches
     # Recompute in-process so the next home origin hit is not a cold COUNT(*) miss.
     SiteStats.warm!
+    AlertsListingCache.warm
     if postal_code
       StateListingCache.warm(postal_code)
     else
       StateListingCache.warm_all
     end
+    EdgeCacheInvalidation.after_flood_sync!(state: state)
   end
+
 
   def parse_time(value)
     return if value.blank?

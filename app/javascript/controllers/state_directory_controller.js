@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["search", "type", "card", "county", "countyCount", "empty", "listings", "countyJump"]
+  static targets = ["search", "type", "floodStage", "alertsOnly", "card", "county", "countyCount", "empty", "listings", "countyJump"]
 
   connect() {
     this.filter()
@@ -25,15 +25,25 @@ export default class extends Controller {
     const activeTypes = this.typeTargets
       .filter((input) => input.checked)
       .map((input) => input.value)
+    const floodStageFilters = this.floodStageTargets
+    const activeFloodStages = floodStageFilters
+      .filter((input) => input.checked)
+      .map((input) => input.value)
+    const filterByFloodStage = floodStageFilters.length > 0
+    const alertsOnly = this.hasAlertsOnlyTarget && this.alertsOnlyTarget.checked
 
     let visibleCards = 0
 
     this.cardTargets.forEach((card) => {
       const name = card.dataset.name || ""
       const types = (card.dataset.types || "").split(/\s+/).filter(Boolean)
+      const floodStage = card.dataset.floodStage || ""
+      const hasAlert = card.dataset.alert === "true"
       const matchesQuery = !query || name.includes(query)
       const matchesType = activeTypes.length > 0 && types.some((type) => activeTypes.includes(type))
-      const visible = matchesQuery && matchesType
+      const matchesFloodStage = !filterByFloodStage || (activeFloodStages.length > 0 && activeFloodStages.includes(floodStage))
+      const matchesAlert = !alertsOnly || hasAlert
+      const visible = matchesQuery && matchesType && matchesFloodStage && matchesAlert
       card.hidden = !visible
       if (visible) visibleCards += 1
     })

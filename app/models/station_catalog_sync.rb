@@ -7,7 +7,7 @@ class StationCatalogSync
 
   attr_accessor :client, :state, :progress
 
-  def initialize(client: Usgs::Client.new, state: nil, progress: nil)
+  def initialize(client: Usgs::Client.for_tip, state: nil, progress: nil)
     @client = client
     @state = state.presence
     @progress = progress
@@ -37,11 +37,15 @@ class StationCatalogSync
     NearbyStations.refresh_all
     progress&.step("warming state listing caches")
     StateListingCache.warm_all
+    AlertsListingCache.warm
     progress&.step("warming station snapshots")
     location_scope.find_each { |location| StationSnapshotCache.warm(location) }
+    progress&.step("purging edge cache tags")
+    EdgeCacheInvalidation.after_catalog_sync!(state: state)
     progress&.finish("locations=#{location_scope.count} time_series=#{time_series_scope.count}")
     true
   end
+
 
   private
 
@@ -231,6 +235,9 @@ class StationCatalogSync
 
       observed_at = parse_time(row[:observed_at])
       next if observed_at.blank? || row[:value].blank?
+      if row[:measurement_kind] == "temperature" && !Usgs::ParameterCodes.plausible_temperature_c?(row[:value])
+        next
+      end
 
       LatestObservation.upsert(
         {
