@@ -3,7 +3,7 @@ class LatestObservationSync
 
   attr_accessor :client, :state, :progress
 
-  def initialize(client: Usgs::Client.new, state: nil, progress: nil)
+  def initialize(client: Usgs::Client.for_tip, state: nil, progress: nil)
     @client = client
     @state = state.presence
     @progress = progress

@@ -55,6 +55,26 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
     end
   end
 
+  test "enqueue still works when only the tip circuit is open if history keys exist" do
+    previous = {
+      "USGS_API_HISTORY_1_KEY" => ENV["USGS_API_HISTORY_1_KEY"],
+      "USGS_API_HISTORY_2_KEY" => ENV["USGS_API_HISTORY_2_KEY"]
+    }
+    ENV["USGS_API_HISTORY_1_KEY"] = "hist-1"
+    ENV["USGS_API_HISTORY_2_KEY"] = "hist-2"
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      Usgs::RateLimitCircuit.open!(key_id: Usgs::RateLimitCircuit::TIP_KEY, ttl: 1.minute)
+      assert HistoryBackfillJob.enqueue(199)
+      assert_enqueued_with(job: HistoryBackfillJob, args: [ 199, "1y" ])
+    end
+  ensure
+    previous.each do |key, value|
+      value.nil? ? ENV.delete(key) : ENV[key] = value
+    end
+  end
+
+
   test "enqueue returns false when database read-only circuit is open" do
     travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
       DatabaseReadOnlyCircuit.open!(ttl: 1.minute)

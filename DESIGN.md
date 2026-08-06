@@ -93,7 +93,7 @@ Design the schema so the hot read paths (map viewport, state listing, gauge snap
 
 External data flows in through namespaced clients → sync objects → Sidekiq jobs, with rake tasks as manual entrypoints.
 
-- **Clients:** `Usgs::Client` (OGC API, optional `X-Api-Key`, GeoJSON `next` link pagination) and `Nwps::Client` (gauge lookup by site number). Both pace requests via `*_REQUEST_PAUSE_MS`.
+- **Clients:** `Usgs::Client` (OGC API, optional `X-Api-Key`, GeoJSON `next` link pagination) and `Nwps::Client` (gauge lookup by site number). Both pace requests via `*_REQUEST_PAUSE_MS`. Tip/catalog traffic uses `Usgs::Client.for_tip` (`USGS_API_KEY`); history backfill uses `Usgs::Client.for_history`, which round-robins `USGS_API_HISTORY_1_KEY` / `USGS_API_HISTORY_2_KEY` (falls back to `USGS_API_KEY` when unset).
 - **Sync objects (`app/models/*_sync.rb`, `history_ingestion.rb`, `display_series_selection.rb`):**
   - `StationCatalogSync` (weekly / bootstrap) — discover active continuous water-body sites, filter via `Usgs::SiteTypes`, upsert series + latest, select display series, prune inactive, warm caches.
   - `LatestObservationSync` (hourly) — refresh `selected_for_display` series, denormalize location columns, warm caches.
@@ -101,7 +101,7 @@ External data flows in through namespaced clients → sync objects → Sidekiq j
   - `HistoryIngestion` (on-demand/batch) — fetch continuous/daily/peaks for charts; gap-aware. Cold/lazy path uses `1y`; deep `3y` daily only for year-ready stations.
   - `DisplaySeriesSelection` — choose one discharge + one temperature + ranked water-level series; set `has_*` flags and denormalized columns.
 - **Jobs (`app/jobs`) + schedule (`config/sidekiq.yml`):** catalog (Sun 03:00), latest (hourly), flood (hourly :20), history backfill batch (Mon–Sat :30), prune (daily). Queues: `default`, `sync`, `backfill`.
-- **Rate-limit protection:** `ApplicationJob` retries transient `Usgs::Client::Error` but **discards** `RateLimitError`. `Usgs::RateLimitCircuit` opens on HTTP 429 (Redis key, TTL = rest of the UTC hour). Jobs check `open?` and skip. History backfill additionally no-ops on Sundays, honors `HistoryBackfillLock` (1h TTL, 6h cooldown), and is enqueued lazily from `GaugesController#show` when a station `needs_history_backfill?` (phase-1 `1y` only). The hourly batch then spends a separate `HISTORY_DEEP_BACKFILL_BATCH` budget on year-ready stations missing ~3y daily.
+- **Rate-limit protection:** `ApplicationJob` retries transient `Usgs::Client::Error` but **discards** `RateLimitError`. `Usgs::RateLimitCircuit` is **per API-key id** (`tip`, `history_1`, `history_2`; TTL = rest of the UTC hour). Tip/catalog jobs check the tip circuit; history jobs check `Usgs::HistoryKeyPool.exhausted?` so one history-key 429 does not stop the other (or tip sync). History backfill additionally no-ops on Sundays, honors `HistoryBackfillLock` (1h TTL, 6h cooldown), and is enqueued lazily from `GaugesController#show` when a station `needs_history_backfill?` (phase-1 `1y` only). The hourly batch then spends a separate `HISTORY_DEEP_BACKFILL_BATCH` budget on year-ready stations missing ~3y daily.
 - **Progress:** long operations report through `SyncProgress` (stdout + logger).
 
 **Convention:** never call an external API from a controller action on a cacheable path or from a view. Add new ingestion as a sync PORO invoked by a job and a rake task, and reuse the pacing/circuit-breaker guards.

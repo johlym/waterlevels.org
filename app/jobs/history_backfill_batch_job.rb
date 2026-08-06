@@ -9,8 +9,8 @@ class HistoryBackfillBatchJob < ApplicationJob
       Rails.logger.info("HistoryBackfillBatchJob skipped: Sunday catalog sync window")
       return 0
     end
-    if Usgs::RateLimitCircuit.open?
-      Rails.logger.info("HistoryBackfillBatchJob skipped: USGS rate limit circuit open")
+    if Usgs::HistoryKeyPool.exhausted?
+      Rails.logger.info("HistoryBackfillBatchJob skipped: USGS history rate limit circuits open")
       return 0
     end
     if DatabaseReadOnlyCircuit.open?

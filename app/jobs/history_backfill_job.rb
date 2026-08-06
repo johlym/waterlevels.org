@@ -8,7 +8,7 @@ class HistoryBackfillJob < ApplicationJob
 
   def self.enqueue(monitoring_location_id, range = HistoryIngestion::DEFAULT_RANGE)
     return false if paused_for_catalog_sync?
-    return false if Usgs::RateLimitCircuit.open?
+    return false if Usgs::HistoryKeyPool.exhausted?
     return false if DatabaseReadOnlyCircuit.open?
     return false unless HistoryBackfillLock.claim!(monitoring_location_id)
 
@@ -21,8 +21,8 @@ class HistoryBackfillJob < ApplicationJob
       Rails.logger.info("HistoryBackfillJob skipped: Sunday catalog sync window id=#{monitoring_location_id}")
       return
     end
-    if Usgs::RateLimitCircuit.open?
-      Rails.logger.info("HistoryBackfillJob skipped: USGS rate limit circuit open id=#{monitoring_location_id}")
+    if Usgs::HistoryKeyPool.exhausted?
+      Rails.logger.info("HistoryBackfillJob skipped: USGS history rate limit circuits open id=#{monitoring_location_id}")
       return
     end
     if DatabaseReadOnlyCircuit.open?
