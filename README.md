@@ -49,7 +49,7 @@ STATE=wa RANGE=1y LIMIT=25 bin/rails usgs:backfill
 STATE=wa RANGE=3y LIMIT=25 bin/rails usgs:backfill
 ```
 
-Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_BACKFILL_BATCH` (default `40`), `HISTORY_DEEP_BACKFILL_BATCH` (default `10`; set `0` to pause 3y deep fills).
+Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_BACKFILL_BATCH` (default `50` **per available history key** — sized to approach ~1000 USGS req/hr/key for cold 1y work), `HISTORY_DEEP_BACKFILL_BATCH` (default `400`/key ceiling; actual deep slots use leftover request budget after phase-1; set `0` to pause 3y deep fills).
 
 See `doc/plan-3y-daily-history.md` and `doc/future.md` for retention tiers and longer POR notes.
 

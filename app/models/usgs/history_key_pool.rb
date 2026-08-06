@@ -10,6 +10,12 @@ module Usgs
       { env: "USGS_API_HISTORY_2_KEY", circuit_key: "history_2" }
     ].freeze
     COUNTER_KEY = "usgs:history_key_rr"
+    # USGS documented hourly request budget per API key.
+    HOURLY_REQUEST_LIMIT = 1000
+    # Planning costs for sizing HistoryBackfillBatchJob so we approach the
+    # per-key hourly cap without consistently overshooting into 429s.
+    PHASE1_REQUESTS_PER_STATION = 20 # cold 1y: ~90d continuous pages + daily + peaks
+    DEEP_REQUESTS_PER_STATION = 2 # 1y→3y daily gap is usually 1–2 pages
 
     def self.configured?
       configured_entries.any?
@@ -37,6 +43,14 @@ module Usgs
 
     def self.available_entries
       entries.reject { |entry| RateLimitCircuit.open?(entry[:circuit_key]) }
+    end
+
+    def self.available_count
+      [ available_entries.size, 1 ].max
+    end
+
+    def self.hourly_request_budget
+      available_count * HOURLY_REQUEST_LIMIT
     end
 
     def self.exhausted?

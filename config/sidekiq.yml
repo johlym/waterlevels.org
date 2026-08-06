@@ -1,8 +1,11 @@
-:concurrency: 3
+# High enough to drive two history API keys (~1000 req/hr each) during the
+# backfill window; tip/catalog jobs share the same process.
+:concurrency: 8
 :queues:
   - default
   - sync
   - backfill
+
 
 :scheduler:
   :schedule:

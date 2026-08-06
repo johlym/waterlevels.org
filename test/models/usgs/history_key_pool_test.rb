@@ -71,5 +71,16 @@ module Usgs
       refute HistoryKeyPool.exhausted?
       assert_includes %w[hist-1 hist-2], HistoryKeyPool.claim![:api_key]
     end
+
+    test "hourly_request_budget scales with available keys" do
+      ENV["USGS_API_HISTORY_1_KEY"] = "hist-1"
+      ENV["USGS_API_HISTORY_2_KEY"] = "hist-2"
+      assert_equal 2, HistoryKeyPool.available_count
+      assert_equal 2000, HistoryKeyPool.hourly_request_budget
+
+      RateLimitCircuit.open!(key_id: "history_1", ttl: 1.minute)
+      assert_equal 1, HistoryKeyPool.available_count
+      assert_equal 1000, HistoryKeyPool.hourly_request_budget
+    end
   end
 end
