@@ -61,11 +61,15 @@ class MonitoringLocation < ApplicationRecord
   }
   scope :needing_history_backfill, lambda {
     continuous_since = HistoryIngestion::CONTINUOUS_FRESHNESS.ago
+    continuous_anchor = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
     daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
 
-    missing_continuous = TimeSeries.selected.where.not(
+    missing_continuous_tip = TimeSeries.selected.where.not(
       id: ContinuousObservation.where(observed_at: continuous_since..).select(:time_series_id)
+    )
+    missing_continuous_anchor = TimeSeries.selected.where.not(
+      id: ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id)
     )
     missing_daily_anchor = TimeSeries.selected.where.not(
       id: DailyObservation.where(observed_on: ..daily_anchor).select(:time_series_id)
@@ -73,7 +77,8 @@ class MonitoringLocation < ApplicationRecord
     stale_daily_tip = TimeSeries.selected.where.not(
       id: DailyObservation.where(observed_on: daily_fresh_since..).select(:time_series_id)
     )
-    where(id: missing_continuous.select(:monitoring_location_id))
+    where(id: missing_continuous_tip.select(:monitoring_location_id))
+      .or(where(id: missing_continuous_anchor.select(:monitoring_location_id)))
       .or(where(id: missing_daily_anchor.select(:monitoring_location_id)))
       .or(where(id: stale_daily_tip.select(:monitoring_location_id)))
       .distinct
@@ -122,11 +127,13 @@ class MonitoringLocation < ApplicationRecord
     return false if series.none?
 
     continuous_since = HistoryIngestion::CONTINUOUS_FRESHNESS.ago
+    continuous_anchor = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
     daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
 
     series.any? do |s|
       s.continuous_observations.where(observed_at: continuous_since..).none? ||
+        s.continuous_observations.where(observed_at: ..continuous_anchor).none? ||
         s.daily_observations.where(observed_on: ..daily_anchor).none? ||
         s.daily_observations.where(observed_on: daily_fresh_since..).none?
     end
