@@ -5,7 +5,7 @@
 WaterLevels.org is a single Rails 8.1 / Ruby 4.0.4 app (USGS water-monitoring map). See `README.md` for the full stack and the canonical setup/run/test commands; this section only records non-obvious cloud-environment caveats.
 
 ### Toolchain
-- Ruby 4.0.4 is managed by `mise` and activated for interactive shells via `~/.bashrc` (`eval "$(mise activate bash)"`). `ruby`, `bundle`, `rubocop`, `foreman`, `sidekiq` resolve through mise. Node/Yarn come from `nvm` (Node 22, which satisfies `bin/dev`'s Node 20+ requirement). The update script refreshes gems/JS deps, so those don't need reinstalling by hand.
+- Ruby 4.0.4 is managed by `mise` and activated for interactive shells via `~/.bashrc` (`eval "$(mise activate bash)"`). `ruby`, `bundle`, `rubocop`, `foreman`, `sidekiq` resolve through mise. Node/Yarn come from `nvm` (Node 24, pinned by `.nvmrc`, which satisfies `bin/dev`'s Node 20+ requirement); `corepack enable` provides Yarn 1.22.x. The update script refreshes gems/JS deps, so those don't need reinstalling by hand.
 
 ### Services must be started each session (no systemd / not auto-started)
 - PostgreSQL: `sudo pg_ctlcluster 16 main start`
