@@ -1,0 +1,51 @@
+<%# locals: stats: %>
+<section class="admin-stats" aria-labelledby="admin-pipeline-heading">
+  <div class="section-header">
+    <div>
+      <p class="eyebrow">Pipeline</p>
+      <h2 id="admin-pipeline-heading">Backfill &amp; freshness</h2>
+    </div>
+  </div>
+
+  <div class="stats-grid">
+    <article>
+      <p class="value"><%= number_with_delimiter(stats[:stations_needing_deep_history]) %></p>
+      <p class="label">Have ~1y, need 3y</p>
+      <p class="hint">Year-ready; waiting on deep daily backfill</p>
+    </article>
+
+    <article>
+      <p class="value"><%= number_with_delimiter(stats[:stations_history_ready]) %></p>
+      <p class="label">History ready (3y)</p>
+      <p class="hint">Neither backlog column — deep daily loaded</p>
+    </article>
+
+    <article>
+      <p class="value"><%= number_with_delimiter(stats[:stale_station_count]) %></p>
+      <p class="label">Stale stations</p>
+      <p class="hint">Active but no tip within <%= distance_of_time_in_words(MonitoringLocation::STALE_AFTER) %></p>
+    </article>
+
+    <article>
+      <p class="value<%= " alert" if stats[:flood_alert_count].to_i.positive? %>"><%= number_with_delimiter(stats[:flood_alert_count]) %></p>
+      <p class="label">Flood alerts</p>
+    </article>
+
+    <article>
+      <p class="value"><%= number_with_delimiter(stats[:updates_today]) %></p>
+      <p class="label">Continuous updates today</p>
+      <p class="hint">Pacific calendar day</p>
+    </article>
+
+    <article>
+      <p class="value"><%= number_with_delimiter(stats[:nwps_matched_count]) %></p>
+      <p class="label">NWPS-matched stations</p>
+    </article>
+
+    <article>
+      <p class="value"><%= number_with_delimiter(stats[:history_backfill_locks]) %></p>
+      <p class="label">Active backfill locks</p>
+      <p class="hint"><%= number_with_delimiter(stats[:history_backfill_cooldowns]) %> on cooldown</p>
+    </article>
+  </div>
+</section>

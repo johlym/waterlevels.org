@@ -2049,6 +2049,24 @@ body.dialog-open {
 .admin-dashboard {
   @apply space-y-16 pb-20;
 
+  .admin-dashboard-chrome {
+    .section-header {
+      @apply mb-0 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between;
+    }
+
+    .eyebrow {
+      @apply mb-2 text-sm font-semibold tracking-wider text-cyan-400 uppercase;
+    }
+
+    .admin-title {
+      @apply font-display text-3xl font-semibold text-white;
+    }
+  }
+
+  .admin-section-loaded {
+    animation: admin-section-in 280ms ease-out;
+  }
+
   .admin-stats {
     .section-header {
       @apply mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between;
@@ -2068,6 +2086,50 @@ body.dialog-open {
 
     .lede-link {
       @apply text-sm;
+    }
+  }
+
+  .admin-stats--loading {
+    .admin-loading-status {
+      @apply mt-4 text-xs tracking-wide text-zinc-600 uppercase;
+    }
+  }
+
+  .admin-skeleton-card,
+  .admin-skeleton-panel,
+  .admin-skeleton-table {
+    .admin-skeleton-line {
+      @apply animate-pulse rounded bg-zinc-800/80;
+    }
+  }
+
+  .admin-skeleton-line {
+    &--value {
+      @apply h-10 w-24;
+    }
+
+    &--label {
+      @apply mt-3 h-3 w-32;
+    }
+
+    &--hint {
+      @apply mt-2 h-2.5 w-40;
+    }
+
+    &--title {
+      @apply h-5 w-36;
+    }
+
+    &--name {
+      @apply h-3 w-28;
+    }
+
+    &--meta {
+      @apply h-3 w-16;
+    }
+
+    &--table-row {
+      @apply mx-4 my-3 h-8;
     }
   }
 
@@ -2287,6 +2349,18 @@ body.dialog-open {
         @apply bg-rose-500/10 text-rose-400;
       }
     }
+  }
+}
+
+@keyframes admin-section-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.35rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

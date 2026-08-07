@@ -68,7 +68,7 @@ lib/redis_config.rb    shared Redis options (TLS verify_mode for Heroku rediss:/
 - **JSON API (`/api`):** `map/stations` (bbox, `search`, `nearest`) and `gauges/:gauge_id/observations` (hydrograph).
 - **Sitemaps:** `/sitemap.xml` index + `/sitemaps/static.xml` + `/sitemaps/{state}.xml`.
 - **Preferences:** `PUT /temperature_unit` sets the °F/°C cookie.
-- **Ops:** `/up` health check. Password-gated `/admin` dashboard when `DASHBOARD_PW` is set (session form at `/admin/login`); returns 404 when unset. Login attempts are rate-limited via Rails `rate_limit` (10 / 3 minutes / IP). Sidekiq Web (+ scheduler UI) is mounted at `/admin/sidekiq` behind the same session. Not edge-cached (`private, no-store`); admin controllers opt into Rails sessions.
+- **Ops:** `/up` health check. Password-gated `/admin` dashboard when `DASHBOARD_PW` is set (session form at `/admin/login`); returns 404 when unset. Login attempts are rate-limited via Rails `rate_limit` (10 / 3 minutes / IP). The dashboard shell loads immediately; section bodies fill via Turbo Frames (`/admin/sections/:section`) so heavy backfill aggregates do not block first paint. Sidekiq Web (+ scheduler UI) is mounted at `/admin/sidekiq` behind the same session. Not edge-cached (`private, no-store`); admin controllers opt into Rails sessions.
 
 New public URLs should be slug-based, lowercase, and get a canonical form + `Cache-Tag`.
 

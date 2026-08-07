@@ -4,10 +4,12 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
   setup do
     Rails.cache.clear
     AdminDashboardStats.clear_jobs!
+    AdminDashboardStats.bust_backfill_cache!
   end
 
   teardown do
     AdminDashboardStats.clear_jobs!
+    AdminDashboardStats.bust_backfill_cache!
     redis = Redis.new(RedisConfig.options)
     redis.scan_each(match: "history_backfill*") { |key| redis.del(key) }
   rescue StandardError
@@ -211,5 +213,23 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
     assert_equal 3, tip[:stations_updated]
     assert_equal 5, tip[:series_upserted]
     assert_equal "wa", tip[:state]
+  end
+
+  test "section snapshots compose into the full snapshot" do
+    create(:monitoring_location, state_code: "wa", latest_observed_at: 30.minutes.ago)
+
+    full = AdminDashboardStats.snapshot
+    composed = AdminDashboardStats::SECTIONS.each_with_object({}) do |name, hash|
+      hash.merge!(AdminDashboardStats.section(name))
+    end
+
+    assert_equal full.keys.sort, composed.keys.sort
+    assert_equal full[:station_count], composed[:station_count]
+    assert_equal full[:per_state], composed[:per_state]
+    assert_equal full[:tip_freshness], composed[:tip_freshness]
+  end
+
+  test "unknown section raises" do
+    assert_raises(ArgumentError) { AdminDashboardStats.section(:nope) }
   end
 end

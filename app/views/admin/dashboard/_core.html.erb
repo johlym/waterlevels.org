@@ -1,0 +1,70 @@
+<%# locals: stats: %>
+<section class="admin-stats" aria-labelledby="admin-core-heading">
+  <div class="section-header">
+    <div>
+      <p class="eyebrow">Network</p>
+      <h2 id="admin-core-heading">Core stats</h2>
+    </div>
+  </div>
+
+  <div class="stats-grid">
+    <article>
+      <p class="value"><%= number_with_delimiter(stats[:station_count]) %></p>
+      <p class="label">Active stations</p>
+    </article>
+
+    <article>
+      <p class="value"><%= number_with_delimiter(stats[:stations_needing_history]) %></p>
+      <p class="label">Need ≤1y fill</p>
+      <p class="hint">
+        Phase-1 backlog ·
+        <%= number_with_delimiter(stats[:stations_missing_year_history]) %> missing ~1y daily
+      </p>
+    </article>
+
+    <article>
+      <% last = stats[:last_station_updated] %>
+      <% if last %>
+        <p class="value value-sm">
+          <%= link_to last[:display_name], gauge_path(last[:path_state], last[:to_param]), class: "station-link" %>
+        </p>
+        <p class="label">Last station updated</p>
+        <p class="hint">
+          <%= last[:site_number] %> · <%= last[:state_code].to_s.upcase %> ·
+          <%= time_ago_in_words(last[:updated_at]) %> ago
+        </p>
+      <% else %>
+        <p class="value">—</p>
+        <p class="label">Last station updated</p>
+      <% end %>
+    </article>
+
+    <article>
+      <% tip_count = stats[:last_tip_refresh_stations_updated] %>
+      <p class="value"><%= tip_count.nil? ? "—" : number_with_delimiter(tip_count) %></p>
+      <p class="label">Updated in last tip refresh</p>
+      <% if stats[:last_tip_refresh_finished_at] %>
+        <p class="hint">
+          <%= time_ago_in_words(stats[:last_tip_refresh_finished_at]) %> ago
+          <% if stats[:last_tip_refresh_state] %>
+            · state <%= stats[:last_tip_refresh_state].upcase %>
+          <% else %>
+            · national
+          <% end %>
+        </p>
+      <% else %>
+        <p class="hint">No tip sync recorded yet</p>
+      <% end %>
+    </article>
+
+    <article>
+      <p class="value"><%= number_to_human(stats[:measurement_count], precision: 2, significant: true, units: { thousand: "K", million: "M", billion: "B" }) %></p>
+      <p class="label">Total measurements</p>
+      <p class="hint">
+        <%= number_to_human(stats[:continuous_observation_count], precision: 2, significant: true, units: { thousand: "K", million: "M", billion: "B" }) %> continuous ·
+        <%= number_to_human(stats[:daily_observation_count], precision: 2, significant: true, units: { thousand: "K", million: "M", billion: "B" }) %> daily ·
+        <%= number_to_human(stats[:peak_observation_count], precision: 2, significant: true, units: { thousand: "K", million: "M", billion: "B" }) %> peaks
+      </p>
+    </article>
+  </div>
+</section>
