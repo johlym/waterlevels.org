@@ -28,7 +28,7 @@ module Cloudflare
       return unless enabled?
 
       response = s3_client.get_object(bucket: @bucket, key: key)
-      response.body.read
+      response.body.read.to_s.force_encoding(Encoding::BINARY)
     rescue Aws::S3::Errors::NoSuchKey, Aws::S3::Errors::NotFound
       nil
     rescue Aws::S3::Errors::ServiceError => e
