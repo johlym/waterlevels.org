@@ -9,6 +9,9 @@ class HistoryBackfillBatchJob < ApplicationJob
   # Per-key ceiling for deep work after phase-1; actual deep slots also shrink to
   # whatever request budget phase-1 did not consume.
   DEFAULT_DEEP_PER_KEY = 400
+  # Skip refill when the backfill queue already has this many jobs pending so
+  # frequent cron ticks do not double-book remaining request budget.
+  DEFAULT_QUEUE_BUSY_THRESHOLD = 5
 
   def perform(limit = nil, range = HistoryIngestion::DEFAULT_RANGE)
     Telemetry.in_root_span(
@@ -32,11 +35,24 @@ class HistoryBackfillBatchJob < ApplicationJob
         Telemetry.add_attributes("app.skip_reason" => "db_read_only_circuit")
         raise DatabaseReadOnlyError, "database read-only circuit open"
       end
+      if backfill_queue_busy?
+        Telemetry.add_attributes("app.skip_reason" => "backfill_queue_busy")
+        Rails.logger.info("HistoryBackfillBatchJob skipped: backfill queue still draining")
+        return 0
+      end
 
       keys = Usgs::HistoryKeyPool.available_count
-      request_budget = Usgs::HistoryKeyPool.hourly_request_budget
-      phase1_budget = phase1_station_budget(limit, keys)
+      # Size against live remaining capacity this UTC hour (not the theoretical
+      # full-hour ceiling) so mid-hour refills do not overshoot soft-caps.
+      request_budget = Usgs::HistoryKeyPool.remaining_request_budget
+      if request_budget <= 0
+        Telemetry.add_attributes("app.skip_reason" => "request_budget_exhausted")
+        Rails.logger.info("HistoryBackfillBatchJob skipped: no remaining history request budget")
+        return 0
+      end
+
       phase1_cost = phase1_requests_per_station
+      phase1_budget = phase1_station_budget(limit, keys, request_budget, phase1_cost)
 
       phase1_enqueued = enqueue_candidates(
         MonitoringLocation.needing_history_backfill,
@@ -82,13 +98,15 @@ class HistoryBackfillBatchJob < ApplicationJob
 
   private
 
-  def phase1_station_budget(limit, keys)
+  def phase1_station_budget(limit, keys, request_budget, phase1_cost)
     # Explicit perform(limit) stays an absolute station count (tests / one-offs).
     return limit.to_i if !limit.nil?
 
     per_key = ENV.fetch("HISTORY_BACKFILL_BATCH", DEFAULT_PHASE1_PER_KEY.to_s).to_i
     per_key = DEFAULT_PHASE1_PER_KEY if per_key <= 0
-    per_key * keys
+    ceiling = per_key * keys
+    by_requests = request_budget / [ phase1_cost, 1 ].max
+    [ ceiling, by_requests ].min
   end
 
   def deep_station_budget(keys:, request_budget:, phase1_enqueued:, phase1_cost:)
@@ -101,6 +119,19 @@ class HistoryBackfillBatchJob < ApplicationJob
 
     by_requests = remaining_requests / deep_requests_per_station
     [ ceiling, by_requests ].min
+  end
+
+  def backfill_queue_busy?
+    threshold = ENV.fetch(
+      "HISTORY_BACKFILL_QUEUE_BUSY",
+      DEFAULT_QUEUE_BUSY_THRESHOLD.to_s
+    ).to_i
+    return false if threshold <= 0
+
+    require "sidekiq/api"
+    Sidekiq::Queue.new("backfill").size >= threshold
+  rescue StandardError
+    false
   end
 
   def phase1_requests_per_station

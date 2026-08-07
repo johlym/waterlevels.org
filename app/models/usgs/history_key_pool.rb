@@ -42,15 +42,24 @@ module Usgs
     end
 
     def self.available_entries
-      entries.reject { |entry| RateLimitCircuit.open?(entry[:circuit_key]) }
+      entries.reject do |entry|
+        RateLimitCircuit.open?(entry[:circuit_key]) ||
+          HourlyRequestBudget.exhausted?(entry[:circuit_key])
+      end
     end
 
     def self.available_count
       [ available_entries.size, 1 ].max
     end
 
+    # Full hourly capacity for currently available keys (planning ceiling).
     def self.hourly_request_budget
       available_count * HOURLY_REQUEST_LIMIT
+    end
+
+    # Live remaining capacity this UTC hour across available keys.
+    def self.remaining_request_budget
+      available_entries.sum { |entry| HourlyRequestBudget.remaining(entry[:circuit_key]) }
     end
 
     def self.exhausted?

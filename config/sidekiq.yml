@@ -26,7 +26,10 @@
     history_backfill_batch:
       # Mon–Sat only; Sunday is reserved for StationCatalogSyncJob.
       # HistoryBackfillJob also no-ops on Sunday as a safety net.
-      cron: "30 * * * 1-6"
+      # Every 10 minutes so we refill after soft-cap circuits clear at :00 and
+      # keep spending remaining history-key budget instead of waiting for :30.
+      # The job no-ops when keys are exhausted or the backfill queue is busy.
+      cron: "*/10 * * * 1-6"
       class: HistoryBackfillBatchJob
       queue: backfill
     continuous_prune:

@@ -49,7 +49,7 @@ STATE=wa RANGE=1y LIMIT=25 bin/rails usgs:backfill
 STATE=wa RANGE=3y LIMIT=25 bin/rails usgs:backfill
 ```
 
-Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_BACKFILL_BATCH` (default `50` **per available history key** — sized to approach ~1000 USGS req/hr/key for cold 1y work), `HISTORY_DEEP_BACKFILL_BATCH` (default `400`/key ceiling; actual deep slots use leftover request budget after phase-1; set `0` to pause 3y deep fills).
+Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `USGS_HOURLY_SOFT_CAP` (default `980` — park a key for the rest of the UTC hour before a hard 429), `HISTORY_BACKFILL_BATCH` (default `50` **per available history key**, further capped by remaining hourly request budget), `HISTORY_DEEP_BACKFILL_BATCH` (default `400`/key ceiling; actual deep slots use leftover request budget after phase-1; set `0` to pause 3y deep fills). History backfill batch runs Mon–Sat every 10 minutes and no-ops when keys are exhausted or the backfill queue is still draining. Live used/remaining per key is on `/admin`.
 
 See `doc/plan-3y-daily-history.md`, `doc/future.md`, and `doc/postgres-r2-daily-archive.md` for retention tiers, longer POR notes, and the Postgres/R2 (or local-disk) daily archive.
 

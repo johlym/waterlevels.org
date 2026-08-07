@@ -2167,8 +2167,82 @@ body.dialog-open {
     }
   }
 
+  .budget-summary {
+    .value-suffix {
+      @apply text-xl font-semibold text-zinc-500 sm:text-2xl;
+    }
+  }
+
+  .budget-panel {
+    @apply mt-6 rounded-2xl border border-zinc-800/50 bg-zinc-900/40 p-6;
+
+    h3 {
+      @apply font-display text-lg font-semibold text-white;
+    }
+
+    > .hint {
+      @apply mt-1 text-xs text-zinc-600;
+    }
+  }
+
+  .budget-bars {
+    @apply mt-6 space-y-5;
+
+    .row {
+      @apply mb-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1;
+    }
+
+    .name {
+      @apply text-sm text-zinc-300;
+    }
+
+    .meta {
+      @apply font-display text-sm font-semibold text-white;
+    }
+
+    .badge {
+      @apply rounded-md px-2 py-0.5 text-xs font-medium tracking-wide uppercase;
+
+      &.ok {
+        @apply bg-emerald-500/10 text-emerald-400;
+      }
+
+      &.warn {
+        @apply bg-amber-500/10 text-amber-400;
+      }
+
+      &.bad {
+        @apply bg-rose-500/10 text-rose-400;
+      }
+    }
+
+    .bar {
+      @apply relative h-2 overflow-hidden rounded bg-zinc-800;
+
+      .soft-mark {
+        @apply absolute top-0 z-10 h-full w-px bg-zinc-500;
+      }
+
+      .fill {
+        @apply block h-full rounded;
+
+        &.ok {
+          @apply bg-linear-to-r from-cyan-400 to-blue-500;
+        }
+
+        &.warn {
+          @apply bg-linear-to-r from-amber-400 to-orange-500;
+        }
+
+        &.bad {
+          @apply bg-linear-to-r from-rose-500 to-red-600;
+        }
+      }
+    }
+  }
+
   .health-grid {
-    @apply grid gap-4 lg:grid-cols-2;
+    @apply mt-6 grid gap-4 lg:grid-cols-2;
 
     article {
       @apply rounded-2xl border border-zinc-800/50 bg-zinc-900/40 p-6;

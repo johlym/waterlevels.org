@@ -87,12 +87,13 @@ module Usgs
           "app.monitoring_location_id" => params[:monitoring_location_id] || params["monitoring_location_id"]
         }
       ) do
-        raise_if_circuit_open!
+        raise_if_budget_blocked!
         response = @connection.get(path) do |req|
           req.params.update(stringify_params(params))
           req.headers["Accept"] = "application/geo+json, application/json"
           req.headers["X-Api-Key"] = @api_key if @api_key.present?
         end
+        HourlyRequestBudget.record!(@circuit_key)
         Telemetry.add_attributes("http.response.status_code" => response.status)
         handle_response(response)
       end
@@ -108,11 +109,12 @@ module Usgs
           "app.circuit_key" => @circuit_key
         }
       ) do
-        raise_if_circuit_open!
+        raise_if_budget_blocked!
         response = @connection.get(url) do |req|
           req.headers["Accept"] = "application/geo+json, application/json"
           req.headers["X-Api-Key"] = @api_key if @api_key.present?
         end
+        HourlyRequestBudget.record!(@circuit_key)
         Telemetry.add_attributes("http.response.status_code" => response.status)
         handle_response(response)
       end
@@ -120,10 +122,12 @@ module Usgs
 
     private
 
-    def raise_if_circuit_open!
-      return unless RateLimitCircuit.open?(@circuit_key)
+    def raise_if_budget_blocked!
+      if RateLimitCircuit.open?(@circuit_key)
+        raise RateLimitError, "USGS rate limit circuit open key=#{@circuit_key}"
+      end
 
-      raise RateLimitError, "USGS rate limit circuit open key=#{@circuit_key}"
+      HourlyRequestBudget.raise_if_exhausted!(@circuit_key)
     end
 
     def default_request_pause_ms

@@ -196,6 +196,31 @@ class HistoryBackfillBatchJobTest < ActiveSupport::TestCase
     end
   end
 
+  test "skips when remaining hourly request budget is exhausted" do
+    begin
+      Redis.new(RedisConfig.options).ping
+    rescue Redis::BaseError
+      skip "Redis unavailable"
+    end
+
+    needs = create(:monitoring_location, site_number: "30000060")
+    create(:time_series, monitoring_location: needs, selected_for_display: true)
+
+    with_env("USGS_HOURLY_SOFT_CAP" => "1") do
+      travel_to Time.utc(2026, 8, 3, 12, 0, 0) do # Monday
+        Usgs::HourlyRequestBudget.clear_all!
+        # Fallback tip key is the only history entry when history keys are unset.
+        Usgs::HourlyRequestBudget.record!(Usgs::RateLimitCircuit::TIP_KEY)
+
+        assert_no_enqueued_jobs only: HistoryBackfillJob do
+          assert_equal 0, HistoryBackfillBatchJob.perform_now(10)
+        end
+      end
+    ensure
+      Usgs::HourlyRequestBudget.clear_all!
+    end
+  end
+
   private
 
   def with_env(vars)

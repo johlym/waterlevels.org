@@ -80,7 +80,32 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
       assert_equal false, stats[:tip_circuit_open]
       assert_equal false, stats[:database_read_only]
       assert stats[:sidekiq].key?(:enqueued) || stats[:sidekiq].key?(:error)
+      assert stats[:usgs_request_budgets].key?(:history_pool)
+      assert stats[:usgs_request_budgets][:tip].key?(:used)
+      assert stats[:usgs_request_budgets][:tip].key?(:remaining)
+      assert stats[:usgs_request_budgets][:history_pool].key?(:budget)
     end
+  end
+
+  test "snapshot includes live USGS hourly request budget counters" do
+    redis = Redis.new(RedisConfig.options)
+    begin
+      redis.ping
+    rescue Redis::BaseError
+      skip "Redis unavailable"
+    end
+
+    Usgs::HourlyRequestBudget.clear_all!
+    4.times { Usgs::HourlyRequestBudget.record!("history_1") }
+    1.times { Usgs::HourlyRequestBudget.record!(Usgs::RateLimitCircuit::TIP_KEY) }
+
+    stats = AdminDashboardStats.snapshot
+    assert_equal 1, stats[:usgs_request_budgets][:tip][:used]
+    hist1 = stats[:history_circuits].find { |c| c[:key] == "history_1" }
+    assert_equal 4, hist1[:used]
+    assert_equal 996, hist1[:remaining]
+  ensure
+    Usgs::HourlyRequestBudget.clear_all!
   end
 
   test "per_state partitions phase-1 year-ready and deep-ready stations" do
