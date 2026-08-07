@@ -33,6 +33,7 @@ module ActiveSupport
   end
 end
 
+
 module ActionDispatch
   class IntegrationTest
     include FactoryBot::Syntax::Methods

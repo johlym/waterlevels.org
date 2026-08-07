@@ -28,8 +28,11 @@
 
         <article>
           <p class="value"><%= number_with_delimiter(@stats[:stations_needing_history]) %></p>
-          <p class="label">Needing full history</p>
-          <p class="hint">Phase-1 continuous + 1y daily gaps</p>
+          <p class="label">Need ≤1y fill</p>
+          <p class="hint">
+            Phase-1 backlog ·
+            <%= number_with_delimiter(@stats[:stations_missing_year_history]) %> missing ~1y daily
+          </p>
         </article>
 
         <article>
@@ -90,7 +93,14 @@
       <div class="stats-grid">
         <article>
           <p class="value"><%= number_with_delimiter(@stats[:stations_needing_deep_history]) %></p>
-          <p class="label">Needing 3y deep history</p>
+          <p class="label">Have ~1y, need 3y</p>
+          <p class="hint">Year-ready; waiting on deep daily backfill</p>
+        </article>
+
+        <article>
+          <p class="value"><%= number_with_delimiter(@stats[:stations_history_ready]) %></p>
+          <p class="label">History ready (3y)</p>
+          <p class="hint">Neither backlog column — deep daily loaded</p>
         </article>
 
         <article>
@@ -246,6 +256,12 @@
         <div>
           <p class="eyebrow">States</p>
           <h2 id="admin-states-heading">Station &amp; backfill backlog</h2>
+          <p class="section-lede">
+            Backfill columns are mutually exclusive and sum with Ready to Stations.
+            Need ≤1y is phase-1 (continuous ~90d, ~1y daily, and/or stale tips);
+            the secondary count is how many of those still lack ~1y daily.
+            Have ~1y → need 3y means year-ready and waiting on deep fill only.
+          </p>
         </div>
       </div>
 
@@ -258,8 +274,15 @@
               <tr>
                 <th scope="col">State</th>
                 <th scope="col">Stations</th>
-                <th scope="col">Need history</th>
-                <th scope="col">Need 3y deep</th>
+                <th scope="col" title="Phase-1 backlog: missing continuous ~90d, ~1y daily, and/or stale tips">
+                  Need ≤1y
+                </th>
+                <th scope="col" title="Already have ~1y daily; waiting on deep 3y backfill">
+                  Have ~1y → need 3y
+                </th>
+                <th scope="col" title="Deep (~3y) daily history loaded">
+                  Ready
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -269,8 +292,16 @@
                     <%= link_to "#{row[:state_name]} (#{row[:state_code].upcase})", state_gauges_path(row[:state_code]), class: "station-link" %>
                   </td>
                   <td><%= number_with_delimiter(row[:station_count]) %></td>
-                  <td><%= number_with_delimiter(row[:needing_history]) %></td>
+                  <td>
+                    <%= number_with_delimiter(row[:needing_history]) %>
+                    <% if row[:needing_history].positive? %>
+                      <span class="cell-hint">
+                        <%= number_with_delimiter(row[:missing_year_history]) %> missing ~1y daily
+                      </span>
+                    <% end %>
+                  </td>
                   <td><%= number_with_delimiter(row[:needing_deep_history]) %></td>
+                  <td><%= number_with_delimiter(row[:history_ready]) %></td>
                 </tr>
               <% end %>
             </tbody>

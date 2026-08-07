@@ -17,8 +17,13 @@ module RedisConfig
   end
 
   # Rails parallel test workers share one Redis by default. Pin each worker to
+<<<<<<< HEAD
   # its own logical DB so Redis-backed assertions (admin tip refresh, history
   # backfill lock counts, etc.) cannot clobber each other mid-assertion.
+=======
+  # its own logical DB so process-local job summaries (admin tip refresh, etc.)
+  # cannot clobber each other mid-assertion.
+>>>>>>> origin/main
   def isolate_test_worker_db(configured)
     return configured unless defined?(Rails) && Rails.env.test?
     return configured unless defined?(ActiveSupport::TestCase)
