@@ -10,6 +10,8 @@ class GaugesController < ApplicationController
       enqueued = HistoryBackfillJob.enqueue(@location.id)
     end
     Telemetry.add_attributes(
+      "app.page" => "gauge_detail",
+      "app.operation" => "page.gauge_detail",
       "app.site_number" => @location.site_number,
       "app.state" => @location.state_code,
       "app.location_name" => @location.display_name,

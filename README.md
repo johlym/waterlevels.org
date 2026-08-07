@@ -53,6 +53,10 @@ Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_BACKFIL
 
 See `doc/plan-3y-daily-history.md` and `doc/future.md` for retention tiers and longer POR notes.
 
+## Observability (Honeycomb)
+
+OpenTelemetry traces export to Honeycomb when `OTEL_EXPORTER_OTLP_*` is set (see `.env.example`). Query recipes for station inventory, history backfill, and page latency: [`doc/honeycomb-queries.md`](doc/honeycomb-queries.md).
+
 ## Tests
 
 ```bash
