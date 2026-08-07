@@ -379,6 +379,7 @@ class HistoryIngestion
     ) do
       progress&.step("daily location batch parameters=#{codes} ranges=#{ranges.size}")
       count = 0
+      archive_buffer = Hash.new { |h, k| h[k] = [] }
       ranges.each do |start_date, end_date|
         client.each_collection_item(
           "daily",
@@ -406,15 +407,37 @@ class HistoryIngestion
             },
             unique_by: %i[time_series_id observed_on]
           )
+          if DailyArchive.dual_write_enabled? && DailyArchive.cold?(day)
+            archive_buffer[series.id] << {
+              "d" => day.iso8601,
+              "v" => value.to_f,
+              "s" => DailyArchive::SOURCE_USGS,
+              "a" => item["approval_status"]
+            }
+          end
           count += 1
           progress&.increment
         end
       end
+      flush_daily_archive!(archive_buffer)
       Telemetry.add_attributes("app.observation_count" => count)
       progress&.step("daily upserted=#{count}")
       count
     end
   end
+
+  def flush_daily_archive!(archive_buffer)
+    return if archive_buffer.blank?
+
+    writer = DailyArchive::Writer.new
+    archive_buffer.each do |time_series_id, points|
+      writer.upsert(time_series_id: time_series_id, points: points)
+    end
+  rescue Cloudflare::R2Client::Error => e
+    Rails.logger.warn("[HistoryIngestion] daily archive dual-write failed: #{e.message}")
+    Sentry.capture_exception(e) if defined?(Sentry)
+  end
+
 
   def ingest_peaks_for(series_list)
     if series_list.empty?
