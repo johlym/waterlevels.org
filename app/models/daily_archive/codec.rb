@@ -18,9 +18,13 @@ module DailyArchive
     end
 
     def decode(body)
-      return [] if body.blank?
+      return [] if body.nil?
 
-      binary = body.to_s.b
+      # R2/S3 often returns gzip tagged as UTF-8. Never call ActiveSupport
+      # blank?/present? on that — invalid byte sequences raise ArgumentError.
+      binary = body.to_s.force_encoding(Encoding::BINARY)
+      return [] if binary.empty?
+
       json = Zlib::GzipReader.new(StringIO.new(binary)).read
       Array(JSON.parse(json)).map { |row| normalize_point(row) }.compact
     end

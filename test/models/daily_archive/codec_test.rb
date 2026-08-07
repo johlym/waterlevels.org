@@ -16,6 +16,22 @@ module DailyArchive
       assert_equal "Approved", decoded.last["a"]
     end
 
+    test "decode tolerates gzip bytes mistagged as UTF-8 like R2/S3" do
+      points = [ { "d" => "2023-06-01", "v" => 4.0, "s" => "usgs" } ]
+      body = Codec.encode(points).force_encoding(Encoding::UTF_8)
+      assert_not body.valid_encoding?
+
+      decoded = Codec.decode(body)
+      assert_equal 1, decoded.size
+      assert_equal "2023-06-01", decoded.first["d"]
+      assert_equal 4.0, decoded.first["v"]
+    end
+
+    test "decode treats nil and empty as no points" do
+      assert_equal [], Codec.decode(nil)
+      assert_equal [], Codec.decode("".b)
+    end
+
     test "merge prefers usgs over derived" do
       existing = [ { "d" => "2024-01-01", "v" => 1.0, "s" => "derived" } ]
       incoming = [ { "d" => "2024-01-01", "v" => 2.0, "s" => "usgs" } ]
