@@ -61,6 +61,55 @@ module Usgs
       assert_requested(stub, times: 1)
     end
 
+    test "successful requests increment the hourly request budget counter" do
+      begin
+        Redis.new(RedisConfig.options).ping
+      rescue Redis::BaseError
+        skip "Redis unavailable"
+      end
+      HourlyRequestBudget.clear!(RateLimitCircuit::TIP_KEY)
+
+      stub_request(:get, %r{\Ahttps://api\.waterdata\.usgs\.gov/ogcapi/v0/collections/monitoring-locations/items})
+        .to_return(
+          status: 200,
+          body: { features: [], links: [] }.to_json,
+          headers: { "Content-Type" => "application/json" }
+        )
+
+      Client.new(api_key: nil).each_collection_item("monitoring-locations", limit: 1) { }
+      assert_equal 1, HourlyRequestBudget.used(RateLimitCircuit::TIP_KEY)
+    ensure
+      HourlyRequestBudget.clear!(RateLimitCircuit::TIP_KEY) if defined?(HourlyRequestBudget)
+    end
+
+    test "soft-capped key does not call USGS" do
+      begin
+        Redis.new(RedisConfig.options).ping
+      rescue Redis::BaseError
+        skip "Redis unavailable"
+      end
+      previous = ENV["USGS_HOURLY_SOFT_CAP"]
+      ENV["USGS_HOURLY_SOFT_CAP"] = "1"
+      HourlyRequestBudget.clear!("history_1")
+      HourlyRequestBudget.record!("history_1")
+      stub = stub_request(:get, %r{api\.waterdata\.usgs\.gov})
+
+      assert_raises(Client::RateLimitError) do
+        Client.new(api_key: "hist-1", circuit_key: "history_1")
+          .each_collection_item("monitoring-locations", limit: 1) { }
+      end
+
+      assert_not_requested(stub)
+      assert RateLimitCircuit.open?("history_1")
+    ensure
+      HourlyRequestBudget.clear!("history_1") if defined?(HourlyRequestBudget)
+      if previous.nil?
+        ENV.delete("USGS_HOURLY_SOFT_CAP")
+      else
+        ENV["USGS_HOURLY_SOFT_CAP"] = previous
+      end
+    end
+
     test "429 on a history client only trips that history circuit" do
       stub = stub_request(:get, %r{\Ahttps://api\.waterdata\.usgs\.gov/ogcapi/v0/collections/monitoring-locations/items})
         .to_return(status: 429, body: "rate limited", headers: { "Content-Type" => "text/plain" })

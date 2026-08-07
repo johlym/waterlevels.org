@@ -82,5 +82,49 @@ module Usgs
       assert_equal 1, HistoryKeyPool.available_count
       assert_equal 1000, HistoryKeyPool.hourly_request_budget
     end
+
+    test "remaining_request_budget subtracts live hourly counters" do
+      begin
+        Redis.new(RedisConfig.options).ping
+      rescue Redis::BaseError
+        skip "Redis unavailable"
+      end
+      ENV["USGS_API_HISTORY_1_KEY"] = "hist-1"
+      ENV["USGS_API_HISTORY_2_KEY"] = "hist-2"
+      HourlyRequestBudget.clear_all!
+
+      travel_to Time.utc(2026, 8, 7, 15, 10, 0) do
+        10.times { HourlyRequestBudget.record!("history_1") }
+        assert_equal 1990, HistoryKeyPool.remaining_request_budget
+      end
+    ensure
+      HourlyRequestBudget.clear_all!
+    end
+
+    test "soft-capped history key is excluded from available entries" do
+      begin
+        Redis.new(RedisConfig.options).ping
+      rescue Redis::BaseError
+        skip "Redis unavailable"
+      end
+      previous = ENV["USGS_HOURLY_SOFT_CAP"]
+      ENV["USGS_HOURLY_SOFT_CAP"] = "2"
+      ENV["USGS_API_HISTORY_1_KEY"] = "hist-1"
+      ENV["USGS_API_HISTORY_2_KEY"] = "hist-2"
+      HourlyRequestBudget.clear_all!
+
+      travel_to Time.utc(2026, 8, 7, 15, 10, 0) do
+        2.times { HourlyRequestBudget.record!("history_1") }
+        available = HistoryKeyPool.available_entries.map { |e| e[:circuit_key] }
+        assert_equal [ "history_2" ], available
+      end
+    ensure
+      HourlyRequestBudget.clear_all!
+      if previous.nil?
+        ENV.delete("USGS_HOURLY_SOFT_CAP")
+      else
+        ENV["USGS_HOURLY_SOFT_CAP"] = previous
+      end
+    end
   end
 end

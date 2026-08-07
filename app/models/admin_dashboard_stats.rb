@@ -154,6 +154,7 @@ class AdminDashboardStats
       tip_circuit_open: Usgs::RateLimitCircuit.open?(Usgs::RateLimitCircuit::TIP_KEY),
       history_circuits: history_circuit_statuses,
       history_keys_exhausted: Usgs::HistoryKeyPool.exhausted?,
+      usgs_request_budgets: Usgs::HourlyRequestBudget.dashboard_snapshot,
       database_read_only: DatabaseReadOnlyCircuit.open?,
       sidekiq: sidekiq_stats
     }
@@ -253,11 +254,20 @@ class AdminDashboardStats
 
   def history_circuit_statuses
     Usgs::HistoryKeyPool::ENTRIES.map do |entry|
+      budget = Usgs::HourlyRequestBudget.status_for(
+        entry[:circuit_key],
+        configured: ENV[entry[:env]].to_s.strip.present?,
+        env: entry[:env]
+      )
       {
         key: entry[:circuit_key],
         env: entry[:env],
-        configured: ENV[entry[:env]].to_s.strip.present?,
-        open: Usgs::RateLimitCircuit.open?(entry[:circuit_key])
+        configured: budget[:configured],
+        open: budget[:circuit_open],
+        used: budget[:used],
+        remaining: budget[:remaining],
+        budget: budget[:budget],
+        soft_capped: budget[:soft_capped]
       }
     end
   end
