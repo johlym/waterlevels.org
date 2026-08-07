@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 import Chart from "chart.js/auto"
 import { formatGaugeValue } from "../lib/gauge_value"
+import { coalesceHourlyReadings } from "../lib/coalesce_hourly_readings"
 
 const SERIES_COLORS = {
   discharge: { border: "#22d3ee", fill: "rgba(34, 211, 238, 0.18)", legend: "bg-cyan" },
@@ -394,6 +395,7 @@ export default class extends Controller {
 
   groupedDays() {
     const columns = this.uniqueMeasurements()
+    const columnKeys = columns.map((col) => col.parameter_code || col.kind)
     const buckets = new Map()
 
     columns.forEach((measurement) => {
@@ -416,7 +418,7 @@ export default class extends Controller {
           })
         }
         const day = buckets.get(dayKey)
-        const minuteKey = date.toISOString().slice(0, 16)
+        const minuteKey = this.minuteKeyFromDate(date)
         if (!day.rowsByMinute.has(minuteKey)) {
           day.rowsByMinute.set(minuteKey, { t: point.t, values: {}, sort: date.getTime() })
         }
@@ -427,17 +429,37 @@ export default class extends Controller {
     return Array.from(buckets.values())
       .sort((a, b) => b.sort - a.sort)
       .map((day) => {
-        const rows = Array.from(day.rowsByMinute.values())
-          .sort((a, b) => b.sort - a.sort)
-          .map((row) => {
-            const present = columns.filter((col) => row.values[col.parameter_code || col.kind] != null).length
-            return {
-              ...row,
-              status: present === columns.length ? "ok" : "warn"
-            }
-          })
+        const rows = coalesceHourlyReadings(
+          Array.from(day.rowsByMinute.values()),
+          columnKeys,
+          (timestamp) => this.hourKeyFromTimestamp(timestamp)
+        )
         return { key: day.key, shortLabel: day.shortLabel, rows }
       })
+  }
+
+  minuteKeyFromDate(date) {
+    const { year, month, day } = this.dayParts(date)
+    const hour = this.clockPart(date, "hour")
+    const minute = this.clockPart(date, "minute")
+    return `${year}-${month}-${day}T${hour}:${minute}`
+  }
+
+  hourKeyFromTimestamp(timestamp) {
+    const date = new Date(timestamp)
+    if (Number.isNaN(date.getTime())) return ""
+    const { year, month, day } = this.dayParts(date)
+    const hour = this.clockPart(date, "hour")
+    return `${year}-${month}-${day}T${hour}`
+  }
+
+  clockPart(date, type) {
+    const parts = new Intl.DateTimeFormat("en-US", this.localeOptions({
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23"
+    })).formatToParts(date)
+    return parts.find((part) => part.type === type)?.value?.padStart(2, "0") || "00"
   }
 
   renderChart() {

@@ -50,6 +50,24 @@ jobs:
       - name: Lint code for consistent style
         run: bin/rubocop -f github
 
+  javascript:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".nvmrc"
+          cache: yarn
+
+      - name: Install JS dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Run JavaScript tests
+        run: yarn test:js
+
   test:
     runs-on: ubuntu-latest
 
