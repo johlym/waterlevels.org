@@ -29,15 +29,40 @@ Gzipped JSON array of `{ "d", "v", "s", "a?" }` where `s` is `usgs` or `derived`
 
 ## Env
 
+### Local development (`.env.example` defaults)
+
+No Cloudflare account required — year shards land on disk:
+
 ```bash
-CLOUDFLARE_R2_URL=
-CLOUDFLARE_R2_YEARLY_ARCHIVE_BUCKET=
-CLOUDFLARE_R2_ACCESS_KEY_ID=
-CLOUDFLARE_R2_SECRET_ACCESS_KEY=
-# Opt-in rollout flags (default off):
-DAILY_ARCHIVE_READS=0          # hybrid 3y chart reads from R2
-DAILY_ARCHIVE_PRUNE=0          # prune Postgres daily to hot tip when R2 covers
-DAILY_ARCHIVE_DUAL_WRITE=1     # HistoryIngestion writes cold days to R2 (when configured)
+DAILY_ARCHIVE_STORE=local
+DAILY_ARCHIVE_LOCAL_PATH=tmp/daily_archive
+DAILY_ARCHIVE_HOT_RETENTION_DAYS=7   # short tip so 30-day demo seed has "cold" days
+DAILY_ARCHIVE_READS=1
+DAILY_ARCHIVE_DUAL_WRITE=1
+DAILY_ARCHIVE_PRUNE=0
+```
+
+Workflow:
+
+1. Copy `.env.example` → `.env` (remove empty `DATABASE_URL=` per AGENTS.md).
+2. `bin/rails db:seed` (or use existing demo data).
+3. `bin/rails archive:export_daily` — writes `tmp/daily_archive/daily/v1/...`.
+4. Open a gauge and use the `3y` chart tab (hybrid read merges disk + Postgres).
+
+Tests ignore `DAILY_ARCHIVE_STORE=local` from `.env` unless `DAILY_ARCHIVE_ALLOW_LOCAL_IN_TEST=1` (same spirit as leaving `REDIS_URL` out of test runs).
+
+### Production (Cloudflare R2)
+
+```bash
+DAILY_ARCHIVE_STORE=r2          # or leave unset
+CLOUDFLARE_R2_URL=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+CLOUDFLARE_R2_YEARLY_ARCHIVE_BUCKET=...
+CLOUDFLARE_R2_ACCESS_KEY_ID=...
+CLOUDFLARE_R2_SECRET_ACCESS_KEY=...
+# Omit DAILY_ARCHIVE_HOT_RETENTION_DAYS → default 14-month hot tip
+DAILY_ARCHIVE_READS=1
+DAILY_ARCHIVE_PRUNE=1
+DAILY_ARCHIVE_DUAL_WRITE=1
 ```
 
 Keep `CLOUDFLARE_ZONE_ID` / `CLOUDFLARE_API_TOKEN` for Cache-Tag purge only — separate from R2 keys.

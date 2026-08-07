@@ -2,7 +2,7 @@ namespace :archive do
   desc "Export Postgres daily_observations into Cloudflare R2 year shards (optional ONLY_COLD=1, LIMIT_SERIES=n)"
   task export_daily: :environment do
     unless DailyArchive.configured?
-      raise "R2 is not configured (set CLOUDFLARE_R2_URL, CLOUDFLARE_R2_YEARLY_ARCHIVE_BUCKET, CLOUDFLARE_R2_ACCESS_KEY_ID, CLOUDFLARE_R2_SECRET_ACCESS_KEY)"
+      raise "Daily archive store is not configured. For local/dev set DAILY_ARCHIVE_STORE=local; for R2 set CLOUDFLARE_R2_URL, CLOUDFLARE_R2_YEARLY_ARCHIVE_BUCKET, CLOUDFLARE_R2_ACCESS_KEY_ID, CLOUDFLARE_R2_SECRET_ACCESS_KEY"
     end
 
     only_cold = %w[1 true yes on].include?(ENV["ONLY_COLD"].to_s.strip.downcase)

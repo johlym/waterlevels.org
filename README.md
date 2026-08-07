@@ -51,7 +51,9 @@ STATE=wa RANGE=3y LIMIT=25 bin/rails usgs:backfill
 
 Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_BACKFILL_BATCH` (default `50` **per available history key** — sized to approach ~1000 USGS req/hr/key for cold 1y work), `HISTORY_DEEP_BACKFILL_BATCH` (default `400`/key ceiling; actual deep slots use leftover request budget after phase-1; set `0` to pause 3y deep fills).
 
-See `doc/plan-3y-daily-history.md` and `doc/future.md` for retention tiers and longer POR notes.
+See `doc/plan-3y-daily-history.md`, `doc/future.md`, and `doc/postgres-r2-daily-archive.md` for retention tiers, longer POR notes, and the Postgres/R2 (or local-disk) daily archive.
+
+Local archive iteration (no Cloudflare): `.env.example` sets `DAILY_ARCHIVE_STORE=local` and a short hot tip. After seeding or backfill, run `bin/rails archive:export_daily` — shards land in `tmp/daily_archive` and `3y` charts merge them when `DAILY_ARCHIVE_READS=1`.
 
 ## Observability (Honeycomb)
 
