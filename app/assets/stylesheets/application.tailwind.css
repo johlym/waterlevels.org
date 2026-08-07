@@ -2047,7 +2047,13 @@ body.dialog-open {
 }
 
 .admin-dashboard {
-  @apply space-y-16 pb-20;
+  /* Flex + gap so spacing survives turbo-frame wrappers (custom elements are
+     inline by default, which collapses Tailwind space-y margins). */
+  @apply flex flex-col gap-16 pb-20;
+
+  > turbo-frame {
+    @apply block w-full;
+  }
 
   .admin-dashboard-chrome {
     .section-header {
