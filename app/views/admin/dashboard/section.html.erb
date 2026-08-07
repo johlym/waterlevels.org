@@ -1,0 +1,5 @@
+<%= turbo_frame_tag "admin_section_#{@section}" do %>
+  <div class="admin-section-loaded">
+    <%= render "admin/dashboard/#{@section}", stats: @stats %>
+  </div>
+<% end %>

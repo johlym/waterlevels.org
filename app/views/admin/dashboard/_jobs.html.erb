@@ -1,0 +1,67 @@
+<%# locals: stats: %>
+<section class="admin-stats" aria-labelledby="admin-jobs-heading">
+  <div class="section-header">
+    <div>
+      <p class="eyebrow">Jobs</p>
+      <h2 id="admin-jobs-heading">Last finished</h2>
+    </div>
+  </div>
+
+  <div class="stats-grid">
+    <article>
+      <p class="value value-sm">
+        <%= stats[:last_tip_refresh_finished_at] ? "#{time_ago_in_words(stats[:last_tip_refresh_finished_at])} ago" : "—" %>
+      </p>
+      <p class="label">Latest tip sync</p>
+      <p class="hint">
+        <% if stats[:last_tip_refresh_state] %>
+          State <%= stats[:last_tip_refresh_state].upcase %>
+        <% elsif stats[:last_tip_refresh_finished_at] %>
+          National
+        <% else %>
+          Not recorded yet
+        <% end %>
+      </p>
+    </article>
+
+    <article>
+      <p class="value value-sm">
+        <%= stats[:last_catalog_sync_at] ? "#{time_ago_in_words(stats[:last_catalog_sync_at])} ago" : "—" %>
+      </p>
+      <p class="label">Catalog sync</p>
+      <p class="hint">
+        <% if stats[:last_catalog_sync_state] %>
+          State <%= stats[:last_catalog_sync_state].upcase %>
+        <% elsif stats[:last_catalog_sync_at] %>
+          National
+        <% else %>
+          Not recorded yet
+        <% end %>
+      </p>
+    </article>
+
+    <article>
+      <p class="value value-sm">
+        <%= stats[:last_flood_sync_at] ? "#{time_ago_in_words(stats[:last_flood_sync_at])} ago" : "—" %>
+      </p>
+      <p class="label">Flood stage sync</p>
+      <p class="hint">
+        <% if stats[:last_flood_sync_state] %>
+          State <%= stats[:last_flood_sync_state].upcase %>
+        <% elsif stats[:last_flood_sync_at] %>
+          National
+        <% else %>
+          Not recorded yet
+        <% end %>
+      </p>
+    </article>
+
+    <article>
+      <p class="value value-sm">
+        <%= stats[:last_prune_at] ? "#{time_ago_in_words(stats[:last_prune_at])} ago" : "—" %>
+      </p>
+      <p class="label">Continuous prune</p>
+      <p class="hint">Retention cleanup</p>
+    </article>
+  </div>
+</section>

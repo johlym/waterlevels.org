@@ -1,0 +1,51 @@
+<%# locals: stats: %>
+<section class="admin-stats" aria-labelledby="admin-growth-heading">
+  <div class="section-header">
+    <div>
+      <p class="eyebrow">Growth</p>
+      <h2 id="admin-growth-heading">Measurements &amp; tip freshness</h2>
+    </div>
+  </div>
+
+  <div class="stats-grid">
+    <article>
+      <p class="value"><%= number_with_delimiter(stats[:continuous_last_24h]) %></p>
+      <p class="label">Continuous points (24h)</p>
+      <p class="hint">By observed_at</p>
+    </article>
+
+    <article>
+      <p class="value"><%= number_with_delimiter(stats[:continuous_last_7d]) %></p>
+      <p class="label">Continuous points (7d)</p>
+      <p class="hint">By observed_at</p>
+    </article>
+  </div>
+
+  <% freshness = stats[:tip_freshness] %>
+  <% freshness_total = freshness.values.sum %>
+  <div class="freshness-panel">
+    <h3>Tip freshness</h3>
+    <p class="hint">Active stations by latest_observed_at age</p>
+    <ul class="freshness-bars">
+      <% [
+        [ :under_1h, "< 1 hour" ],
+        [ :h1_to_6h, "1–6 hours" ],
+        [ :h6_to_24h, "6–24 hours" ],
+        [ :d1_to_7d, "1–7 days" ],
+        [ :stale, "Stale / missing" ]
+      ].each do |key, label| %>
+        <% count = freshness[key].to_i %>
+        <% pct = freshness_total.positive? ? (count * 100.0 / freshness_total) : 0 %>
+        <li>
+          <div class="row">
+            <span class="name"><%= label %></span>
+            <span class="meta"><%= number_with_delimiter(count) %></span>
+          </div>
+          <div class="bar" aria-hidden="true">
+            <span style="width: <%= pct %>%"></span>
+          </div>
+        </li>
+      <% end %>
+    </ul>
+  </div>
+</section>

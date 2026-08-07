@@ -1,6 +1,8 @@
 # Live ops snapshot for the password-gated /admin dashboard.
 # Job-finish / tip-refresh summaries are written by sync POROs (Redis +
-# process-local fallback); everything else is computed on each request.
+# process-local fallback). The dashboard loads section snapshots via Turbo
+# Frames so the shell can render before heavy aggregates finish; backfill
+# aggregates are briefly cached so parallel section requests share one query.
 class AdminDashboardStats
   TIP_REFRESH_CACHE_KEY = "admin:last_tip_refresh".freeze
   JOB_CACHE_KEYS = {
@@ -12,9 +14,21 @@ class AdminDashboardStats
   }.freeze
   TIP_REFRESH_TTL = 7.days
   APPROX_COUNT_THRESHOLD = SiteStats::APPROX_COUNT_THRESHOLD
+  SECTIONS = %i[core pipeline growth jobs states health].freeze
+  BACKFILL_CACHE_KEY = "admin_dashboard/backfill_aggregates/v1".freeze
+  BACKFILL_TTL = 30.seconds
+
   class << self
     def snapshot
       new.snapshot
+    end
+
+    def section(name)
+      new.section(name)
+    end
+
+    def sections
+      SECTIONS
     end
 
     def record_tip_refresh!(stations_updated:, series_upserted:, finished_at: Time.current, state: nil)
@@ -50,6 +64,10 @@ class AdminDashboardStats
     def clear_jobs!
       self.memory_jobs = {}
       redis_with_rescue { |r| r.del(*JOB_CACHE_KEYS.values) }
+    end
+
+    def bust_backfill_cache!
+      Rails.cache.delete(BACKFILL_CACHE_KEY)
     end
 
     private
@@ -95,43 +113,34 @@ class AdminDashboardStats
   end
 
   def snapshot
-    tip = self.class.last_tip_refresh || {}
+    SECTIONS.each_with_object({}) { |name, hash| hash.merge!(section(name)) }
+  end
+
+  def section(name)
+    key = name.to_sym
+    unless SECTIONS.include?(key)
+      raise ArgumentError, "Unknown admin dashboard section: #{name.inspect}"
+    end
+
+    public_send(:"#{key}_section")
+  end
+
+  def core_section
+    tip = tip_refresh_payload
     last_station = MonitoringLocation.order(updated_at: :desc).first
-    stations_by_state = MonitoringLocation.active.group(:state_code).count
-    needing_history_by_state = MonitoringLocation.needing_history_backfill.group(:state_code).count
-    needing_deep_by_state = MonitoringLocation.needing_deep_history_backfill.group(:state_code).count
-    missing_year_by_state = missing_year_history_by_state
+    continuous_count = approximate_or_exact_count(ContinuousObservation)
+    daily_count = approximate_or_exact_count(DailyObservation)
+    peak_count = approximate_or_exact_count(PeakObservation)
+    backfill = backfill_aggregates
 
     {
-      station_count: MonitoringLocation.active.count,
-      stations_needing_history: needing_history_by_state.values.sum,
-      stations_needing_deep_history: needing_deep_by_state.values.sum,
-      stations_missing_year_history: missing_year_by_state.values.sum,
-      stations_history_ready: [
-        MonitoringLocation.active.count -
-          needing_history_by_state.values.sum -
-          needing_deep_by_state.values.sum,
-        0
-      ].max,
-      stale_station_count: MonitoringLocation.active.count - MonitoringLocation.active.not_stale.count,
-      flood_alert_count: MonitoringLocation.flood_alert.count,
-      nwps_matched_count: MonitoringLocation.active.where(nwps_matched: true).count,
-      measurement_count: measurement_count,
-      continuous_observation_count: approximate_or_exact_count(ContinuousObservation),
-      daily_observation_count: approximate_or_exact_count(DailyObservation),
-      peak_observation_count: approximate_or_exact_count(PeakObservation),
-      updates_today: ContinuousObservation.where(observed_at: pacific_today_range).count,
-      continuous_last_24h: ContinuousObservation.where(observed_at: 24.hours.ago..).count,
-      continuous_last_7d: ContinuousObservation.where(observed_at: 7.days.ago..).count,
-      tip_freshness: tip_freshness_histogram,
-      per_state: per_state_rows(
-        stations_by_state,
-        needing_history_by_state,
-        needing_deep_by_state,
-        missing_year_by_state
-      ),
-      history_backfill_locks: count_prefixed_redis_keys(HistoryBackfillLock::KEY_PREFIX),
-      history_backfill_cooldowns: count_prefixed_redis_keys(HistoryBackfillLock::COOLDOWN_PREFIX),
+      station_count: backfill[:station_count],
+      stations_needing_history: backfill[:stations_needing_history],
+      stations_missing_year_history: backfill[:stations_missing_year_history],
+      measurement_count: continuous_count + daily_count + peak_count,
+      continuous_observation_count: continuous_count,
+      daily_observation_count: daily_count,
+      peak_observation_count: peak_count,
       last_station_updated: last_station && {
         id: last_station.id,
         site_number: last_station.site_number,
@@ -145,12 +154,57 @@ class AdminDashboardStats
       last_tip_refresh_stations_updated: tip[:stations_updated],
       last_tip_refresh_series_upserted: tip[:series_upserted],
       last_tip_refresh_finished_at: parse_time(tip[:finished_at]),
+      last_tip_refresh_state: tip[:state]
+    }
+  end
+
+  def pipeline_section
+    backfill = backfill_aggregates
+    active_count = backfill[:station_count]
+
+    {
+      stations_needing_deep_history: backfill[:stations_needing_deep_history],
+      stations_history_ready: backfill[:stations_history_ready],
+      stale_station_count: active_count - MonitoringLocation.active.not_stale.count,
+      flood_alert_count: MonitoringLocation.flood_alert.count,
+      nwps_matched_count: MonitoringLocation.active.where(nwps_matched: true).count,
+      updates_today: ContinuousObservation.where(observed_at: pacific_today_range).count,
+      history_backfill_locks: count_prefixed_redis_keys(HistoryBackfillLock::KEY_PREFIX),
+      history_backfill_cooldowns: count_prefixed_redis_keys(HistoryBackfillLock::COOLDOWN_PREFIX)
+    }
+  end
+
+  def growth_section
+    {
+      continuous_last_24h: ContinuousObservation.where(observed_at: 24.hours.ago..).count,
+      continuous_last_7d: ContinuousObservation.where(observed_at: 7.days.ago..).count,
+      tip_freshness: tip_freshness_histogram
+    }
+  end
+
+  def jobs_section
+    tip = tip_refresh_payload
+    catalog = self.class.last_job(:catalog_sync) || {}
+    flood = self.class.last_job(:flood_sync) || {}
+    prune = self.class.last_job(:prune) || {}
+
+    {
+      last_tip_refresh_finished_at: parse_time(tip[:finished_at]),
       last_tip_refresh_state: tip[:state],
-      last_catalog_sync_at: parse_time(self.class.last_job(:catalog_sync)&.dig(:finished_at)),
-      last_catalog_sync_state: self.class.last_job(:catalog_sync)&.dig(:state),
-      last_flood_sync_at: parse_time(self.class.last_job(:flood_sync)&.dig(:finished_at)),
-      last_flood_sync_state: self.class.last_job(:flood_sync)&.dig(:state),
-      last_prune_at: parse_time(self.class.last_job(:prune)&.dig(:finished_at)),
+      last_catalog_sync_at: parse_time(catalog[:finished_at]),
+      last_catalog_sync_state: catalog[:state],
+      last_flood_sync_at: parse_time(flood[:finished_at]),
+      last_flood_sync_state: flood[:state],
+      last_prune_at: parse_time(prune[:finished_at])
+    }
+  end
+
+  def states_section
+    { per_state: backfill_aggregates[:per_state] }
+  end
+
+  def health_section
+    {
       tip_circuit_open: Usgs::RateLimitCircuit.open?(Usgs::RateLimitCircuit::TIP_KEY),
       history_circuits: history_circuit_statuses,
       history_keys_exhausted: Usgs::HistoryKeyPool.exhausted?,
@@ -162,10 +216,45 @@ class AdminDashboardStats
 
   private
 
-  def measurement_count
-    approximate_or_exact_count(ContinuousObservation) +
-      approximate_or_exact_count(DailyObservation) +
-      approximate_or_exact_count(PeakObservation)
+  def tip_refresh_payload
+    self.class.last_tip_refresh || {}
+  end
+
+  def backfill_aggregates
+    @backfill_aggregates ||= Rails.cache.fetch(BACKFILL_CACHE_KEY, expires_in: BACKFILL_TTL) do
+      compute_backfill_aggregates
+    end
+  end
+
+  def compute_backfill_aggregates
+    stations_by_state = MonitoringLocation.active.group(:state_code).count
+    needing_history_by_state = MonitoringLocation.needing_history_backfill.group(:state_code).count
+    needing_deep_by_state = MonitoringLocation.needing_deep_history_backfill.group(:state_code).count
+    missing_year_by_state = missing_year_history_by_state
+    station_count = stations_by_state.values.sum
+    stations_needing_history = needing_history_by_state.values.sum
+    stations_needing_deep_history = needing_deep_by_state.values.sum
+
+    {
+      stations_by_state: stations_by_state,
+      needing_history_by_state: needing_history_by_state,
+      needing_deep_by_state: needing_deep_by_state,
+      missing_year_by_state: missing_year_by_state,
+      station_count: station_count,
+      stations_needing_history: stations_needing_history,
+      stations_needing_deep_history: stations_needing_deep_history,
+      stations_missing_year_history: missing_year_by_state.values.sum,
+      stations_history_ready: [
+        station_count - stations_needing_history - stations_needing_deep_history,
+        0
+      ].max,
+      per_state: per_state_rows(
+        stations_by_state,
+        needing_history_by_state,
+        needing_deep_by_state,
+        missing_year_by_state
+      )
+    }
   end
 
   def approximate_or_exact_count(model)

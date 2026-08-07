@@ -1,0 +1,68 @@
+<%# locals: eyebrow:, heading:, heading_id:, cards:, table: false, freshness: false, health: false %>
+<section class="admin-stats admin-stats--loading" aria-labelledby="<%= heading_id %>" aria-busy="true">
+  <div class="section-header">
+    <div>
+      <p class="eyebrow"><%= eyebrow %></p>
+      <h2 id="<%= heading_id %>"><%= heading %></h2>
+    </div>
+  </div>
+
+  <% if cards.positive? %>
+    <div class="stats-grid" aria-hidden="true">
+      <% cards.times do %>
+        <article class="admin-skeleton-card">
+          <p class="admin-skeleton-line admin-skeleton-line--value"></p>
+          <p class="admin-skeleton-line admin-skeleton-line--label"></p>
+          <p class="admin-skeleton-line admin-skeleton-line--hint"></p>
+        </article>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if local_assigns[:freshness] %>
+    <div class="freshness-panel admin-skeleton-panel" aria-hidden="true">
+      <p class="admin-skeleton-line admin-skeleton-line--title"></p>
+      <p class="admin-skeleton-line admin-skeleton-line--hint"></p>
+      <ul class="freshness-bars">
+        <% 5.times do %>
+          <li>
+            <div class="row">
+              <span class="admin-skeleton-line admin-skeleton-line--name"></span>
+              <span class="admin-skeleton-line admin-skeleton-line--meta"></span>
+            </div>
+            <div class="bar"><span style="width: 0%"></span></div>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <% if local_assigns[:table] %>
+    <div class="table-wrap admin-skeleton-table" aria-hidden="true">
+      <div class="admin-skeleton-line admin-skeleton-line--table-row"></div>
+      <div class="admin-skeleton-line admin-skeleton-line--table-row"></div>
+      <div class="admin-skeleton-line admin-skeleton-line--table-row"></div>
+      <div class="admin-skeleton-line admin-skeleton-line--table-row"></div>
+    </div>
+  <% end %>
+
+  <% if local_assigns[:health] %>
+    <div class="budget-panel admin-skeleton-panel" aria-hidden="true">
+      <p class="admin-skeleton-line admin-skeleton-line--title"></p>
+      <p class="admin-skeleton-line admin-skeleton-line--hint"></p>
+      <ul class="budget-bars">
+        <% 3.times do %>
+          <li>
+            <div class="row">
+              <span class="admin-skeleton-line admin-skeleton-line--name"></span>
+              <span class="admin-skeleton-line admin-skeleton-line--meta"></span>
+            </div>
+            <div class="bar"><span class="fill ok" style="width: 0%"></span></div>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <p class="admin-loading-status">Loading…</p>
+</section>
