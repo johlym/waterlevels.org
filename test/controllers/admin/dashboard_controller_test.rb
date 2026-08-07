@@ -44,7 +44,10 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.headers["Cache-Control"], "no-store"
     assert_includes response.body, "Active stations"
-    assert_includes response.body, "Needing full history"
+    assert_includes response.body, "Need ≤1y fill"
+    assert_includes response.body, "Have ~1y, need 3y"
+    assert_includes response.body, "History ready (3y)"
+    assert_includes response.body, "Have ~1y → need 3y"
     assert_includes response.body, "Last station updated"
     assert_includes response.body, location.reload.display_name
     assert_includes response.body, "Updated in last tip refresh"

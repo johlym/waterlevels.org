@@ -63,10 +63,101 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
       wa = stats[:per_state].find { |row| row[:state_code] == "wa" }
       assert_equal 1, wa[:station_count]
       assert_equal "Washington", wa[:state_name]
+      assert wa.key?(:missing_year_history)
+      assert wa.key?(:history_ready)
+      assert_equal(
+        wa[:station_count],
+        wa[:needing_history] + wa[:needing_deep_history] + wa[:history_ready]
+      )
+      assert_equal(
+        stats[:station_count],
+        stats[:stations_needing_history] +
+          stats[:stations_needing_deep_history] +
+          stats[:stations_history_ready]
+      )
+      assert stats.key?(:stations_missing_year_history)
       assert_includes stats[:history_circuits].map { |c| c[:key] }, "history_1"
       assert_equal false, stats[:tip_circuit_open]
       assert_equal false, stats[:database_read_only]
       assert stats[:sidekiq].key?(:enqueued) || stats[:sidekiq].key?(:error)
+    end
+  end
+
+  test "per_state partitions phase-1 year-ready and deep-ready stations" do
+    travel_to Time.zone.local(2026, 8, 6, 12, 0, 0) do
+      cold = create(:monitoring_location, state_code: "ar", latest_observed_at: 1.hour.ago)
+      year_ready = create(:monitoring_location, state_code: "ar", latest_observed_at: 1.hour.ago)
+      deep_ready = create(:monitoring_location, state_code: "ar", latest_observed_at: 1.hour.ago)
+
+      cold_series = create(:time_series, monitoring_location: cold, parameter_code: "00060")
+      ContinuousObservation.create!(
+        time_series: cold_series,
+        value: 1,
+        observed_at: 1.hour.ago
+      )
+      DailyObservation.create!(
+        time_series: cold_series,
+        value: 1,
+        observed_on: Date.current
+      )
+
+      year_series = create(:time_series, monitoring_location: year_ready, parameter_code: "00060")
+      ContinuousObservation.create!(
+        time_series: year_series,
+        value: 2,
+        observed_at: 1.hour.ago
+      )
+      ContinuousObservation.create!(
+        time_series: year_series,
+        value: 2,
+        observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
+      )
+      DailyObservation.create!(
+        time_series: year_series,
+        value: 2,
+        observed_on: Date.current
+      )
+      DailyObservation.create!(
+        time_series: year_series,
+        value: 2,
+        observed_on: HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
+      )
+
+      deep_series = create(:time_series, monitoring_location: deep_ready, parameter_code: "00060")
+      ContinuousObservation.create!(
+        time_series: deep_series,
+        value: 3,
+        observed_at: 1.hour.ago
+      )
+      ContinuousObservation.create!(
+        time_series: deep_series,
+        value: 3,
+        observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
+      )
+      DailyObservation.create!(
+        time_series: deep_series,
+        value: 3,
+        observed_on: Date.current
+      )
+      DailyObservation.create!(
+        time_series: deep_series,
+        value: 3,
+        observed_on: HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
+      )
+      DailyObservation.create!(
+        time_series: deep_series,
+        value: 3,
+        observed_on: HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
+      )
+
+      stats = AdminDashboardStats.snapshot
+      ar = stats[:per_state].find { |row| row[:state_code] == "ar" }
+
+      assert_equal 3, ar[:station_count]
+      assert_equal 1, ar[:needing_history]
+      assert_equal 1, ar[:missing_year_history]
+      assert_equal 1, ar[:needing_deep_history]
+      assert_equal 1, ar[:history_ready]
     end
   end
 

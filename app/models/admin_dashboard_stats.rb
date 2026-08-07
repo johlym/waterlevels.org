@@ -99,11 +99,19 @@ class AdminDashboardStats
     stations_by_state = MonitoringLocation.active.group(:state_code).count
     needing_history_by_state = MonitoringLocation.needing_history_backfill.group(:state_code).count
     needing_deep_by_state = MonitoringLocation.needing_deep_history_backfill.group(:state_code).count
+    missing_year_by_state = missing_year_history_by_state
 
     {
       station_count: MonitoringLocation.active.count,
       stations_needing_history: needing_history_by_state.values.sum,
       stations_needing_deep_history: needing_deep_by_state.values.sum,
+      stations_missing_year_history: missing_year_by_state.values.sum,
+      stations_history_ready: [
+        MonitoringLocation.active.count -
+          needing_history_by_state.values.sum -
+          needing_deep_by_state.values.sum,
+        0
+      ].max,
       stale_station_count: MonitoringLocation.active.count - MonitoringLocation.active.not_stale.count,
       flood_alert_count: MonitoringLocation.flood_alert.count,
       nwps_matched_count: MonitoringLocation.active.where(nwps_matched: true).count,
@@ -115,7 +123,12 @@ class AdminDashboardStats
       continuous_last_24h: ContinuousObservation.where(observed_at: 24.hours.ago..).count,
       continuous_last_7d: ContinuousObservation.where(observed_at: 7.days.ago..).count,
       tip_freshness: tip_freshness_histogram,
-      per_state: per_state_rows(stations_by_state, needing_history_by_state, needing_deep_by_state),
+      per_state: per_state_rows(
+        stations_by_state,
+        needing_history_by_state,
+        needing_deep_by_state,
+        missing_year_by_state
+      ),
       history_backfill_locks: count_prefixed_redis_keys(HistoryBackfillLock::KEY_PREFIX),
       history_backfill_cooldowns: count_prefixed_redis_keys(HistoryBackfillLock::COOLDOWN_PREFIX),
       last_station_updated: last_station && {
@@ -174,17 +187,48 @@ class AdminDashboardStats
     }
   end
 
-  def per_state_rows(stations_by_state, needing_history_by_state, needing_deep_by_state)
-    codes = (stations_by_state.keys + needing_history_by_state.keys + needing_deep_by_state.keys).uniq.sort
+  def per_state_rows(
+    stations_by_state,
+    needing_history_by_state,
+    needing_deep_by_state,
+    missing_year_by_state
+  )
+    codes = (
+      stations_by_state.keys +
+      needing_history_by_state.keys +
+      needing_deep_by_state.keys +
+      missing_year_by_state.keys
+    ).uniq.sort
     codes.map do |code|
+      station_count = stations_by_state[code].to_i
+      needing_history = needing_history_by_state[code].to_i
+      needing_deep = needing_deep_by_state[code].to_i
+      missing_year = missing_year_by_state[code].to_i
       {
         state_code: code,
         state_name: state_name_for(code),
-        station_count: stations_by_state[code].to_i,
-        needing_history: needing_history_by_state[code].to_i,
-        needing_deep_history: needing_deep_by_state[code].to_i
+        station_count: station_count,
+        needing_history: needing_history,
+        # Subset of phase-1: selected series lack daily near the ~1y anchor.
+        missing_year_history: missing_year,
+        needing_deep_history: needing_deep,
+        # Mutually exclusive with the two backlog columns.
+        history_ready: [ station_count - needing_history - needing_deep, 0 ].max
       }
     end
+  end
+
+  # Active stations whose selected series still lack daily points near the
+  # ~1-year anchor. Overlaps phase-1 backlog; never includes deep-only rows.
+  def missing_year_history_by_state
+    year_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
+    missing_year_series = TimeSeries.selected.where.not(
+      id: DailyObservation.where(observed_on: ..year_anchor).select(:time_series_id)
+    )
+    MonitoringLocation.active
+      .where(id: missing_year_series.select(:monitoring_location_id))
+      .group(:state_code)
+      .count
   end
 
   def state_name_for(code)

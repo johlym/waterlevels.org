@@ -4,7 +4,7 @@ module RedisConfig
   module_function
 
   def url(default: DEFAULT_URL)
-    ENV.fetch("REDIS_URL", default)
+    isolate_test_worker_db(ENV.fetch("REDIS_URL", default))
   end
 
   # Heroku Key-Value Store (and similar) use self-signed certs on rediss://.
@@ -14,5 +14,22 @@ module RedisConfig
       url: url(default: default_url),
       ssl_params: { verify_mode: OpenSSL::SSL::VERIFY_NONE }
     }
+  end
+
+  # Rails parallel test workers share one Redis by default. Pin each worker to
+  # its own logical DB so process-local job summaries (admin tip refresh, etc.)
+  # cannot clobber each other mid-assertion.
+  def isolate_test_worker_db(configured)
+    return configured unless defined?(Rails) && Rails.env.test?
+    return configured unless defined?(ActiveSupport::TestCase)
+
+    worker = ActiveSupport::TestCase.parallel_worker_id
+    return configured if worker.nil?
+
+    uri = URI.parse(configured)
+    uri.path = "/#{worker.to_i}"
+    uri.to_s
+  rescue URI::InvalidURIError
+    configured
   end
 end
