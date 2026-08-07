@@ -15,9 +15,12 @@ class FloodStageSync
   end
 
   def perform
-    Telemetry.in_span(
+    Telemetry.in_root_span(
       "flood.sync",
-      attributes: { "usgs.state" => postal_code || "national" }
+      attributes: {
+        "app.operation" => "flood.sync",
+        "app.state" => postal_code || "national"
+      }
     ) do
       progress&.step(scope_label)
       gauges_by_lid = fetch_gauges_by_lid
@@ -26,12 +29,13 @@ class FloodStageSync
       matched, unmatched, skipped, errors = discover_and_refresh_details
 
       Telemetry.add_attributes(
-        "flood.list_updated" => list_updated,
-        "flood.alert_matched" => alert_matched,
-        "flood.matched" => matched,
-        "flood.unmatched" => unmatched,
-        "flood.skipped" => skipped,
-        "flood.errors" => errors
+        "app.batch_size" => gauges_by_lid.size,
+        "app.list_updated" => list_updated,
+        "app.alert_matched" => alert_matched,
+        "app.matched_count" => matched,
+        "app.unmatched_count" => unmatched,
+        "app.skipped_count" => skipped,
+        "app.error_count" => errors
       )
 
       progress&.step("warming caches")

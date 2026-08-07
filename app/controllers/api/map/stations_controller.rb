@@ -15,8 +15,10 @@ module Api
           .map { |loc| MapStationPayload.build(loc) }
 
         Telemetry.add_attributes(
-          "map.bbox" => "#{west},#{south},#{east},#{north}",
-          "map.station_count" => stations.size
+          "app.operation" => "map.stations.index",
+          "app.bbox" => "#{west},#{south},#{east},#{north}",
+          "app.station_count" => stations.size,
+          "app.batch_size" => stations.size
         )
         cache_public!(max_age: 30, s_maxage: 300, tags: [ "map-stations" ])
         render json: { stations: stations }
@@ -32,8 +34,10 @@ module Api
           end
 
         Telemetry.add_attributes(
-          "map.search.q_length" => query.length,
-          "map.search.result_count" => results.size
+          "app.operation" => "map.stations.search",
+          "app.query_length" => query.length,
+          "app.result_count" => results.size,
+          "app.batch_size" => results.size
         )
         cache_public!(max_age: 30, s_maxage: 300, tags: [ "map-station-search" ])
         render json: { stations: results }
@@ -45,8 +49,10 @@ module Api
         location = NearbyStations.nearest_to(lat, lon)
 
         Telemetry.add_attributes(
-          "map.nearest.found" => location.present?,
-          "station.site_number" => location&.site_number
+          "app.operation" => "map.stations.nearest",
+          "app.found" => location.present?,
+          "app.site_number" => location&.site_number,
+          "app.state" => location&.state_code
         )
         cache_public!(max_age: 30, s_maxage: 120, tags: [ "map-station-nearest" ])
         if location

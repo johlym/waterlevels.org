@@ -35,13 +35,15 @@ class StationSnapshotCache
     Telemetry.in_span(
       "cache.station_snapshot.fetch",
       attributes: {
-        "station.site_number" => location.site_number,
-        "usgs.state" => location.state_code
+        "app.operation" => "cache.station_snapshot.fetch",
+        "app.site_number" => location.site_number,
+        "app.state" => location.state_code,
+        "app.location_name" => location.display_name
       }
     ) do
       cached = read(location)
       stale = cached.nil? || stale_snapshot?(cached, location)
-      Telemetry.add_attributes("cache.hit" => !stale, "cache.stale" => !cached.nil? && stale)
+      Telemetry.add_attributes("app.cache_hit" => !stale, "app.cache_stale" => !cached.nil? && stale)
       return warm(location) if stale
 
       cached

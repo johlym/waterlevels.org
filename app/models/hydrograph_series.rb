@@ -15,10 +15,12 @@ class HydrographSeries
     Telemetry.in_span(
       "hydrograph.build",
       attributes: {
-        "station.site_number" => location.site_number,
-        "parameter_code" => parameter_code,
-        "measurement.kind" => kind,
-        "range" => range
+        "app.operation" => "hydrograph.build",
+        "app.site_number" => location.site_number,
+        "app.state" => location.state_code,
+        "app.parameter_code" => parameter_code,
+        "app.measurement_kind" => kind,
+        "app.range" => range
       }
     ) do
       series = find_series(location, kind: kind, parameter_code: parameter_code)
@@ -26,9 +28,10 @@ class HydrographSeries
 
       payload = new(time_series: series, range: range).as_json
       Telemetry.add_attributes(
-        "parameter_code" => series.parameter_code,
-        "measurement.kind" => series.measurement_kind,
-        "points.count" => Array(payload[:points]).size
+        "app.parameter_code" => series.parameter_code,
+        "app.measurement_kind" => series.measurement_kind,
+        "app.observation_count" => Array(payload[:points]).size,
+        "app.batch_size" => Array(payload[:points]).size
       )
       payload
     end

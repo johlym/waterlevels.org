@@ -42,14 +42,17 @@ class ZipCodeLookup
 
     Telemetry.in_span(
       "zippopotam.lookup",
-      attributes: { "zip.code" => zip }
+      attributes: {
+        "app.operation" => "zippopotam.lookup",
+        "app.zip_code" => zip
+      }
     ) do
       cached = Rails.cache.read(cache_key(zip))
       if cached
-        Telemetry.add_attributes("cache.hit" => true)
+        Telemetry.add_attributes("app.cache_hit" => true)
         cached
       else
-        Telemetry.add_attributes("cache.hit" => false)
+        Telemetry.add_attributes("app.cache_hit" => false)
         result = fetch_zip(zip)
         Rails.cache.write(cache_key(zip), result, expires_in: CACHE_TTL)
         result

@@ -10,9 +10,10 @@ class GaugesController < ApplicationController
       enqueued = HistoryBackfillJob.enqueue(@location.id)
     end
     Telemetry.add_attributes(
-      "station.site_number" => @location.site_number,
-      "usgs.state" => @location.state_code,
-      "backfill.enqueued" => enqueued
+      "app.site_number" => @location.site_number,
+      "app.state" => @location.state_code,
+      "app.location_name" => @location.display_name,
+      "app.backfill_enqueued" => enqueued
     )
     cache_public!(tags: [ "gauge:#{@location.site_number}" ])
   end

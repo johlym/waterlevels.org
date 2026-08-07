@@ -10,9 +10,12 @@ class LatestObservationSync
   end
 
   def perform
-    Telemetry.in_span(
+    Telemetry.in_root_span(
       "latest.sync",
-      attributes: { "usgs.state" => postal_code || "national" }
+      attributes: {
+        "app.operation" => "latest.sync",
+        "app.state" => postal_code || "national"
+      }
     ) do
       sync_error = nil
       @upserted_series_ids = Set.new
@@ -27,9 +30,13 @@ class LatestObservationSync
         sync_error = e
       end
 
-      denormalize_locations
+      denormalized = denormalize_locations
       record_tip_refresh_stats!
-      Telemetry.add_attributes("series.upserted" => @upserted_series_ids.size)
+      Telemetry.add_attributes(
+        "app.series_count" => @upserted_series_ids.size,
+        "app.observation_count" => @upserted_series_ids.size,
+        "app.locations_count" => denormalized
+      )
 
       unless sync_error
         progress&.step("warming state listing caches")
@@ -94,8 +101,9 @@ class LatestObservationSync
     Telemetry.in_span(
       "latest.sync_parameter",
       attributes: {
-        "usgs.state" => postal_code || "national",
-        "usgs.parameter_code" => parameter_code
+        "app.operation" => "latest.sync_parameter",
+        "app.state" => postal_code || "national",
+        "app.parameter_code" => parameter_code
       }
     ) do
       sync_parameter_body(parameter_code)
@@ -164,7 +172,12 @@ class LatestObservationSync
       progress&.increment
     end
 
-    Telemetry.add_attributes("series.upserted" => count, "series.skipped" => skipped)
+    Telemetry.add_attributes(
+      "app.observation_count" => count,
+      "app.series_count" => count,
+      "app.skipped_count" => skipped,
+      "app.batch_size" => count + skipped
+    )
     progress&.step("parameter=#{parameter_code} latest upserted=#{count} skipped=#{skipped}")
   end
   private :sync_parameter_body
@@ -183,7 +196,9 @@ class LatestObservationSync
       progress&.increment
     end
 
+    Telemetry.add_attributes("app.locations_denormalized" => count)
     progress&.step("locations denormalized=#{count}")
+    count
   end
 
   def parse_time(value)

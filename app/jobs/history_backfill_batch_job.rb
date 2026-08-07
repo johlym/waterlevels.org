@@ -11,52 +11,73 @@ class HistoryBackfillBatchJob < ApplicationJob
   DEFAULT_DEEP_PER_KEY = 400
 
   def perform(limit = nil, range = HistoryIngestion::DEFAULT_RANGE)
-    if HistoryBackfillJob.paused_for_catalog_sync?
-      Rails.logger.info("HistoryBackfillBatchJob skipped: Sunday catalog sync window")
-      return 0
+    Telemetry.in_root_span(
+      "job.history_backfill_batch",
+      attributes: {
+        "app.operation" => "job.history_backfill_batch",
+        "app.range" => range.to_s
+      }
+    ) do
+      if HistoryBackfillJob.paused_for_catalog_sync?
+        Telemetry.add_attributes("app.skip_reason" => "sunday_catalog_sync")
+        Rails.logger.info("HistoryBackfillBatchJob skipped: Sunday catalog sync window")
+        return 0
+      end
+      if Usgs::HistoryKeyPool.exhausted?
+        Telemetry.add_attributes("app.skip_reason" => "history_keys_exhausted")
+        Rails.logger.info("HistoryBackfillBatchJob skipped: USGS history rate limit circuits open")
+        return 0
+      end
+      if DatabaseReadOnlyCircuit.open?
+        Telemetry.add_attributes("app.skip_reason" => "db_read_only_circuit")
+        raise DatabaseReadOnlyError, "database read-only circuit open"
+      end
+
+      keys = Usgs::HistoryKeyPool.available_count
+      request_budget = Usgs::HistoryKeyPool.hourly_request_budget
+      phase1_budget = phase1_station_budget(limit, keys)
+      phase1_cost = phase1_requests_per_station
+
+      phase1_enqueued = enqueue_candidates(
+        MonitoringLocation.needing_history_backfill,
+        range: range,
+        budget: phase1_budget
+      )
+
+      deep_budget = deep_station_budget(
+        keys: keys,
+        request_budget: request_budget,
+        phase1_enqueued: phase1_enqueued,
+        phase1_cost: phase1_cost
+      )
+      deep_enqueued = enqueue_candidates(
+        MonitoringLocation.needing_deep_history_backfill,
+        range: HistoryIngestion::DEEP_RANGE,
+        budget: deep_budget
+      )
+
+      total = phase1_enqueued + deep_enqueued
+      estimated_requests = (phase1_enqueued * phase1_cost) +
+        (deep_enqueued * deep_requests_per_station)
+      Telemetry.add_attributes(
+        "app.batch_size" => total,
+        "app.phase1_enqueued" => phase1_enqueued,
+        "app.deep_enqueued" => deep_enqueued,
+        "app.phase1_budget" => phase1_budget,
+        "app.deep_budget" => deep_budget,
+        "app.history_keys" => keys,
+        "app.request_budget" => request_budget,
+        "app.estimated_requests" => estimated_requests
+      )
+      Rails.logger.info(
+        "HistoryBackfillBatchJob enqueued=#{total} phase1_enqueued=#{phase1_enqueued} " \
+        "deep_enqueued=#{deep_enqueued} phase1_budget=#{phase1_budget} " \
+        "deep_budget=#{deep_budget} history_keys=#{keys} " \
+        "request_budget=#{request_budget} estimated_requests=#{estimated_requests} " \
+        "range=#{range}"
+      )
+      total
     end
-    if Usgs::HistoryKeyPool.exhausted?
-      Rails.logger.info("HistoryBackfillBatchJob skipped: USGS history rate limit circuits open")
-      return 0
-    end
-    if DatabaseReadOnlyCircuit.open?
-      raise DatabaseReadOnlyError, "database read-only circuit open"
-    end
-
-    keys = Usgs::HistoryKeyPool.available_count
-    request_budget = Usgs::HistoryKeyPool.hourly_request_budget
-    phase1_budget = phase1_station_budget(limit, keys)
-    phase1_cost = phase1_requests_per_station
-
-    phase1_enqueued = enqueue_candidates(
-      MonitoringLocation.needing_history_backfill,
-      range: range,
-      budget: phase1_budget
-    )
-
-    deep_budget = deep_station_budget(
-      keys: keys,
-      request_budget: request_budget,
-      phase1_enqueued: phase1_enqueued,
-      phase1_cost: phase1_cost
-    )
-    deep_enqueued = enqueue_candidates(
-      MonitoringLocation.needing_deep_history_backfill,
-      range: HistoryIngestion::DEEP_RANGE,
-      budget: deep_budget
-    )
-
-    total = phase1_enqueued + deep_enqueued
-    estimated_requests = (phase1_enqueued * phase1_cost) +
-      (deep_enqueued * deep_requests_per_station)
-    Rails.logger.info(
-      "HistoryBackfillBatchJob enqueued=#{total} phase1_enqueued=#{phase1_enqueued} " \
-      "deep_enqueued=#{deep_enqueued} phase1_budget=#{phase1_budget} " \
-      "deep_budget=#{deep_budget} history_keys=#{keys} " \
-      "request_budget=#{request_budget} estimated_requests=#{estimated_requests} " \
-      "range=#{range}"
-    )
-    total
   end
 
   private

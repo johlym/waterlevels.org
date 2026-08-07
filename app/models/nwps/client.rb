@@ -21,7 +21,8 @@ module Nwps
         "nwps.http.gauge",
         attributes: {
           "http.request.method" => "GET",
-          "nwps.identifier" => identifier.to_s
+          "app.operation" => "nwps.http.gauge",
+          "app.nwps_identifier" => identifier.to_s
         }
       ) do
         pause_between_requests!
@@ -30,7 +31,7 @@ module Nwps
         end
         Telemetry.add_attributes(
           "http.response.status_code" => response.status,
-          "nwps.found" => response.status != 404
+          "app.found" => response.status != 404
         )
         return nil if response.status == 404
 
@@ -43,7 +44,10 @@ module Nwps
     def gauges(bbox: nil)
       Telemetry.in_span(
         "nwps.http.gauges",
-        attributes: { "http.request.method" => "GET" }
+        attributes: {
+          "http.request.method" => "GET",
+          "app.operation" => "nwps.http.gauges"
+        }
       ) do
         pause_between_requests!
         response = @connection.get("gauges") do |req|
@@ -61,7 +65,8 @@ module Nwps
         gauges = Array(body["gauges"])
         Telemetry.add_attributes(
           "http.response.status_code" => response.status,
-          "nwps.gauge_count" => gauges.size
+          "app.batch_size" => gauges.size,
+          "app.locations_count" => gauges.size
         )
         gauges
       end

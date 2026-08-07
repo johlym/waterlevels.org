@@ -32,23 +32,44 @@ class HistoryIngestion
   end
 
   def perform
-    Telemetry.in_span(
+    # Root span: long ingest must not depend on an ambient ActiveJob/Rake parent
+    # that may fail to export (Honeycomb "missing root span").
+    Telemetry.in_root_span(
       "history.ingest",
       attributes: {
-        "station.site_number" => monitoring_location.site_number,
-        "history.range" => range.to_s,
-        "usgs.circuit_key" => client.circuit_key,
-        "usgs.state" => monitoring_location.state_code
+        "app.operation" => "history.ingest",
+        "app.site_number" => monitoring_location.site_number,
+        "app.usgs_monitoring_location_id" => monitoring_location.usgs_monitoring_location_id,
+        "app.location_name" => monitoring_location.display_name,
+        "app.state" => monitoring_location.state_code,
+        "app.range" => range.to_s,
+        "app.circuit_key" => client.circuit_key
       }
     ) do
       progress&.step("site=#{monitoring_location.site_number} range=#{range}")
       series_list = monitoring_location.time_series.selected.to_a
       progress&.step("selected_series=#{series_list.size}")
-      Telemetry.add_attributes("series.count" => series_list.size)
 
-      ingest_continuous_for(series_list.select { |s| needs_continuous?(s) }) if continuous_range?
-      ingest_daily_for(series_list.select { |s| needs_daily?(s) }) if daily_range?
-      ingest_peaks_for(series_list.select { |s| needs_peaks?(s) })
+      continuous_series = continuous_range? ? series_list.select { |s| needs_continuous?(s) } : []
+      daily_series = daily_range? ? series_list.select { |s| needs_daily?(s) } : []
+      peak_series = series_list.select { |s| needs_peaks?(s) }
+
+      continuous_count = ingest_continuous_for(continuous_series)
+      daily_count = ingest_daily_for(daily_series)
+      peak_count = ingest_peaks_for(peak_series)
+      observation_count = continuous_count + daily_count + peak_count
+
+      Telemetry.add_attributes(
+        "app.series_count" => series_list.size,
+        "app.batch_size" => continuous_series.size + daily_series.size + peak_series.size,
+        "app.continuous_series_count" => continuous_series.size,
+        "app.daily_series_count" => daily_series.size,
+        "app.peak_series_count" => peak_series.size,
+        "app.continuous_observation_count" => continuous_count,
+        "app.daily_observation_count" => daily_count,
+        "app.peak_observation_count" => peak_count,
+        "app.observation_count" => observation_count
+      )
 
       # History may write fresher continuous points while hourly tip sync lagged.
       # Advance LatestObservation + denormalized map columns so popups/cards match.
@@ -267,143 +288,189 @@ class HistoryIngestion
   def ingest_continuous_for(series_list)
     if series_list.empty?
       progress&.step("continuous skipped (already covered)")
-      return
+      return 0
     end
 
     ranges = coalesced_continuous_ranges(series_list)
     if ranges.empty?
       progress&.step("continuous skipped (already covered)")
-      return
+      return 0
     end
 
     codes = parameter_codes_param(series_list)
-    progress&.step("continuous location batch parameters=#{codes} ranges=#{ranges.size}")
-    count = 0
-    ranges.each do |starts, ends|
-      datetime = "#{starts.iso8601}/#{ends.iso8601}"
-      client.each_collection_item(
-        "continuous",
-        monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
-        parameter_code: codes,
-        datetime: datetime
-      ) do |item|
-        series = resolve_series(item, series_list)
-        next unless series
+    Telemetry.in_span(
+      "history.ingest.continuous",
+      attributes: {
+        "app.operation" => "history.ingest.continuous",
+        "app.site_number" => monitoring_location.site_number,
+        "app.state" => monitoring_location.state_code,
+        "app.range" => range.to_s,
+        "app.series_count" => series_list.size,
+        "app.batch_size" => series_list.size,
+        "app.range_count" => ranges.size,
+        "app.parameter_code_count" => series_list.map(&:parameter_code).uniq.size
+      }
+    ) do
+      progress&.step("continuous location batch parameters=#{codes} ranges=#{ranges.size}")
+      count = 0
+      ranges.each do |starts, ends|
+        datetime = "#{starts.iso8601}/#{ends.iso8601}"
+        client.each_collection_item(
+          "continuous",
+          monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
+          parameter_code: codes,
+          datetime: datetime
+        ) do |item|
+          series = resolve_series(item, series_list)
+          next unless series
 
-        observed_at = Time.zone.parse(item["time"] || item["datetime"].to_s) rescue nil
-        value = item["value"]
-        next if observed_at.blank? || value.blank?
-        next if temperature_outlier?(series, value)
+          observed_at = Time.zone.parse(item["time"] || item["datetime"].to_s) rescue nil
+          value = item["value"]
+          next if observed_at.blank? || value.blank?
+          next if temperature_outlier?(series, value)
 
-        ContinuousObservation.upsert(
-          {
-            time_series_id: series.id,
-            observed_at: observed_at,
-            value: value,
-            approval_status: item["approval_status"],
-            qualifier: item["qualifier"],
-            created_at: Time.current,
-            updated_at: Time.current
-          },
-          unique_by: %i[time_series_id observed_at]
-        )
-        count += 1
-        progress&.increment
+          ContinuousObservation.upsert(
+            {
+              time_series_id: series.id,
+              observed_at: observed_at,
+              value: value,
+              approval_status: item["approval_status"],
+              qualifier: item["qualifier"],
+              created_at: Time.current,
+              updated_at: Time.current
+            },
+            unique_by: %i[time_series_id observed_at]
+          )
+          count += 1
+          progress&.increment
+        end
       end
+      Telemetry.add_attributes("app.observation_count" => count)
+      progress&.step("continuous upserted=#{count}")
+      count
     end
-    progress&.step("continuous upserted=#{count}")
   end
 
   def ingest_daily_for(series_list)
     if series_list.empty?
       progress&.step("daily skipped (already covered)")
-      return
+      return 0
     end
 
     ranges = coalesced_daily_ranges(series_list)
     if ranges.empty?
       progress&.step("daily skipped (already covered)")
-      return
+      return 0
     end
 
     codes = parameter_codes_param(series_list)
-    progress&.step("daily location batch parameters=#{codes} ranges=#{ranges.size}")
-    count = 0
-    ranges.each do |start_date, end_date|
-      client.each_collection_item(
-        "daily",
-        monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
-        parameter_code: codes,
-        datetime: "#{start_date.iso8601}/#{end_date.iso8601}"
-      ) do |item|
-        series = resolve_series(item, series_list)
-        next unless series
+    Telemetry.in_span(
+      "history.ingest.daily",
+      attributes: {
+        "app.operation" => "history.ingest.daily",
+        "app.site_number" => monitoring_location.site_number,
+        "app.state" => monitoring_location.state_code,
+        "app.range" => range.to_s,
+        "app.series_count" => series_list.size,
+        "app.batch_size" => series_list.size,
+        "app.range_count" => ranges.size,
+        "app.parameter_code_count" => series_list.map(&:parameter_code).uniq.size
+      }
+    ) do
+      progress&.step("daily location batch parameters=#{codes} ranges=#{ranges.size}")
+      count = 0
+      ranges.each do |start_date, end_date|
+        client.each_collection_item(
+          "daily",
+          monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
+          parameter_code: codes,
+          datetime: "#{start_date.iso8601}/#{end_date.iso8601}"
+        ) do |item|
+          series = resolve_series(item, series_list)
+          next unless series
 
-        day = Date.parse(item["time"] || item["date"] || item["datetime"].to_s) rescue nil
-        value = item["value"]
-        next if day.blank? || value.blank?
-        next if temperature_outlier?(series, value)
+          day = Date.parse(item["time"] || item["date"] || item["datetime"].to_s) rescue nil
+          value = item["value"]
+          next if day.blank? || value.blank?
+          next if temperature_outlier?(series, value)
 
-        DailyObservation.upsert(
-          {
-            time_series_id: series.id,
-            observed_on: day,
-            value: value,
-            approval_status: item["approval_status"],
-            qualifier: item["qualifier"],
-            created_at: Time.current,
-            updated_at: Time.current
-          },
-          unique_by: %i[time_series_id observed_on]
-        )
-        count += 1
-        progress&.increment
+          DailyObservation.upsert(
+            {
+              time_series_id: series.id,
+              observed_on: day,
+              value: value,
+              approval_status: item["approval_status"],
+              qualifier: item["qualifier"],
+              created_at: Time.current,
+              updated_at: Time.current
+            },
+            unique_by: %i[time_series_id observed_on]
+          )
+          count += 1
+          progress&.increment
+        end
       end
+      Telemetry.add_attributes("app.observation_count" => count)
+      progress&.step("daily upserted=#{count}")
+      count
     end
-    progress&.step("daily upserted=#{count}")
   end
 
   def ingest_peaks_for(series_list)
     if series_list.empty?
       progress&.step("peaks skipped (already covered)")
-      return
+      return 0
     end
 
     codes = parameter_codes_param(series_list)
-    progress&.step("peaks location batch parameters=#{codes}")
-    count = 0
-    client.each_collection_item(
-      "peaks",
-      monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
-      parameter_code: codes
-    ) do |item|
-      series = resolve_series(item, series_list)
-      next unless series
+    Telemetry.in_span(
+      "history.ingest.peaks",
+      attributes: {
+        "app.operation" => "history.ingest.peaks",
+        "app.site_number" => monitoring_location.site_number,
+        "app.state" => monitoring_location.state_code,
+        "app.series_count" => series_list.size,
+        "app.batch_size" => series_list.size,
+        "app.parameter_code_count" => series_list.map(&:parameter_code).uniq.size
+      }
+    ) do
+      progress&.step("peaks location batch parameters=#{codes}")
+      count = 0
+      client.each_collection_item(
+        "peaks",
+        monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
+        parameter_code: codes
+      ) do |item|
+        series = resolve_series(item, series_list)
+        next unless series
 
-      value = item["value"]
-      observed_at = Time.zone.parse(item["time"] || item["datetime"].to_s) rescue nil
-      next if value.blank?
+        value = item["value"]
+        observed_at = Time.zone.parse(item["time"] || item["datetime"].to_s) rescue nil
+        next if value.blank?
 
-      water_year = item["water_year"] || (observed_at && water_year_for(observed_at))
-      next if water_year.blank?
+        water_year = item["water_year"] || (observed_at && water_year_for(observed_at))
+        next if water_year.blank?
 
-      PeakObservation.upsert(
-        {
-          time_series_id: series.id,
-          water_year: water_year.to_i,
-          observed_at: observed_at,
-          value: value,
-          peak_kind: "high",
-          approval_status: item["approval_status"],
-          created_at: Time.current,
-          updated_at: Time.current
-        },
-        unique_by: %i[time_series_id water_year peak_kind]
-      )
-      count += 1
-      progress&.increment
+        PeakObservation.upsert(
+          {
+            time_series_id: series.id,
+            water_year: water_year.to_i,
+            observed_at: observed_at,
+            value: value,
+            peak_kind: "high",
+            approval_status: item["approval_status"],
+            created_at: Time.current,
+            updated_at: Time.current
+          },
+          unique_by: %i[time_series_id water_year peak_kind]
+        )
+        count += 1
+        progress&.increment
+      end
+      Telemetry.add_attributes("app.observation_count" => count)
+      progress&.step("peaks upserted=#{count}")
+      count
     end
-    progress&.step("peaks upserted=#{count}")
   end
 
   def water_year_for(time)

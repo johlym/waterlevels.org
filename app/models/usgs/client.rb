@@ -32,10 +32,12 @@ module Usgs
       Telemetry.in_span(
         "usgs.collection.iterate",
         attributes: {
-          "usgs.collection" => collection,
-          "usgs.circuit_key" => @circuit_key,
-          "usgs.state_code" => params[:state_code] || params["state_code"],
-          "usgs.parameter_code" => params[:parameter_code] || params["parameter_code"]
+          "app.operation" => "usgs.collection.iterate",
+          "app.collection" => collection,
+          "app.circuit_key" => @circuit_key,
+          "app.state" => params[:state_code] || params["state_code"],
+          "app.parameter_code" => params[:parameter_code] || params["parameter_code"],
+          "app.monitoring_location_id" => params[:monitoring_location_id] || params["monitoring_location_id"]
         }
       ) do
         next_url = nil
@@ -64,8 +66,10 @@ module Usgs
         end
 
         Telemetry.add_attributes(
-          "usgs.page_count" => page_count,
-          "usgs.feature_count" => feature_count
+          "app.page_count" => page_count,
+          "app.feature_count" => feature_count,
+          "app.observation_count" => feature_count,
+          "app.batch_size" => feature_count
         )
       end
     end
@@ -75,10 +79,12 @@ module Usgs
         "usgs.http.get",
         attributes: {
           "http.request.method" => "GET",
-          "usgs.path" => path,
-          "usgs.circuit_key" => @circuit_key,
-          "usgs.state_code" => params[:state_code] || params["state_code"],
-          "usgs.parameter_code" => params[:parameter_code] || params["parameter_code"]
+          "app.operation" => "usgs.http.get",
+          "app.path" => path,
+          "app.circuit_key" => @circuit_key,
+          "app.state" => params[:state_code] || params["state_code"],
+          "app.parameter_code" => params[:parameter_code] || params["parameter_code"],
+          "app.monitoring_location_id" => params[:monitoring_location_id] || params["monitoring_location_id"]
         }
       ) do
         raise_if_circuit_open!
@@ -97,8 +103,9 @@ module Usgs
         "usgs.http.get_absolute",
         attributes: {
           "http.request.method" => "GET",
+          "app.operation" => "usgs.http.get_absolute",
           "url.full" => url.to_s,
-          "usgs.circuit_key" => @circuit_key
+          "app.circuit_key" => @circuit_key
         }
       ) do
         raise_if_circuit_open!
