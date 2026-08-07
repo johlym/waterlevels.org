@@ -40,12 +40,28 @@ class ZipCodeLookup
     zip = self.class.extract_zip(query)
     return nil if zip.blank?
 
-    Rails.cache.fetch(cache_key(zip), expires_in: CACHE_TTL) do
-      fetch_zip(zip)
+    Telemetry.in_span(
+      "zippopotam.lookup",
+      attributes: {
+        "app.operation" => "zippopotam.lookup",
+        "app.zip_code" => zip
+      }
+    ) do
+      cached = Rails.cache.read(cache_key(zip))
+      if cached
+        Telemetry.add_attributes("app.cache_hit" => true)
+        cached
+      else
+        Telemetry.add_attributes("app.cache_hit" => false)
+        result = fetch_zip(zip)
+        Rails.cache.write(cache_key(zip), result, expires_in: CACHE_TTL)
+        result
+      end
+    rescue Error, Faraday::Error, Faraday::TimeoutError => e
+      Telemetry.record_exception(e, slug: "err-zippopotam-lookup")
+      Rails.logger.warn("[ZipCodeLookup] #{zip}: #{e.class}: #{e.message}")
+      nil
     end
-  rescue Error, Faraday::Error, Faraday::TimeoutError => e
-    Rails.logger.warn("[ZipCodeLookup] #{zip}: #{e.class}: #{e.message}")
-    nil
   end
 
   private
@@ -58,6 +74,7 @@ class ZipCodeLookup
     response = @connection.get("us/#{zip}") do |req|
       req.headers["Accept"] = "application/json"
     end
+    Telemetry.add_attributes("http.response.status_code" => response.status)
     return nil if response.status == 404
 
     unless response.success?

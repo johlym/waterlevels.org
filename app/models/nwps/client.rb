@@ -17,32 +17,59 @@ module Nwps
     # Returns gauge Hash or nil when NWPS has no point for this identifier
     # (USGS site number or NWS LID).
     def gauge(identifier)
-      pause_between_requests!
-      response = @connection.get("gauges/#{identifier}") do |req|
-        req.headers["Accept"] = "application/json"
-      end
-      return nil if response.status == 404
+      Telemetry.in_span(
+        "nwps.http.gauge",
+        attributes: {
+          "http.request.method" => "GET",
+          "app.operation" => "nwps.http.gauge",
+          "app.nwps_identifier" => identifier.to_s
+        }
+      ) do
+        pause_between_requests!
+        response = @connection.get("gauges/#{identifier}") do |req|
+          req.headers["Accept"] = "application/json"
+        end
+        Telemetry.add_attributes(
+          "http.response.status_code" => response.status,
+          "app.found" => response.status != 404
+        )
+        return nil if response.status == 404
 
-      handle_response(response)
+        handle_response(response)
+      end
     end
 
     # Returns the national NWPS gauge list (status + LID; no usgsId / thresholds).
     # Optional bbox hash: { xmin:, ymin:, xmax:, ymax:, srid: "EPSG_4326" }.
     def gauges(bbox: nil)
-      pause_between_requests!
-      response = @connection.get("gauges") do |req|
-        req.headers["Accept"] = "application/json"
-        req.options.timeout = LIST_TIMEOUT_SECONDS
-        if bbox
-          req.params["bbox.xmin"] = bbox[:xmin]
-          req.params["bbox.ymin"] = bbox[:ymin]
-          req.params["bbox.xmax"] = bbox[:xmax]
-          req.params["bbox.ymax"] = bbox[:ymax]
-          req.params["srid"] = bbox[:srid] || "EPSG_4326"
+      Telemetry.in_span(
+        "nwps.http.gauges",
+        attributes: {
+          "http.request.method" => "GET",
+          "app.operation" => "nwps.http.gauges"
+        }
+      ) do
+        pause_between_requests!
+        response = @connection.get("gauges") do |req|
+          req.headers["Accept"] = "application/json"
+          req.options.timeout = LIST_TIMEOUT_SECONDS
+          if bbox
+            req.params["bbox.xmin"] = bbox[:xmin]
+            req.params["bbox.ymin"] = bbox[:ymin]
+            req.params["bbox.xmax"] = bbox[:xmax]
+            req.params["bbox.ymax"] = bbox[:ymax]
+            req.params["srid"] = bbox[:srid] || "EPSG_4326"
+          end
         end
+        body = handle_response(response)
+        gauges = Array(body["gauges"])
+        Telemetry.add_attributes(
+          "http.response.status_code" => response.status,
+          "app.batch_size" => gauges.size,
+          "app.locations_count" => gauges.size
+        )
+        gauges
       end
-      body = handle_response(response)
-      Array(body["gauges"])
     end
 
     private

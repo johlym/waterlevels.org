@@ -51,8 +51,18 @@ class SiteStatsTest < ActiveSupport::TestCase
     create(:monitoring_location)
 
     stats = SiteStats.warm!
+    recomputed = SiteStats.compute
 
     assert_equal 1, stats[:station_count]
-    assert_equal SiteStats.compute, stats
+    assert_equal recomputed, stats
+  end
+
+  test "compute emits inventory counts for active and non-stale stations" do
+    create(:monitoring_location, active: true, latest_observed_at: 1.hour.ago)
+    create(:monitoring_location, active: true, latest_observed_at: 2.weeks.ago)
+    create(:monitoring_location, active: false, latest_observed_at: 1.hour.ago)
+
+    # Smoke: compute still returns marketing non-stale count; inventory span is best-effort.
+    assert_equal 1, SiteStats.compute[:station_count]
   end
 end

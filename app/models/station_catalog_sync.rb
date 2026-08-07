@@ -14,12 +14,30 @@ class StationCatalogSync
   end
 
   def perform
+    Telemetry.in_root_span(
+      "catalog.sync",
+      attributes: {
+        "app.operation" => "catalog.sync",
+        "app.state" => postal_code || "national"
+      }
+    ) do
+      perform_body
+    end
+  end
+
+  def perform_body
     progress&.step(scope_label)
     kept_location_ids = Set.new
+    discovered_rows = 0
 
     Usgs::ParameterCodes::ALL.each do |parameter_code|
       rows = discover_active_series_for(parameter_code)
+      discovered_rows += rows.size
       progress&.step("parameter=#{parameter_code} active series=#{rows.size}")
+      Telemetry.add_attributes(
+        "app.parameter_code" => parameter_code,
+        "app.batch_size" => rows.size
+      )
 
       kept = upsert_locations_for(rows)
       kept_location_ids.merge(kept)
@@ -43,7 +61,15 @@ class StationCatalogSync
     progress&.step("purging edge cache tags")
     EdgeCacheInvalidation.after_catalog_sync!(state: state)
     location_count = location_scope.count
-    progress&.finish("locations=#{location_count} time_series=#{time_series_scope.count}")
+    series_count = time_series_scope.count
+    Telemetry.add_attributes(
+      "app.locations_kept" => kept_location_ids.size,
+      "app.locations_count" => location_count,
+      "app.series_count" => series_count,
+      "app.observation_count" => discovered_rows,
+      "app.batch_size" => kept_location_ids.size
+    )
+    progress&.finish("locations=#{location_count} time_series=#{series_count}")
     AdminDashboardStats.record_job_finish!(
       :catalog_sync,
       state: postal_code,
@@ -51,7 +77,7 @@ class StationCatalogSync
     )
     true
   end
-
+  private :perform_body
 
   private
 

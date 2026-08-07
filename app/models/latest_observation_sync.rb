@@ -10,35 +10,51 @@ class LatestObservationSync
   end
 
   def perform
-    sync_error = nil
-    @upserted_series_ids = Set.new
-    progress&.step(scope_label)
-    begin
-      Usgs::ParameterCodes::ALL.each do |parameter_code|
-        sync_parameter(parameter_code)
+    Telemetry.in_root_span(
+      "latest.sync",
+      attributes: {
+        "app.operation" => "latest.sync",
+        "app.state" => postal_code || "national"
+      }
+    ) do
+      sync_error = nil
+      @upserted_series_ids = Set.new
+      progress&.step(scope_label)
+      begin
+        Usgs::ParameterCodes::ALL.each do |parameter_code|
+          sync_parameter(parameter_code)
+        end
+      rescue StandardError => e
+        # Tip upserts may have succeeded for earlier parameters. Always denormalize
+        # so map popups (which read MonitoringLocation tip columns) catch up.
+        sync_error = e
       end
-    rescue StandardError => e
-      # Tip upserts may have succeeded for earlier parameters. Always denormalize
-      # so map popups (which read MonitoringLocation tip columns) catch up.
-      sync_error = e
+
+      denormalized = denormalize_locations
+      record_tip_refresh_stats!
+      Telemetry.add_attributes(
+        "app.series_count" => @upserted_series_ids.size,
+        "app.observation_count" => @upserted_series_ids.size,
+        "app.locations_count" => denormalized
+      )
+
+      unless sync_error
+        progress&.step("warming state listing caches")
+        StateListingCache.warm_all
+        AlertsListingCache.warm
+        SiteStats.warm!
+      end
+
+      progress&.step("purging edge cache tags")
+      EdgeCacheInvalidation.after_latest_sync!(state: state)
+      progress&.finish("latest_observations=#{latest_scope.count}")
+      if sync_error
+        Telemetry.add_attributes("exception.slug" => "err-latest-sync")
+        raise sync_error
+      end
+
+      true
     end
-
-    denormalize_locations
-    record_tip_refresh_stats!
-
-    unless sync_error
-      progress&.step("warming state listing caches")
-      StateListingCache.warm_all
-      AlertsListingCache.warm
-      SiteStats.warm!
-    end
-
-    progress&.step("purging edge cache tags")
-    EdgeCacheInvalidation.after_latest_sync!(state: state)
-    progress&.finish("latest_observations=#{latest_scope.count}")
-    raise sync_error if sync_error
-
-    true
   end
 
 
@@ -82,6 +98,19 @@ class LatestObservationSync
   end
 
   def sync_parameter(parameter_code)
+    Telemetry.in_span(
+      "latest.sync_parameter",
+      attributes: {
+        "app.operation" => "latest.sync_parameter",
+        "app.state" => postal_code || "national",
+        "app.parameter_code" => parameter_code
+      }
+    ) do
+      sync_parameter_body(parameter_code)
+    end
+  end
+
+  def sync_parameter_body(parameter_code)
     progress&.step("syncing latest-continuous parameter=#{parameter_code}")
     count = 0
     skipped = 0
@@ -143,8 +172,15 @@ class LatestObservationSync
       progress&.increment
     end
 
+    Telemetry.add_attributes(
+      "app.observation_count" => count,
+      "app.series_count" => count,
+      "app.skipped_count" => skipped,
+      "app.batch_size" => count + skipped
+    )
     progress&.step("parameter=#{parameter_code} latest upserted=#{count} skipped=#{skipped}")
   end
+  private :sync_parameter_body
 
   def denormalize_locations
     progress&.step("denormalizing location latest values")
@@ -160,7 +196,9 @@ class LatestObservationSync
       progress&.increment
     end
 
+    Telemetry.add_attributes("app.locations_denormalized" => count)
     progress&.step("locations denormalized=#{count}")
+    count
   end
 
   def parse_time(value)
