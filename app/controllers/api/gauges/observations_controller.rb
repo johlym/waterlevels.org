@@ -17,6 +17,12 @@ module Api
         range = "7d" unless HydrographSeries::RANGES.key?(range)
 
         payload = HydrographSeries.for(location: location, kind: kind, parameter_code: parameter_code, range: range)
+        Telemetry.add_attributes(
+          "station.site_number" => location.site_number,
+          "parameter_code" => parameter_code,
+          "measurement.kind" => kind,
+          "range" => range
+        )
         cache_public!(tags: [ "gauge:#{location.site_number}" ])
         render json: payload
       end

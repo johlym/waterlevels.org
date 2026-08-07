@@ -5,7 +5,15 @@ class GaugesController < ApplicationController
     @location = find_location!
     ensure_canonical_path!(@location)
     @snapshot = StationSnapshotCache.fetch(@location)
-    HistoryBackfillJob.enqueue(@location.id) if @location.needs_history_backfill?
+    enqueued = false
+    if @location.needs_history_backfill?
+      enqueued = HistoryBackfillJob.enqueue(@location.id)
+    end
+    Telemetry.add_attributes(
+      "station.site_number" => @location.site_number,
+      "usgs.state" => @location.state_code,
+      "backfill.enqueued" => enqueued
+    )
     cache_public!(tags: [ "gauge:#{@location.site_number}" ])
   end
 

@@ -12,10 +12,26 @@ class HydrographSeries
   attr_accessor :time_series, :range
 
   def self.for(location:, kind: nil, parameter_code: nil, range: "7d")
-    series = find_series(location, kind: kind, parameter_code: parameter_code)
-    return empty(kind || parameter_code, range) unless series
+    Telemetry.in_span(
+      "hydrograph.build",
+      attributes: {
+        "station.site_number" => location.site_number,
+        "parameter_code" => parameter_code,
+        "measurement.kind" => kind,
+        "range" => range
+      }
+    ) do
+      series = find_series(location, kind: kind, parameter_code: parameter_code)
+      return empty(kind || parameter_code, range) unless series
 
-    new(time_series: series, range: range).as_json
+      payload = new(time_series: series, range: range).as_json
+      Telemetry.add_attributes(
+        "parameter_code" => series.parameter_code,
+        "measurement.kind" => series.measurement_kind,
+        "points.count" => Array(payload[:points]).size
+      )
+      payload
+    end
   end
 
   def self.find_series(location, kind:, parameter_code:)

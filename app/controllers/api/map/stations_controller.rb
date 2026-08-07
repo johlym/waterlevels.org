@@ -14,6 +14,10 @@ module Api
           .limit(2000)
           .map { |loc| MapStationPayload.build(loc) }
 
+        Telemetry.add_attributes(
+          "map.bbox" => "#{west},#{south},#{east},#{north}",
+          "map.station_count" => stations.size
+        )
         cache_public!(max_age: 30, s_maxage: 300, tags: [ "map-stations" ])
         render json: { stations: stations }
       end
@@ -27,6 +31,10 @@ module Api
             build_search_results(query)
           end
 
+        Telemetry.add_attributes(
+          "map.search.q_length" => query.length,
+          "map.search.result_count" => results.size
+        )
         cache_public!(max_age: 30, s_maxage: 300, tags: [ "map-station-search" ])
         render json: { stations: results }
       end
@@ -36,6 +44,10 @@ module Api
         lon = params.require(:lon)
         location = NearbyStations.nearest_to(lat, lon)
 
+        Telemetry.add_attributes(
+          "map.nearest.found" => location.present?,
+          "station.site_number" => location&.site_number
+        )
         cache_public!(max_age: 30, s_maxage: 120, tags: [ "map-station-nearest" ])
         if location
           render json: { station: search_payload(location) }

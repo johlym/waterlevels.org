@@ -15,26 +15,40 @@ class FloodStageSync
   end
 
   def perform
-    progress&.step(scope_label)
-    gauges_by_lid = fetch_gauges_by_lid
-    list_updated = refresh_categories_from_list(gauges_by_lid)
-    alert_matched = match_unlinked_alert_gauges(gauges_by_lid)
-    matched, unmatched, skipped, errors = discover_and_refresh_details
+    Telemetry.in_span(
+      "flood.sync",
+      attributes: { "usgs.state" => postal_code || "national" }
+    ) do
+      progress&.step(scope_label)
+      gauges_by_lid = fetch_gauges_by_lid
+      list_updated = refresh_categories_from_list(gauges_by_lid)
+      alert_matched = match_unlinked_alert_gauges(gauges_by_lid)
+      matched, unmatched, skipped, errors = discover_and_refresh_details
 
-    progress&.step("warming caches")
-    warm_caches
-    progress&.finish(
-      "list_updated=#{list_updated} alert_matched=#{alert_matched} " \
-      "matched=#{matched} unmatched=#{unmatched} skipped=#{skipped} errors=#{errors}"
-    )
-    AdminDashboardStats.record_job_finish!(
-      :flood_sync,
-      state: postal_code,
-      list_updated: list_updated,
-      matched: matched,
-      unmatched: unmatched
-    )
-    true
+      Telemetry.add_attributes(
+        "flood.list_updated" => list_updated,
+        "flood.alert_matched" => alert_matched,
+        "flood.matched" => matched,
+        "flood.unmatched" => unmatched,
+        "flood.skipped" => skipped,
+        "flood.errors" => errors
+      )
+
+      progress&.step("warming caches")
+      warm_caches
+      progress&.finish(
+        "list_updated=#{list_updated} alert_matched=#{alert_matched} " \
+        "matched=#{matched} unmatched=#{unmatched} skipped=#{skipped} errors=#{errors}"
+      )
+      AdminDashboardStats.record_job_finish!(
+        :flood_sync,
+        state: postal_code,
+        list_updated: list_updated,
+        matched: matched,
+        unmatched: unmatched
+      )
+      true
+    end
   end
 
   private

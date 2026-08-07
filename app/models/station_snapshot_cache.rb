@@ -32,10 +32,20 @@ class StationSnapshotCache
   end
 
   def self.fetch(location)
-    cached = read(location)
-    return warm(location) if cached.nil? || stale_snapshot?(cached, location)
+    Telemetry.in_span(
+      "cache.station_snapshot.fetch",
+      attributes: {
+        "station.site_number" => location.site_number,
+        "usgs.state" => location.state_code
+      }
+    ) do
+      cached = read(location)
+      stale = cached.nil? || stale_snapshot?(cached, location)
+      Telemetry.add_attributes("cache.hit" => !stale, "cache.stale" => !cached.nil? && stale)
+      return warm(location) if stale
 
-    cached
+      cached
+    end
   end
 
   # Rebuild when empty, when selected series outnumber cached measurement cards

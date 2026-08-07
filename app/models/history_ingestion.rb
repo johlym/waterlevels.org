@@ -32,22 +32,33 @@ class HistoryIngestion
   end
 
   def perform
-    progress&.step("site=#{monitoring_location.site_number} range=#{range}")
-    series_list = monitoring_location.time_series.selected.to_a
-    progress&.step("selected_series=#{series_list.size}")
+    Telemetry.in_span(
+      "history.ingest",
+      attributes: {
+        "station.site_number" => monitoring_location.site_number,
+        "history.range" => range.to_s,
+        "usgs.circuit_key" => client.circuit_key,
+        "usgs.state" => monitoring_location.state_code
+      }
+    ) do
+      progress&.step("site=#{monitoring_location.site_number} range=#{range}")
+      series_list = monitoring_location.time_series.selected.to_a
+      progress&.step("selected_series=#{series_list.size}")
+      Telemetry.add_attributes("series.count" => series_list.size)
 
-    ingest_continuous_for(series_list.select { |s| needs_continuous?(s) }) if continuous_range?
-    ingest_daily_for(series_list.select { |s| needs_daily?(s) }) if daily_range?
-    ingest_peaks_for(series_list.select { |s| needs_peaks?(s) })
+      ingest_continuous_for(series_list.select { |s| needs_continuous?(s) }) if continuous_range?
+      ingest_daily_for(series_list.select { |s| needs_daily?(s) }) if daily_range?
+      ingest_peaks_for(series_list.select { |s| needs_peaks?(s) })
 
-    # History may write fresher continuous points while hourly tip sync lagged.
-    # Advance LatestObservation + denormalized map columns so popups/cards match.
-    advance_latest_tips!(series_list)
-    DisplaySeriesSelection.denormalize!(monitoring_location)
-    StationSnapshotCache.warm(monitoring_location)
-    EdgeCacheInvalidation.after_station_history!(monitoring_location)
-    progress&.finish("site=#{monitoring_location.site_number}")
-    true
+      # History may write fresher continuous points while hourly tip sync lagged.
+      # Advance LatestObservation + denormalized map columns so popups/cards match.
+      advance_latest_tips!(series_list)
+      DisplaySeriesSelection.denormalize!(monitoring_location)
+      StationSnapshotCache.warm(monitoring_location)
+      EdgeCacheInvalidation.after_station_history!(monitoring_location)
+      progress&.finish("site=#{monitoring_location.site_number}")
+      true
+    end
   end
 
 

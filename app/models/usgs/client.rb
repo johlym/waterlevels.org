@@ -29,44 +29,86 @@ module Usgs
     attr_reader :circuit_key
 
     def each_collection_item(collection, params = {})
-      next_url = nil
-      query = params.merge(limit: params[:limit] || DEFAULT_LIMIT, f: "json")
-      first_page = true
+      Telemetry.in_span(
+        "usgs.collection.iterate",
+        attributes: {
+          "usgs.collection" => collection,
+          "usgs.circuit_key" => @circuit_key,
+          "usgs.state_code" => params[:state_code] || params["state_code"],
+          "usgs.parameter_code" => params[:parameter_code] || params["parameter_code"]
+        }
+      ) do
+        next_url = nil
+        query = params.merge(limit: params[:limit] || DEFAULT_LIMIT, f: "json")
+        first_page = true
+        page_count = 0
+        feature_count = 0
 
-      loop do
-        pause_between_requests! unless first_page
-        first_page = false
+        loop do
+          pause_between_requests! unless first_page
+          first_page = false
 
-        body = if next_url
-          get_absolute(next_url)
-        else
-          get("collections/#{collection}/items", query)
+          body = if next_url
+            get_absolute(next_url)
+          else
+            get("collections/#{collection}/items", query)
+          end
+
+          page_count += 1
+          features = Array(body["features"] || body["items"])
+          feature_count += features.size
+          features.each { |feature| yield normalize_feature(feature) }
+
+          next_url = link_href(body, "next")
+          break if next_url.blank?
         end
 
-        Array(body["features"] || body["items"]).each { |feature| yield normalize_feature(feature) }
-
-        next_url = link_href(body, "next")
-        break if next_url.blank?
+        Telemetry.add_attributes(
+          "usgs.page_count" => page_count,
+          "usgs.feature_count" => feature_count
+        )
       end
     end
 
     def get(path, params = {})
-      raise_if_circuit_open!
-      response = @connection.get(path) do |req|
-        req.params.update(stringify_params(params))
-        req.headers["Accept"] = "application/geo+json, application/json"
-        req.headers["X-Api-Key"] = @api_key if @api_key.present?
+      Telemetry.in_span(
+        "usgs.http.get",
+        attributes: {
+          "http.request.method" => "GET",
+          "usgs.path" => path,
+          "usgs.circuit_key" => @circuit_key,
+          "usgs.state_code" => params[:state_code] || params["state_code"],
+          "usgs.parameter_code" => params[:parameter_code] || params["parameter_code"]
+        }
+      ) do
+        raise_if_circuit_open!
+        response = @connection.get(path) do |req|
+          req.params.update(stringify_params(params))
+          req.headers["Accept"] = "application/geo+json, application/json"
+          req.headers["X-Api-Key"] = @api_key if @api_key.present?
+        end
+        Telemetry.add_attributes("http.response.status_code" => response.status)
+        handle_response(response)
       end
-      handle_response(response)
     end
 
     def get_absolute(url)
-      raise_if_circuit_open!
-      response = @connection.get(url) do |req|
-        req.headers["Accept"] = "application/geo+json, application/json"
-        req.headers["X-Api-Key"] = @api_key if @api_key.present?
+      Telemetry.in_span(
+        "usgs.http.get_absolute",
+        attributes: {
+          "http.request.method" => "GET",
+          "url.full" => url.to_s,
+          "usgs.circuit_key" => @circuit_key
+        }
+      ) do
+        raise_if_circuit_open!
+        response = @connection.get(url) do |req|
+          req.headers["Accept"] = "application/geo+json, application/json"
+          req.headers["X-Api-Key"] = @api_key if @api_key.present?
+        end
+        Telemetry.add_attributes("http.response.status_code" => response.status)
+        handle_response(response)
       end
-      handle_response(response)
     end
 
     private
