@@ -2,6 +2,8 @@
 
 How we go past the near-term **3-year daily** cache ([`plan-3y-daily-history.md`](./plan-3y-daily-history.md)) toward **hourly resolution for the full period of record**, without exhausting the USGS Water Data API budget.
 
+Cold **daily** history beyond the Postgres hot tip is archived in Cloudflare R2 ([`postgres-r2-daily-archive.md`](./postgres-r2-daily-archive.md)). That path does not replace this hourly POR rising-tide plan — R2 daily is the cheap long archive; hourly remains a separate grain.
+
 North star: same sub-daily grain on long charts (hourly, not daily-after-30d), back to each series’ historical max (metadata `start`), filled as a rising tide on the dedicated history API keys.
 
 ## What USGS allows today

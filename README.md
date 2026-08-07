@@ -51,7 +51,9 @@ STATE=wa RANGE=3y LIMIT=25 bin/rails usgs:backfill
 
 Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_BACKFILL_BATCH` (default `50` **per available history key** — sized to approach ~1000 USGS req/hr/key for cold 1y work), `HISTORY_DEEP_BACKFILL_BATCH` (default `400`/key ceiling; actual deep slots use leftover request budget after phase-1; set `0` to pause 3y deep fills).
 
-See `doc/plan-3y-daily-history.md` and `doc/future.md` for retention tiers and longer POR notes.
+See `doc/plan-3y-daily-history.md`, `doc/future.md`, and `doc/postgres-r2-daily-archive.md` for retention tiers, longer POR notes, and the Postgres/R2 (or local-disk) daily archive.
+
+Local archive iteration (no Cloudflare): `.env.example` sets `DAILY_ARCHIVE_STORE=local` and a short hot tip. After seeding or backfill, run `bin/rails archive:export_daily` — shards land in `tmp/daily_archive` and `3y` charts merge them when `DAILY_ARCHIVE_READS=1`.
 
 ## Observability (Honeycomb)
 
@@ -67,7 +69,7 @@ bin/rails test
 
 - Dynos: `web`, `worker`
 - Add-ons: Postgres, Redis
-- Set `USGS_API_KEY` (tip/catalog), optional `USGS_API_HISTORY_1_KEY` / `USGS_API_HISTORY_2_KEY` (history backfill), `REDIS_URL`, `DATABASE_URL`, `APP_HOST`, `SENTRY_DSN`; optional `CLOUDFLARE_ZONE_ID` + `CLOUDFLARE_API_TOKEN` for post-sync Cache-Tag purge
+- Set `USGS_API_KEY` (tip/catalog), optional `USGS_API_HISTORY_1_KEY` / `USGS_API_HISTORY_2_KEY` (history backfill), `REDIS_URL`, `DATABASE_URL`, `APP_HOST`, `SENTRY_DSN`; optional `CLOUDFLARE_ZONE_ID` + `CLOUDFLARE_API_TOKEN` for post-sync Cache-Tag purge; optional `CLOUDFLARE_R2_*` for the yearly daily-means archive ([`doc/postgres-r2-daily-archive.md`](doc/postgres-r2-daily-archive.md))
 - Enable [runtime dyno metadata](https://devcenter.heroku.com/articles/dyno-metadata) so `HEROKU_RELEASE_VERSION` is available; Sentry uses it as the release and tags environment as `production`
 - Open Graph PNGs are rendered with `rsvg-convert` (`Aptfile` → `librsvg2-bin`). Requires [`heroku-community/apt`](https://elements.heroku.com/buildpacks/heroku/heroku-buildpack-apt) as buildpack **#1** (before Ruby) so the Aptfile packages install on the dyno.
 - Redis TLS: Sidekiq, cache, and Action Cable use `ssl_params.verify_mode = VERIFY_NONE` for Heroku self-signed `rediss://` certs

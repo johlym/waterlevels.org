@@ -4,6 +4,7 @@ class TimeSeries < ApplicationRecord
   has_many :daily_observations, dependent: :destroy
   has_many :continuous_observations, dependent: :destroy
   has_many :peak_observations, dependent: :destroy
+  has_many :daily_archive_shards, dependent: :destroy
 
   validates :usgs_time_series_id, :parameter_code, :measurement_kind, presence: true
   validates :usgs_time_series_id, uniqueness: true

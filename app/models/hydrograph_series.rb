@@ -57,17 +57,9 @@ class HydrographSeries
   def as_json(*)
     config = RANGES[range] || RANGES["7d"]
     points = if config[:continuous]
-      time_series.continuous_observations
-        .where("observed_at >= ?", config[:duration].ago)
-        .order(:observed_at)
-        .pluck(:observed_at, :value)
-        .map { |t, v| { t: t.iso8601, v: v.to_f } }
+      continuous_points(config[:duration])
     else
-      time_series.daily_observations
-        .where("observed_on >= ?", config[:duration].ago.to_date)
-        .order(:observed_on)
-        .pluck(:observed_on, :value)
-        .map { |d, v| { t: d.iso8601, v: v.to_f } }
+      daily_points(config[:duration])
     end
 
     peaks = time_series.peak_observations.order(water_year: :desc).limit(20).map do |peak|
@@ -83,5 +75,45 @@ class HydrographSeries
       points: points,
       peaks: peaks
     }
+  end
+
+  private
+
+  def continuous_points(duration)
+    time_series.continuous_observations
+      .where("observed_at >= ?", duration.ago)
+      .order(:observed_at)
+      .pluck(:observed_at, :value)
+      .map { |t, v| { t: t.iso8601, v: v.to_f } }
+  end
+
+  def daily_points(duration)
+    start_on = duration.ago.to_date
+    hot = time_series.daily_observations
+      .where("observed_on >= ?", start_on)
+      .order(:observed_on)
+      .pluck(:observed_on, :value)
+      .map { |d, v| { t: d.iso8601, v: v.to_f } }
+
+    return hot unless range == "3y" && DailyArchive.reads_enabled?
+
+    hot_cutoff = DailyArchive.hot_cutoff_on
+    cold_end = [ hot_cutoff - 1, Date.current ].min
+    return hot if start_on > cold_end
+
+    cold = DailyArchive::Reader.new.points_for(
+      time_series_id: time_series.id,
+      start_on: start_on,
+      end_on: cold_end
+    )
+
+    merge_daily_points(cold, hot)
+  end
+
+  def merge_daily_points(cold, hot)
+    by_day = {}
+    cold.each { |p| by_day[p[:t]] = p }
+    hot.each { |p| by_day[p[:t]] = p }
+    by_day.values.sort_by { |p| p[:t] }
   end
 end

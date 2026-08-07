@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_03_170000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_07_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -25,6 +25,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_03_170000) do
     t.index ["observed_at"], name: "index_continuous_observations_on_observed_at"
     t.index ["time_series_id", "observed_at"], name: "idx_on_time_series_id_observed_at_6d681681d4", unique: true
     t.index ["time_series_id"], name: "index_continuous_observations_on_time_series_id"
+  end
+
+  create_table "daily_archive_shards", force: :cascade do |t|
+    t.string "content_sha256", null: false
+    t.datetime "created_at", null: false
+    t.date "max_on"
+    t.date "min_on"
+    t.string "object_key", null: false
+    t.integer "point_count", default: 0, null: false
+    t.string "source_mix", default: "usgs", null: false
+    t.datetime "synced_at", null: false
+    t.bigint "time_series_id", null: false
+    t.datetime "updated_at", null: false
+    t.integer "year", null: false
+    t.index ["object_key"], name: "index_daily_archive_shards_on_object_key", unique: true
+    t.index ["time_series_id", "year"], name: "index_daily_archive_shards_on_time_series_id_and_year", unique: true
+    t.index ["time_series_id"], name: "index_daily_archive_shards_on_time_series_id"
   end
 
   create_table "daily_observations", force: :cascade do |t|
@@ -146,6 +163,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_03_170000) do
   end
 
   add_foreign_key "continuous_observations", "time_series"
+  add_foreign_key "daily_archive_shards", "time_series"
   add_foreign_key "daily_observations", "time_series"
   add_foreign_key "latest_observations", "time_series"
   add_foreign_key "peak_observations", "time_series"

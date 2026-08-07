@@ -42,3 +42,5 @@ end
 group :development do
   gem "web-console"
 end
+
+gem "aws-sdk-s3", "~> 1.0"

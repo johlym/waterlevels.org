@@ -7,7 +7,8 @@ class AdminDashboardStats
     tip_refresh: TIP_REFRESH_CACHE_KEY,
     catalog_sync: "admin:last_catalog_sync",
     flood_sync: "admin:last_flood_sync",
-    prune: "admin:last_prune"
+    prune: "admin:last_prune",
+    daily_archive_export: "admin:last_daily_archive_export"
   }.freeze
   TIP_REFRESH_TTL = 7.days
   APPROX_COUNT_THRESHOLD = SiteStats::APPROX_COUNT_THRESHOLD
