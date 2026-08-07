@@ -39,7 +39,9 @@
               cards: cards,
               table: section == :states,
               freshness: section == :growth,
-              health: section == :health %>
+              health: section == :health,
+              lede: section.in?(%i[states health]),
+              value_sm: section == :jobs %>
       <% end %>
     <% end %>
   </main>

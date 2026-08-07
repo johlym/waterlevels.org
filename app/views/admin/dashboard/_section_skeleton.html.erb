@@ -1,9 +1,15 @@
-<%# locals: eyebrow:, heading:, heading_id:, cards:, table: false, freshness: false, health: false %>
+<%# locals: eyebrow:, heading:, heading_id:, cards:, table: false, freshness: false, health: false, lede: false, value_sm: false %>
 <section class="admin-stats admin-stats--loading" aria-labelledby="<%= heading_id %>" aria-busy="true">
   <div class="section-header">
     <div>
       <p class="eyebrow"><%= eyebrow %></p>
       <h2 id="<%= heading_id %>"><%= heading %></h2>
+      <% if local_assigns[:lede] %>
+        <p class="section-lede admin-skeleton-lede" aria-hidden="true">
+          <span class="admin-skeleton-line admin-skeleton-line--lede"></span>
+          <span class="admin-skeleton-line admin-skeleton-line--lede admin-skeleton-line--lede-short"></span>
+        </p>
+      <% end %>
     </div>
   </div>
 
@@ -11,9 +17,15 @@
     <div class="stats-grid" aria-hidden="true">
       <% cards.times do %>
         <article class="admin-skeleton-card">
-          <p class="admin-skeleton-line admin-skeleton-line--value"></p>
-          <p class="admin-skeleton-line admin-skeleton-line--label"></p>
-          <p class="admin-skeleton-line admin-skeleton-line--hint"></p>
+          <p class="value<%= " value-sm" if local_assigns[:value_sm] %>">
+            <span class="admin-skeleton-line admin-skeleton-line--value<%= " admin-skeleton-line--value-sm" if local_assigns[:value_sm] %>"></span>
+          </p>
+          <p class="label">
+            <span class="admin-skeleton-line admin-skeleton-line--label"></span>
+          </p>
+          <p class="hint">
+            <span class="admin-skeleton-line admin-skeleton-line--hint"></span>
+          </p>
         </article>
       <% end %>
     </div>
@@ -21,14 +33,14 @@
 
   <% if local_assigns[:freshness] %>
     <div class="freshness-panel admin-skeleton-panel" aria-hidden="true">
-      <p class="admin-skeleton-line admin-skeleton-line--title"></p>
-      <p class="admin-skeleton-line admin-skeleton-line--hint"></p>
+      <h3><span class="admin-skeleton-line admin-skeleton-line--title"></span></h3>
+      <p class="hint"><span class="admin-skeleton-line admin-skeleton-line--hint"></span></p>
       <ul class="freshness-bars">
         <% 5.times do %>
           <li>
             <div class="row">
-              <span class="admin-skeleton-line admin-skeleton-line--name"></span>
-              <span class="admin-skeleton-line admin-skeleton-line--meta"></span>
+              <span class="name"><span class="admin-skeleton-line admin-skeleton-line--name"></span></span>
+              <span class="meta"><span class="admin-skeleton-line admin-skeleton-line--meta"></span></span>
             </div>
             <div class="bar"><span style="width: 0%"></span></div>
           </li>
@@ -39,28 +51,58 @@
 
   <% if local_assigns[:table] %>
     <div class="table-wrap admin-skeleton-table" aria-hidden="true">
-      <div class="admin-skeleton-line admin-skeleton-line--table-row"></div>
-      <div class="admin-skeleton-line admin-skeleton-line--table-row"></div>
-      <div class="admin-skeleton-line admin-skeleton-line--table-row"></div>
-      <div class="admin-skeleton-line admin-skeleton-line--table-row"></div>
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <% 5.times do %>
+              <th scope="col"><span class="admin-skeleton-line admin-skeleton-line--table-head"></span></th>
+            <% end %>
+          </tr>
+        </thead>
+        <tbody>
+          <% 4.times do %>
+            <tr>
+              <% 5.times do %>
+                <td><span class="admin-skeleton-line admin-skeleton-line--table-cell"></span></td>
+              <% end %>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
     </div>
   <% end %>
 
   <% if local_assigns[:health] %>
     <div class="budget-panel admin-skeleton-panel" aria-hidden="true">
-      <p class="admin-skeleton-line admin-skeleton-line--title"></p>
-      <p class="admin-skeleton-line admin-skeleton-line--hint"></p>
+      <h3><span class="admin-skeleton-line admin-skeleton-line--title"></span></h3>
+      <p class="hint"><span class="admin-skeleton-line admin-skeleton-line--hint"></span></p>
       <ul class="budget-bars">
         <% 3.times do %>
           <li>
             <div class="row">
-              <span class="admin-skeleton-line admin-skeleton-line--name"></span>
-              <span class="admin-skeleton-line admin-skeleton-line--meta"></span>
+              <span class="name"><span class="admin-skeleton-line admin-skeleton-line--name"></span></span>
+              <span class="meta"><span class="admin-skeleton-line admin-skeleton-line--meta"></span></span>
             </div>
             <div class="bar"><span class="fill ok" style="width: 0%"></span></div>
           </li>
         <% end %>
       </ul>
+    </div>
+
+    <div class="health-grid" aria-hidden="true">
+      <% 2.times do %>
+        <article class="admin-skeleton-panel">
+          <h3><span class="admin-skeleton-line admin-skeleton-line--title"></span></h3>
+          <ul class="status-list">
+            <% 4.times do %>
+              <li>
+                <span class="name"><span class="admin-skeleton-line admin-skeleton-line--name"></span></span>
+                <span class="meta"><span class="admin-skeleton-line admin-skeleton-line--meta"></span></span>
+              </li>
+            <% end %>
+          </ul>
+        </article>
+      <% end %>
     </div>
   <% end %>
 

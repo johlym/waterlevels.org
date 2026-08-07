@@ -2097,45 +2097,60 @@ body.dialog-open {
 
   .admin-stats--loading {
     .admin-loading-status {
-      @apply mt-4 text-xs tracking-wide text-zinc-600 uppercase;
+      /* Keep for a11y / tests; do not affect section height while loading. */
+      @apply sr-only;
     }
-  }
 
-  .admin-skeleton-card,
-  .admin-skeleton-panel,
-  .admin-skeleton-table {
-    .admin-skeleton-line {
-      @apply animate-pulse rounded bg-zinc-800/80;
+    .admin-skeleton-lede {
+      @apply flex flex-col gap-2;
     }
   }
 
   .admin-skeleton-line {
+    @apply inline-block max-w-full animate-pulse rounded bg-zinc-800/80 align-middle;
+
     &--value {
-      @apply h-10 w-24;
+      @apply h-9 w-28;
+    }
+
+    &--value-sm {
+      @apply h-6 w-36 sm:h-7;
     }
 
     &--label {
-      @apply mt-3 h-3 w-32;
+      @apply h-3.5 w-28;
     }
 
     &--hint {
-      @apply mt-2 h-2.5 w-40;
+      @apply h-3 w-44;
+    }
+
+    &--lede {
+      @apply block h-3 w-full max-w-xl;
+    }
+
+    &--lede-short {
+      @apply max-w-md;
     }
 
     &--title {
-      @apply h-5 w-36;
+      @apply h-5 w-40;
     }
 
     &--name {
-      @apply h-3 w-28;
+      @apply h-3.5 w-28;
     }
 
     &--meta {
-      @apply h-3 w-16;
+      @apply h-3.5 w-14;
     }
 
-    &--table-row {
-      @apply mx-4 my-3 h-8;
+    &--table-head {
+      @apply h-3.5 w-20;
+    }
+
+    &--table-cell {
+      @apply h-3.5 w-16;
     }
   }
 
@@ -2143,18 +2158,19 @@ body.dialog-open {
     @apply grid gap-4 sm:grid-cols-2 xl:grid-cols-3;
 
     article {
-      @apply rounded-2xl border border-zinc-800/50 bg-zinc-900/40 p-6;
+      /* Reserve room for value + label + hint so skeletons match filled cards. */
+      @apply flex min-h-[8.75rem] flex-col rounded-2xl border border-zinc-800/50 bg-zinc-900/40 p-6;
     }
 
     .value {
       @apply font-display text-4xl font-bold text-white;
 
       &.value-sm {
-        @apply text-xl leading-snug sm:text-2xl;
+        @apply min-h-[1.75rem] text-xl leading-snug sm:min-h-[2rem] sm:text-2xl;
       }
 
-      &.alert {
-        @apply text-rose-400;
+      &:not(.value-sm) {
+        @apply min-h-9;
       }
     }
 
@@ -2163,11 +2179,11 @@ body.dialog-open {
     }
 
     .label {
-      @apply mt-2 text-sm text-zinc-400;
+      @apply mt-2 min-h-5 text-sm text-zinc-400;
     }
 
     .hint {
-      @apply mt-1 text-xs text-zinc-600;
+      @apply mt-1 min-h-4 text-xs text-zinc-600;
     }
   }
 
