@@ -66,4 +66,3 @@ class SiteStatsTest < ActiveSupport::TestCase
     assert_equal 1, SiteStats.compute[:station_count]
   end
 end
-
