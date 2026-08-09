@@ -2356,7 +2356,7 @@ body.dialog-open {
       }
 
       .cell-hint {
-        @apply text-xs font-normal text-zinc-500;
+        @apply text-xs font-normal text-zinc-400;
       }
     }
   }
