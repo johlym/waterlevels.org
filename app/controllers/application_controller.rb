@@ -2,9 +2,10 @@ class ApplicationController < ActionController::Base
   # Only allow modern browsers supporting webp images, web push, badges, import maps, CSS nesting, and CSS :has.
   allow_browser versions: :modern
 
-  # Public HTML/JSON is meant to be edge-cached. Loading the Rails session writes
+  # Public HTML is meant to be edge-cached. Loading the Rails session writes
   # `_waterlevels_session`, and Cloudflare treats Set-Cookie as BYPASS. Skip the
   # session unless a controller opts in (contact form CSRF + flash today).
+  # First-party `/api/*` JSON is Redis-cached and returned private/no-store.
   before_action :skip_session_unless_needed
 
   helper_method :csrf_meta_tags_enabled?

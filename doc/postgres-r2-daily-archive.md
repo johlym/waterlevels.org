@@ -1,6 +1,6 @@
 # R2-first daily history + 35-day IV tip
 
-Cloudflare R2 (or local disk in development) is the **daily system of record**. Postgres keeps continuous IV for `24h` / `7d` / `30d` charts (~35 days) plus peaks/latest — **not** daily history. The browser still reads `/api/gauges/:id/observations` — Rails reads R2 for daily ranges and Cloudflare edge-caches the response.
+Cloudflare R2 (or local disk in development) is the **daily system of record**. Postgres keeps continuous IV for `24h` / `7d` / `30d` charts (~35 days) plus peaks/latest — **not** daily history. The browser still reads `/api/gauges/:id/observations` — Rails reads R2 for daily ranges and caches the JSON payload in Redis (`ApiResponseCache`; HTTP responses are `private, no-store`).
 
 Related: [`plan-3y-daily-history.md`](./plan-3y-daily-history.md) (historical 1y→3y Postgres expansion; superseded for retention), [`future.md`](./future.md) (hourly POR remains a separate track).
 
