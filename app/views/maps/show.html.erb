@@ -13,7 +13,7 @@
 >
   <%= render Navigation::BarComponent.new(map_controls: true) %>
 
-  <main class="map-main">
+  <main id="main" class="map-main">
     <div class="map-surface">
       <div data-map-target="canvas" class="map-canvas" aria-label="Water gauges map"></div>
     </div>
@@ -105,6 +105,15 @@
               <span class="count" data-map-target="temperatureCount" data-zero>0</span>
             </label>
           </div>
+
+          <div class="map-station-panel">
+            <h3>Stations in view</h3>
+            <p class="aside">Keyboard-accessible list of stations currently shown on the map. Search or browse state pages for a fuller directory.</p>
+            <div class="sr-only" data-map-target="stationListStatus" role="status" aria-live="polite" aria-atomic="true"></div>
+            <div data-map-target="stationList">
+              <p class="empty">Move or zoom the map to load stations.</p>
+            </div>
+          </div>
         </div>
       </aside>
 
@@ -129,23 +138,23 @@
             <div class="items">
               <div class="item">
                 <span class="swatch active" aria-hidden="true"></span>
-                <span class="label">Normal</span>
+                <span class="label">Normal (circle)</span>
               </div>
               <div class="item">
                 <span class="swatch action" aria-hidden="true"></span>
-                <span class="label">Action</span>
+                <span class="label">Action (A / diamond)</span>
               </div>
               <div class="item">
                 <span class="swatch minor" aria-hidden="true"></span>
-                <span class="label">Minor</span>
+                <span class="label">Minor (1 / square)</span>
               </div>
               <div class="item">
                 <span class="swatch moderate" aria-hidden="true"></span>
-                <span class="label">Moderate</span>
+                <span class="label">Moderate (2 / triangle)</span>
               </div>
               <div class="item">
                 <span class="swatch major" aria-hidden="true"></span>
-                <span class="label">Major</span>
+                <span class="label">Major (3 / triangle)</span>
               </div>
             </div>
           </div>
@@ -154,7 +163,7 @@
             <div class="items">
               <div class="item">
                 <span class="swatch inactive" aria-hidden="true"></span>
-                <span class="label">Inactive / stale</span>
+                <span class="label">Inactive / stale (×)</span>
               </div>
             </div>
           </div>
@@ -187,15 +196,29 @@
               </div>
               <input
                 type="search"
+                id="map-search-input"
                 placeholder="Search by station name, river, state, or ZIP..."
                 autocomplete="off"
+                role="combobox"
+                aria-expanded="false"
+                aria-haspopup="listbox"
+                aria-autocomplete="list"
+                aria-controls="map-search-results"
                 data-map-target="search"
                 data-action="input->map#search keydown.enter->map#submitSearch"
                 aria-label="Search stations"
               >
             </div>
           </div>
-          <div class="autocomplete" data-map-target="results" hidden></div>
+          <div
+            id="map-search-results"
+            class="autocomplete"
+            role="listbox"
+            aria-label="Station search results"
+            data-map-target="results"
+            hidden
+          ></div>
+          <div class="sr-only" data-map-target="status" role="status" aria-live="polite" aria-atomic="true"></div>
         </div>
       </div>
     </div>

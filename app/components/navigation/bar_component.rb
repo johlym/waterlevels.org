@@ -12,5 +12,10 @@ module Navigation
       classes << "has-map-controls" if @map_controls
       classes.join(" ")
     end
+
+    def nav_link_attrs(path)
+      current_page?(path) ? { "aria-current": "page" } : {}
+    end
   end
 end
+

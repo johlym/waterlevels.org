@@ -25,6 +25,26 @@ module GlossaryTerms
     {
       term: "datum",
       definition: "A reference surface from which water heights or elevations are measured. Local datums are site-specific; NGVD and NAVD are national standards."
+    },
+    {
+      term: "Action stage",
+      definition: "NWS threshold where water is near bankfull and agencies begin preparedness actions."
+    },
+    {
+      term: "Minor flood",
+      definition: "NWS flood category for minimal or no property damage, but possibly some public threat."
+    },
+    {
+      term: "Moderate flood",
+      definition: "NWS flood category for some inundation of structures and roads near streams."
+    },
+    {
+      term: "Major flood",
+      definition: "NWS flood category for extensive inundation, significant evacuations, and/or property damage."
+    },
+    {
+      term: "Flood stage",
+      definition: "The water-surface elevation where a river begins to overflow its banks and produce flooding impacts."
     }
   ].freeze
 

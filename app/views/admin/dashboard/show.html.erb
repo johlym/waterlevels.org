@@ -6,7 +6,7 @@
 <div class="app-shell">
   <%= render Navigation::BarComponent.new %>
 
-  <main class="page-main admin-dashboard"
+  <main id="main" class="page-main admin-dashboard"
         data-controller="admin-sections"
         data-admin-sections-order-value="<%= AdminDashboardStats.section_load_order.to_json %>">
     <div class="admin-dashboard-chrome">

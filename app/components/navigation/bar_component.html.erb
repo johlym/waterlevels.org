@@ -10,12 +10,12 @@
     </a>
 
     <nav class="desktop-nav" aria-label="Primary">
-      <%= link_to "Map", map_path, class: "nav-link" %>
-      <%= link_to "Alerts", alerts_path, class: "nav-link" %>
-      <%= link_to "About", about_path, class: "nav-link" %>
-      <%= link_to "FAQ", faq_path, class: "nav-link" %>
-      <%= link_to "Contact", contact_path, class: "nav-link" %>
-      <%= link_to "Data", disclosures_path, class: "nav-link" %>
+      <%= link_to "Map", map_path, class: "nav-link", **nav_link_attrs(map_path) %>
+      <%= link_to "Alerts", alerts_path, class: "nav-link", **nav_link_attrs(alerts_path) %>
+      <%= link_to "About", about_path, class: "nav-link", **nav_link_attrs(about_path) %>
+      <%= link_to "FAQ", faq_path, class: "nav-link", **nav_link_attrs(faq_path) %>
+      <%= link_to "Contact", contact_path, class: "nav-link", **nav_link_attrs(contact_path) %>
+      <%= link_to "Data", disclosures_path, class: "nav-link", **nav_link_attrs(disclosures_path) %>
     </nav>
 
     <div class="header-actions">
@@ -35,8 +35,11 @@
       <button
         type="button"
         class="menu-toggle"
+        data-mobile-nav-target="toggle"
         data-action="mobile-nav#toggle"
         aria-label="Open main menu"
+        aria-expanded="false"
+        aria-controls="mobile-primary-nav"
       >
         <svg data-mobile-nav-target="openIcon" class="open-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
@@ -48,13 +51,14 @@
     </div>
   </div>
 
-  <div class="mobile-panel" data-mobile-nav-target="panel">
+  <div class="mobile-panel" id="mobile-primary-nav" data-mobile-nav-target="panel">
     <nav aria-label="Mobile primary">
-      <%= link_to "Map", map_path, class: "nav-link", data: { action: "mobile-nav#close" } %>
-      <%= link_to "Alerts", alerts_path, class: "nav-link", data: { action: "mobile-nav#close" } %>
-      <%= link_to "About", about_path, class: "nav-link", data: { action: "mobile-nav#close" } %>
-      <%= link_to "FAQ", faq_path, class: "nav-link", data: { action: "mobile-nav#close" } %>
-      <%= link_to "Contact", contact_path, class: "nav-link", data: { action: "mobile-nav#close" } %>
+      <%= link_to "Map", map_path, class: "nav-link", data: { action: "mobile-nav#close" }, **nav_link_attrs(map_path) %>
+      <%= link_to "Alerts", alerts_path, class: "nav-link", data: { action: "mobile-nav#close" }, **nav_link_attrs(alerts_path) %>
+      <%= link_to "About", about_path, class: "nav-link", data: { action: "mobile-nav#close" }, **nav_link_attrs(about_path) %>
+      <%= link_to "FAQ", faq_path, class: "nav-link", data: { action: "mobile-nav#close" }, **nav_link_attrs(faq_path) %>
+      <%= link_to "Contact", contact_path, class: "nav-link", data: { action: "mobile-nav#close" }, **nav_link_attrs(contact_path) %>
+      <%= link_to "Data", disclosures_path, class: "nav-link", data: { action: "mobile-nav#close" }, **nav_link_attrs(disclosures_path) %>
     </nav>
   </div>
 </header>

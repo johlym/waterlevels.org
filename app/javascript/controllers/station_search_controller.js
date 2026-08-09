@@ -2,7 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 import { geolocationErrorMessage } from "../lib/geolocation_errors"
 
 export default class extends Controller {
-  static targets = ["input", "results", "locateButton"]
+  static targets = ["input", "results", "locateButton", "status"]
   static outlets = ["dialog"]
   static values = {
     searchUrl: String,
@@ -17,6 +17,7 @@ export default class extends Controller {
     this.activeIndex = -1
     this.onDocumentClick = this.onDocumentClick.bind(this)
     document.addEventListener("click", this.onDocumentClick)
+    this.setExpanded(false)
   }
 
   disconnect() {
@@ -66,6 +67,7 @@ export default class extends Controller {
       }
     } else if (event.key === "Escape") {
       this.hideResults()
+      this.inputTarget.focus()
     }
   }
 
@@ -155,13 +157,16 @@ export default class extends Controller {
     }
 
     this.resultsTarget.hidden = false
+    this.setExpanded(true)
 
     if (!this.results.length) {
-      this.resultsTarget.innerHTML = `<p class="empty">No matching stations.</p>`
+      this.resultsTarget.innerHTML = `<p class="empty" role="option" aria-disabled="true">No matching stations.</p>`
+      this.announce("No matching stations")
+      this.clearActiveDescendant()
       return
     }
 
-    const items = this.results.map((result) => this.resultItemHtml(result)).join("")
+    const items = this.results.map((result, index) => this.resultItemHtml(result, index)).join("")
 
     const browse = this.hasMapUrlValue
       ? `<div class="footer">
@@ -175,12 +180,17 @@ export default class extends Controller {
       : ""
 
     this.resultsTarget.innerHTML = items + browse
+    const count = this.results.length
+    this.announce(`${count} ${count === 1 ? "result" : "results"} available`)
+    this.clearActiveDescendant()
   }
 
-  resultItemHtml(result) {
+  resultItemHtml(result, index) {
+    const optionId = `home-search-option-${index}`
+
     if (result.type === "state") {
       return `
-        <a href="${this.escapeHtml(result.path)}" class="item">
+        <a href="${this.escapeHtml(result.path)}" class="item" role="option" id="${optionId}">
           <div class="icon" aria-hidden="true">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
@@ -197,7 +207,7 @@ export default class extends Controller {
 
     if (result.type === "zip") {
       return `
-        <a href="${this.escapeHtml(result.path)}" class="item">
+        <a href="${this.escapeHtml(result.path)}" class="item" role="option" id="${optionId}">
           <div class="icon" aria-hidden="true">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
@@ -216,7 +226,7 @@ export default class extends Controller {
     const status = result.stale ? "Inactive" : "Active"
     const statusClass = result.stale ? "inactive" : "active"
     return `
-      <a href="${this.escapeHtml(result.path)}" class="item">
+      <a href="${this.escapeHtml(result.path)}" class="item" role="option" id="${optionId}">
         <div class="icon" aria-hidden="true">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
@@ -236,6 +246,9 @@ export default class extends Controller {
     this.resultsTarget.innerHTML = ""
     this.resultsTarget.hidden = true
     this.activeIndex = -1
+    this.setExpanded(false)
+    this.clearActiveDescendant()
+    this.announce("")
   }
 
   onDocumentClick(event) {
@@ -248,8 +261,31 @@ export default class extends Controller {
 
   syncActiveItem(items) {
     items.forEach((item, index) => {
-      item.classList.toggle("is-active", index === this.activeIndex)
+      const active = index === this.activeIndex
+      item.classList.toggle("is-active", active)
+      item.setAttribute("aria-selected", active ? "true" : "false")
     })
+    const activeItem = items[this.activeIndex]
+    if (activeItem) {
+      this.inputTarget.setAttribute("aria-activedescendant", activeItem.id)
+    } else {
+      this.clearActiveDescendant()
+    }
+  }
+
+  setExpanded(expanded) {
+    if (!this.hasInputTarget) return
+    this.inputTarget.setAttribute("aria-expanded", expanded ? "true" : "false")
+  }
+
+  clearActiveDescendant() {
+    if (!this.hasInputTarget) return
+    this.inputTarget.removeAttribute("aria-activedescendant")
+  }
+
+  announce(message) {
+    if (!this.hasStatusTarget) return
+    this.statusTarget.textContent = message
   }
 
   setLocateBusy(busy) {

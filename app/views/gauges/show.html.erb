@@ -15,7 +15,7 @@
   data-temperature-unit-url-value="<%= temperature_unit_path %>"
 >
   <%= render Navigation::BarComponent.new %>
-  <main class="page-main">
+  <main id="main" class="page-main">
     <header class="gauge-header">
       <nav class="breadcrumb" aria-label="Breadcrumb">
         <ol role="list">
@@ -58,7 +58,7 @@
               <% flood_label = @snapshot[:flood_category_label] || @snapshot["flood_category_label"] %>
               <% if flood_category.present? %>
                 <span class="badge flood-<%= flood_category.to_s.tr('_', '-') %>">
-                  <%= flood_label.presence || flood_category.to_s.humanize %>
+                  <%= annotate_glossary_terms(flood_label.presence || flood_category.to_s.humanize) %>
                 </span>
               <% else %>
                 <span class="badge muted">No flood stage data</span>
@@ -157,7 +157,7 @@
         <div class="pad">
           <div class="chart-legend" data-hydrograph-target="legend"></div>
           <div class="canvas-wrap">
-            <canvas data-hydrograph-target="canvas"></canvas>
+            <canvas data-hydrograph-target="canvas" role="img" aria-label="Station trend chart. Use the hourly measurements table below for accessible data."></canvas>
           </div>
           <p class="aside estimated-footnote" data-hydrograph-target="estimatedNote" hidden>
             Estimated daily mean from continuous data (USGS daily unavailable).
