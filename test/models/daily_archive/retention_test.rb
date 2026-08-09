@@ -61,18 +61,18 @@ module DailyArchive
       assert_nil points.first[:s]
     end
 
-    test "prune removes archived scratch daily when flag enabled" do
+    test "prune drains archived postgres daily when flag enabled" do
       ENV["DAILY_ARCHIVE_PRUNE"] = "1"
-      cold_day = 20.days.ago.to_date
-      DailyObservation.create!(time_series: @series, observed_on: cold_day, value: 3.0)
+      day = Date.current - 1
+      DailyObservation.create!(time_series: @series, observed_on: day, value: 3.0)
       Writer.new(store: @store).upsert(
         time_series_id: @series.id,
-        points: [ { "d" => cold_day.iso8601, "v" => 3.0, "s" => "usgs" } ]
+        points: [ { "d" => day.iso8601, "v" => 3.0, "s" => "usgs" } ]
       )
 
       stats = Retention.new(store: @store, as_of: @as_of, client: nil).perform
       assert_equal 1, stats[:daily_deleted]
-      assert_nil DailyObservation.find_by(time_series_id: @series.id, observed_on: cold_day)
+      assert_nil DailyObservation.find_by(time_series_id: @series.id, observed_on: day)
     end
 
     test "alerts and prunes IV past retention when day never archived" do

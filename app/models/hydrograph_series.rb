@@ -89,22 +89,17 @@ class HydrographSeries
 
   def daily_points(duration)
     start_on = duration.ago.to_date
-    tip = tip_daily_points(start_on)
+    end_on = Date.current
 
-    unless DailyArchive.reads_enabled?
-      return tip
+    if DailyArchive.reads_enabled?
+      return DailyArchive::Reader.new.points_for(
+        time_series_id: time_series.id,
+        start_on: start_on,
+        end_on: end_on
+      )
     end
 
-    archive = DailyArchive::Reader.new.points_for(
-      time_series_id: time_series.id,
-      start_on: start_on,
-      end_on: Date.current
-    )
-
-    merge_daily_points(archive, tip)
-  end
-
-  def tip_daily_points(start_on)
+    # Archive reads off (tests / misconfig): fall back to leftover Postgres rows.
     time_series.daily_observations
       .where("observed_on >= ?", start_on)
       .order(:observed_on)
@@ -114,12 +109,5 @@ class HydrographSeries
         point[:s] = DailyArchive::SOURCE_DERIVED if qualifier == "derived_continuous"
         point
       end
-  end
-
-  def merge_daily_points(archive, tip)
-    by_day = {}
-    archive.each { |p| by_day[p[:t]] = p }
-    tip.each { |p| by_day[p[:t]] = p }
-    by_day.values.sort_by { |p| p[:t] }
   end
 end

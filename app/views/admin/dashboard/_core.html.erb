@@ -62,9 +62,9 @@
       <p class="label">Total measurements</p>
       <p class="hint">
         <%= number_to_human(stats[:continuous_observation_count], precision: 2, significant: true, units: { thousand: "K", million: "M", billion: "B" }) %> continuous (~35d) ·
-        <%= number_to_human(stats[:daily_observation_count], precision: 2, significant: true, units: { thousand: "K", million: "M", billion: "B" }) %> daily scratch ·
         <%= number_to_human(stats[:archive_daily_observation_count], precision: 2, significant: true, units: { thousand: "K", million: "M", billion: "B" }) %> daily (R2) ·
         <%= number_with_delimiter(stats[:daily_archive_shard_count].to_i) %> shards ·
+        <%= number_to_human(stats[:daily_observation_count], precision: 2, significant: true, units: { thousand: "K", million: "M", billion: "B" }) %> legacy PG daily ·
         <%= number_to_human(stats[:peak_observation_count], precision: 2, significant: true, units: { thousand: "K", million: "M", billion: "B" }) %> peaks
       </p>
     </article>

@@ -12,11 +12,19 @@ class TimeSeries < ApplicationRecord
   scope :selected, -> { where(selected_for_display: true) }
   scope :for_kind, ->(kind) { where(measurement_kind: kind) }
 
-  # Hot tip and/or cold R2 shard catalog — deep anchors leave Postgres after prune.
+  # Leftover Postgres rows and/or R2 shard catalog.
   def has_daily_on_or_before?(anchor)
     return false if anchor.blank?
 
     daily_observations.where(observed_on: ..anchor).exists? ||
       daily_archive_shards.where(min_on: ..anchor).exists?
+  end
+
+  def newest_daily_on
+    [ daily_archive_shards.maximum(:max_on), daily_observations.maximum(:observed_on) ].compact.max
+  end
+
+  def oldest_daily_on
+    [ daily_archive_shards.minimum(:min_on), daily_observations.minimum(:observed_on) ].compact.min
   end
 end

@@ -182,11 +182,7 @@ class StationSnapshotCache
     else
       series.peak_observations.where(peak_kind: "high").order(value: :desc).first
     end
-    low_daily = if series.association(:daily_observations).loaded?
-      series.daily_observations.min_by { |d| d.value.to_f }
-    else
-      series.daily_observations.order(:value).first
-    end
+    low_daily = lowest_daily_payload(series)
     label = Usgs::ParameterCodes.label_for(series.parameter_code, fallback: series.parameter_description)
 
     {
@@ -206,10 +202,34 @@ class StationSnapshotCache
       },
       extremes: {
         high: high && { value: high.value.to_f, water_year: high.water_year, observed_at: high.observed_at&.iso8601 },
-        low: low_daily && { value: low_daily.value.to_f, observed_on: low_daily.observed_on.iso8601 }
+        low: low_daily
       }
     }
   end
+
+  def self.lowest_daily_payload(series)
+    if DailyArchive.reads_enabled?
+      points = DailyArchive::Reader.new.points_for(
+        time_series_id: series.id,
+        start_on: 1.year.ago.to_date,
+        end_on: Date.current
+      )
+      if points.any?
+        low = points.min_by { |p| p[:v] }
+        return { value: low[:v].to_f, observed_on: low[:t] }
+      end
+    end
+
+    row = if series.association(:daily_observations).loaded?
+      series.daily_observations.min_by { |d| d.value.to_f }
+    else
+      series.daily_observations.order(:value).first
+    end
+    return unless row
+
+    { value: row.value.to_f, observed_on: row.observed_on.iso8601 }
+  end
+  private_class_method :lowest_daily_payload
 
   def self.denormalized_measurements(location)
     measurements = []

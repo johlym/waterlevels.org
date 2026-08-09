@@ -53,7 +53,7 @@ Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `USGS_HOURLY_SOF
 
 See `doc/postgres-r2-daily-archive.md` (current R2-first retention), `doc/plan-3y-daily-history.md` (historical 3y plan), and `doc/future.md` (hourly POR) for retention tiers and longer-history notes.
 
-Local archive iteration (no Cloudflare): `.env.example` sets `DAILY_ARCHIVE_STORE=local` and a short daily scratch tip. After seeding or backfill, run `bin/rails archive:export_daily` — shards land in `tmp/daily_archive` and `1y` / `3y` charts read them when `DAILY_ARCHIVE_READS=1`.
+Local archive iteration (no Cloudflare): `.env.example` sets `DAILY_ARCHIVE_STORE=local`. After seeding or backfill, run `bin/rails archive:export_daily` — shards land in `tmp/daily_archive` and `1y` / `3y` charts read them when `DAILY_ARCHIVE_READS=1`.
 
 ## Observability (Honeycomb)
 

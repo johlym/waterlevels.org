@@ -1,5 +1,5 @@
 module DailyArchive
-  # USGS-first day-31+ handoff into R2, then safe IV / scratch-daily prune.
+  # USGS-first day-31+ handoff into R2, then safe IV prune and Postgres daily drain.
   #
   # Invariant: never prune IV for local day D until R2 has D (usgs or derived)
   # or D is an explicit alerted gap.
@@ -138,18 +138,6 @@ module DailyArchive
         next unless item_day == day
         next if item["value"].blank?
 
-        DailyObservation.upsert(
-          {
-            time_series_id: series.id,
-            observed_on: day,
-            value: item["value"],
-            approval_status: item["approval_status"],
-            qualifier: item["qualifier"],
-            created_at: Time.current,
-            updated_at: Time.current
-          },
-          unique_by: %i[time_series_id observed_on]
-        )
         @writer.upsert(
           time_series_id: series.id,
           points: [ {
@@ -159,6 +147,7 @@ module DailyArchive
             "a" => item["approval_status"]
           } ]
         )
+        @archived_days_cache&.delete([ series.id, day.year ])
         found = true
       end
       found
@@ -236,12 +225,12 @@ module DailyArchive
 
     def prune_daily!
       if DailyArchive.prune_enabled?
-        cutoff = DailyArchive.hot_cutoff_on
+        # Drain every Postgres daily that already exists in R2 — no scratch tip.
         deletable_ids = []
         blocked = 0
         day_cache = {}
 
-        DailyObservation.where("observed_on < ?", cutoff).select(:id, :time_series_id, :observed_on).find_each do |row|
+        DailyObservation.select(:id, :time_series_id, :observed_on).find_each do |row|
           cache_key = [ row.time_series_id, row.observed_on.year ]
           archived_days = day_cache[cache_key] ||= archived_days_for(row.time_series_id, row.observed_on.year)
           if archived_days.include?(row.observed_on.iso8601)
