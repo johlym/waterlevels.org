@@ -134,4 +134,9 @@ Fallback if `app.page` is missing on older traffic: GROUP BY `http.route` (Rails
 | Tip / catalog / flood sync | `latest.sync`, `catalog.sync`, `flood.sync` |
 | Page latency | request root + `app.page` |
 
+**Volume note:** ActiveRecord, PG, Redis, and Net::HTTP auto-instrumentation are
+disabled in `config/initializers/opentelemetry.rb` (per-row upserts and cache
+warms blew past free-plan event budgets). Prefer the domain spans above; outbound
+HTTP still appears via Faraday + `usgs.http.*` / `nwps.http.*`. `/up` is untraced.
+
 Local/dev: set `OTEL_*` / Honeycomb headers as in `.env.example`. Tests force `OTEL_TRACES_EXPORTER=none`.

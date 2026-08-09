@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
 # Thin helpers around the OpenTelemetry API for custom business spans.
-# Auto-instrumentation covers Rails/HTTP/DB; use this for domain operations.
+# Auto-instrumentation covers Rails/Faraday/jobs (not AR/PG/Redis — too noisy
+# under bulk ingest); use this for domain operations.
 #
 # Prefer +in_root_span+ for long-running ingest/sync work so Honeycomb always
 # receives a root even when an ambient ActiveJob/Rake parent fails to export.
