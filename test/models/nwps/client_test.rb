@@ -21,8 +21,8 @@ module Nwps
       assert_nil Client.new(request_pause_ms: 0).gauge("99999999")
     end
 
-    test "gauges requires a state and scopes the list by that state's bbox" do
-      bbox = Usgs::StateCodes.bbox_for("wa")
+    test "gauges requires a region and scopes the list by that region's bbox" do
+      bbox = ListRegions.bbox_for("conus_pacific")
       stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges")
         .with(
           query: {
@@ -43,14 +43,14 @@ module Nwps
           }.to_json
         )
 
-      list = Client.new(request_pause_ms: 0).gauges(state: "wa")
+      list = Client.new(request_pause_ms: 0).gauges(region: "conus_pacific")
       assert_equal 1, list.size
       assert_equal "ACAW1", list.first["lid"]
     end
 
-    test "gauges rejects a missing or unknown state" do
-      assert_raises(ArgumentError) { Client.new(request_pause_ms: 0).gauges(state: nil) }
-      assert_raises(ArgumentError) { Client.new(request_pause_ms: 0).gauges(state: "zz") }
+    test "gauges rejects a missing or unknown region" do
+      assert_raises(ArgumentError) { Client.new(request_pause_ms: 0).gauges(region: nil) }
+      assert_raises(ArgumentError) { Client.new(request_pause_ms: 0).gauges(region: "atlantis") }
     end
   end
 end

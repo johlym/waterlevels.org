@@ -101,7 +101,6 @@ class FloodStageSyncTest < ActiveSupport::TestCase
       state_name: "Texas",
       has_water_level: true
     )
-    # Keep WA fixtures out of detail sync while the national run walks states.
     @location.update!(nwps_matched: true, nwps_lid: "KEEP", nwps_synced_at: 1.hour.ago)
     @unmatched.update!(nwps_matched: false, nwps_synced_at: 1.hour.ago)
 
@@ -274,7 +273,7 @@ class FloodStageSyncTest < ActiveSupport::TestCase
     assert_equal prior_updated_at.to_i, @location.reload.updated_at.to_i
   end
 
-  test "list fetch uses the state bbox and never requests the national gauges list" do
+  test "list fetch uses covering region bboxes instead of a national gauges list" do
     stub_nwps_gauges(gauges: [])
     stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges/01646500")
       .to_return(status: 404, body: "{}")
@@ -283,7 +282,7 @@ class FloodStageSyncTest < ActiveSupport::TestCase
 
     FloodStageSync.new(state: "wa").perform
 
-    bbox = Usgs::StateCodes.bbox_for("wa")
+    bbox = Nwps::ListRegions.bbox_for("conus_pacific")
     assert_requested :get, "https://api.water.noaa.gov/nwps/v1/gauges",
       query: {
         "bbox.xmin" => bbox.fetch(:xmin).to_s,
