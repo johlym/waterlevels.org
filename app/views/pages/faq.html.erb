@@ -1,5 +1,5 @@
 <% content_for :title, "FAQ | WaterLevels.org" %>
-<% content_for :meta_description, "Answers about WaterLevels.org: USGS data sources, update frequency, flood categories, gage height, streamflow, and how to use the map and station pages." %>
+<% content_for :meta_description, "Answers about WaterLevels.org: USGS observations, National Weather Service flood categories and stages, update frequency, and how to use the map, alerts, and station pages." %>
 
 <div class="app-shell">
   <%= render Navigation::BarComponent.new %>
@@ -21,7 +21,7 @@
         <span class="accent">questions</span>
       </h1>
       <p class="lede">
-        What WaterLevels.org is, where the readings come from, how often they update, and what common hydrology terms mean on the map and station pages.
+        What WaterLevels.org is, where USGS readings and NWS flood data come from, how often they update, and what common hydrology terms mean on the map, alerts list, and station pages.
       </p>
     </div>
   </section>
@@ -99,19 +99,22 @@
           <div class="faq-list">
             <%= render "pages/faq_item", question: "What is WaterLevels.org?", id: "what-is" do %>
               <p>
-                WaterLevels.org is an independent site that maps USGS water-monitoring locations and presents streamflow, water level (gage height), and water temperature in a browsable map, state directories, and station detail pages.
+                WaterLevels.org is an independent site that maps USGS water-monitoring locations and presents streamflow, water level (gage height), and water temperature in a browsable map, state directories, and station detail pages. When a National Weather Service forecast point is linked to a gauge, we also show flood categories and stage thresholds—including on the
+                <%= link_to "alerts list", alerts_path %>.
               </p>
             <% end %>
 
             <%= render "pages/faq_item", question: "Is WaterLevels.org free?", id: "is-free" do %>
               <p>
-                Yes. The map, state listings, station pages, charts, and CSV exports on gauge pages are free to use. There are no accounts, subscriptions, or paid tiers.
+                Yes. The map, state listings, alerts list, station pages, charts, and CSV exports on gauge pages are free to use. There are no accounts, subscriptions, or paid tiers.
               </p>
             <% end %>
 
-            <%= render "pages/faq_item", question: "Is this an official USGS website?", id: "official-usgs" do %>
+            <%= render "pages/faq_item", question: "Is this an official USGS or NWS website?", id: "official-usgs" do %>
               <p>
-                No. WaterLevels.org is a private project operated by Bytoro LLC. It is not affiliated with, endorsed by, or operated by the USGS or the Department of the Interior. For the authoritative record at any station, use the official USGS monitoring-location page linked from each gauge.
+                No. WaterLevels.org is a private project operated by Bytoro LLC. It is not affiliated with, endorsed by, or operated by the USGS, the National Weather Service, NOAA, or the Department of the Interior. For the authoritative hydrologic record at any station, use the official USGS monitoring-location page linked from each gauge. For official flood forecasts and watches/warnings, use
+                <a href="https://water.noaa.gov/" rel="noopener noreferrer" target="_blank">water.noaa.gov</a>
+                and local NWS products.
               </p>
             <% end %>
 
@@ -134,18 +137,44 @@
           <div class="faq-list">
             <%= render "pages/faq_item", question: "Where does the data come from?", id: "data-source" do %>
               <p>
-                Nearly all hydrologic values come from the
-                <a href="https://api.waterdata.usgs.gov/" rel="noopener noreferrer" target="_blank">USGS Water Data APIs</a>.
-                Flood categories and stage thresholds, when available, come from the National Weather Service National Water Prediction Service (NWPS) and are joined to USGS gauges by site number.
+                Nearly all hydrologic observation values come from the
+                <a href="https://api.waterdata.usgs.gov/" rel="noopener noreferrer" target="_blank">USGS Water Data APIs</a>
+                (streamflow, gage height / stage, water temperature, and related site metadata).
+              </p>
+              <p>
+                Flood categories (action, minor, moderate, major) and stage thresholds come from the National Weather Service
+                <a href="https://water.noaa.gov/" rel="noopener noreferrer" target="_blank">National Water Prediction Service (NWPS)</a>
+                via the
+                <a href="https://api.water.noaa.gov/nwps/v1/docs/" rel="noopener noreferrer" target="_blank">NWPS API</a>
+                when we can match an NWPS forecast point to a USGS site number.
               </p>
               <p>
                 <%= link_to "Read the full data disclosures", disclosures_path %> for what we store, how we cache updates, and important limitations.
               </p>
             <% end %>
 
+            <%= render "pages/faq_item", question: "What flood data do you show?", id: "flood-data" do %>
+              <p>
+                For matched gauges we show the current NWS flood category and the action, minor, moderate, and major stage thresholds from NWPS. Those values color map markers, appear on station pages (including hydrograph markers when thresholds are present), and power the national
+                <%= link_to "flood alerts list", alerts_path %>,
+                which lists stations currently at action stage or above.
+              </p>
+              <p>
+                WaterLevels.org is not a warning system. Confirm flood conditions against official NWS products on
+                <a href="https://water.noaa.gov/" rel="noopener noreferrer" target="_blank">water.noaa.gov</a>
+                and local emergency authorities when safety decisions matter.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "Why doesn’t every station have flood stages?", id: "missing-flood-stages" do %>
+              <p>
+                Not every USGS monitoring location has an NWPS forecast point. When there is no match, we still show USGS measurements but omit flood category badges, stage thresholds, and alerts-list inclusion. Matching can also lag after a new gauge appears in USGS feeds.
+              </p>
+            <% end %>
+
             <%= render "pages/faq_item", question: "How often is the data updated?", id: "update-frequency" do %>
               <p>
-                Most USGS continuous stations report on the order of every 15 minutes, but remote sites can report less often. WaterLevels.org refreshes latest observations on a schedule and serves cached pages, so the number you see can lag the live USGS feed by minutes to hours—and occasionally longer if a sync has not completed.
+                Most USGS continuous stations report on the order of every 15 minutes, but remote sites can report less often. WaterLevels.org refreshes latest observations and NWPS flood categories on a schedule and serves cached pages, so the number or flood status you see can lag the live USGS or NWPS feed by minutes to hours—and occasionally longer if a sync has not completed.
               </p>
               <p>
                 Each station page shows the timestamp of the latest observation we have stored so you can judge freshness.
@@ -154,7 +183,7 @@
 
             <%= render "pages/faq_item", question: "What does “provisional” mean?", id: "provisional" do %>
               <p>
-                USGS marks many real-time values as provisional. Those readings can be revised, corrected, or removed after review. Approved values are more stable but still follow USGS publication practices. If this site and the official USGS page disagree, treat USGS as correct.
+                USGS marks many real-time values as provisional. Those readings can be revised, corrected, or removed after review. Approved values are more stable but still follow USGS publication practices. NWPS flood categories and thresholds can also change as conditions and forecasts update. If this site and an official USGS or NWS page disagree, treat the official source as correct.
               </p>
             <% end %>
 
@@ -169,15 +198,17 @@
 
             <%= render "pages/faq_item", question: "Can I export data?", id: "export" do %>
               <p>
-                Yes. Gauge detail pages include a measurements table with CSV export for the loaded history. We do not sell a third-party data API or resell raw USGS access. For bulk or programmatic use at scale, prefer the
+                Yes. Gauge detail pages include a measurements table with CSV export for the loaded history. We do not sell a third-party data API or resell raw USGS or NWS access. For bulk or programmatic use at scale, prefer the
                 <a href="https://api.waterdata.usgs.gov/" rel="noopener noreferrer" target="_blank">USGS Water Data APIs</a>
+                and the
+                <a href="https://api.water.noaa.gov/nwps/v1/docs/" rel="noopener noreferrer" target="_blank">NWPS API</a>
                 directly.
               </p>
             <% end %>
 
             <%= render "pages/faq_item", question: "Why might a value look wrong or missing?", id: "wrong-value" do %>
               <p>
-                Gaps and mismatches can appear when a sensor is offline, a parameter was discontinued, our sync lagged, a station falls outside the site types we keep, or USGS rate limits interrupted a refresh. A “stale” label means our latest stored observation is older than our freshness threshold (currently one week), not necessarily that USGS stopped collecting data.
+                Gaps and mismatches can appear when a sensor is offline, a parameter was discontinued, our sync lagged, a station falls outside the site types we keep, an NWPS match is missing, or USGS/NWPS rate limits interrupted a refresh. A “stale” label means our latest stored observation is older than our freshness threshold (currently one week), not necessarily that USGS stopped collecting data.
               </p>
             <% end %>
           </div>
@@ -194,7 +225,7 @@
 
             <%= render "pages/faq_item", question: "What do the map marker colors mean?", id: "marker-colors" do %>
               <p>
-                Markers reflect National Weather Service flood categories when we have an NWPS match for that gauge:
+                Markers reflect National Weather Service flood categories from NWPS when we have a match for that gauge:
               </p>
               <ul role="list">
                 <li><span class="emphasis">Cyan / normal</span> — no flooding (or no elevated category)</li>
@@ -204,7 +235,16 @@
                 <li><span class="emphasis">Red</span> — major flooding</li>
               </ul>
               <p>
-                Not every USGS site has an NWPS forecast point. WaterLevels.org is not a warning system—confirm against official NWS and USGS products when safety decisions matter.
+                Stations without an NWPS match still appear with USGS data but without a flood-category color. WaterLevels.org is not a warning system—confirm against official NWS and USGS products when safety decisions matter. See also
+                <%= link_to "What flood data do you show?", "#{faq_path}#flood-data" %>.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "What is the alerts list?", id: "alerts-list" do %>
+              <p>
+                The
+                <%= link_to "alerts page", alerts_path %>
+                lists USGS stations that currently have an NWS flood category of action stage or higher, grouped by state. It uses the same NWPS categories and stage thresholds shown on the map and station pages, with filters for flood stage and measurement type.
               </p>
             <% end %>
 
@@ -247,7 +287,7 @@
 
             <%= render "pages/faq_item", question: "What are action, minor, moderate, and major flood stages?", id: "flood-stages" do %>
               <p>
-                These are National Weather Service categories for how high the water is relative to impacts at that forecast point:
+                These are National Weather Service categories from NWPS for how high the water is relative to impacts at that forecast point:
               </p>
               <ul role="list">
                 <li><span class="emphasis">Action</span> — elevated levels; monitoring and preparedness may begin</li>
@@ -256,7 +296,8 @@
                 <li><span class="emphasis">Major</span> — extensive inundation, significant evacuations, and/or significant infrastructure impacts</li>
               </ul>
               <p>
-                Thresholds are location-specific. Exact definitions and impacts are published by NWS for each gauge.
+                Thresholds are location-specific stage heights (often in feet of gage height) published by NWS for each forecast point. On WaterLevels.org they appear as station badges, hydrograph markers, and map colors when an NWPS match exists. Exact definitions and impacts are on
+                <a href="https://water.noaa.gov/" rel="noopener noreferrer" target="_blank">water.noaa.gov</a>.
               </p>
             <% end %>
 

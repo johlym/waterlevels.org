@@ -5,6 +5,13 @@ export default class extends Controller {
 
   connect() {
     this.showCategory(this.activeCategory())
+    this.openFromHash()
+    this.boundOpenFromHash = this.openFromHash.bind(this)
+    window.addEventListener("hashchange", this.boundOpenFromHash)
+  }
+
+  disconnect() {
+    window.removeEventListener("hashchange", this.boundOpenFromHash)
   }
 
   selectCategory(event) {
@@ -41,6 +48,21 @@ export default class extends Controller {
   activeCategory() {
     const active = this.categoryTargets.find((button) => button.hasAttribute("data-active"))
     return active?.dataset.faqCategoryParam || this.categoryTargets[0]?.dataset.faqCategoryParam
+  }
+
+  openFromHash() {
+    const id = window.location.hash.replace(/^#/, "")
+    if (!id) return
+
+    const item = this.itemTargets.find((candidate) => candidate.id === id)
+    if (!item) return
+
+    const section = item.closest("[data-faq-target='section']")
+    const category = section?.dataset.faqCategoryParam
+    if (category) this.showCategory(category)
+
+    this.openItem(item)
+    item.scrollIntoView({ block: "start" })
   }
 
   closeAllItems() {
