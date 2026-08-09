@@ -49,7 +49,7 @@ STATE=wa RANGE=1y LIMIT=25 bin/rails usgs:backfill
 STATE=wa RANGE=3y LIMIT=25 bin/rails usgs:backfill
 ```
 
-Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `USGS_HOURLY_SOFT_CAP` (default `980` — park a key for the rest of the UTC hour before a hard 429), `HISTORY_BACKFILL_BATCH` (default `50` **per available history key**, further capped by remaining hourly request budget), `HISTORY_DEEP_BACKFILL_BATCH` (default `400`/key ceiling; actual deep slots use leftover request budget after phase-1; set `0` to pause 3y deep fills). History backfill batch runs Mon–Sat every 10 minutes and no-ops when keys are exhausted or the backfill queue is still draining. Live used/remaining per key is on `/admin`.
+Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_BACKFILL_BATCH` (default `50` stations per cron tick for cold `1y` work), `HISTORY_DEEP_BACKFILL_BATCH` (default `400` stations for `3y` deep fills; set `0` to pause). History backfill pins one USGS key per purpose (`USGS_API_HISTORY_CONTINUOUS_KEY` / `_DAILY_KEY` / `_PEAKS_KEY`) and opens that purpose’s circuit on a 429 for the rest of the UTC hour. The batch runs Mon–Sat every 10 minutes and no-ops when all purpose circuits are open or the backfill queue is still draining. Circuit state per key is on `/admin`.
 
 See `doc/postgres-r2-daily-archive.md` (current R2-first retention), `doc/plan-3y-daily-history.md` (historical 3y plan), and `doc/future.md` (hourly POR) for retention tiers and longer-history notes.
 
@@ -69,7 +69,7 @@ bin/rails test
 
 - Dynos: `web`, `worker` (default queue + scheduler), `sync_worker` (`sync` queue), `historical_worker` (`backfill` queue)
 - Add-ons: Postgres, Redis
-- Set `USGS_API_KEY` (tip/catalog), optional `USGS_API_HISTORY_1_KEY` / `USGS_API_HISTORY_2_KEY` (history backfill), `REDIS_URL`, `DATABASE_URL`, `APP_HOST`, `SENTRY_DSN`; optional `CLOUDFLARE_ZONE_ID` + `CLOUDFLARE_API_TOKEN` for post-sync Cache-Tag purge; optional `CLOUDFLARE_R2_*` for the yearly daily-means archive ([`doc/postgres-r2-daily-archive.md`](doc/postgres-r2-daily-archive.md))
+- Set `USGS_API_KEY` (tip/catalog), optional `USGS_API_HISTORY_CONTINUOUS_KEY` / `USGS_API_HISTORY_DAILY_KEY` / `USGS_API_HISTORY_PEAKS_KEY` (purpose-pinned history backfill), `REDIS_URL`, `DATABASE_URL`, `APP_HOST`, `SENTRY_DSN`; optional `CLOUDFLARE_ZONE_ID` + `CLOUDFLARE_API_TOKEN` for post-sync Cache-Tag purge; optional `CLOUDFLARE_R2_*` for the yearly daily-means archive ([`doc/postgres-r2-daily-archive.md`](doc/postgres-r2-daily-archive.md))
 - Enable [runtime dyno metadata](https://devcenter.heroku.com/articles/dyno-metadata) so `HEROKU_RELEASE_VERSION` is available; Sentry uses it as the release and tags environment as `production`
 - Open Graph PNGs are rendered with `rsvg-convert` (`Aptfile` → `librsvg2-bin`). Requires [`heroku-community/apt`](https://elements.heroku.com/buildpacks/heroku/heroku-buildpack-apt) as buildpack **#1** (before Ruby) so the Aptfile packages install on the dyno.
 - Redis TLS: Sidekiq, cache, and Action Cable use `ssl_params.verify_mode = VERIFY_NONE` for Heroku self-signed `rediss://` certs

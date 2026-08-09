@@ -6,14 +6,10 @@ class HistoryBackfillBatchJobTest < ActiveSupport::TestCase
   setup do
     @previous_cache = Rails.cache
     Rails.cache = ActiveSupport::Cache::MemoryStore.new
-    # Parallel workers share Redis request counters. A depleted tip-key budget
-    # makes phase-1 budget 0 (cost 1000) while deep (cost 2) still enqueues.
-    clear_shared_request_budget!
   end
 
   teardown do
     Rails.cache = @previous_cache
-    clear_shared_request_budget!
   end
 
   test "enqueues history jobs for locations needing backfill" do
@@ -141,7 +137,7 @@ class HistoryBackfillBatchJobTest < ActiveSupport::TestCase
     end
   end
 
-  test "scales default phase-1 budget by available history keys" do
+  test "honors HISTORY_BACKFILL_BATCH as an absolute station ceiling" do
     locations = 3.times.map do |i|
       loc = create(:monitoring_location, site_number: format("3000004%d", i))
       create(:time_series, monitoring_location: loc, selected_for_display: true)
@@ -150,23 +146,23 @@ class HistoryBackfillBatchJobTest < ActiveSupport::TestCase
 
     travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
       with_env(
-        "USGS_API_HISTORY_1_KEY" => "hist-1",
-        "USGS_API_HISTORY_2_KEY" => "hist-2",
+        "USGS_API_HISTORY_CONTINUOUS_KEY" => "hist-continuous",
+        "USGS_API_HISTORY_DAILY_KEY" => "hist-daily",
+        "USGS_API_HISTORY_PEAKS_KEY" => "hist-peaks",
         "HISTORY_BACKFILL_BATCH" => "1",
         "HISTORY_DEEP_BACKFILL_BATCH" => "0"
       ) do
-        # 1 station/key × 2 keys = 2 enqueues (third candidate waits).
-        assert_equal 2, HistoryBackfillBatchJob.perform_now
+        assert_equal 1, HistoryBackfillBatchJob.perform_now
         enqueued_ids = enqueued_jobs
           .select { |job| job[:job] == HistoryBackfillJob }
           .map { |job| job[:args].first }
-        assert_equal 2, enqueued_ids.size
-        assert_empty enqueued_ids - locations.map(&:id)
+        assert_equal 1, enqueued_ids.size
+        assert_includes locations.map(&:id), enqueued_ids.first
       end
     end
   end
 
-  test "deep budget uses leftover request capacity after phase-1" do
+  test "skips deep when the daily history circuit is open" do
     cold = create(:monitoring_location, site_number: "30000050")
     create(:time_series, monitoring_location: cold, selected_for_display: true)
 
@@ -183,13 +179,15 @@ class HistoryBackfillBatchJobTest < ActiveSupport::TestCase
       DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 1.1)
       DailyObservation.create!(time_series: series, observed_on: Date.current, value: 1.2)
 
-      # One fallback key, phase-1 cost 1000 ⇒ one cold station consumes the whole
-      # hourly request budget, so deep must stay at zero despite a high ceiling.
       with_env(
+        "USGS_API_HISTORY_CONTINUOUS_KEY" => "hist-continuous",
+        "USGS_API_HISTORY_DAILY_KEY" => "hist-daily",
+        "USGS_API_HISTORY_PEAKS_KEY" => "hist-peaks",
         "HISTORY_BACKFILL_BATCH" => "1",
-        "HISTORY_DEEP_BACKFILL_BATCH" => "400",
-        "HISTORY_PHASE1_REQUESTS_PER_STATION" => "1000"
+        "HISTORY_DEEP_BACKFILL_BATCH" => "400"
       ) do
+        Usgs::RateLimitCircuit.open!(key_id: "history_daily", ttl: 1.minute)
+
         assert_enqueued_with(job: HistoryBackfillJob, args: [ cold.id, "1y" ]) do
           assert_equal 1, HistoryBackfillBatchJob.perform_now
         end
@@ -200,38 +198,28 @@ class HistoryBackfillBatchJobTest < ActiveSupport::TestCase
     end
   end
 
-  test "skips when remaining hourly request budget is exhausted" do
-    begin
-      Redis.new(RedisConfig.options).ping
-    rescue Redis::BaseError
-      skip "Redis unavailable"
-    end
-
+  test "skips when all purpose-pinned history circuits are open" do
     needs = create(:monitoring_location, site_number: "30000060")
     create(:time_series, monitoring_location: needs, selected_for_display: true)
 
-    with_env("USGS_HOURLY_SOFT_CAP" => "1") do
-      travel_to Time.utc(2026, 8, 3, 12, 0, 0) do # Monday
-        Usgs::HourlyRequestBudget.clear_all!
-        # Fallback tip key is the only history entry when history keys are unset.
-        Usgs::HourlyRequestBudget.record!(Usgs::RateLimitCircuit::TIP_KEY)
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      with_env(
+        "USGS_API_HISTORY_CONTINUOUS_KEY" => "hist-continuous",
+        "USGS_API_HISTORY_DAILY_KEY" => "hist-daily",
+        "USGS_API_HISTORY_PEAKS_KEY" => "hist-peaks"
+      ) do
+        Usgs::RateLimitCircuit.open!(key_id: "history_continuous", ttl: 1.minute)
+        Usgs::RateLimitCircuit.open!(key_id: "history_daily", ttl: 1.minute)
+        Usgs::RateLimitCircuit.open!(key_id: "history_peaks", ttl: 1.minute)
 
         assert_no_enqueued_jobs only: HistoryBackfillJob do
           assert_equal 0, HistoryBackfillBatchJob.perform_now(10)
         end
       end
-    ensure
-      Usgs::HourlyRequestBudget.clear_all!
     end
   end
 
   private
-
-  def clear_shared_request_budget!
-    Usgs::HourlyRequestBudget.clear_all!
-  rescue Redis::BaseError
-    nil
-  end
 
   def with_env(vars)
     previous = vars.keys.index_with { |key| ENV[key] }

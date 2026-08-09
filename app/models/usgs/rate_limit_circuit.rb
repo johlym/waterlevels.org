@@ -2,8 +2,9 @@ module Usgs
   # When USGS returns 429, trip this circuit so already-queued jobs stop hammering
   # the hourly request budget instead of retrying into a backlog.
   #
-  # Circuits are per API-key identity (`tip`, `history_1`, `history_2`, …) so a
-  # history-key 429 does not darken latest/catalog tip sync, and vice versa.
+  # Circuits are per API-key identity (`tip`, `history_continuous`,
+  # `history_daily`, `history_peaks`) so a purpose-key 429 does not darken the
+  # other history purposes or latest/catalog tip sync.
   class RateLimitCircuit
     KEY_PREFIX = "usgs:rate_limit_circuit"
     TIP_KEY = "tip"
