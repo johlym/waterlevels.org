@@ -1,0 +1,5 @@
+# historical_worker: history backfill batch/jobs + daily archive export (queue: backfill).
+# 512MB eco dyno — single thread.
+:concurrency: 1
+:queues:
+  - backfill

@@ -1,0 +1,5 @@
+# sync_worker: catalog, latest tip, flood, bootstrap (queue: sync).
+# 512MB eco dyno — single thread.
+:concurrency: 1
+:queues:
+  - sync
