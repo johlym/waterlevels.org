@@ -103,9 +103,53 @@ module DailyArchive
 
       output = io.string
       assert_match(/starting retention handoff \+ postgres prune/, output)
-      assert_match(/iv prune scanning candidates=/, output)
-      assert_match(/daily prune scanning candidates=/, output)
+      assert_match(/iv prune series=/, output)
+      assert_match(/daily prune series=/, output)
       assert_match(/daily prune done deleted=1/, output)
+    end
+
+    test "prunes archived IV by local day without leaving tip rows" do
+      zone = ActiveSupport::TimeZone["America/Los_Angeles"]
+      # Older than 35-day retention relative to @as_of (2026-08-07).
+      old_day = Date.new(2026, 6, 20)
+      tip_day = Date.new(2026, 8, 1)
+      Writer.new(store: @store).upsert(
+        time_series_id: @series.id,
+        points: [ { "d" => old_day.iso8601, "v" => 4.0, "s" => "usgs" } ]
+      )
+
+      old_t = zone.local(old_day.year, old_day.month, old_day.day, 0, 0, 0)
+      4.times do
+        ContinuousObservation.create!(time_series: @series, observed_at: old_t, value: 4.0)
+        old_t += 15.minutes
+      end
+      tip_t = zone.local(tip_day.year, tip_day.month, tip_day.day, 12, 0, 0)
+      ContinuousObservation.create!(time_series: @series, observed_at: tip_t, value: 5.0)
+
+      stats = Retention.new(store: @store, as_of: @as_of, client: nil).perform
+      assert_equal 4, stats[:iv_deleted]
+      assert_equal 0, stats[:iv_prune_blocked]
+      assert_equal 1, ContinuousObservation.where(time_series_id: @series.id).count
+      assert_equal tip_t, ContinuousObservation.find_by!(time_series_id: @series.id).observed_at
+    end
+
+    test "blocks IV prune for unarchived cutoff-day rows still inside retry window" do
+      zone = ActiveSupport::TimeZone["America/Los_Angeles"]
+      # Retention cutoff is 2026-07-03 12:00 UTC. Local July 3 morning points are
+      # older than cutoff but the local calendar day is not yet past_retry_window?
+      # (day < cutoff.to_date). Coverage is too thin to derive, so prune blocks.
+      day = Date.new(2026, 7, 3)
+      t = zone.local(day.year, day.month, day.day, 0, 0, 0)
+      3.times do
+        ContinuousObservation.create!(time_series: @series, observed_at: t, value: 1.0)
+        t += 15.minutes
+      end
+
+      stats = Retention.new(store: @store, as_of: @as_of, client: nil).perform
+      assert_equal 0, stats[:derived]
+      assert_equal 0, stats[:iv_deleted]
+      assert_equal 3, stats[:iv_prune_blocked]
+      assert_equal 3, ContinuousObservation.where(time_series_id: @series.id).count
     end
 
     test "counts lock-busy archive writes as retrying without aborting prune" do

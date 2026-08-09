@@ -3,10 +3,11 @@ module DailyArchive
   #
   # Invariant: never prune IV for local day D until R2 has D (usgs or derived)
   # or D is an explicit alerted gap.
+  #
+  # IV/daily GC is day-oriented: decide per (series, local day), then DELETE by
+  # indexed time/date ranges. Avoids scanning every tip row into a giant Ruby
+  # id list on large fleets.
   class Retention
-    SCAN_LOG_EVERY = 10_000
-    DELETE_BATCH_LOG_EVERY = 10
-
     def initialize(store: DailyArchive.store, writer: nil, as_of: Time.current, client: nil, progress: nil)
       @store = store
       @writer = writer || Writer.new(store: store)
@@ -93,13 +94,14 @@ module DailyArchive
 
     def aged_local_days(series, frontier)
       zone = local_zone(series.monitoring_location)
+      tz = postgres_time_zone_name(zone)
       ContinuousObservation
         .where(time_series_id: series.id)
         .where("observed_at < ?", frontier)
-        .pluck(:observed_at)
-        .map { |t| t.in_time_zone(zone).to_date }
-        .uniq
-        .sort
+        .distinct
+        .order(Arel.sql("1"))
+        .pluck(Arel.sql(local_date_sql(tz)))
+        .map { |day| day.is_a?(Date) ? day : Date.parse(day.to_s) }
     end
 
     def ensure_day!(series, day)
@@ -204,49 +206,57 @@ module DailyArchive
 
     def prune_continuous!
       cutoff = HistoryIngestion::CONTINUOUS_RETENTION.ago(@as_of)
-      gaps_alerted = 0
       blocked = 0
-      deletable_ids = []
-      series_cache = {}
-      candidates = ContinuousObservation.where("observed_at < ?", cutoff)
-      candidate_count = candidates.count
+      deleted = 0
+
+      # Defensive: drop tip rows whose series is gone (FK normally prevents this).
+      orphan_scope = ContinuousObservation
+        .where("observed_at < ?", cutoff)
+        .where.not(time_series_id: TimeSeries.select(:id))
+      orphan_count = orphan_scope.count
+      if orphan_count.positive?
+        @progress&.step("iv prune deleting orphan rows=#{orphan_count}")
+        deleted += orphan_scope.delete_all
+      end
+
+      series_ids = ContinuousObservation
+        .where("observed_at < ?", cutoff)
+        .distinct
+        .pluck(:time_series_id)
+      total_series = series_ids.size
       @progress&.step(
-        "iv prune scanning candidates=#{candidate_count} cutoff=#{cutoff.utc.iso8601}"
+        "iv prune series=#{total_series} cutoff=#{cutoff.utc.iso8601} " \
+        "(day-oriented GC; no per-row ID scan)"
       )
 
-      scanned = 0
-      candidates
-        .select(:id, :time_series_id, :observed_at)
-        .find_each do |row|
-          series = series_cache[row.time_series_id] ||=
-            TimeSeries.includes(:monitoring_location).find_by(id: row.time_series_id)
-          unless series
-            deletable_ids << row.id
-            scanned += 1
-            log_scan_progress("iv prune", scanned, candidate_count, deletable_ids.size, blocked)
-            next
-          end
-
-          day = row.observed_at.in_time_zone(local_zone(series.monitoring_location)).to_date
+      processed = 0
+      TimeSeries.where(id: series_ids).includes(:monitoring_location).find_each do |series|
+        zone = local_zone(series.monitoring_location)
+        aged_local_days(series, cutoff).each do |day|
+          day_scope = continuous_day_scope(series.id, zone, day, before: cutoff)
           if archived_day?(series.id, day) || gap_alerted?(series.id, day)
-            deletable_ids << row.id
+            deleted += day_scope.delete_all
           elsif past_retry_window?(day)
             alert_gap!(series, day)
-            deletable_ids << row.id
+            deleted += day_scope.delete_all
           else
-            blocked += 1
+            blocked += day_scope.count
           end
-          scanned += 1
-          log_scan_progress("iv prune", scanned, candidate_count, deletable_ids.size, blocked)
         end
+
+        processed += 1
+        if (processed % 50).zero? || processed == total_series
+          @progress&.step(
+            "iv prune series=#{processed}/#{total_series} " \
+            "deleted=#{deleted} blocked=#{blocked} gaps_alerted=#{@gap_days.size}"
+          )
+        end
+      end
 
       gaps_alerted = @gap_days.size
       @progress&.step(
-        "iv prune scan complete scanned=#{scanned}/#{candidate_count} " \
-        "deletable=#{deletable_ids.size} blocked=#{blocked} gaps_alerted=#{gaps_alerted}"
+        "iv prune complete deleted=#{deleted} blocked=#{blocked} gaps_alerted=#{gaps_alerted}"
       )
-
-      deleted = delete_in_batches(ContinuousObservation, deletable_ids, label: "iv prune")
       { deleted: deleted, blocked: blocked, gaps_alerted: gaps_alerted }
     end
 
@@ -273,31 +283,44 @@ module DailyArchive
     def prune_daily!
       if DailyArchive.prune_enabled?
         # Drain every Postgres daily that already exists in R2 — no scratch tip.
-        deletable_ids = []
+        # Work per series so we load each year shard once and delete by date list
+        # instead of accumulating every row id in Ruby.
         blocked = 0
-        day_cache = {}
-        candidate_count = DailyObservation.count
-        @progress&.step("daily prune scanning candidates=#{candidate_count} (R2 drain mode)")
-
-        scanned = 0
-        DailyObservation.select(:id, :time_series_id, :observed_on).find_each do |row|
-          cache_key = [ row.time_series_id, row.observed_on.year ]
-          archived_days = day_cache[cache_key] ||= archived_days_for(row.time_series_id, row.observed_on.year)
-          if archived_days.include?(row.observed_on.iso8601)
-            deletable_ids << row.id
-          else
-            blocked += 1
-          end
-          scanned += 1
-          log_scan_progress("daily prune", scanned, candidate_count, deletable_ids.size, blocked)
-        end
-
+        deleted = 0
+        series_ids = DailyObservation.distinct.pluck(:time_series_id)
+        total_series = series_ids.size
         @progress&.step(
-          "daily prune scan complete scanned=#{scanned}/#{candidate_count} " \
-          "deletable=#{deletable_ids.size} blocked=#{blocked}"
+          "daily prune series=#{total_series} (R2 drain mode; day-oriented GC)"
         )
 
-        deleted = delete_in_batches(DailyObservation, deletable_ids, label: "daily prune")
+        processed = 0
+        series_ids.each do |time_series_id|
+          days_by_year = DailyObservation
+            .where(time_series_id: time_series_id)
+            .pluck(:observed_on)
+            .group_by(&:year)
+
+          days_by_year.each do |year, days|
+            archived_days = archived_days_for(time_series_id, year)
+            deletable_days = days.select { |day| archived_days.include?(day.iso8601) }
+            blocked += days.size - deletable_days.size
+            next if deletable_days.empty?
+
+            deleted += DailyObservation
+              .where(time_series_id: time_series_id, observed_on: deletable_days)
+              .delete_all
+          end
+
+          processed += 1
+          if (processed % 50).zero? || processed == total_series
+            @progress&.step(
+              "daily prune series=#{processed}/#{total_series} " \
+              "deleted=#{deleted} blocked=#{blocked}"
+            )
+          end
+        end
+
+        @progress&.step("daily prune complete deleted=#{deleted} blocked=#{blocked}")
         { deleted: deleted, blocked: blocked }
       else
         cutoff_day = HistoryIngestion::DAILY_RETENTION.ago(@as_of).to_date
@@ -311,42 +334,22 @@ module DailyArchive
       end
     end
 
-    def delete_in_batches(model, ids, label:)
-      total = ids.size
-      return 0 if total.zero?
-
-      total_batches = (total / 1_000.0).ceil
-      @progress&.step("#{label} deleting rows=#{total} batches=#{total_batches}")
-
-      deleted = 0
-      batch_num = 0
-      ids.each_slice(1_000) do |batch_ids|
-        batch_num += 1
-        deleted += model.where(id: batch_ids).delete_all
-        if (batch_num % DELETE_BATCH_LOG_EVERY).zero? || batch_num == total_batches
-          @progress&.step(
-            "#{label} delete batch=#{batch_num}/#{total_batches} " \
-            "deleted=#{deleted}/#{total}#{pct_suffix(deleted, total)}"
-          )
-        end
-      end
-      deleted
+    def continuous_day_scope(time_series_id, zone, day, before:)
+      day_start = zone.local(day.year, day.month, day.day)
+      day_end = day_start + 1.day
+      ContinuousObservation
+        .where(time_series_id: time_series_id)
+        .where("observed_at >= ? AND observed_at < ?", day_start, day_end)
+        .where("observed_at < ?", before)
     end
 
-    def log_scan_progress(label, scanned, total, deletable, blocked)
-      return unless @progress
-      return unless (scanned % SCAN_LOG_EVERY).zero? || scanned == total
-
-      @progress.step(
-        "#{label} scanned=#{scanned}/#{total}#{pct_suffix(scanned, total)} " \
-        "deletable=#{deletable} blocked=#{blocked}"
-      )
+    def local_date_sql(tz)
+      quoted = ActiveRecord::Base.connection.quote(tz)
+      "((observed_at AT TIME ZONE 'UTC') AT TIME ZONE #{quoted})::date"
     end
 
-    def pct_suffix(done, total)
-      return "" if total.to_i <= 0
-
-      " (#{((done.to_f / total) * 100).round(1)}%)"
+    def postgres_time_zone_name(zone)
+      zone.tzinfo&.name.presence || zone.name
     end
 
     def archived_day?(time_series_id, day)
