@@ -154,10 +154,16 @@ class StationCatalogSync
         lon = item["longitude"] || item["dec_long_va"]
         next if site_number.blank? || lat.blank? || lon.blank?
 
-        raw_state = item["state_code"].to_s
-        next if raw_state.blank?
-
-        state_code = Usgs::StateCodes.normalize_postal(raw_state)
+        # National latest-continuous discovery includes sites in Canada/Mexico
+        # (USGS FIPS 81–86 / 90–98). Skip jurisdictions we do not catalog —
+        # raising here would abort the whole weekly StationCatalogSyncJob.
+        state_code = Usgs::StateCodes.try_normalize_postal(item["state_code"])
+        unless state_code
+          if ENV["USGS_VERBOSE"]
+            progress&.step("skip unsupported state #{usgs_id} state_code=#{item["state_code"]}")
+          end
+          next
+        end
         next if postal_code && state_code != postal_code
 
         name = item["monitoring_location_name"].presence || "Site #{site_number}"

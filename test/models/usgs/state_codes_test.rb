@@ -11,6 +11,16 @@ module Usgs
 
     test "rejects unknown states" do
       assert_raises(ArgumentError) { StateCodes.normalize_postal("zz") }
+      assert_raises(ArgumentError) { StateCodes.normalize_postal("95") }
+    end
+
+    test "try_normalize_postal soft-fails for Canadian and unknown FIPS" do
+      assert_equal "wa", StateCodes.try_normalize_postal("53")
+      assert_nil StateCodes.try_normalize_postal("95")
+      assert_nil StateCodes.try_normalize_postal("zz")
+      assert_nil StateCodes.try_normalize_postal("")
+      assert_equal false, StateCodes.known?("95")
+      assert_equal true, StateCodes.known?("wa")
     end
 
     test "match_query finds states by name, prefix, and postal code" do
