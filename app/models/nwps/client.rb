@@ -39,27 +39,30 @@ module Nwps
       end
     end
 
-    # Returns the national NWPS gauge list (status + LID; no usgsId / thresholds).
-    # Optional bbox hash: { xmin:, ymin:, xmax:, ymax:, srid: "EPSG_4326" }.
-    def gauges(bbox: nil)
+    # Returns the NWPS gauge list for one state (status + LID; no usgsId /
+    # thresholds). +state+ is required so callers cannot request the unbounded
+    # national payload that NWPS often 504s on.
+    def gauges(state:)
+      postal = Usgs::StateCodes.normalize_postal(state)
+      bbox = Usgs::StateCodes.bbox_for(postal)
+
       Telemetry.in_span(
         "nwps.http.gauges",
         attributes: {
           "http.request.method" => "GET",
-          "app.operation" => "nwps.http.gauges"
+          "app.operation" => "nwps.http.gauges",
+          "app.state" => postal
         }
       ) do
         pause_between_requests!
         response = @connection.get("gauges") do |req|
           req.headers["Accept"] = "application/json"
           req.options.timeout = LIST_TIMEOUT_SECONDS
-          if bbox
-            req.params["bbox.xmin"] = bbox[:xmin]
-            req.params["bbox.ymin"] = bbox[:ymin]
-            req.params["bbox.xmax"] = bbox[:xmax]
-            req.params["bbox.ymax"] = bbox[:ymax]
-            req.params["srid"] = bbox[:srid] || "EPSG_4326"
-          end
+          req.params["bbox.xmin"] = bbox.fetch(:xmin)
+          req.params["bbox.ymin"] = bbox.fetch(:ymin)
+          req.params["bbox.xmax"] = bbox.fetch(:xmax)
+          req.params["bbox.ymax"] = bbox.fetch(:ymax)
+          req.params["srid"] = "EPSG_4326"
         end
         body = handle_response(response)
         gauges = Array(body["gauges"])

@@ -17,8 +17,7 @@ class FloodStageSyncTest < ActiveSupport::TestCase
   end
 
   test "applies NWPS thresholds and observed flood category" do
-    stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges")
-      .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { gauges: [] }.to_json)
+    stub_nwps_gauges(gauges: [])
     stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges/01646500")
       .to_return(
         status: 200,
@@ -71,23 +70,18 @@ class FloodStageSyncTest < ActiveSupport::TestCase
     )
     @unmatched.update!(nwps_matched: false, nwps_synced_at: 1.day.ago)
 
-    stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges")
-      .to_return(
-        status: 200,
-        headers: { "Content-Type" => "application/json" },
-        body: {
-          gauges: [
-            {
-              lid: "BRKM2",
-              state: { abbreviation: "WA" },
-              status: {
-                observed: { floodCategory: "minor", validTime: "2026-08-03T04:15:00Z" },
-                forecast: { floodCategory: "action", validTime: "2026-08-03T06:00:00Z" }
-              }
-            }
-          ]
-        }.to_json
-      )
+    stub_nwps_gauges(
+      gauges: [
+        {
+          lid: "BRKM2",
+          state: { abbreviation: "WA" },
+          status: {
+            observed: { floodCategory: "minor", validTime: "2026-08-03T04:15:00Z" },
+            forecast: { floodCategory: "action", validTime: "2026-08-03T06:00:00Z" }
+          }
+        }
+      ]
+    )
 
     FloodStageSync.new(state: "wa").perform
 
@@ -107,41 +101,37 @@ class FloodStageSyncTest < ActiveSupport::TestCase
       state_name: "Texas",
       has_water_level: true
     )
-    @location.update!(nwps_matched: false, nwps_synced_at: 1.day.ago)
-    @unmatched.update!(nwps_matched: false, nwps_synced_at: 1.day.ago)
+    # Keep WA fixtures out of detail sync while the national run walks states.
+    @location.update!(nwps_matched: true, nwps_lid: "KEEP", nwps_synced_at: 1.hour.ago)
+    @unmatched.update!(nwps_matched: false, nwps_synced_at: 1.hour.ago)
 
-    stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges")
-      .to_return(
-        status: 200,
-        headers: { "Content-Type" => "application/json" },
-        body: {
-          gauges: [
-            {
-              lid: "THET2",
-              state: { abbreviation: "TX" },
-              status: {
-                observed: { floodCategory: "major", validTime: "2026-08-03T04:15:00Z" },
-                forecast: { floodCategory: "major", validTime: "2026-08-03T06:00:00Z" }
-              }
-            },
-            {
-              lid: "TILT2",
-              state: { abbreviation: "TX" },
-              status: {
-                observed: { floodCategory: "moderate", validTime: "2026-08-03T04:00:00Z" },
-                forecast: { floodCategory: "moderate", validTime: "2026-08-03T06:00:00Z" }
-              }
-            },
-            {
-              lid: "QUIET",
-              state: { abbreviation: "TX" },
-              status: {
-                observed: { floodCategory: "no_flooding", validTime: "2026-08-03T04:00:00Z" }
-              }
-            }
-          ]
-        }.to_json
-      )
+    stub_nwps_gauges(
+      gauges: [
+        {
+          lid: "THET2",
+          state: { abbreviation: "TX" },
+          status: {
+            observed: { floodCategory: "major", validTime: "2026-08-03T04:15:00Z" },
+            forecast: { floodCategory: "major", validTime: "2026-08-03T06:00:00Z" }
+          }
+        },
+        {
+          lid: "TILT2",
+          state: { abbreviation: "TX" },
+          status: {
+            observed: { floodCategory: "moderate", validTime: "2026-08-03T04:00:00Z" },
+            forecast: { floodCategory: "moderate", validTime: "2026-08-03T06:00:00Z" }
+          }
+        },
+        {
+          lid: "QUIET",
+          state: { abbreviation: "TX" },
+          status: {
+            observed: { floodCategory: "no_flooding", validTime: "2026-08-03T04:00:00Z" }
+          }
+        }
+      ]
+    )
     stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges/THET2")
       .to_return(
         status: 200,
@@ -195,8 +185,7 @@ class FloodStageSyncTest < ActiveSupport::TestCase
   end
 
   test "uses more severe forecast category when observed is not current" do
-    stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges")
-      .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { gauges: [] }.to_json)
+    stub_nwps_gauges(gauges: [])
     stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges/01646500")
       .to_return(
         status: 200,
@@ -220,8 +209,7 @@ class FloodStageSyncTest < ActiveSupport::TestCase
 
   test "skips unmatched sites that were checked recently" do
     @unmatched.update!(nwps_matched: false, nwps_synced_at: 1.day.ago)
-    stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges")
-      .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { gauges: [] }.to_json)
+    stub_nwps_gauges(gauges: [])
     stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges/01646500")
       .to_return(
         status: 200,
@@ -247,8 +235,7 @@ class FloodStageSyncTest < ActiveSupport::TestCase
     )
     @unmatched.update!(nwps_matched: false, nwps_synced_at: 1.day.ago)
 
-    stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges")
-      .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { gauges: [] }.to_json)
+    stub_nwps_gauges(gauges: [])
 
     FloodStageSync.new(state: "wa").perform
 
@@ -269,26 +256,52 @@ class FloodStageSyncTest < ActiveSupport::TestCase
     @unmatched.update!(nwps_matched: false, nwps_synced_at: 1.day.ago)
     prior_updated_at = @location.reload.updated_at
 
-    stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges")
-      .to_return(
-        status: 200,
-        headers: { "Content-Type" => "application/json" },
-        body: {
-          gauges: [
-            {
-              lid: "BRKM2",
-              state: { abbreviation: "WA" },
-              status: {
-                observed: { floodCategory: "minor", validTime: "2026-08-03T04:15:00Z" }
-              }
-            }
-          ]
-        }.to_json
-      )
+    stub_nwps_gauges(
+      gauges: [
+        {
+          lid: "BRKM2",
+          state: { abbreviation: "WA" },
+          status: {
+            observed: { floodCategory: "minor", validTime: "2026-08-03T04:15:00Z" }
+          }
+        }
+      ]
+    )
 
     assert_no_changes -> { @location.reload.updated_at.to_i } do
       FloodStageSync.new(state: "wa").perform
     end
     assert_equal prior_updated_at.to_i, @location.reload.updated_at.to_i
+  end
+
+  test "list fetch uses the state bbox and never requests the national gauges list" do
+    stub_nwps_gauges(gauges: [])
+    stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges/01646500")
+      .to_return(status: 404, body: "{}")
+    stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges/99999999")
+      .to_return(status: 404, body: "{}")
+
+    FloodStageSync.new(state: "wa").perform
+
+    bbox = Usgs::StateCodes.bbox_for("wa")
+    assert_requested :get, "https://api.water.noaa.gov/nwps/v1/gauges",
+      query: {
+        "bbox.xmin" => bbox.fetch(:xmin).to_s,
+        "bbox.ymin" => bbox.fetch(:ymin).to_s,
+        "bbox.xmax" => bbox.fetch(:xmax).to_s,
+        "bbox.ymax" => bbox.fetch(:ymax).to_s,
+        "srid" => "EPSG_4326"
+      }
+  end
+
+  private
+
+  def stub_nwps_gauges(gauges:)
+    stub_request(:get, %r{\Ahttps://api\.water\.noaa\.gov/nwps/v1/gauges\?})
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: { gauges: gauges }.to_json
+      )
   end
 end
