@@ -111,4 +111,3 @@ class AccessibilitySmokeTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "aria-label="
   end
 end
-

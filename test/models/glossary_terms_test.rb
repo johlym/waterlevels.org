@@ -22,4 +22,3 @@ class GlossaryTermsTest < ActiveSupport::TestCase
     assert_includes GlossaryTerms.definition_for("Flood stage"), "overflow"
   end
 end
-

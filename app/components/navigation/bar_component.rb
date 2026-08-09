@@ -18,4 +18,3 @@ module Navigation
     end
   end
 end
-

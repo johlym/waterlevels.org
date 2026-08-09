@@ -9,4 +9,3 @@ module Footer
     end
   end
 end
-

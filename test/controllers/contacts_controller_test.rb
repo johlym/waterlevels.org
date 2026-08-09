@@ -57,4 +57,3 @@ class ContactsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Email hello@waterlevels.org"
   end
 end
-
