@@ -52,7 +52,7 @@ Hourly HistoryBackfillBatchJob (history API keys only):
 
 Concrete rules:
 
-1. **History key pool.** Backfill uses dedicated history keys (`USGS_API_HISTORY_*_KEY` via `Usgs::Client.for_history`); tip/catalog stays on `USGS_API_KEY`. Per-key circuits so one 429 does not darken the pool or tip sync.
+1. **History key pool.** Backfill uses purpose-pinned history keys (`USGS_API_HISTORY_CONTINUOUS_KEY` / `_DAILY_KEY` / `_PEAKS_KEY` via `Usgs::Client.for_history(purpose)`); tip/catalog stays on `USGS_API_KEY`. Per-purpose circuits so one 429 does not darken the other purposes or tip sync.
 2. **Wide before deep.** Advance all stations through the shallowest incomplete hourly tier before spending budget on deeper tiers. Lazy gauge views enqueue only the shallowest needed tier — never POR.
 3. **Slot caps.** Explicit per-tier budgets on the Mon–Sat hourly batch; sum of slots is the dial. Never unbounded `find_each` against USGS in the scheduler.
 4. **Gap-only + chunked continuous.** Request only missing older windows; respect USGS ~3y/request continuous cap (prefer ~1y chunks). Downsample each page to hourly before upsert.

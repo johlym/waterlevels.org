@@ -57,11 +57,13 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
 
   test "enqueue still works when only the tip circuit is open if history keys exist" do
     previous = {
-      "USGS_API_HISTORY_1_KEY" => ENV["USGS_API_HISTORY_1_KEY"],
-      "USGS_API_HISTORY_2_KEY" => ENV["USGS_API_HISTORY_2_KEY"]
+      "USGS_API_HISTORY_CONTINUOUS_KEY" => ENV["USGS_API_HISTORY_CONTINUOUS_KEY"],
+      "USGS_API_HISTORY_DAILY_KEY" => ENV["USGS_API_HISTORY_DAILY_KEY"],
+      "USGS_API_HISTORY_PEAKS_KEY" => ENV["USGS_API_HISTORY_PEAKS_KEY"]
     }
-    ENV["USGS_API_HISTORY_1_KEY"] = "hist-1"
-    ENV["USGS_API_HISTORY_2_KEY"] = "hist-2"
+    ENV["USGS_API_HISTORY_CONTINUOUS_KEY"] = "hist-continuous"
+    ENV["USGS_API_HISTORY_DAILY_KEY"] = "hist-daily"
+    ENV["USGS_API_HISTORY_PEAKS_KEY"] = "hist-peaks"
 
     travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
       Usgs::RateLimitCircuit.open!(key_id: Usgs::RateLimitCircuit::TIP_KEY, ttl: 1.minute)

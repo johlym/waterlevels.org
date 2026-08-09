@@ -106,9 +106,10 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
 
     get admin_dashboard_section_path(section: :health)
     assert_response :success
-    assert_includes response.body, "History pool used"
-    assert_includes response.body, "History pool remaining"
-    assert_includes response.body, "Per-key hourly budget"
+    assert_includes response.body, "API keys"
+    assert_includes response.body, "history_continuous"
+    assert_includes response.body, "history_daily"
+    assert_includes response.body, "history_peaks"
     assert_includes response.body, "Sidekiq UI"
   end
 

@@ -298,7 +298,7 @@ module DailyArchive
       return @client if @client
       return nil if Rails.env.test?
 
-      @client = Usgs::Client.for_history
+      @client = Usgs::Client.for_history(:daily)
     rescue StandardError
       nil
     end

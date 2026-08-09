@@ -29,7 +29,10 @@ class HistoryIngestion
   def initialize(monitoring_location:, range: DEFAULT_RANGE, client: nil, progress: nil)
     @monitoring_location = monitoring_location
     @range = range
-    @client = client || Usgs::Client.for_history
+    # Optional shared client for tests; production resolves a purpose-pinned
+    # client per collection (continuous / daily / peaks).
+    @client = client
+    @clients = {}
     @progress = progress
   end
 
@@ -44,8 +47,7 @@ class HistoryIngestion
         "app.usgs_monitoring_location_id" => monitoring_location.usgs_monitoring_location_id,
         "app.location_name" => monitoring_location.display_name,
         "app.state" => monitoring_location.state_code,
-        "app.range" => range.to_s,
-        "app.circuit_key" => client.circuit_key
+        "app.range" => range.to_s
       }
     ) do
       progress&.step("site=#{monitoring_location.site_number} range=#{range}")
@@ -86,6 +88,19 @@ class HistoryIngestion
 
 
   private
+
+  def client_for(purpose)
+    return @client if @client
+
+    @clients[purpose] ||= Usgs::Client.for_history(purpose)
+  end
+
+  def with_purpose_client(purpose)
+    client_for(purpose)
+  rescue Usgs::Client::RateLimitError => e
+    progress&.step("#{purpose} skipped (#{e.message})")
+    nil
+  end
 
   def continuous_range?
     %w[24h 7d 30d 1y 3y].include?(range)
@@ -314,44 +329,57 @@ class HistoryIngestion
         "app.parameter_code_count" => series_list.map(&:parameter_code).uniq.size
       }
     ) do
-      progress&.step("continuous location batch parameters=#{codes} ranges=#{ranges.size}")
+      client = with_purpose_client(:continuous)
+      return 0 unless client
+
+      progress&.step(
+        "continuous location batch parameters=#{codes} ranges=#{ranges.size} " \
+        "circuit=#{client.circuit_key}"
+      )
       count = 0
       buffer = []
-      ranges.each do |starts, ends|
-        datetime = "#{starts.iso8601}/#{ends.iso8601}"
-        client.each_collection_item(
-          "continuous",
-          monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
-          parameter_code: codes,
-          datetime: datetime
-        ) do |item|
-          series = resolve_series(item, series_list)
-          next unless series
+      begin
+        ranges.each do |starts, ends|
+          datetime = "#{starts.iso8601}/#{ends.iso8601}"
+          client.each_collection_item(
+            "continuous",
+            monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
+            parameter_code: codes,
+            datetime: datetime
+          ) do |item|
+            series = resolve_series(item, series_list)
+            next unless series
 
-          observed_at = Time.zone.parse(item["time"] || item["datetime"].to_s) rescue nil
-          value = item["value"]
-          next if observed_at.blank? || value.blank?
-          next if temperature_outlier?(series, value)
+            observed_at = Time.zone.parse(item["time"] || item["datetime"].to_s) rescue nil
+            value = item["value"]
+            next if observed_at.blank? || value.blank?
+            next if temperature_outlier?(series, value)
 
-          now = Time.current
-          buffer << {
-            time_series_id: series.id,
-            observed_at: observed_at,
-            value: value,
-            approval_status: item["approval_status"],
-            qualifier: item["qualifier"],
-            created_at: now,
-            updated_at: now
-          }
-          if buffer.size >= CONTINUOUS_UPSERT_BATCH
-            flush_continuous_buffer!(buffer)
+            now = Time.current
+            buffer << {
+              time_series_id: series.id,
+              observed_at: observed_at,
+              value: value,
+              approval_status: item["approval_status"],
+              qualifier: item["qualifier"],
+              created_at: now,
+              updated_at: now
+            }
+            if buffer.size >= CONTINUOUS_UPSERT_BATCH
+              flush_continuous_buffer!(buffer)
+            end
+            count += 1
+            progress&.increment
           end
-          count += 1
-          progress&.increment
         end
+      rescue Usgs::Client::RateLimitError => e
+        progress&.step("continuous stopped (#{e.message})")
       end
       flush_continuous_buffer!(buffer)
-      Telemetry.add_attributes("app.observation_count" => count)
+      Telemetry.add_attributes(
+        "app.observation_count" => count,
+        "app.circuit_key" => client.circuit_key
+      )
       progress&.step("continuous upserted=#{count}")
       count
     end
@@ -394,42 +422,55 @@ class HistoryIngestion
         "app.parameter_code_count" => series_list.map(&:parameter_code).uniq.size
       }
     ) do
-      progress&.step("daily location batch parameters=#{codes} ranges=#{ranges.size}")
+      client = with_purpose_client(:daily)
+      return 0 unless client
+
+      progress&.step(
+        "daily location batch parameters=#{codes} ranges=#{ranges.size} " \
+        "circuit=#{client.circuit_key}"
+      )
       count = 0
       archive_buffer = Hash.new { |h, k| h[k] = [] }
-      ranges.each do |start_date, end_date|
-        client.each_collection_item(
-          "daily",
-          monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
-          parameter_code: codes,
-          datetime: "#{start_date.iso8601}/#{end_date.iso8601}"
-        ) do |item|
-          series = resolve_series(item, series_list)
-          next unless series
+      begin
+        ranges.each do |start_date, end_date|
+          client.each_collection_item(
+            "daily",
+            monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
+            parameter_code: codes,
+            datetime: "#{start_date.iso8601}/#{end_date.iso8601}"
+          ) do |item|
+            series = resolve_series(item, series_list)
+            next unless series
 
-          day = Date.parse(item["time"] || item["date"] || item["datetime"].to_s) rescue nil
-          value = item["value"]
-          next if day.blank? || value.blank?
-          next if temperature_outlier?(series, value)
+            day = Date.parse(item["time"] || item["date"] || item["datetime"].to_s) rescue nil
+            value = item["value"]
+            next if day.blank? || value.blank?
+            next if temperature_outlier?(series, value)
 
-          point = {
-            "d" => day.iso8601,
-            "v" => value.to_f,
-            "s" => DailyArchive::SOURCE_USGS,
-            "a" => item["approval_status"],
-            "qualifier" => item["qualifier"]
-          }
-          if DailyArchive.archive_writes_enabled?
-            archive_buffer[series.id] << point
-          else
-            upsert_postgres_daily!(series, day, item)
+            point = {
+              "d" => day.iso8601,
+              "v" => value.to_f,
+              "s" => DailyArchive::SOURCE_USGS,
+              "a" => item["approval_status"],
+              "qualifier" => item["qualifier"]
+            }
+            if DailyArchive.archive_writes_enabled?
+              archive_buffer[series.id] << point
+            else
+              upsert_postgres_daily!(series, day, item)
+            end
+            count += 1
+            progress&.increment
           end
-          count += 1
-          progress&.increment
         end
+      rescue Usgs::Client::RateLimitError => e
+        progress&.step("daily stopped (#{e.message})")
       end
       flush_daily_archive!(archive_buffer)
-      Telemetry.add_attributes("app.observation_count" => count)
+      Telemetry.add_attributes(
+        "app.observation_count" => count,
+        "app.circuit_key" => client.circuit_key
+      )
       progress&.step("daily upserted=#{count}")
       count
     end
@@ -500,40 +541,50 @@ class HistoryIngestion
         "app.parameter_code_count" => series_list.map(&:parameter_code).uniq.size
       }
     ) do
-      progress&.step("peaks location batch parameters=#{codes}")
+      client = with_purpose_client(:peaks)
+      return 0 unless client
+
+      progress&.step("peaks location batch parameters=#{codes} circuit=#{client.circuit_key}")
       count = 0
-      client.each_collection_item(
-        "peaks",
-        monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
-        parameter_code: codes
-      ) do |item|
-        series = resolve_series(item, series_list)
-        next unless series
+      begin
+        client.each_collection_item(
+          "peaks",
+          monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
+          parameter_code: codes
+        ) do |item|
+          series = resolve_series(item, series_list)
+          next unless series
 
-        value = item["value"]
-        observed_at = Time.zone.parse(item["time"] || item["datetime"].to_s) rescue nil
-        next if value.blank?
+          value = item["value"]
+          observed_at = Time.zone.parse(item["time"] || item["datetime"].to_s) rescue nil
+          next if value.blank?
 
-        water_year = item["water_year"] || (observed_at && water_year_for(observed_at))
-        next if water_year.blank?
+          water_year = item["water_year"] || (observed_at && water_year_for(observed_at))
+          next if water_year.blank?
 
-        PeakObservation.upsert(
-          {
-            time_series_id: series.id,
-            water_year: water_year.to_i,
-            observed_at: observed_at,
-            value: value,
-            peak_kind: "high",
-            approval_status: item["approval_status"],
-            created_at: Time.current,
-            updated_at: Time.current
-          },
-          unique_by: %i[time_series_id water_year peak_kind]
-        )
-        count += 1
-        progress&.increment
+          PeakObservation.upsert(
+            {
+              time_series_id: series.id,
+              water_year: water_year.to_i,
+              observed_at: observed_at,
+              value: value,
+              peak_kind: "high",
+              approval_status: item["approval_status"],
+              created_at: Time.current,
+              updated_at: Time.current
+            },
+            unique_by: %i[time_series_id water_year peak_kind]
+          )
+          count += 1
+          progress&.increment
+        end
+      rescue Usgs::Client::RateLimitError => e
+        progress&.step("peaks stopped (#{e.message})")
       end
-      Telemetry.add_attributes("app.observation_count" => count)
+      Telemetry.add_attributes(
+        "app.observation_count" => count,
+        "app.circuit_key" => client.circuit_key
+      )
       progress&.step("peaks upserted=#{count}")
       count
     end

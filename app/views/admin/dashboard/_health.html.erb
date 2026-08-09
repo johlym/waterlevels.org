@@ -3,11 +3,12 @@
   <div class="section-header">
     <div>
       <p class="eyebrow">Health</p>
-      <h2 id="admin-health-heading">USGS budget, circuits &amp; Sidekiq</h2>
+      <h2 id="admin-health-heading">USGS keys, circuits &amp; Sidekiq</h2>
       <p class="section-lede">
-        Request counters are per API key for the current UTC hour (USGS 1000/hr).
-        Soft-cap (<%= number_with_delimiter(stats[:usgs_request_budgets][:soft_cap]) %>)
-        parks a key for the rest of the hour before a hard 429.
+        Tip/catalog uses <code>USGS_API_KEY</code>. History backfill pins one key
+        per purpose (continuous / daily / peaks). Circuits open on a USGS 429
+        for the rest of the UTC hour — we do not mirror remaining USGS quota
+        locally (that counter was unreliable).
       </p>
     </div>
     <p class="lede-link">
@@ -15,115 +16,51 @@
     </p>
   </div>
 
-  <% budgets = stats[:usgs_request_budgets] %>
-  <% pool = budgets[:history_pool] %>
-  <div class="stats-grid budget-summary">
-    <article>
-      <p class="value"><%= number_with_delimiter(pool[:used]) %></p>
-      <p class="label">History pool used</p>
-      <p class="hint">
-        of <%= number_with_delimiter(pool[:budget]) %> this UTC hour
-        <% if pool[:fallback_to_tip] %>
-          · falling back to tip key
-        <% end %>
-      </p>
-    </article>
-    <article>
-      <p class="value<%= " alert" if pool[:remaining].to_i.zero? %>"><%= number_with_delimiter(pool[:remaining]) %></p>
-      <p class="label">History pool remaining</p>
-      <p class="hint">
-        <%= pool[:available_keys] %> key<%= pool[:available_keys] == 1 ? "" : "s" %> available
-        · soft-cap <%= number_with_delimiter(budgets[:soft_cap]) %>/key
-      </p>
-    </article>
-    <article>
-      <p class="value"><%= number_with_delimiter(budgets[:tip][:used]) %><span class="value-suffix">/<%= number_with_delimiter(budgets[:tip][:budget]) %></span></p>
-      <p class="label">Tip key used</p>
-      <p class="hint">
-        <%= number_with_delimiter(budgets[:tip][:remaining]) %> remaining
-        · catalog / latest / bootstrap
-      </p>
-    </article>
-  </div>
-
+  <% keys = stats[:usgs_keys] %>
   <div class="budget-panel">
-    <h3>Per-key hourly budget</h3>
-    <p class="hint">UTC hour <%= budgets[:hour] %></p>
-    <ul class="budget-bars">
-      <% ([ budgets[:tip] ] + budgets[:history_keys]).each do |row| %>
-        <% pct = row[:budget].positive? ? (row[:used] * 100.0 / row[:budget]) : 0 %>
-        <% soft_pct = row[:budget].positive? ? (row[:soft_cap] * 100.0 / row[:budget]) : 0 %>
-        <% tone = if row[:circuit_open] || row[:soft_capped] || row[:remaining].to_i.zero?
-                    "bad"
-                  elsif row[:remaining].to_i < (row[:budget] * 0.15)
-                    "warn"
-                  else
-                    "ok"
-                  end %>
+    <h3>API keys &amp; circuits</h3>
+    <p class="hint">
+      Open = parked after a 429 until the UTC hour rolls.
+      Unset history keys fall back to the tip key.
+    </p>
+    <ul class="status-list key-status-list">
+      <% ([ keys[:tip] ] + keys[:history]).each do |row| %>
         <li>
-          <div class="row">
-            <span class="name">
-              <%= row[:key] %>
-              <% unless row[:configured] %>
-                <span class="cell-hint">(unset)</span>
-              <% end %>
-            </span>
-            <span class="meta">
-              <%= number_with_delimiter(row[:used]) %> / <%= number_with_delimiter(row[:budget]) %>
-              · <%= number_with_delimiter(row[:remaining]) %> left
-            </span>
-            <span class="badge <%= tone %>">
-              <% if row[:circuit_open] %>
-                Circuit open
-              <% elsif row[:soft_capped] %>
-                Soft-capped
-              <% else %>
-                Clear
-              <% end %>
-            </span>
-          </div>
-          <div class="bar" aria-hidden="true">
-            <span class="soft-mark" style="left: <%= soft_pct %>%"></span>
-            <span class="fill <%= tone %>" style="width: <%= [ pct, 100 ].min %>%"></span>
-          </div>
+          <span class="name">
+            <%= row[:key] %>
+            <% unless row[:configured] %>
+              <span class="cell-hint">(unset<%= row[:fallback_to_tip] ? ", uses tip circuit" : "" %>)</span>
+            <% end %>
+          </span>
+          <span class="meta">
+            <%= row[:role] %>
+            <% if row[:fallback_to_tip] && row[:effective_circuit_key].present? %>
+              · effective <%= row[:effective_circuit_key] %>
+            <% end %>
+          </span>
+          <span class="badge <%= row[:open] ? "bad" : "ok" %>">
+            <%= row[:open] ? "Circuit open" : "Clear" %>
+          </span>
         </li>
       <% end %>
+      <li>
+        <span class="name">history pool</span>
+        <span class="meta">Any purpose still callable</span>
+        <span class="badge <%= stats[:history_keys_exhausted] ? "bad" : "ok" %>">
+          <%= stats[:history_keys_exhausted] ? "Exhausted" : "Available" %>
+        </span>
+      </li>
+      <li>
+        <span class="name">database</span>
+        <span class="meta">Write path</span>
+        <span class="badge <%= stats[:database_read_only] ? "bad" : "ok" %>">
+          <%= stats[:database_read_only] ? "Read-only circuit" : "Writable" %>
+        </span>
+      </li>
     </ul>
   </div>
 
   <div class="health-grid">
-    <article>
-      <h3>USGS rate-limit circuits</h3>
-      <ul class="status-list">
-        <li>
-          <span class="name">tip</span>
-          <span class="badge <%= stats[:tip_circuit_open] ? "bad" : "ok" %>">
-            <%= stats[:tip_circuit_open] ? "Open" : "Clear" %>
-          </span>
-        </li>
-        <% stats[:history_circuits].each do |circuit| %>
-          <li>
-            <span class="name"><%= circuit[:key] %><%= " (unset)" unless circuit[:configured] %></span>
-            <span class="badge <%= circuit[:open] ? "bad" : "ok" %>">
-              <%= circuit[:open] ? "Open" : "Clear" %>
-            </span>
-          </li>
-        <% end %>
-        <li>
-          <span class="name">history pool</span>
-          <span class="badge <%= stats[:history_keys_exhausted] ? "bad" : "ok" %>">
-            <%= stats[:history_keys_exhausted] ? "Exhausted" : "Available" %>
-          </span>
-        </li>
-        <li>
-          <span class="name">database</span>
-          <span class="badge <%= stats[:database_read_only] ? "bad" : "ok" %>">
-            <%= stats[:database_read_only] ? "Read-only circuit" : "Writable" %>
-          </span>
-        </li>
-      </ul>
-    </article>
-
     <article>
       <h3>Sidekiq</h3>
       <% if stats[:sidekiq][:error] %>

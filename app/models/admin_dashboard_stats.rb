@@ -265,11 +265,12 @@ class AdminDashboardStats
   end
 
   def health_section
+    key_statuses = Usgs::HistoryKeyPool.dashboard_statuses
     {
-      tip_circuit_open: Usgs::RateLimitCircuit.open?(Usgs::RateLimitCircuit::TIP_KEY),
-      history_circuits: history_circuit_statuses,
-      history_keys_exhausted: Usgs::HistoryKeyPool.exhausted?,
-      usgs_request_budgets: Usgs::HourlyRequestBudget.dashboard_snapshot,
+      tip_circuit_open: key_statuses[:tip][:open],
+      usgs_keys: key_statuses,
+      history_circuits: key_statuses[:history],
+      history_keys_exhausted: key_statuses[:exhausted],
       database_read_only: DatabaseReadOnlyCircuit.open?,
       sidekiq: sidekiq_stats
     }
@@ -438,26 +439,6 @@ class AdminDashboardStats
       end
       count
     end || 0
-  end
-
-  def history_circuit_statuses
-    Usgs::HistoryKeyPool::ENTRIES.map do |entry|
-      budget = Usgs::HourlyRequestBudget.status_for(
-        entry[:circuit_key],
-        configured: ENV[entry[:env]].to_s.strip.present?,
-        env: entry[:env]
-      )
-      {
-        key: entry[:circuit_key],
-        env: entry[:env],
-        configured: budget[:configured],
-        open: budget[:circuit_open],
-        used: budget[:used],
-        remaining: budget[:remaining],
-        budget: budget[:budget],
-        soft_capped: budget[:soft_capped]
-      }
-    end
   end
 
   def sidekiq_stats

@@ -114,36 +114,41 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
           stats[:stations_history_ready]
       )
       assert stats.key?(:stations_missing_year_history)
-      assert_includes stats[:history_circuits].map { |c| c[:key] }, "history_1"
+      assert_includes stats[:history_circuits].map { |c| c[:key] }, "history_continuous"
+      assert_includes stats[:history_circuits].map { |c| c[:key] }, "history_daily"
+      assert_includes stats[:history_circuits].map { |c| c[:key] }, "history_peaks"
+      assert_equal "tip", stats[:usgs_keys][:tip][:key]
       assert_equal false, stats[:tip_circuit_open]
       assert_equal false, stats[:database_read_only]
       assert stats[:sidekiq].key?(:enqueued) || stats[:sidekiq].key?(:error)
-      assert stats[:usgs_request_budgets].key?(:history_pool)
-      assert stats[:usgs_request_budgets][:tip].key?(:used)
-      assert stats[:usgs_request_budgets][:tip].key?(:remaining)
-      assert stats[:usgs_request_budgets][:history_pool].key?(:budget)
+      refute stats.key?(:usgs_request_budgets)
     end
   end
 
-  test "snapshot includes live USGS hourly request budget counters" do
-    redis = Redis.new(RedisConfig.options)
-    begin
-      redis.ping
-    rescue Redis::BaseError
-      skip "Redis unavailable"
-    end
-
-    Usgs::HourlyRequestBudget.clear_all!
-    4.times { Usgs::HourlyRequestBudget.record!("history_1") }
-    1.times { Usgs::HourlyRequestBudget.record!(Usgs::RateLimitCircuit::TIP_KEY) }
+  test "snapshot reflects open purpose-pinned history circuits" do
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    previous_env = {
+      "USGS_API_HISTORY_CONTINUOUS_KEY" => ENV["USGS_API_HISTORY_CONTINUOUS_KEY"],
+      "USGS_API_HISTORY_DAILY_KEY" => ENV["USGS_API_HISTORY_DAILY_KEY"],
+      "USGS_API_HISTORY_PEAKS_KEY" => ENV["USGS_API_HISTORY_PEAKS_KEY"]
+    }
+    ENV["USGS_API_HISTORY_CONTINUOUS_KEY"] = "hist-continuous"
+    ENV["USGS_API_HISTORY_DAILY_KEY"] = "hist-daily"
+    ENV["USGS_API_HISTORY_PEAKS_KEY"] = "hist-peaks"
+    Usgs::RateLimitCircuit.open!(key_id: "history_daily", ttl: 1.minute)
 
     stats = AdminDashboardStats.snapshot
-    assert_equal 1, stats[:usgs_request_budgets][:tip][:used]
-    hist1 = stats[:history_circuits].find { |c| c[:key] == "history_1" }
-    assert_equal 4, hist1[:used]
-    assert_equal 996, hist1[:remaining]
+    daily = stats[:history_circuits].find { |c| c[:key] == "history_daily" }
+    continuous = stats[:history_circuits].find { |c| c[:key] == "history_continuous" }
+    assert_equal true, daily[:open]
+    assert_equal false, continuous[:open]
+    assert_equal false, stats[:history_keys_exhausted]
   ensure
-    Usgs::HourlyRequestBudget.clear_all!
+    Rails.cache = previous_cache
+    previous_env.each do |key, value|
+      value.nil? ? ENV.delete(key) : ENV[key] = value
+    end
   end
 
   test "measurement totals include fully cold archive shard points" do
