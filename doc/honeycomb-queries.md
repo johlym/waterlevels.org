@@ -131,8 +131,18 @@ Fallback if `app.page` is missing on older traffic: GROUP BY `http.route` (Rails
 | Catalog health snapshot | `app.station_inventory` + `app.stations_*` |
 | History backfill | `history.ingest` (+ `.continuous` / `.daily` / `.peaks`) |
 | Backfill planner | `job.history_backfill_batch` |
+| Day-31 handoff + retention | `daily_archive.retention` + `app.usgs_ensured` / `app.derived` / `app.retrying` / `app.gaps_alerted` / `app.iv_deleted` / `app.iv_prune_blocked` |
 | Tip / catalog / flood sync | `latest.sync`, `catalog.sync`, `flood.sync` |
 | Page latency | request root + `app.page` |
+
+### Day-31 handoff / gap alerts
+
+**VISUALIZE** `SUM(app.gaps_alerted)` `SUM(app.derived)` `SUM(app.usgs_ensured)` `SUM(app.retrying)`  
+**WHERE** `name = daily_archive.retention`  
+**GROUP BY** `name`  
+**TIME RANGE** last 7d
+
+Alert when `app.gaps_alerted` is persistently > 0 — days that hit IV prune without R2 coverage.
 
 **Volume note:** ActiveRecord, PG, Redis, and Net::HTTP auto-instrumentation are
 disabled in `config/initializers/opentelemetry.rb` (per-row upserts and cache

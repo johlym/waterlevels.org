@@ -89,31 +89,37 @@ class HydrographSeries
 
   def daily_points(duration)
     start_on = duration.ago.to_date
-    hot = time_series.daily_observations
-      .where("observed_on >= ?", start_on)
-      .order(:observed_on)
-      .pluck(:observed_on, :value)
-      .map { |d, v| { t: d.iso8601, v: v.to_f } }
+    tip = tip_daily_points(start_on)
 
-    return hot unless range == "3y" && DailyArchive.reads_enabled?
+    unless DailyArchive.reads_enabled?
+      return tip
+    end
 
-    hot_cutoff = DailyArchive.hot_cutoff_on
-    cold_end = [ hot_cutoff - 1, Date.current ].min
-    return hot if start_on > cold_end
-
-    cold = DailyArchive::Reader.new.points_for(
+    archive = DailyArchive::Reader.new.points_for(
       time_series_id: time_series.id,
       start_on: start_on,
-      end_on: cold_end
+      end_on: Date.current
     )
 
-    merge_daily_points(cold, hot)
+    merge_daily_points(archive, tip)
   end
 
-  def merge_daily_points(cold, hot)
+  def tip_daily_points(start_on)
+    time_series.daily_observations
+      .where("observed_on >= ?", start_on)
+      .order(:observed_on)
+      .pluck(:observed_on, :value, :qualifier)
+      .map do |d, v, qualifier|
+        point = { t: d.iso8601, v: v.to_f }
+        point[:s] = DailyArchive::SOURCE_DERIVED if qualifier == "derived_continuous"
+        point
+      end
+  end
+
+  def merge_daily_points(archive, tip)
     by_day = {}
-    cold.each { |p| by_day[p[:t]] = p }
-    hot.each { |p| by_day[p[:t]] = p }
+    archive.each { |p| by_day[p[:t]] = p }
+    tip.each { |p| by_day[p[:t]] = p }
     by_day.values.sort_by { |p| p[:t] }
   end
 end

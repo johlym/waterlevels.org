@@ -6,10 +6,10 @@
       <h2 id="admin-states-heading">Station &amp; backfill backlog</h2>
       <p class="section-lede">
         Backfill columns are mutually exclusive and sum with Ready to Stations.
-        Need ≤1y is phase-1 (continuous ~90d, ~1y daily, and/or stale tips);
-        the secondary count is how many of those still lack ~1y daily.
-        Have ~1y → need 3y means year-ready and waiting on deep fill only.
-        Ready counts deep daily in the hot tip or cold archive (R2 / local shards).
+        Need ≤1y is phase-1 (continuous ~35d, ~1y daily in R2, and/or stale tips);
+        the secondary count is how many of those still lack ~1y daily coverage.
+        Have ~1y → need 3y means year-ready and waiting on deep R2 fill only.
+        Ready counts deep daily coverage in R2 (plus any scratch tip still in Postgres).
       </p>
     </div>
   </div>
@@ -23,13 +23,13 @@
           <tr>
             <th scope="col">State</th>
             <th scope="col">Stations</th>
-            <th scope="col" title="Phase-1 backlog: missing continuous ~90d, ~1y daily, and/or stale tips">
+            <th scope="col" title="Phase-1 backlog: missing continuous ~35d, ~1y daily in R2, and/or stale tips">
               Need ≤1y
             </th>
-            <th scope="col" title="Already have ~1y daily; waiting on deep 3y backfill">
+            <th scope="col" title="Already have ~1y daily in R2; waiting on deep 3y backfill">
               Have ~1y → need 3y
             </th>
-            <th scope="col" title="Deep (~3y) daily history loaded">
+            <th scope="col" title="Deep (~3y) daily history loaded in R2">
               Ready
             </th>
           </tr>

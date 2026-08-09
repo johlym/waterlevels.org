@@ -4,14 +4,14 @@
 // :00 / :30 full IV), keep the minute-level rows untouched.
 
 /**
- * @typedef {{ t: string, values: Record<string, number|null|undefined>, sort: number }} ReadingRow
+ * @typedef {{ t: string, values: Record<string, number|null|undefined>, sources?: Record<string, string>, sort: number }} ReadingRow
  */
 
 /**
  * @param {ReadingRow[]} rows - minute-level rows for a single day (any order)
  * @param {string[]} columnKeys - parameter keys expected in the table
  * @param {(isoTimestamp: string) => string} hourKeyFor - maps a row timestamp to an hour bucket
- * @returns {Array<ReadingRow & { status: "ok" | "warn" }>}
+ * @returns {Array<ReadingRow & { status: "ok" | "warn" | "estimated" }>}
  */
 export function coalesceHourlyReadings(rows, columnKeys, hourKeyFor) {
   const columns = Array.isArray(columnKeys) ? columnKeys.filter(Boolean) : []
@@ -42,7 +42,8 @@ function coalesceHour(hourRows, columns) {
     .map((row) => ({
       t: row.t,
       sort: Number.isFinite(row.sort) ? row.sort : Date.parse(row.t),
-      values: { ...(row.values || {}) }
+      values: { ...(row.values || {}) },
+      sources: { ...(row.sources || {}) }
     }))
     .filter((row) => Number.isFinite(row.sort))
     .sort((a, b) => a.sort - b.sort)
@@ -63,22 +64,31 @@ function coalesceHour(hourRows, columns) {
   }
 
   const values = {}
+  const sources = {}
   let latest = rows[0]
   rows.forEach((row) => {
     Object.entries(row.values).forEach(([key, value]) => {
       if (value == null || !columns.includes(key)) return
-      if (values[key] == null) values[key] = value
+      if (values[key] == null) {
+        values[key] = value
+        sources[key] = row.sources?.[key] || "ok"
+      }
     })
     if (row.sort >= latest.sort) latest = row
   })
 
-  return [{ t: latest.t, sort: latest.sort, values }]
+  return [{ t: latest.t, sort: latest.sort, values, sources }]
 }
 
 function withStatus(row, columns) {
   const present = columns.filter((key) => row.values[key] != null).length
+  const estimated = columns.some((key) => row.sources?.[key] === "estimated")
+  let status = "warn"
+  if (estimated) status = "estimated"
+  else if (columns.length > 0 && present === columns.length) status = "ok"
+
   return {
     ...row,
-    status: columns.length > 0 && present === columns.length ? "ok" : "warn"
+    status
   }
 }

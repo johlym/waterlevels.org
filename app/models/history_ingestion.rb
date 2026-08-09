@@ -5,10 +5,10 @@ class HistoryIngestion
 
   DEFAULT_RANGE = "1y"
   DEEP_RANGE = "3y"
-  # High-resolution continuous is capped; 1y/3y charts use daily values.
-  CONTINUOUS_RETENTION = 90.days
+  # High-resolution continuous tip; 1y/3y charts use daily values from R2.
+  CONTINUOUS_RETENTION = 35.days
   DAILY_RETENTION = 3.years
-  # Phase-1 window for cold/lazy backfill (DEFAULT_RANGE). Retention may be longer.
+  # Phase-1 window for cold/lazy backfill (DEFAULT_RANGE). Daily history lives in R2.
   DAILY_YEAR_WINDOW = 1.year
   # A selected series is considered year-loaded once it has a daily point this old.
   DAILY_HISTORY_ANCHOR = 11.months
@@ -16,7 +16,7 @@ class HistoryIngestion
   DAILY_DEEP_HISTORY_ANCHOR = 35.months
   # Continuous is considered loaded once a point reaches this age (~retention slack).
   # Tip-only stations from LatestObservationSync must still pull the older IV window.
-  CONTINUOUS_HISTORY_ANCHOR = 85.days
+  CONTINUOUS_HISTORY_ANCHOR = 32.days
   # Refresh continuous tips when the newest local point is older than this.
   CONTINUOUS_FRESHNESS = 7.days
   # Refresh daily tips when the newest local day is older than this.
@@ -408,7 +408,7 @@ class HistoryIngestion
             },
             unique_by: %i[time_series_id observed_on]
           )
-          if DailyArchive.dual_write_enabled? && DailyArchive.cold?(day)
+          if DailyArchive.dual_write_enabled?
             archive_buffer[series.id] << {
               "d" => day.iso8601,
               "v" => value.to_f,

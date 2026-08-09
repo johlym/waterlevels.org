@@ -107,7 +107,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
     travel_to Time.zone.parse("2026-08-03 12:00:00") do
       HistoryIngestion.new(monitoring_location: @location, range: "1y").perform
 
-      assert_match(/datetime=2026-05-05T/, continuous_query) # 90 days before Aug 3
+      assert_match(/datetime=2026-06-29T/, continuous_query) # 35 days before Aug 3
       assert_match(/datetime=2025-08-03/, daily_query)
       assert_equal 1, @series.continuous_observations.count
       assert_equal 1, @series.daily_observations.count
@@ -134,7 +134,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
   test "continuous request fills older gap when only recent tips exist" do
     travel_to Time.zone.parse("2026-08-03 12:00:00") do
       # Mimic LatestObservationSync tip-only archive: a few recent IV points and
-      # complete daily year history, but nothing for the rest of the 30d/90d window.
+      # complete daily year history, but nothing for the rest of the 30d/35d window.
       ContinuousObservation.create!(
         time_series: @series,
         observed_at: Time.zone.parse("2026-08-01 00:00:00"),
@@ -159,8 +159,8 @@ class HistoryIngestionTest < ActiveSupport::TestCase
       HistoryIngestion.new(monitoring_location: @location, range: "1y").perform
 
       # Older gap only: retention window → oldest local tip (fresh tip skips tip refresh).
-      assert_match(%r{datetime=2026-05-05T.*/2026-08-01T00:00:00}, captured)
-      refute_match(%r{datetime=2026-05-05T.*/2026-08-03T}, captured)
+      assert_match(%r{datetime=2026-06-29T.*/2026-08-01T00:00:00}, captured)
+      refute_match(%r{datetime=2026-06-29T.*/2026-08-03T}, captured)
     end
   end
 

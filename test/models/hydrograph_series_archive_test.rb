@@ -20,30 +20,42 @@ class HydrographSeriesArchiveTest < ActiveSupport::TestCase
     ENV.delete("DAILY_ARCHIVE_READS")
   end
 
-  test "3y merges cold archive points with postgres hot tip" do
-    hot_day = 2.months.ago.to_date
-    cold_day = 20.months.ago.to_date
-    DailyObservation.create!(time_series: @series, observed_on: hot_day, value: 5.0)
+  test "3y merges archive points with postgres scratch tip" do
+    tip_day = 2.days.ago.to_date
+    archive_day = 20.months.ago.to_date
+    DailyObservation.create!(time_series: @series, observed_on: tip_day, value: 5.0)
     DailyArchive::Writer.new(store: @store).upsert(
       time_series_id: @series.id,
-      points: [ { "d" => cold_day.iso8601, "v" => 1.5, "s" => "usgs" } ]
+      points: [ { "d" => archive_day.iso8601, "v" => 1.5, "s" => "usgs" } ]
     )
 
     payload = HydrographSeries.for(location: @location, kind: "water_level", range: "3y")
     days = payload[:points].map { |p| p[:t] }
-    assert_includes days, cold_day.iso8601
-    assert_includes days, hot_day.iso8601
+    assert_includes days, archive_day.iso8601
+    assert_includes days, tip_day.iso8601
   end
 
-  test "1y does not read from archive" do
-    cold_day = 20.months.ago.to_date
+  test "1y reads from archive when enabled" do
+    archive_day = 6.months.ago.to_date
     DailyArchive::Writer.new(store: @store).upsert(
       time_series_id: @series.id,
-      points: [ { "d" => cold_day.iso8601, "v" => 1.5, "s" => "usgs" } ]
+      points: [ { "d" => archive_day.iso8601, "v" => 1.5, "s" => "usgs" } ]
     )
 
     payload = HydrographSeries.for(location: @location, kind: "water_level", range: "1y")
     days = payload[:points].map { |p| p[:t] }
-    refute_includes days, cold_day.iso8601
+    assert_includes days, archive_day.iso8601
+  end
+
+  test "derived archive points expose s for UI tagging" do
+    day = 40.days.ago.to_date
+    DailyArchive::Writer.new(store: @store).upsert(
+      time_series_id: @series.id,
+      points: [ { "d" => day.iso8601, "v" => 2.25, "s" => "derived" } ]
+    )
+
+    payload = HydrographSeries.for(location: @location, kind: "water_level", range: "1y")
+    point = payload[:points].find { |p| p[:t] == day.iso8601 }
+    assert_equal "derived", point[:s]
   end
 end

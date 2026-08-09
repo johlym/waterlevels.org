@@ -32,7 +32,7 @@ bin/rails usgs:enqueue_bootstrap
 # optional: STATE=wa DELAY_SECONDS=120
 ```
 
-Hourly `LatestObservationSyncJob` keeps readings fresh. Hourly `FloodStageSyncJob` refreshes NWS NWPS flood categories from the national gauge list (by LID), prioritizes linking any currently flooding unlinked gauges, and discovers stage thresholds via USGS site-number detail lookups (`STATE=wa bin/rails nwps:sync_flood_stages`, or `bin/rails nwps:enqueue_sync` for staggered per-state jobs). Bootstrap also runs flood sync per state. Hourly `HistoryBackfillBatchJob` fills gap-aware continuous history (up to ~90 days) and year daily history in batches (gauge page views also enqueue a station when charts are empty). Prefer this over a national one-off `usgs:bootstrap` on a small dyno.
+Hourly `LatestObservationSyncJob` keeps readings fresh. Hourly `FloodStageSyncJob` refreshes NWS NWPS flood categories from the national gauge list (by LID), prioritizes linking any currently flooding unlinked gauges, and discovers stage thresholds via USGS site-number detail lookups (`STATE=wa bin/rails nwps:sync_flood_stages`, or `bin/rails nwps:enqueue_sync` for staggered per-state jobs). Bootstrap also runs flood sync per state. Hourly `HistoryBackfillBatchJob` fills gap-aware continuous history (up to ~35 days) and year daily history into R2 in batches (gauge page views also enqueue a station when charts are empty). Prefer this over a national one-off `usgs:bootstrap` on a small dyno.
 
 ### Local / single-state
 
@@ -51,9 +51,9 @@ STATE=wa RANGE=3y LIMIT=25 bin/rails usgs:backfill
 
 Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `USGS_HOURLY_SOFT_CAP` (default `980` — park a key for the rest of the UTC hour before a hard 429), `HISTORY_BACKFILL_BATCH` (default `50` **per available history key**, further capped by remaining hourly request budget), `HISTORY_DEEP_BACKFILL_BATCH` (default `400`/key ceiling; actual deep slots use leftover request budget after phase-1; set `0` to pause 3y deep fills). History backfill batch runs Mon–Sat every 10 minutes and no-ops when keys are exhausted or the backfill queue is still draining. Live used/remaining per key is on `/admin`.
 
-See `doc/plan-3y-daily-history.md`, `doc/future.md`, and `doc/postgres-r2-daily-archive.md` for retention tiers, longer POR notes, and the Postgres/R2 (or local-disk) daily archive.
+See `doc/postgres-r2-daily-archive.md` (current R2-first retention), `doc/plan-3y-daily-history.md` (historical 3y plan), and `doc/future.md` (hourly POR) for retention tiers and longer-history notes.
 
-Local archive iteration (no Cloudflare): `.env.example` sets `DAILY_ARCHIVE_STORE=local` and a short hot tip. After seeding or backfill, run `bin/rails archive:export_daily` — shards land in `tmp/daily_archive` and `3y` charts merge them when `DAILY_ARCHIVE_READS=1`.
+Local archive iteration (no Cloudflare): `.env.example` sets `DAILY_ARCHIVE_STORE=local` and a short daily scratch tip. After seeding or backfill, run `bin/rails archive:export_daily` — shards land in `tmp/daily_archive` and `1y` / `3y` charts read them when `DAILY_ARCHIVE_READS=1`.
 
 ## Observability (Honeycomb)
 

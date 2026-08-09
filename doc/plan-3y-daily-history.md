@@ -1,8 +1,10 @@
 # Plan: Expand daily history to 3 years
 
-Near-term plan to grow cached daily history from ~1 year to ~3 years, without changing continuous retention (~90 days) and without blowing the USGS hourly request budget.
+> **Superseded for retention policy.** Live retention is R2-first dailies + ~35-day IV tip — see [`postgres-r2-daily-archive.md`](./postgres-r2-daily-archive.md). This document remains as the historical record of the 1y→3y Postgres expansion (phase-1 / deep backfill gates, batch budgets). Do not treat “keep continuous at 90 days” or “store 3y in `daily_observations`” as current policy.
 
-Related: [`future.md`](./future.md) covers period-of-record beyond 3 years.
+Near-term plan (completed) to grow cached daily history from ~1 year to ~3 years, without changing continuous retention (~90 days at the time) and without blowing the USGS hourly request budget.
+
+Related: [`postgres-r2-daily-archive.md`](./postgres-r2-daily-archive.md) (current retention), [`future.md`](./future.md) (hourly POR).
 
 ## Goals
 

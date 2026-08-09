@@ -188,6 +188,7 @@ class AdminDashboardStats
       daily_observation_count: daily_count,
       peak_observation_count: peak_count,
       archive_daily_observation_count: archive_daily_count,
+      daily_archive_shard_count: DailyArchive.shard_count,
       last_station_updated: last_station && {
         id: last_station.id,
         site_number: last_station.site_number,
@@ -245,6 +246,14 @@ class AdminDashboardStats
       last_flood_sync_at: parse_time(flood[:finished_at]),
       last_flood_sync_state: flood[:state],
       last_prune_at: parse_time(prune[:finished_at]),
+      last_prune_usgs_ensured: prune[:usgs_ensured].to_i,
+      last_prune_derived: prune[:derived].to_i,
+      last_prune_retrying: prune[:retrying].to_i,
+      last_prune_gaps_alerted: prune[:gaps_alerted].to_i,
+      last_prune_iv_deleted: (prune[:iv_deleted] || prune[:continuous_deleted]).to_i,
+      last_prune_iv_blocked: prune[:iv_prune_blocked].to_i,
+      last_prune_daily_deleted: prune[:daily_deleted].to_i,
+      last_prune_daily_blocked: prune[:daily_prune_blocked].to_i,
       last_daily_archive_export_at: parse_time(archive_export[:finished_at]),
       last_daily_archive_export_series: archive_export[:series],
       last_daily_archive_export_points: archive_export[:points]

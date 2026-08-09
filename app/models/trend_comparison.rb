@@ -106,11 +106,16 @@ class TrendComparison
   private_class_method :lookup_daily_prior
 
   def self.lookup_daily_on(series, day)
-    if series.association(:daily_observations).loaded?
+    value = if series.association(:daily_observations).loaded?
       series.daily_observations.find { |d| d.observed_on == day }&.value
     else
       series.daily_observations.find_by(observed_on: day)&.value
     end
+    return value unless value.nil?
+
+    return unless DailyArchive.reads_enabled?
+
+    DailyArchive::Reader.new.value_on(time_series_id: series.id, day: day)
   end
   private_class_method :lookup_daily_on
 end

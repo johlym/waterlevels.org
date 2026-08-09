@@ -80,16 +80,16 @@ Design the schema so the hot read paths (map viewport, state listing, gauge snap
 - **`time_series`** — per-parameter series metadata for a location. `measurement_kind ∈ {water_level, discharge, temperature}`, `selected_for_display` gate, `primary_series`.
 - **Observation tables**, all FK → `time_series`, all upserted on natural keys:
   - `latest_observations` — one row per series (unique `time_series_id`).
-  - `continuous_observations` — sub-daily points (unique `(time_series_id, observed_at)`); ~90-day retention (charts use ≤30d; day-31 local IV can roll up into the R2 daily archive).
-  - `daily_observations` — daily means (unique `(time_series_id, observed_on)`); hot tip ~14 months in Postgres when R2 prune is enabled; otherwise ~3-year retention (1y filled first; 3y deep-fill is gated).
+  - `continuous_observations` — sub-daily points (unique `(time_series_id, observed_at)`); ~35-day retention (charts use ≤30d; day-31+ handoff ensures R2 has USGS or estimated daily before IV prune).
+  - `daily_observations` — short Postgres scratch tip of daily means (unique `(time_series_id, observed_on)`); ≤7 days when R2 prune is enabled. Not the history SoR.
   - `peak_observations` — annual peaks (unique `(time_series_id, water_year, peak_kind)`).
-  - `daily_archive_shards` — catalog of Cloudflare R2 year objects (`daily/v1/{time_series_id}/{yyyy}.json.gz`) for cold daily history. See [`doc/postgres-r2-daily-archive.md`](doc/postgres-r2-daily-archive.md).
+  - `daily_archive_shards` — catalog of Cloudflare R2 year objects (`daily/v1/{time_series_id}/{yyyy}.json.gz`) for **all** daily history used by `1y` / `3y` / `Ny`. See [`doc/postgres-r2-daily-archive.md`](doc/postgres-r2-daily-archive.md).
 
 **Conventions:**
 - Store temperature canonically in **°C** (`latest_temperature_c`); convert to °F only at the edge/client.
 - Denormalized columns on `monitoring_locations` are derived state — always rewrite them through `DisplaySeriesSelection` / the latest-sync denormalize step, never ad hoc.
 - Retention windows in `ContinuousPruneJob` / `DailyArchive::Retention` must stay aligned with the ranges `HistoryIngestion` backfills and R2 dual-write.
-- Chart browsers never talk to R2 directly — `/api/gauges/:id/observations` merges Postgres hot + R2 cold when `DAILY_ARCHIVE_READS=1`.
+- Chart browsers never talk to R2 directly — `/api/gauges/:id/observations` merges Postgres scratch tip + R2 dailies for `1y` / `3y` / `Ny` when `DAILY_ARCHIVE_READS=1`.
 
 ## 7. Ingestion pipeline
 

@@ -1,9 +1,12 @@
-# Hot Postgres tip + cold Cloudflare R2 archive for daily means.
+# R2 (or local disk) is the daily system of record; Postgres keeps a short
+# scratch tip of recent dailies plus ~35 days of continuous IV.
 # See doc/postgres-r2-daily-archive.md.
 require "set"
 
 module DailyArchive
-  DAILY_HOT_RETENTION = 14.months
+  # Postgres daily scratch tip — not history SoR. Override with DAILY_ARCHIVE_HOT_RETENTION_DAYS.
+  DAILY_SCRATCH_RETENTION = 7.days
+  DAILY_HOT_RETENTION = DAILY_SCRATCH_RETENTION # back-compat alias
   CONTINUOUS_ROLLUP_AFTER = 30.days
   COVERAGE_RATIO = 0.80
   OBJECT_PREFIX = "daily/v1"
@@ -38,12 +41,12 @@ module DailyArchive
   end
 
   def hot_cutoff_on
-    # Optional shorter tip for local demo seeds (e.g. DAILY_ARCHIVE_HOT_RETENTION_DAYS=7).
+    # Scratch-tip cutoff. DAILY_ARCHIVE_HOT_RETENTION_DAYS overrides (local demo).
     days = ENV["DAILY_ARCHIVE_HOT_RETENTION_DAYS"].to_s.strip
     if days.match?(/\A\d+\z/) && days.to_i.positive?
       days.to_i.days.ago.to_date
     else
-      DAILY_HOT_RETENTION.ago.to_date
+      DAILY_SCRATCH_RETENTION.ago.to_date
     end
   end
 
@@ -104,10 +107,14 @@ module DailyArchive
     hot.to_set.merge(cold)
   end
 
-  # Points in year shards entirely older than the hot tip — no overlap with
+  # Points in year shards entirely older than the scratch tip — no overlap with
   # daily_observations after prune. Boundary-year cold days may still sit only
   # in a straddling shard and are omitted (undercount) rather than double-counted.
   def cold_archive_point_count
     DailyArchiveShard.where(max_on: ...hot_cutoff_on).sum(:point_count).to_i
+  end
+
+  def shard_count
+    DailyArchiveShard.count
   end
 end

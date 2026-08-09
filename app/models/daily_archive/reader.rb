@@ -4,7 +4,8 @@ module DailyArchive
       @store = store
     end
 
-    # Returns chart points [{t:, v:}, ...] for [start_on, end_on], cold archive only.
+    # Returns chart points [{t:, v:, s?:}, ...] for [start_on, end_on].
+    # `s` is included only for derived points.
     def points_for(time_series_id:, start_on:, end_on:)
       return [] unless @store.enabled?
       return [] if start_on.blank? || end_on.blank? || start_on > end_on
@@ -20,10 +21,18 @@ module DailyArchive
           day = Date.parse(row["d"])
           next if day < start_on || day > end_on
 
-          points << { t: day.iso8601, v: row["v"].to_f }
+          point = { t: day.iso8601, v: row["v"].to_f }
+          point[:s] = DailyArchive::SOURCE_DERIVED if row["s"] == DailyArchive::SOURCE_DERIVED
+          points << point
         end
       end
       points.sort_by { |p| p[:t] }
+    end
+
+    def value_on(time_series_id:, day:)
+      day = day.to_date
+      point = points_for(time_series_id: time_series_id, start_on: day, end_on: day).first
+      point && point[:v]
     end
 
     def covers_range?(time_series_id:, start_on:, end_on:)
