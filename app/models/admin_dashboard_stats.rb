@@ -24,7 +24,9 @@ class AdminDashboardStats
   BACKFILL_CACHE_KEY = "admin_dashboard/backfill_aggregates/v3".freeze
   BACKFILL_TTL = 10.minutes
   BACKFILL_RACE_TTL = 30.seconds
-  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v3".freeze
+  # Bump when a section payload shape changes so deploys do not serve stale
+  # hashes that crash the matching partial (Turbo then shows "Content missing").
+  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v4".freeze
   SECTION_TTL = 2.minutes
   SECTION_RACE_TTL = 15.seconds
   REDIS_SCAN_MAX_ITERATIONS = 50
