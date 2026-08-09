@@ -292,4 +292,47 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     assert_not MonitoringLocation.exact_search_match("Texas").exists?
     assert_not MonitoringLocation.exact_search_match("Lake Travis").exists?
   end
+
+  test "purge_ids! deletes daily archive shards before time series" do
+    keep = create(:monitoring_location, site_number: "30000001")
+    keep_series = create(:time_series, monitoring_location: keep)
+    DailyArchiveShard.create!(
+      time_series: keep_series,
+      year: 2024,
+      object_key: "daily/v1/#{keep_series.id}/2024.json.gz",
+      content_sha256: "keep",
+      point_count: 1,
+      min_on: Date.new(2024, 1, 1),
+      max_on: Date.new(2024, 1, 1),
+      source_mix: "usgs",
+      synced_at: Time.current
+    )
+
+    doomed = create(:monitoring_location, site_number: "30000002")
+    doomed_series = create(:time_series, monitoring_location: doomed)
+    ContinuousObservation.create!(time_series: doomed_series, observed_at: 1.hour.ago, value: 1.0)
+    DailyObservation.create!(time_series: doomed_series, observed_on: Date.current, value: 2.0)
+    DailyArchiveShard.create!(
+      time_series: doomed_series,
+      year: 2023,
+      object_key: "daily/v1/#{doomed_series.id}/2023.json.gz",
+      content_sha256: "doomed",
+      point_count: 10,
+      min_on: Date.new(2023, 1, 1),
+      max_on: Date.new(2023, 12, 31),
+      source_mix: "both",
+      synced_at: Time.current
+    )
+
+    assert_equal 1, MonitoringLocation.purge_ids!([ doomed.id ])
+
+    assert_not MonitoringLocation.exists?(doomed.id)
+    assert_not TimeSeries.exists?(doomed_series.id)
+    assert_not DailyArchiveShard.exists?(time_series_id: doomed_series.id)
+    assert_not ContinuousObservation.exists?(time_series_id: doomed_series.id)
+    assert_not DailyObservation.exists?(time_series_id: doomed_series.id)
+
+    assert MonitoringLocation.exists?(keep.id)
+    assert DailyArchiveShard.exists?(time_series_id: keep_series.id)
+  end
 end
