@@ -87,5 +87,25 @@ module DailyArchive
       assert_operator stats[:iv_deleted], :>=, 1
       assert_equal 0, ContinuousObservation.where(time_series_id: @series.id).count
     end
+
+    test "logs candidate counts and phase progress" do
+      ENV["DAILY_ARCHIVE_PRUNE"] = "1"
+      day = Date.current - 1
+      DailyObservation.create!(time_series: @series, observed_on: day, value: 3.0)
+      Writer.new(store: @store).upsert(
+        time_series_id: @series.id,
+        points: [ { "d" => day.iso8601, "v" => 3.0, "s" => "usgs" } ]
+      )
+
+      io = StringIO.new
+      progress = SyncProgress.new("RetentionTest", io: io, logger: nil, every: 1)
+      Retention.new(store: @store, as_of: @as_of, client: nil, progress: progress).perform
+
+      output = io.string
+      assert_match(/starting retention handoff \+ postgres prune/, output)
+      assert_match(/iv prune scanning candidates=/, output)
+      assert_match(/daily prune scanning candidates=/, output)
+      assert_match(/daily prune done deleted=1/, output)
+    end
   end
 end
