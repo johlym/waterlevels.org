@@ -4,6 +4,9 @@ module Nwps
   class Client
     BASE_URL = "https://api.water.noaa.gov/nwps/v1/".freeze
     LIST_TIMEOUT_SECONDS = 90
+    # NWPS publishes ~10 requests / 5 minutes. Default to 30s between calls so
+    # a 10-slice list pass stays inside that budget.
+    DEFAULT_REQUEST_PAUSE_MS = 30_000
 
     Error = Class.new(StandardError)
     NotFoundError = Class.new(Error)
@@ -39,19 +42,19 @@ module Nwps
       end
     end
 
-    # Returns the NWPS gauge list for one state (status + LID; no usgsId /
-    # thresholds). +state+ is required so callers cannot request the unbounded
-    # national payload that NWPS often 504s on.
-    def gauges(state:)
-      postal = Usgs::StateCodes.normalize_postal(state)
-      bbox = Usgs::StateCodes.bbox_for(postal)
+    # Returns the NWPS gauge list for one geographic slice (status + LID; no
+    # usgsId / thresholds). +region+ is required so callers cannot request the
+    # unbounded national payload that NWPS often 504s on.
+    def gauges(region:)
+      region_id = region.to_s
+      bbox = ListRegions.bbox_for(region_id)
 
       Telemetry.in_span(
         "nwps.http.gauges",
         attributes: {
           "http.request.method" => "GET",
           "app.operation" => "nwps.http.gauges",
-          "app.state" => postal
+          "app.nwps_region" => region_id
         }
       ) do
         pause_between_requests!
@@ -80,7 +83,7 @@ module Nwps
     def default_request_pause_ms
       return 0 if Rails.env.test?
 
-      ENV.fetch("NWPS_REQUEST_PAUSE_MS", "100").to_i
+      ENV.fetch("NWPS_REQUEST_PAUSE_MS", DEFAULT_REQUEST_PAUSE_MS.to_s).to_i
     end
 
     def pause_between_requests!
@@ -101,6 +104,7 @@ module Nwps
           interval_randomness: 0.5,
           backoff_factor: 2,
           max_interval: 30,
+          # Do not retry 429 — NWPS budget is tiny and retries make it worse.
           retry_statuses: [ 500, 502, 503, 504 ]
         f.options.timeout = 30
         f.options.open_timeout = 10
