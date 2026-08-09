@@ -9,6 +9,15 @@ module Usgs
       assert_equal "Washington", StateCodes.name_for("wa")
     end
 
+    test "every state has a WGS84 bbox for NWPS list scoping" do
+      StateCodes::STATES.each_key do |postal|
+        bbox = StateCodes.bbox_for(postal)
+        %i[xmin ymin xmax ymax].each { |key| assert bbox.key?(key), "#{postal} missing #{key}" }
+        assert_operator bbox.fetch(:xmin), :<, bbox.fetch(:xmax), postal
+        assert_operator bbox.fetch(:ymin), :<, bbox.fetch(:ymax), postal
+      end
+    end
+
     test "rejects unknown states" do
       assert_raises(ArgumentError) { StateCodes.normalize_postal("zz") }
       assert_raises(ArgumentError) { StateCodes.normalize_postal("95") }

@@ -21,21 +21,36 @@ module Nwps
       assert_nil Client.new(request_pause_ms: 0).gauge("99999999")
     end
 
-    test "gauges returns the national list payload" do
+    test "gauges requires a state and scopes the list by that state's bbox" do
+      bbox = Usgs::StateCodes.bbox_for("wa")
       stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges")
+        .with(
+          query: {
+            "bbox.xmin" => bbox.fetch(:xmin).to_s,
+            "bbox.ymin" => bbox.fetch(:ymin).to_s,
+            "bbox.xmax" => bbox.fetch(:xmax).to_s,
+            "bbox.ymax" => bbox.fetch(:ymax).to_s,
+            "srid" => "EPSG_4326"
+          }
+        )
         .to_return(
           status: 200,
           headers: { "Content-Type" => "application/json" },
           body: {
             gauges: [
-              { lid: "THET2", status: { observed: { floodCategory: "major" } } }
+              { lid: "ACAW1", status: { observed: { floodCategory: "no_flooding" } } }
             ]
           }.to_json
         )
 
-      list = Client.new(request_pause_ms: 0).gauges
+      list = Client.new(request_pause_ms: 0).gauges(state: "wa")
       assert_equal 1, list.size
-      assert_equal "THET2", list.first["lid"]
+      assert_equal "ACAW1", list.first["lid"]
+    end
+
+    test "gauges rejects a missing or unknown state" do
+      assert_raises(ArgumentError) { Client.new(request_pause_ms: 0).gauges(state: nil) }
+      assert_raises(ArgumentError) { Client.new(request_pause_ms: 0).gauges(state: "zz") }
     end
   end
 end
