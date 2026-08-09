@@ -22,28 +22,54 @@
   </div>
 
   <% freshness = stats[:tip_freshness] %>
-  <% freshness_total = freshness.values.sum %>
+  <% freshness_segments = [
+    [ :current, "Current", "current" ],
+    [ :h1_plus, "1+ Hour", "h1" ],
+    [ :h6_plus, "6+ Hours", "h6" ],
+    [ :h24_plus, "24+ Hours", "h24" ],
+    [ :h72_plus, "72+ Hours", "h72" ],
+    [ :stale, "1+ Week/Stale", "stale" ]
+  ] %>
+  <% freshness_total = freshness_segments.sum { |key, _, _| freshness[key].to_i } %>
   <div class="freshness-panel">
     <h3>Tip freshness</h3>
-    <p class="hint">Active stations by latest_observed_at age</p>
-    <ul class="freshness-bars">
-      <% [
-        [ :under_1h, "< 1 hour" ],
-        [ :h1_to_6h, "1–6 hours" ],
-        [ :h6_to_24h, "6–24 hours" ],
-        [ :d1_to_7d, "1–7 days" ],
-        [ :stale, "Stale / missing" ]
-      ].each do |key, label| %>
+    <p class="hint">
+      Active stations by latest_observed_at age
+      <% if freshness_total.positive? %>
+        · <%= number_with_delimiter(freshness_total) %> total
+      <% end %>
+    </p>
+    <div
+      class="freshness-stack"
+      role="img"
+      aria-label="Tip freshness distribution across <%= number_with_delimiter(freshness_total) %> active stations"
+    >
+      <% if freshness_total.positive? %>
+        <% freshness_segments.each do |key, label, tone| %>
+          <% count = freshness[key].to_i %>
+          <% next if count.zero? %>
+          <% pct = count * 100.0 / freshness_total %>
+          <span
+            class="segment <%= tone %>"
+            style="width: <%= pct %>%"
+            title="<%= label %>: <%= number_with_delimiter(count) %> (<%= number_with_precision(pct, precision: 1) %>%)"
+          ></span>
+        <% end %>
+      <% else %>
+        <span class="segment empty" style="width: 100%"></span>
+      <% end %>
+    </div>
+    <ul class="freshness-legend">
+      <% freshness_segments.each do |key, label, tone| %>
         <% count = freshness[key].to_i %>
         <% pct = freshness_total.positive? ? (count * 100.0 / freshness_total) : 0 %>
         <li>
-          <div class="row">
-            <span class="name"><%= label %></span>
-            <span class="meta"><%= number_with_delimiter(count) %></span>
-          </div>
-          <div class="bar" aria-hidden="true">
-            <span style="width: <%= pct %>%"></span>
-          </div>
+          <span class="swatch <%= tone %>" aria-hidden="true"></span>
+          <span class="name"><%= label %></span>
+          <span class="meta">
+            <%= number_with_delimiter(count) %>
+            <span class="pct"><%= number_with_precision(pct, precision: 1) %>%</span>
+          </span>
         </li>
       <% end %>
     </ul>

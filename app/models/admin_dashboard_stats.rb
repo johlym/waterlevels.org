@@ -378,10 +378,11 @@ class AdminDashboardStats
     scope = MonitoringLocation.active
     now = Time.current
     {
-      under_1h: scope.where(latest_observed_at: 1.hour.ago..).count,
-      h1_to_6h: scope.where(latest_observed_at: 6.hours.ago...1.hour.ago).count,
-      h6_to_24h: scope.where(latest_observed_at: 24.hours.ago...6.hours.ago).count,
-      d1_to_7d: scope.where(latest_observed_at: 7.days.ago...24.hours.ago).count,
+      current: scope.where(latest_observed_at: 1.hour.ago..).count,
+      h1_plus: scope.where(latest_observed_at: 6.hours.ago...1.hour.ago).count,
+      h6_plus: scope.where(latest_observed_at: 24.hours.ago...6.hours.ago).count,
+      h24_plus: scope.where(latest_observed_at: 72.hours.ago...24.hours.ago).count,
+      h72_plus: scope.where(latest_observed_at: 7.days.ago...72.hours.ago).count,
       stale: scope.where("latest_observed_at IS NULL OR latest_observed_at < ?", now - 7.days).count
     }
   end
