@@ -2,9 +2,19 @@ module DailyArchive
   class Writer
     LOCK_PREFIX = "daily_archive_write:"
     LOCK_TTL = 2.minutes
+    # Sidekiq concurrency lets prune/export/backfill rewrite the same year shard.
+    # Wait long enough to cover a typical R2 get/merge/put + catalog update.
+    LOCK_WAIT = 30.seconds
+    LOCK_SLEEP_INITIAL = 0.05
+    LOCK_SLEEP_MAX = 1.0
 
-    def initialize(store: DailyArchive.store)
+    # Transient contention on a year shard — callers may retry or skip.
+    class LockBusyError < Cloudflare::R2Client::Error; end
+
+    def initialize(store: DailyArchive.store, sleeper: nil, lock_wait: LOCK_WAIT)
       @store = store
+      @sleeper = sleeper || ->(seconds) { sleep(seconds) }
+      @lock_wait = lock_wait
     end
 
     # points: array of hashes with observed_on/value or d/v, plus optional source/approval_status
@@ -37,13 +47,7 @@ module DailyArchive
     def upsert_year(time_series_id, year, year_points)
       key = DailyArchive.object_key(time_series_id, year)
       lock_key = "#{LOCK_PREFIX}#{time_series_id}:#{year}"
-      unless Rails.cache.write(lock_key, true, expires_in: LOCK_TTL, unless_exist: true)
-        # Another writer holds the shard; brief wait + retry once.
-        sleep 0.05
-        unless Rails.cache.write(lock_key, true, expires_in: LOCK_TTL, unless_exist: true)
-          raise Cloudflare::R2Client::Error, "archive write lock busy key=#{key}"
-        end
-      end
+      acquire_lock!(lock_key, key)
 
       begin
         existing = Codec.decode(@store.get(key))
@@ -67,6 +71,23 @@ module DailyArchive
         merged.size
       ensure
         Rails.cache.delete(lock_key)
+      end
+    end
+
+    def acquire_lock!(lock_key, key)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + @lock_wait.to_f
+      sleep_for = LOCK_SLEEP_INITIAL
+
+      loop do
+        return if Rails.cache.write(lock_key, true, expires_in: LOCK_TTL, unless_exist: true)
+
+        remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        if remaining <= 0
+          raise LockBusyError, "archive write lock busy key=#{key}"
+        end
+
+        @sleeper.call([ sleep_for, remaining ].min)
+        sleep_for = [ sleep_for * 2, LOCK_SLEEP_MAX ].min
       end
     end
   end

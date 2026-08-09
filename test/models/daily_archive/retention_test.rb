@@ -107,5 +107,29 @@ module DailyArchive
       assert_match(/daily prune scanning candidates=/, output)
       assert_match(/daily prune done deleted=1/, output)
     end
+
+    test "counts lock-busy archive writes as retrying without aborting prune" do
+      previous_cache = Rails.cache
+      Rails.cache = ActiveSupport::Cache::MemoryStore.new
+
+      zone = ActiveSupport::TimeZone["America/Los_Angeles"]
+      day = Date.new(2026, 7, 8)
+      t = zone.local(day.year, day.month, day.day, 0, 0, 0)
+      96.times do
+        ContinuousObservation.create!(time_series: @series, observed_at: t, value: 8.0)
+        t += 15.minutes
+      end
+
+      lock_key = "#{Writer::LOCK_PREFIX}#{@series.id}:#{day.year}"
+      Rails.cache.write(lock_key, true, expires_in: 1.minute)
+      writer = Writer.new(store: @store, sleeper: ->(_seconds) {}, lock_wait: 0.05.seconds)
+
+      stats = Retention.new(store: @store, writer: writer, as_of: @as_of, client: nil).perform
+      assert_operator stats[:retrying], :>=, 1
+      assert_equal 0, stats[:derived]
+      assert_nil DailyArchiveShard.find_by(time_series_id: @series.id, year: day.year)
+    ensure
+      Rails.cache = previous_cache
+    end
   end
 end

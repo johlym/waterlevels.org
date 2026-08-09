@@ -129,6 +129,12 @@ module DailyArchive
       end
 
       :retrying
+    rescue Writer::LockBusyError => e
+      # Concurrent export/backfill holds the year shard; leave IV in place for a later run.
+      Rails.logger.warn(
+        "[DailyArchive::Retention] archive write lock busy series=#{series.id} day=#{day}: #{e.message}"
+      )
+      :retrying
     end
 
     def postgres_usgs_daily?(series, day)
