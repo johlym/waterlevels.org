@@ -36,6 +36,8 @@ When `DAILY_ARCHIVE_DUAL_WRITE` is enabled (default once a store is configured):
 2. On R2 write failure, ingest falls back to Postgres so data is not dropped, then drain later.
 3. Without an archive store configured (typical unit tests), ingest still upserts Postgres — offline fallback.
 
+Year-shard writes take a short Redis lock (`daily_archive_write:{time_series_id}:{year}`) so prune handoff, history ingest, and `archive:export_daily` cannot clobber each other's read-modify-write. Contended writers wait/backoff (~30s) before raising; nightly retention treats sustained lock busy as `retrying` for that day instead of aborting the whole prune.
+
 ## Day-31 handoff (USGS-first)
 
 Invariant: **never prune IV for local day D until R2 has D (USGS or derived) or D is an explicit alerted gap.**
