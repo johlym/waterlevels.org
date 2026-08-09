@@ -128,6 +128,66 @@ class LatestObservationSyncTest < ActiveSupport::TestCase
     assert_includes seen, "00065"
   end
 
+  test "flushes tip upserts in batches" do
+    second = create(
+      :time_series,
+      monitoring_location: @location,
+      usgs_time_series_id: "ts-latest-sync-2",
+      parameter_code: "00060",
+      measurement_kind: "discharge",
+      selected_for_display: true
+    )
+    features = [
+      {
+        id: "ts-latest-sync",
+        properties: {
+          time_series_id: "ts-latest-sync",
+          time: "2026-08-02T18:00:00Z",
+          value: 12.5,
+          unit_of_measure: "ft"
+        }
+      },
+      {
+        id: "ts-latest-sync-2",
+        properties: {
+          time_series_id: "ts-latest-sync-2",
+          time: "2026-08-02T18:15:00Z",
+          value: 320.0,
+          unit_of_measure: "ft3/s"
+        }
+      }
+    ]
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/latest-continuous/items})
+      .to_return do |request|
+        code = request.uri.query.to_s[/parameter_code=(\d+)/, 1]
+        body_features =
+          case code
+          when "00065" then [ features[0] ]
+          when "00060" then [ features[1] ]
+          else []
+          end
+        {
+          status: 200,
+          headers: { "Content-Type" => "application/geo+json" },
+          body: { features: body_features, links: [] }.to_json
+        }
+      end
+
+    previous = LatestObservationSync::UPSERT_BATCH
+    LatestObservationSync.send(:remove_const, :UPSERT_BATCH)
+    LatestObservationSync.const_set(:UPSERT_BATCH, 1)
+
+    LatestObservationSync.new(state: "wa").perform
+
+    assert LatestObservation.exists?(time_series_id: @series.id)
+    assert LatestObservation.exists?(time_series_id: second.id)
+    assert_equal 1, ContinuousObservation.where(time_series_id: @series.id).count
+    assert_equal 1, ContinuousObservation.where(time_series_id: second.id).count
+  ensure
+    LatestObservationSync.send(:remove_const, :UPSERT_BATCH)
+    LatestObservationSync.const_set(:UPSERT_BATCH, previous)
+  end
+
   test "skips USGS temperature fault sentinels instead of overflowing tip columns" do
     temperature = create(
       :time_series,

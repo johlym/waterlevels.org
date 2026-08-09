@@ -1,6 +1,10 @@
 class LatestObservationSync
   include ActiveModel::Model
 
+  # National tip sync touches thousands of selected series; flush DB writes in
+  # slices instead of one upsert round-trip per USGS feature.
+  UPSERT_BATCH = 200
+
   attr_accessor :client, :state, :progress
 
   def initialize(client: Usgs::Client.for_tip, state: nil, progress: nil)
@@ -19,6 +23,8 @@ class LatestObservationSync
     ) do
       sync_error = nil
       @upserted_series_ids = Set.new
+      @denormalize_location_ids = Set.new
+      @series_cache = {}
       progress&.step(scope_label)
       begin
         Usgs::ParameterCodes::ALL.each do |parameter_code|
@@ -114,10 +120,12 @@ class LatestObservationSync
     progress&.step("syncing latest-continuous parameter=#{parameter_code}")
     count = 0
     skipped = 0
+    latest_buffer = []
+    continuous_buffer = []
 
     client.each_collection_item("latest-continuous", latest_query(parameter_code)) do |item|
-      ts_id = item["time_series_id"] || item["id"]
-      series = TimeSeries.find_by(usgs_time_series_id: ts_id.to_s)
+      ts_id = (item["time_series_id"] || item["id"]).to_s
+      series = find_series(ts_id)
       unless series&.selected_for_display?
         skipped += 1
         next
@@ -135,42 +143,45 @@ class LatestObservationSync
       end
       # USGS fault sentinels (e.g. -100000 degC) overflow latest_temperature_c.
       if series.measurement_kind == "temperature" && !Usgs::ParameterCodes.plausible_temperature_c?(value)
+        # Still rewrite map columns so a prior bad/stale tip is cleared.
+        @denormalize_location_ids << series.monitoring_location_id
         skipped += 1
         next
       end
 
-      LatestObservation.upsert(
-        {
-          time_series_id: series.id,
-          observed_at: observed_at,
-          value: value,
-          unit_of_measure: item["unit_of_measure"] || series.unit_of_measure,
-          approval_status: item["approval_status"] || item["approval"],
-          qualifier: item["qualifier"],
-          source_last_modified_at: parse_time(item["last_modified"]),
-          synced_at: Time.current,
-          created_at: Time.current,
-          updated_at: Time.current
-        },
-        unique_by: :time_series_id
-      )
+      now = Time.current
+      latest_buffer << {
+        time_series_id: series.id,
+        observed_at: observed_at,
+        value: value,
+        unit_of_measure: item["unit_of_measure"] || series.unit_of_measure,
+        approval_status: item["approval_status"] || item["approval"],
+        qualifier: item["qualifier"],
+        source_last_modified_at: parse_time(item["last_modified"]),
+        synced_at: now,
+        created_at: now,
+        updated_at: now
+      }
       # Keep hydrographs / hourly tables moving between full history backfills.
-      ContinuousObservation.upsert(
-        {
-          time_series_id: series.id,
-          observed_at: observed_at,
-          value: value,
-          approval_status: item["approval_status"] || item["approval"],
-          qualifier: item["qualifier"],
-          created_at: Time.current,
-          updated_at: Time.current
-        },
-        unique_by: %i[time_series_id observed_at]
-      )
+      continuous_buffer << {
+        time_series_id: series.id,
+        observed_at: observed_at,
+        value: value,
+        approval_status: item["approval_status"] || item["approval"],
+        qualifier: item["qualifier"],
+        created_at: now,
+        updated_at: now
+      }
       @upserted_series_ids << series.id
+      @denormalize_location_ids << series.monitoring_location_id
       count += 1
       progress&.increment
+
+      if latest_buffer.size >= UPSERT_BATCH
+        flush_tip_buffers!(latest_buffer, continuous_buffer)
+      end
     end
+    flush_tip_buffers!(latest_buffer, continuous_buffer)
 
     Telemetry.add_attributes(
       "app.observation_count" => count,
@@ -182,9 +193,51 @@ class LatestObservationSync
   end
   private :sync_parameter_body
 
+  def flush_tip_buffers!(latest_buffer, continuous_buffer)
+    if latest_buffer.any?
+      LatestObservation.upsert_all(
+        latest_buffer,
+        unique_by: :time_series_id,
+        update_only: %i[
+          observed_at
+          value
+          unit_of_measure
+          approval_status
+          qualifier
+          source_last_modified_at
+          synced_at
+        ]
+      )
+      latest_buffer.clear
+    end
+
+    if continuous_buffer.any?
+      ContinuousObservation.upsert_all(
+        continuous_buffer,
+        unique_by: %i[time_series_id observed_at],
+        update_only: %i[value approval_status qualifier]
+      )
+      continuous_buffer.clear
+    end
+  end
+
+  def find_series(usgs_time_series_id)
+    return @series_cache[usgs_time_series_id] if @series_cache.key?(usgs_time_series_id)
+
+    @series_cache[usgs_time_series_id] = TimeSeries
+      .includes(:monitoring_location)
+      .find_by(usgs_time_series_id: usgs_time_series_id)
+  end
+
   def denormalize_locations
     progress&.step("denormalizing location latest values")
-    scope = MonitoringLocation.includes(time_series: :latest_observation)
+    location_ids = @denormalize_location_ids.to_a
+    if location_ids.empty?
+      progress&.step("locations denormalized=0")
+      return 0
+    end
+
+    scope = MonitoringLocation.where(id: location_ids).includes(time_series: :latest_observation)
     scope = scope.in_state(postal_code) if postal_code
     count = 0
 
