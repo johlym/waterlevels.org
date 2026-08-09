@@ -79,4 +79,21 @@ module DailyArchive
   def env_flag?(name)
     %w[1 true yes on].include?(ENV[name].to_s.strip.downcase)
   end
+
+  # time_series.id relation: daily present on/before anchor in hot Postgres and/or
+  # cold shard catalog (min_on). Used by backfill eligibility and admin backlog.
+  def time_series_ids_with_daily_on_or_before(anchor)
+    return TimeSeries.none if anchor.blank?
+
+    hot = DailyObservation.where(observed_on: ..anchor).select(:time_series_id)
+    cold = DailyArchiveShard.where(min_on: ..anchor).select(:time_series_id)
+    TimeSeries.where(id: hot).or(TimeSeries.where(id: cold)).select(:id)
+  end
+
+  # Points in year shards entirely older than the hot tip — no overlap with
+  # daily_observations after prune. Boundary-year cold days may still sit only
+  # in a straddling shard and are omitted (undercount) rather than double-counted.
+  def cold_archive_point_count
+    DailyArchiveShard.where(max_on: ...hot_cutoff_on).sum(:point_count).to_i
+  end
 end

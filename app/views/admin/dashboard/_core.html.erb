@@ -62,7 +62,8 @@
       <p class="label">Total measurements</p>
       <p class="hint">
         <%= number_to_human(stats[:continuous_observation_count], precision: 2, significant: true, units: { thousand: "K", million: "M", billion: "B" }) %> continuous ·
-        <%= number_to_human(stats[:daily_observation_count], precision: 2, significant: true, units: { thousand: "K", million: "M", billion: "B" }) %> daily ·
+        <%= number_to_human(stats[:daily_observation_count], precision: 2, significant: true, units: { thousand: "K", million: "M", billion: "B" }) %> daily (hot) ·
+        <%= number_to_human(stats[:archive_daily_observation_count], precision: 2, significant: true, units: { thousand: "K", million: "M", billion: "B" }) %> daily (archive) ·
         <%= number_to_human(stats[:peak_observation_count], precision: 2, significant: true, units: { thousand: "K", million: "M", billion: "B" }) %> peaks
       </p>
     </article>

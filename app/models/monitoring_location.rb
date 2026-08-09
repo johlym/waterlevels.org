@@ -71,8 +71,9 @@ class MonitoringLocation < ApplicationRecord
     missing_continuous_anchor = TimeSeries.selected.where.not(
       id: ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id)
     )
+    # Year anchor may live only in cold archive after a short hot tip + prune.
     missing_daily_anchor = TimeSeries.selected.where.not(
-      id: DailyObservation.where(observed_on: ..daily_anchor).select(:time_series_id)
+      id: DailyArchive.time_series_ids_with_daily_on_or_before(daily_anchor)
     )
     stale_daily_tip = TimeSeries.selected.where.not(
       id: DailyObservation.where(observed_on: daily_fresh_since..).select(:time_series_id)
@@ -85,15 +86,16 @@ class MonitoringLocation < ApplicationRecord
   }
   # Year-ready stations that still lack ~3-year daily history. Excludes phase-1
   # candidates so the deep batch never competes with cold/lazy 1y fills.
+  # Deep anchors are expected in R2 once DAILY_ARCHIVE_PRUNE removes the hot tip.
   scope :needing_deep_history_backfill, lambda {
     year_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
 
     missing_year = TimeSeries.selected.where.not(
-      id: DailyObservation.where(observed_on: ..year_anchor).select(:time_series_id)
+      id: DailyArchive.time_series_ids_with_daily_on_or_before(year_anchor)
     )
     missing_deep = TimeSeries.selected.where.not(
-      id: DailyObservation.where(observed_on: ..deep_anchor).select(:time_series_id)
+      id: DailyArchive.time_series_ids_with_daily_on_or_before(deep_anchor)
     )
     where(id: missing_deep.select(:monitoring_location_id))
       .where.not(id: missing_year.select(:monitoring_location_id))
@@ -134,7 +136,7 @@ class MonitoringLocation < ApplicationRecord
     series.any? do |s|
       s.continuous_observations.where(observed_at: continuous_since..).none? ||
         s.continuous_observations.where(observed_at: ..continuous_anchor).none? ||
-        s.daily_observations.where(observed_on: ..daily_anchor).none? ||
+        !s.has_daily_on_or_before?(daily_anchor) ||
         s.daily_observations.where(observed_on: daily_fresh_since..).none?
     end
   end
@@ -146,28 +148,28 @@ class MonitoringLocation < ApplicationRecord
     return false if series.none?
 
     daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
-    series.any? { |s| s.daily_observations.where(observed_on: ..daily_anchor).none? }
+    series.any? { |s| !s.has_daily_on_or_before?(daily_anchor) }
   end
 
   # True when year history is present but a selected series still lacks daily
-  # points near the ~3-year deep anchor.
+  # points near the ~3-year deep anchor (Postgres hot tip or cold archive).
   def missing_deep_history?
     series = time_series.selected
     return false if series.none?
     return false if missing_year_history?
 
     deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
-    series.any? { |s| s.daily_observations.where(observed_on: ..deep_anchor).none? }
+    series.any? { |s| !s.has_daily_on_or_before?(deep_anchor) }
   end
 
   # True when every selected series has daily points near the ~3-year anchor —
-  # used to expose the 3 Years chart tab.
+  # used to expose the 3 Years chart tab (hot Postgres and/or R2 shards).
   def has_deep_history?
     series = time_series.selected
     return false if series.none?
 
     deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
-    series.all? { |s| s.daily_observations.where(observed_on: ..deep_anchor).exists? }
+    series.all? { |s| s.has_daily_on_or_before?(deep_anchor) }
   end
 
   def to_param

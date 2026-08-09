@@ -1,5 +1,5 @@
 class SiteStats
-  CACHE_KEY = "site_stats/v5".freeze
+  CACHE_KEY = "site_stats/v6".freeze
   TTL = 10.minutes
   # Marketing totals don't need exact row counts; fall back to COUNT for small tables.
   APPROX_COUNT_THRESHOLD = 1_000
@@ -24,7 +24,8 @@ class SiteStats
       flood_alert_count = MonitoringLocation.flood_alert.count
       measurement_count = approximate_or_exact_count(ContinuousObservation) +
         approximate_or_exact_count(DailyObservation) +
-        approximate_or_exact_count(PeakObservation)
+        approximate_or_exact_count(PeakObservation) +
+        DailyArchive.cold_archive_point_count
       updates_today = ContinuousObservation.where(observed_at: pacific_today_range).count
 
       emit_station_inventory!(
