@@ -83,6 +83,15 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "King County"
   end
 
+  test "breadcrumb county links to state directory county anchor" do
+    @location.update!(county_name: "King County")
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_includes response.body, 'href="/gauges/wa#king"'
+    assert_includes response.body, ">King</a>"
+  end
+
   test "gauge page shows NWS flood category and stage thresholds" do
     @location.update!(
       nwps_matched: true,

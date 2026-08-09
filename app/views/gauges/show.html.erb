@@ -29,12 +29,15 @@
             <%= link_to @snapshot[:state_name].presence || @snapshot[:state_code].upcase, state_gauges_path(@snapshot[:state_code]) %>
           </li>
           <% if @snapshot[:county_name].present? %>
+            <% county_label = display_county_name(@snapshot[:county_name]) %>
             <li class="sep" aria-hidden="true">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
               </svg>
             </li>
-            <li class="current"><%= display_county_name(@snapshot[:county_name]) %></li>
+            <li>
+              <%= link_to county_label, state_gauges_path(@snapshot[:state_code], anchor: directory_group_anchor(county_label)) %>
+            </li>
           <% end %>
         </ol>
       </nav>
