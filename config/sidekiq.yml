@@ -7,7 +7,6 @@
   - sync
   - backfill
 
-
 :scheduler:
   :schedule:
     station_catalog_sync:
@@ -15,7 +14,7 @@
       class: StationCatalogSyncJob
       queue: sync
     latest_observation_sync:
-      cron: "0 * * * *"
+      cron: "3 * * * *"
       class: LatestObservationSyncJob
       queue: sync
     flood_stage_sync:
@@ -33,6 +32,6 @@
       class: HistoryBackfillBatchJob
       queue: backfill
     continuous_prune:
-      cron: "15 4 * * *"
+      cron: "15 9 * * *"
       class: ContinuousPruneJob
       queue: default
