@@ -29,7 +29,7 @@
       [ :growth, "Growth", "Measurements & tip freshness", "admin-growth-heading", 2 ],
       [ :jobs, "Jobs", "Last finished", "admin-jobs-heading", 4 ],
       [ :states, "States", "Station & backfill backlog", "admin-states-heading", 0 ],
-      [ :health, "Health", "USGS budget, circuits & Sidekiq", "admin-health-heading", 3 ]
+      [ :health, "Health", "USGS keys, circuits & Sidekiq", "admin-health-heading", 3 ]
     ].each do |section, eyebrow, heading, heading_id, cards| %>
       <%= turbo_frame_tag "admin_section_#{section}",
             data: {
