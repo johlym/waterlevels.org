@@ -6,10 +6,14 @@ class HistoryBackfillBatchJobTest < ActiveSupport::TestCase
   setup do
     @previous_cache = Rails.cache
     Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    # Parallel workers share Redis request counters. A depleted tip-key budget
+    # makes phase-1 budget 0 (cost 1000) while deep (cost 2) still enqueues.
+    clear_shared_request_budget!
   end
 
   teardown do
     Rails.cache = @previous_cache
+    clear_shared_request_budget!
   end
 
   test "enqueues history jobs for locations needing backfill" do
@@ -222,6 +226,12 @@ class HistoryBackfillBatchJobTest < ActiveSupport::TestCase
   end
 
   private
+
+  def clear_shared_request_budget!
+    Usgs::HourlyRequestBudget.clear_all!
+  rescue Redis::BaseError
+    nil
+  end
 
   def with_env(vars)
     previous = vars.keys.index_with { |key| ENV[key] }

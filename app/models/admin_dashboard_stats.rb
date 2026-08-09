@@ -2,7 +2,10 @@
 # Job-finish / tip-refresh summaries are written by sync POROs (Redis +
 # process-local fallback). The dashboard loads section snapshots via Turbo
 # Frames so the shell can render before heavy aggregates finish; backfill
-# aggregates are briefly cached so parallel section requests share one query.
+# aggregates are cached with race_condition_ttl so parallel section requests
+# share one compute instead of stampedes.
+require "set"
+
 class AdminDashboardStats
   TIP_REFRESH_CACHE_KEY = "admin:last_tip_refresh".freeze
   JOB_CACHE_KEYS = {
@@ -15,8 +18,18 @@ class AdminDashboardStats
   TIP_REFRESH_TTL = 7.days
   APPROX_COUNT_THRESHOLD = SiteStats::APPROX_COUNT_THRESHOLD
   SECTIONS = %i[core pipeline growth jobs states health].freeze
-  BACKFILL_CACHE_KEY = "admin_dashboard/backfill_aggregates/v2".freeze
-  BACKFILL_TTL = 30.seconds
+  # Cheap sections first so the sequential frame loader warms UI quickly, then
+  # core (which fills the backfill cache), then the remaining heavy panels.
+  SECTION_LOAD_ORDER = %i[jobs health core pipeline growth states].freeze
+  BACKFILL_CACHE_KEY = "admin_dashboard/backfill_aggregates/v3".freeze
+  BACKFILL_TTL = 10.minutes
+  BACKFILL_RACE_TTL = 30.seconds
+  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v3".freeze
+  SECTION_TTL = 2.minutes
+  SECTION_RACE_TTL = 15.seconds
+  REDIS_SCAN_MAX_ITERATIONS = 50
+  # Keep well under Heroku's 30s H12 so a slow aggregate frees the Puma thread.
+  STATEMENT_TIMEOUT_MS = Integer(ENV.fetch("ADMIN_DASHBOARD_STATEMENT_TIMEOUT_MS", "12000"))
 
   class << self
     def snapshot
@@ -24,11 +37,26 @@ class AdminDashboardStats
     end
 
     def section(name)
-      new.section(name)
+      key = name.to_sym
+      unless SECTIONS.include?(key)
+        raise ArgumentError, "Unknown admin dashboard section: #{name.inspect}"
+      end
+
+      Rails.cache.fetch(
+        "#{SECTION_CACHE_KEY_PREFIX}/#{key}",
+        expires_in: SECTION_TTL,
+        race_condition_ttl: SECTION_RACE_TTL
+      ) do
+        new.section(key)
+      end
     end
 
     def sections
       SECTIONS
+    end
+
+    def section_load_order
+      SECTION_LOAD_ORDER
     end
 
     def record_tip_refresh!(stations_updated:, series_upserted:, finished_at: Time.current, state: nil)
@@ -68,6 +96,23 @@ class AdminDashboardStats
 
     def bust_backfill_cache!
       Rails.cache.delete(BACKFILL_CACHE_KEY)
+      SECTIONS.each { |name| Rails.cache.delete("#{SECTION_CACHE_KEY_PREFIX}/#{name}") }
+    end
+
+    def warm_backfill!
+      new.send(:backfill_aggregates)
+    end
+
+    def with_statement_timeout(ms = STATEMENT_TIMEOUT_MS)
+      connection = ActiveRecord::Base.connection
+      previous = connection.select_value("SHOW statement_timeout")
+      # Quote the coerced integer so Brakeman does not flag string interpolation.
+      connection.execute("SET statement_timeout TO #{connection.quote(Integer(ms))}")
+      yield
+    ensure
+      if previous
+        connection.execute("SET statement_timeout TO #{connection.quote(previous)}")
+      end
     end
 
     private
@@ -113,7 +158,7 @@ class AdminDashboardStats
   end
 
   def snapshot
-    SECTIONS.each_with_object({}) { |name, hash| hash.merge!(section(name)) }
+    SECTIONS.each_with_object({}) { |name, hash| hash.merge!(public_send(:"#{name}_section")) }
   end
 
   def section(name)
@@ -163,14 +208,15 @@ class AdminDashboardStats
   def pipeline_section
     backfill = backfill_aggregates
     active_count = backfill[:station_count]
+    site = SiteStats.snapshot
 
     {
       stations_needing_deep_history: backfill[:stations_needing_deep_history],
       stations_history_ready: backfill[:stations_history_ready],
       stale_station_count: active_count - MonitoringLocation.active.not_stale.count,
-      flood_alert_count: MonitoringLocation.flood_alert.count,
+      flood_alert_count: site[:flood_alert_count],
       nwps_matched_count: MonitoringLocation.active.where(nwps_matched: true).count,
-      updates_today: ContinuousObservation.where(observed_at: pacific_today_range).count,
+      updates_today: site[:updates_today],
       history_backfill_locks: count_prefixed_redis_keys(HistoryBackfillLock::KEY_PREFIX),
       history_backfill_cooldowns: count_prefixed_redis_keys(HistoryBackfillLock::COOLDOWN_PREFIX)
     }
@@ -227,21 +273,68 @@ class AdminDashboardStats
   end
 
   def backfill_aggregates
-    @backfill_aggregates ||= Rails.cache.fetch(BACKFILL_CACHE_KEY, expires_in: BACKFILL_TTL) do
+    @backfill_aggregates ||= Rails.cache.fetch(
+      BACKFILL_CACHE_KEY,
+      expires_in: BACKFILL_TTL,
+      race_condition_ttl: BACKFILL_RACE_TTL
+    ) do
       compute_backfill_aggregates
     end
   end
 
+  # One pass over selected series + small coverage sets — avoids nested
+  # needing_history/deep ActiveRecord scopes that each seq-scan observations.
   def compute_backfill_aggregates
+    year_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
+    deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
+    continuous_since = HistoryIngestion::CONTINUOUS_FRESHNESS.ago
+    continuous_anchor = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
+    daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
+
     stations_by_state = MonitoringLocation.active.group(:state_code).count
-    needing_history_by_state = MonitoringLocation.needing_history_backfill.group(:state_code).count
-    needing_deep_by_state = MonitoringLocation.needing_deep_history_backfill.group(:state_code).count
-    missing_year_by_state = missing_year_history_by_state
+    location_state = MonitoringLocation.active.pluck(:id, :state_code).to_h
+    selected = TimeSeries.selected.pluck(:id, :monitoring_location_id)
+    selected.select! { |_series_id, location_id| location_state.key?(location_id) }
+
+    has_year = DailyArchive.daily_coverage_series_ids(year_anchor)
+    has_deep = DailyArchive.daily_coverage_series_ids(deep_anchor)
+    has_continuous_tip = ContinuousObservation.where(observed_at: continuous_since..)
+      .distinct.pluck(:time_series_id).to_set
+    has_continuous_anchor = ContinuousObservation.where(observed_at: ..continuous_anchor)
+      .distinct.pluck(:time_series_id).to_set
+    has_daily_tip = DailyObservation.where(observed_on: daily_fresh_since..)
+      .distinct.pluck(:time_series_id).to_set
+
+    needing_history_by_state = {}
+    needing_deep_by_state = {}
+    missing_year_by_state = {}
+
+    selected.group_by(&:last).each do |location_id, rows|
+      state = location_state[location_id]
+      series_ids = rows.map(&:first)
+      missing_year = series_ids.any? { |id| !has_year.include?(id) }
+      missing_deep = series_ids.any? { |id| !has_deep.include?(id) }
+      phase1 = series_ids.any? do |id|
+        !has_continuous_tip.include?(id) ||
+          !has_continuous_anchor.include?(id) ||
+          !has_year.include?(id) ||
+          !has_daily_tip.include?(id)
+      end
+
+      missing_year_by_state[state] = missing_year_by_state[state].to_i + 1 if missing_year
+      if phase1
+        needing_history_by_state[state] = needing_history_by_state[state].to_i + 1
+      elsif missing_deep
+        needing_deep_by_state[state] = needing_deep_by_state[state].to_i + 1
+      end
+    end
+
     station_count = stations_by_state.values.sum
     stations_needing_history = needing_history_by_state.values.sum
     stations_needing_deep_history = needing_deep_by_state.values.sum
 
     {
+      # Plain hashes only — Hash default procs cannot be Marshal'd into Rails.cache.
       stations_by_state: stations_by_state,
       needing_history_by_state: needing_history_by_state,
       needing_deep_by_state: needing_deep_by_state,
@@ -315,20 +408,6 @@ class AdminDashboardStats
     end
   end
 
-  # Active stations whose selected series still lack daily points near the
-  # ~1-year anchor (Postgres or cold archive). Overlaps phase-1 backlog;
-  # never includes deep-only rows.
-  def missing_year_history_by_state
-    year_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
-    missing_year_series = TimeSeries.selected.where.not(
-      id: DailyArchive.time_series_ids_with_daily_on_or_before(year_anchor)
-    )
-    MonitoringLocation.active
-      .where(id: missing_year_series.select(:monitoring_location_id))
-      .group(:state_code)
-      .count
-  end
-
   def state_name_for(code)
     Usgs::StateCodes.name_for(code)
   rescue ArgumentError, KeyError
@@ -338,11 +417,14 @@ class AdminDashboardStats
   def count_prefixed_redis_keys(prefix)
     count = 0
     cursor = "0"
+    iterations = 0
     self.class.send(:redis_with_rescue) do |r|
       loop do
+        iterations += 1
         cursor, keys = r.scan(cursor, match: "#{prefix}*", count: 1_000)
         count += keys.size
         break if cursor.to_s == "0"
+        break if iterations >= REDIS_SCAN_MAX_ITERATIONS
       end
       count
     end || 0
@@ -381,11 +463,6 @@ class AdminDashboardStats
     }
   rescue StandardError => e
     { error: e.message }
-  end
-
-  def pacific_today_range
-    zone = Time.find_zone!(SiteStats::UPDATES_TIME_ZONE)
-    zone.now.all_day
   end
 
   def parse_time(value)

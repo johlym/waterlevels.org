@@ -79,6 +79,8 @@ Backfill eligibility and `/admin` 1y/3y backlog treat a series as having a daily
 
 Measurement totals add `DailyArchive.cold_archive_point_count` (sum of `point_count` for shards with `max_on` before the hot cutoff) so fully cold years are not dropped from marketing/admin counts after prune. Boundary-year cold days in a straddling shard are omitted rather than double-counted with the hot tip.
 
+Admin aggregates are set-based (one coverage pass, not nested ActiveRecord scopes), cached ~10 minutes with `race_condition_ttl`, and section frames load **sequentially** so a 3-thread web dyno is not stampeded. Section requests also set a Postgres `statement_timeout` (default 12s) and soft-fail inside the Turbo Frame instead of hanging until Heroku H12.
+
 ## Rollout order
 
 1. Credentials in prod (done) + deploy code with flags off.

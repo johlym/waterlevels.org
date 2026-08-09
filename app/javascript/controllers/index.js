@@ -9,6 +9,7 @@ import StateDirectoryController from "./state_directory_controller"
 import StationSearchController from "./station_search_controller"
 import FaqController from "./faq_controller"
 import DialogController from "./dialog_controller"
+import AdminSectionsController from "./admin_sections_controller"
 
 application.register("map", MapController)
 application.register("hydrograph", HydrographController)
@@ -19,3 +20,4 @@ application.register("state-directory", StateDirectoryController)
 application.register("station-search", StationSearchController)
 application.register("faq", FaqController)
 application.register("dialog", DialogController)
+application.register("admin-sections", AdminSectionsController)

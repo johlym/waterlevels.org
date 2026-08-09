@@ -29,7 +29,7 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to admin_login_path
   end
 
-  test "renders dashboard shell with lazy section frames when signed in" do
+  test "renders dashboard shell with sequential section frames when signed in" do
     ENV["DASHBOARD_PW"] = "secret-dashboard"
 
     post admin_login_path, params: { password: "secret-dashboard" }
@@ -44,11 +44,14 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'name="robots"'
     assert_includes response.body, "noindex, nofollow"
     assert_includes response.body, "Loading…"
+    assert_includes response.body, 'data-controller="admin-sections"'
 
     AdminDashboardStats::SECTIONS.each do |section|
       assert_includes response.body, "id=\"admin_section_#{section}\""
-      assert_includes response.body, admin_dashboard_section_path(section: section)
+      # Frames are filled one-at-a-time via Stimulus; src is data-driven, not set on paint.
+      assert_includes response.body, "data-admin-sections-src=\"#{admin_dashboard_section_path(section: section)}\""
     end
+    refute_match(/turbo-frame[^>]*\ssrc=/, response.body)
   end
 
   test "section endpoints render filled stats when signed in" do
@@ -107,6 +110,25 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     post admin_login_path, params: { password: "secret-dashboard" }
     get "/admin/sections/nope"
     assert_response :not_found
+  end
+
+  test "section endpoint soft-fails on statement timeout" do
+    ENV["DASHBOARD_PW"] = "secret-dashboard"
+    post admin_login_path, params: { password: "secret-dashboard" }
+
+    original = AdminDashboardStats.method(:section)
+    AdminDashboardStats.define_singleton_method(:section) do |*_args|
+      raise ActiveRecord::QueryCanceled, "canceling statement due to statement timeout"
+    end
+
+    get admin_dashboard_section_path(section: :states)
+
+    assert_response :service_unavailable
+    assert_includes response.body, 'id="admin_section_states"'
+    assert_includes response.body, "timed out"
+    assert_includes response.body, "Retry"
+  ensure
+    AdminDashboardStats.define_singleton_method(:section, original) if original
   end
 
   test "section endpoints require admin session" do

@@ -1,5 +1,7 @@
 # Hot Postgres tip + cold Cloudflare R2 archive for daily means.
 # See doc/postgres-r2-daily-archive.md.
+require "set"
+
 module DailyArchive
   DAILY_HOT_RETENTION = 14.months
   CONTINUOUS_ROLLUP_AFTER = 30.days
@@ -80,14 +82,26 @@ module DailyArchive
     %w[1 true yes on].include?(ENV[name].to_s.strip.downcase)
   end
 
-  # time_series.id relation: daily present on/before anchor in hot Postgres and/or
-  # cold shard catalog (min_on). Used by backfill eligibility and admin backlog.
+  # Relation selecting time_series_id for series with a daily on/before anchor in
+  # hot Postgres and/or cold shard catalog. UNION (not OR-through-time_series)
+  # keeps the plan as two indexable range scans.
   def time_series_ids_with_daily_on_or_before(anchor)
-    return TimeSeries.none if anchor.blank?
+    return DailyObservation.none.select(:time_series_id) if anchor.blank?
 
     hot = DailyObservation.where(observed_on: ..anchor).select(:time_series_id)
     cold = DailyArchiveShard.where(min_on: ..anchor).select(:time_series_id)
-    TimeSeries.where(id: hot).or(TimeSeries.where(id: cold)).select(:id)
+    DailyObservation
+      .select(:time_series_id)
+      .from(Arel.sql("(#{hot.to_sql} UNION #{cold.to_sql}) AS daily_observations"))
+  end
+
+  # Set of series ids with daily coverage on/before anchor — for in-Ruby admin aggregates.
+  def daily_coverage_series_ids(anchor)
+    return Set.new if anchor.blank?
+
+    hot = DailyObservation.where(observed_on: ..anchor).distinct.pluck(:time_series_id)
+    cold = DailyArchiveShard.where(min_on: ..anchor).distinct.pluck(:time_series_id)
+    hot.to_set.merge(cold)
   end
 
   # Points in year shards entirely older than the hot tip — no overlap with

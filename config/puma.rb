@@ -38,13 +38,14 @@ plugin :tmp_restart
 # In other environments, only set the PID file if requested.
 pidfile ENV["PIDFILE"] if ENV["PIDFILE"]
 
-# After boot, open Postgres/Redis and refresh homepage stats so the first user
-# request after a dyno start/restart is not paying cold-connect + SiteStats COUNTs.
+# After boot, open Postgres/Redis and refresh homepage + admin backfill stats so
+# the first user/admin request after a dyno start is not paying cold aggregates.
 on_booted do
   next unless ENV.fetch("RAILS_ENV", ENV.fetch("RACK_ENV", "development")) == "production"
 
   ActiveRecord::Base.connection_pool.with_connection(&:verify!)
   SiteStats.warm!
+  AdminDashboardStats.warm_backfill!
 rescue StandardError => e
   warn "[puma] boot warm failed: #{e.class}: #{e.message}"
 end
