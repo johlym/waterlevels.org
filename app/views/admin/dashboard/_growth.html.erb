@@ -65,11 +65,9 @@
         <% pct = freshness_total.positive? ? (count * 100.0 / freshness_total) : 0 %>
         <li>
           <span class="swatch <%= tone %>" aria-hidden="true"></span>
-          <span class="entry">
-            <span class="name"><%= label %></span>
-            <span class="meta"><%= number_with_delimiter(count) %></span>
-            <span class="pct"><%= number_with_precision(pct, precision: 1) %>%</span>
-          </span>
+          <span class="name"><%= label %></span>
+          <span class="meta"><%= number_with_delimiter(count) %></span>
+          <span class="pct">(<%= number_with_precision(pct, precision: 1) %>%)</span>
         </li>
       <% end %>
     </ul>

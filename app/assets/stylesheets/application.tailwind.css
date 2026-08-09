@@ -2236,14 +2236,14 @@ body.dialog-open {
   }
 
   .freshness-legend {
-    @apply mt-4 grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3;
+    @apply mt-4 flex flex-wrap gap-x-8 gap-y-3;
 
     li {
-      @apply flex items-center gap-2 text-sm;
+      @apply inline-flex items-baseline gap-1.5 text-sm;
     }
 
     .swatch {
-      @apply size-2.5 shrink-0 rounded-sm;
+      @apply relative top-px size-2.5 shrink-0 self-center rounded-sm;
 
       &.current {
         @apply bg-emerald-400;
@@ -2268,10 +2268,6 @@ body.dialog-open {
       &.stale {
         @apply bg-rose-500;
       }
-    }
-
-    .entry {
-      @apply flex min-w-0 flex-wrap items-baseline gap-x-1.5;
     }
 
     .name {
