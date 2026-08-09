@@ -1,5 +1,7 @@
-# Purges Cloudflare edge cache by Cache-Tag after Redis snapshots are rewarmed.
-# Requires CLOUDFLARE_API_TOKEN + CLOUDFLARE_ZONE_ID; otherwise no-ops.
+# Purges Cloudflare edge cache by Cache-Tag after Redis snapshots are rewarmed,
+# and bumps ApiResponseCache generations for first-party `/api/*` JSON.
+# Requires CLOUDFLARE_API_TOKEN + CLOUDFLARE_ZONE_ID for edge purge; otherwise
+# edge purge no-ops (Redis API invalidation still runs).
 #
 # History ingestions coalesce tags via EdgeCachePurgeBuffer so a backfill does
 # not fire one Instant Purge per station (Cloudflare rate limits are tight on
@@ -9,9 +11,6 @@ class EdgeCacheInvalidation
 
   HISTORY_SHARED_TAGS = %w[
     map
-    map-stations
-    map-station-search
-    map-station-nearest
     gauges
   ].freeze
 
@@ -54,20 +53,25 @@ class EdgeCacheInvalidation
   end
 
   def after_latest_sync!(state: nil)
-    purge!(sync_tags(state: state, include_map_apis: true))
+    ApiResponseCache.invalidate_after_sync!
+    purge!(sync_tags(state: state))
   end
 
   def after_flood_sync!(state: nil)
     # Flood categories change alerts + listings + gauge cards; map station payload too.
-    purge!(sync_tags(state: state, include_map_apis: true))
+    ApiResponseCache.invalidate_after_sync!
+    purge!(sync_tags(state: state))
   end
 
   def after_catalog_sync!(state: nil)
-    purge!(sync_tags(state: state, include_map_apis: true) + %w[sitemap])
+    ApiResponseCache.invalidate_after_sync!
+    purge!(sync_tags(state: state) + %w[sitemap])
   end
 
   def after_station_history!(location)
     return :empty unless location
+
+    ApiResponseCache.invalidate_observations!(location.site_number)
 
     tags = history_tags_for(location)
     if (buffer = Thread.current[:edge_cache_coalesce])
@@ -109,9 +113,8 @@ class EdgeCacheInvalidation
     tags
   end
 
-  def sync_tags(state:, include_map_apis:)
+  def sync_tags(state:)
     tags = %w[home map alerts]
-    tags.concat(%w[map-stations map-station-search map-station-nearest]) if include_map_apis
 
     code = state.present? ? Usgs::StateCodes.normalize_postal(state) : nil
     if code

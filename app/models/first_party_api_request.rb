@@ -1,8 +1,8 @@
 # Gate for internal `/api/*` endpoints used by first-party Stimulus fetches.
 # Requires a dedicated client header plus a same-party browser context
 # (Sec-Fetch-Site, Origin, or Referer). Not a cryptographic secret — just enough
-# to block casual URL scraping while Cloudflare still edge-caches successful
-# responses under a header-aware cache key.
+# to block casual URL scraping. Payloads are Redis-cached via ApiResponseCache
+# and returned with private/no-store HTTP headers.
 class FirstPartyApiRequest
   CLIENT_HEADER = "X-WaterLevels-Client"
   CLIENT_VALUE = "web"

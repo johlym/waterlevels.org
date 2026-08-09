@@ -28,6 +28,14 @@ module CacheableResponse
     cache_public!(max_age: 300, s_maxage: 86_400, tags: [ "static" ])
   end
 
+  # First-party `/api/*` JSON: never store at the CDN/browser shared cache.
+  # Payloads are cached in Redis via ApiResponseCache instead.
+  def cache_private!
+    response.set_header("Cache-Control", "private, no-store")
+    response.headers.delete("Cloudflare-CDN-Cache-Control")
+    response.headers.delete("Cache-Tag")
+  end
+
   def expand_cache_tags(tags)
     Array(tags).flat_map do |tag|
       case tag.to_s
