@@ -2236,10 +2236,10 @@ body.dialog-open {
   }
 
   .freshness-legend {
-    @apply mt-4 flex flex-wrap gap-x-8 gap-y-3;
+    @apply mt-4 grid grid-cols-1 gap-x-12 gap-y-2 sm:grid-cols-2;
 
     li {
-      @apply inline-flex items-baseline gap-1.5 text-sm;
+      @apply inline-flex w-max max-w-full items-baseline gap-1.5 text-sm;
     }
 
     .swatch {
