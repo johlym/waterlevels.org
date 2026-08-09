@@ -23,53 +23,39 @@ class FloodStageSync
       }
     ) do
       progress&.step(scope_label)
-      totals = blank_totals
-
-      states_to_sync.each do |state_code|
-        sync_state(state_code, totals)
-      end
+      gauges_by_lid = fetch_gauges_by_lid
+      list_updated = refresh_categories_from_list(gauges_by_lid)
+      alert_matched = match_unlinked_alert_gauges(gauges_by_lid)
+      matched, unmatched, skipped, errors = discover_and_refresh_details
 
       Telemetry.add_attributes(
-        "app.batch_size" => totals[:batch_size],
-        "app.list_updated" => totals[:list_updated],
-        "app.alert_matched" => totals[:alert_matched],
-        "app.matched_count" => totals[:matched],
-        "app.unmatched_count" => totals[:unmatched],
-        "app.skipped_count" => totals[:skipped],
-        "app.error_count" => totals[:errors]
+        "app.batch_size" => gauges_by_lid.size,
+        "app.list_updated" => list_updated,
+        "app.alert_matched" => alert_matched,
+        "app.matched_count" => matched,
+        "app.unmatched_count" => unmatched,
+        "app.skipped_count" => skipped,
+        "app.error_count" => errors
       )
 
       progress&.step("warming caches")
       warm_caches
       progress&.finish(
-        "list_updated=#{totals[:list_updated]} alert_matched=#{totals[:alert_matched]} " \
-        "matched=#{totals[:matched]} unmatched=#{totals[:unmatched]} " \
-        "skipped=#{totals[:skipped]} errors=#{totals[:errors]}"
+        "list_updated=#{list_updated} alert_matched=#{alert_matched} " \
+        "matched=#{matched} unmatched=#{unmatched} skipped=#{skipped} errors=#{errors}"
       )
       AdminDashboardStats.record_job_finish!(
         :flood_sync,
         state: postal_code,
-        list_updated: totals[:list_updated],
-        matched: totals[:matched],
-        unmatched: totals[:unmatched]
+        list_updated: list_updated,
+        matched: matched,
+        unmatched: unmatched
       )
       true
     end
   end
 
   private
-
-  def blank_totals
-    {
-      batch_size: 0,
-      list_updated: 0,
-      alert_matched: 0,
-      matched: 0,
-      unmatched: 0,
-      skipped: 0,
-      errors: 0
-    }
-  end
 
   def scope_label
     postal_code ? "state=#{postal_code}" : "national"
@@ -79,53 +65,48 @@ class FloodStageSync
     @postal_code ||= state && Usgs::StateCodes.normalize_postal(state)
   end
 
-  def states_to_sync
-    postal_code ? [ postal_code ] : Usgs::StateCodes::STATES.keys.sort
+  def sync_scope
+    scope = MonitoringLocation.active
+    postal_code ? scope.in_state(postal_code) : scope
   end
 
-  def sync_state(state_code, totals)
-    progress&.step("state=#{state_code}")
-    gauges_by_lid = fetch_gauges_by_lid(state_code)
-    totals[:batch_size] += gauges_by_lid.size
-    totals[:list_updated] += refresh_categories_from_list(gauges_by_lid, state_code)
-    totals[:alert_matched] += match_unlinked_alert_gauges(gauges_by_lid, state_code)
-
-    matched, unmatched, skipped, errors = discover_and_refresh_details(state_code)
-    totals[:matched] += matched
-    totals[:unmatched] += unmatched
-    totals[:skipped] += skipped
-    totals[:errors] += errors
-  end
-
-  def sync_scope(state_code)
-    MonitoringLocation.active.in_state(state_code)
-  end
-
-  def fetch_gauges_by_lid(state_code)
-    gauges = filter_gauges_for_state(client.gauges(state: state_code), state_code)
-
-    by_lid = gauges.each_with_object({}) do |gauge, memo|
-      lid = gauge["lid"].to_s.upcase.presence
-      next unless lid
-
-      memo[lid] = gauge
+  def regions_to_fetch
+    if postal_code
+      Nwps::ListRegions.ids_covering_state(postal_code)
+    else
+      Nwps::ListRegions.ids
     end
-    progress&.step("nwps list state=#{state_code} gauges=#{by_lid.size}")
-    by_lid
-  rescue Nwps::Client::Error => e
-    progress&.step("list fetch skipped state=#{state_code}: #{e.message}")
-    {}
   end
 
-  # Phase 1: one list call updates flood_category for every site we already
+  def fetch_gauges_by_lid
+    by_lid = {}
+    regions_to_fetch.each do |region_id|
+      begin
+        gauges = filter_gauges_for_scope(client.gauges(region: region_id))
+        gauges.each do |gauge|
+          lid = gauge["lid"].to_s.upcase.presence
+          next unless lid
+
+          by_lid[lid] = gauge
+        end
+        progress&.step("nwps list region=#{region_id} gauges=#{gauges.size}")
+      rescue Nwps::Client::Error => e
+        progress&.step("list fetch skipped region=#{region_id}: #{e.message}")
+      end
+    end
+    progress&.step("nwps list gauges=#{by_lid.size}")
+    by_lid
+  end
+
+  # Phase 1: list calls update flood_category for every site we already
   # crosswalked by NWPS LID. List payloads include status but not usgsId /
   # stage thresholds.
-  def refresh_categories_from_list(by_lid, state_code)
+  def refresh_categories_from_list(by_lid)
     return 0 if by_lid.empty?
 
     updated = 0
     unchanged = 0
-    sync_scope(state_code).where.not(nwps_lid: [ nil, "" ]).find_each do |location|
+    sync_scope.where.not(nwps_lid: [ nil, "" ]).find_each do |location|
       gauge = by_lid[location.nwps_lid.to_s.upcase]
       next unless gauge
 
@@ -136,23 +117,28 @@ class FloodStageSync
       end
       progress&.increment
     end
-    progress&.step("list refresh state=#{state_code} updated=#{updated} unchanged=#{unchanged}")
+    progress&.step("list refresh updated=#{updated} unchanged=#{unchanged}")
     updated
   end
 
-  def filter_gauges_for_state(gauges, state_code)
-    abbrev = state_code.to_s.upcase
-    gauges.select { |gauge| gauge.dig("state", "abbreviation").to_s.upcase == abbrev }
+  def filter_gauges_for_scope(gauges)
+    if postal_code
+      abbrev = postal_code.to_s.upcase
+      return gauges.select { |gauge| gauge.dig("state", "abbreviation").to_s.upcase == abbrev }
+    end
+
+    known = Usgs::StateCodes::STATES.keys.map(&:upcase).to_set
+    gauges.select { |gauge| known.include?(gauge.dig("state", "abbreviation").to_s.upcase) }
   end
 
   # Phase 1b: for NWPS points currently at action+ that we have not linked yet,
   # fetch detail by LID (includes usgsId + thresholds) and join to our catalog.
-  # This prioritizes every actively flooding gauge in-state, not only sites
-  # reached by USGS site-number iteration order.
-  def match_unlinked_alert_gauges(by_lid, state_code)
+  # This prioritizes every actively flooding gauge, not only sites reached by
+  # USGS site-number iteration order.
+  def match_unlinked_alert_gauges(by_lid)
     return 0 if by_lid.empty?
 
-    known_lids = sync_scope(state_code).where.not(nwps_lid: [ nil, "" ]).pluck(:nwps_lid).map { |lid| lid.to_s.upcase }
+    known_lids = sync_scope.where.not(nwps_lid: [ nil, "" ]).pluck(:nwps_lid).map { |lid| lid.to_s.upcase }
     known_lids = known_lids.to_set
 
     candidates = by_lid.filter_map do |lid, gauge|
@@ -163,7 +149,7 @@ class FloodStageSync
 
       gauge
     end
-    progress&.step("unlinked alert gauges state=#{state_code} count=#{candidates.size}")
+    progress&.step("unlinked alert gauges=#{candidates.size}")
 
     matched = 0
     candidates.each do |summary|
@@ -172,7 +158,7 @@ class FloodStageSync
         detail = client.gauge(lid)
         next if detail.blank?
 
-        location = find_location_for_usgs_id(detail["usgsId"], state_code)
+        location = find_location_for_usgs_id(detail["usgsId"])
         next unless location
 
         apply_match!(location, detail)
@@ -185,14 +171,13 @@ class FloodStageSync
     matched
   end
 
-  def find_location_for_usgs_id(usgs_id, state_code)
+  def find_location_for_usgs_id(usgs_id)
     raw = usgs_id.to_s.strip
     return if raw.blank?
 
     candidates = site_number_candidates(raw)
-    by_site = location_by_site_number(state_code)
     candidates.each do |site_number|
-      location = by_site[site_number]
+      location = location_by_site_number[site_number]
       return location if location
     end
     nil
@@ -207,9 +192,8 @@ class FloodStageSync
     candidates.map(&:presence).compact.uniq
   end
 
-  def location_by_site_number(state_code)
-    @location_by_site_number ||= {}
-    @location_by_site_number[state_code] ||= sync_scope(state_code).index_by(&:site_number)
+  def location_by_site_number
+    @location_by_site_number ||= sync_scope.index_by(&:site_number)
   end
 
   # Phase 2: USGS site-number detail lookups for first-time matches and
@@ -218,14 +202,14 @@ class FloodStageSync
   # Due filtering is in SQL so we don't load the whole active catalog every
   # hour, and a canceled run naturally resumes: finished rows get a fresh
   # nwps_synced_at and drop out of the due set.
-  def discover_and_refresh_details(state_code)
+  def discover_and_refresh_details
     matched = 0
     unmatched = 0
     skipped = 0
     errors = 0
 
-    due = detail_scope(state_code)
-    progress&.step("detail sync state=#{state_code} due=#{due.count}")
+    due = detail_scope
+    progress&.step("detail sync due=#{due.count}")
 
     due.find_each do |location|
       begin
@@ -248,10 +232,10 @@ class FloodStageSync
     [ matched, unmatched, skipped, errors ]
   end
 
-  def detail_scope(state_code)
+  def detail_scope
     matched_cutoff = MATCHED_DETAIL_REFRESH_AFTER.ago
     unmatched_cutoff = UNMATCHED_RETRY_AFTER.ago
-    sync_scope(state_code).where(
+    sync_scope.where(
       "nwps_synced_at IS NULL OR " \
       "(nwps_matched = TRUE AND nwps_synced_at < ?) OR " \
       "(nwps_matched = FALSE AND nwps_synced_at < ?)",
