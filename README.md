@@ -57,7 +57,7 @@ Local archive iteration (no Cloudflare): `.env.example` sets `DAILY_ARCHIVE_STOR
 
 ## Observability (Honeycomb)
 
-OpenTelemetry traces export to Honeycomb when `OTEL_EXPORTER_OTLP_*` is set (see `.env.example`). Query recipes for station inventory, history backfill, and page latency: [`doc/honeycomb-queries.md`](doc/honeycomb-queries.md).
+OpenTelemetry traces export to Honeycomb when `OTEL_EXPORTER_OTLP_*` is set (see `.env.example`). ActiveRecord, PG, Redis, and Net::HTTP auto-spans are disabled to stay within event budgets; domain spans via `Telemetry` remain. Query recipes: [`doc/honeycomb-queries.md`](doc/honeycomb-queries.md).
 
 ## Tests
 
