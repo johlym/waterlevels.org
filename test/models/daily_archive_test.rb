@@ -21,7 +21,7 @@ class DailyArchiveTest < ActiveSupport::TestCase
     )
     DailyObservation.create!(time_series: missing_series, observed_on: Date.current, value: 1.0)
 
-    ids = DailyArchive.time_series_ids_with_daily_on_or_before(anchor).pluck(:id)
+    ids = DailyArchive.time_series_ids_with_daily_on_or_before(anchor).pluck(:time_series_id)
     assert_includes ids, hot_series.id
     assert_includes ids, cold_series.id
     refute_includes ids, missing_series.id

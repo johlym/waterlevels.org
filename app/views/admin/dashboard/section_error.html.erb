@@ -1,0 +1,16 @@
+<%= turbo_frame_tag "admin_section_#{@section}" do %>
+  <section class="admin-stats admin-stats--error" aria-labelledby="admin-<%= @section %>-error-heading">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Ops</p>
+        <h2 id="admin-<%= @section %>-error-heading"><%= @section.to_s.humanize %></h2>
+      </div>
+    </div>
+    <p class="hint"><%= @error %></p>
+    <p class="hint">
+      <%= link_to "Retry", admin_dashboard_section_path(section: @section),
+            class: "tool-link",
+            data: { turbo_frame: "admin_section_#{@section}" } %>
+    </p>
+  </section>
+<% end %>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_07_210000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_09_023000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -39,6 +39,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_07_210000) do
     t.bigint "time_series_id", null: false
     t.datetime "updated_at", null: false
     t.integer "year", null: false
+    t.index ["max_on"], name: "index_daily_archive_shards_on_max_on"
+    t.index ["min_on"], name: "index_daily_archive_shards_on_min_on"
     t.index ["object_key"], name: "index_daily_archive_shards_on_object_key", unique: true
     t.index ["time_series_id", "year"], name: "index_daily_archive_shards_on_time_series_id_and_year", unique: true
     t.index ["time_series_id"], name: "index_daily_archive_shards_on_time_series_id"
@@ -52,6 +54,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_07_210000) do
     t.bigint "time_series_id", null: false
     t.datetime "updated_at", null: false
     t.decimal "value", precision: 16, scale: 6, null: false
+    t.index ["observed_on"], name: "index_daily_observations_on_observed_on"
     t.index ["time_series_id", "observed_on"], name: "index_daily_observations_on_time_series_id_and_observed_on", unique: true
     t.index ["time_series_id"], name: "index_daily_observations_on_time_series_id"
   end

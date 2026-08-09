@@ -87,20 +87,29 @@ class MonitoringLocation < ApplicationRecord
   # Year-ready stations that still lack ~3-year daily history. Excludes phase-1
   # candidates so the deep batch never competes with cold/lazy 1y fills.
   # Deep anchors are expected in R2 once DAILY_ARCHIVE_PRUNE removes the hot tip.
+  # Intentionally does NOT nest needing_history_backfill (that OR tree re-scans
+  # observation tables); phase-1 continuous/tip gates are inlined instead.
   scope :needing_deep_history_backfill, lambda {
     year_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
+    continuous_since = HistoryIngestion::CONTINUOUS_FRESHNESS.ago
+    continuous_anchor = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
+    daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
 
-    missing_year = TimeSeries.selected.where.not(
-      id: DailyArchive.time_series_ids_with_daily_on_or_before(year_anchor)
-    )
-    missing_deep = TimeSeries.selected.where.not(
-      id: DailyArchive.time_series_ids_with_daily_on_or_before(deep_anchor)
-    )
-    where(id: missing_deep.select(:monitoring_location_id))
-      .where.not(id: missing_year.select(:monitoring_location_id))
-      .where.not(id: needing_history_backfill.select(:id))
-      .distinct
+    has_year = DailyArchive.time_series_ids_with_daily_on_or_before(year_anchor)
+    has_deep = DailyArchive.time_series_ids_with_daily_on_or_before(deep_anchor)
+    has_continuous_tip = ContinuousObservation.where(observed_at: continuous_since..).select(:time_series_id)
+    has_continuous_anchor = ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id)
+    has_daily_tip = DailyObservation.where(observed_on: daily_fresh_since..).select(:time_series_id)
+
+    candidate_series = TimeSeries.selected
+      .where(id: has_year)
+      .where.not(id: has_deep)
+      .where(id: has_continuous_tip)
+      .where(id: has_continuous_anchor)
+      .where(id: has_daily_tip)
+
+    where(id: candidate_series.select(:monitoring_location_id)).distinct
   }
 
   def stale?

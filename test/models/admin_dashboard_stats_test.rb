@@ -304,6 +304,17 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
     assert_equal full[:tip_freshness], composed[:tip_freshness]
   end
 
+  test "warm_backfill! returns backfill aggregates" do
+    create(:monitoring_location, state_code: "wa", latest_observed_at: 30.minutes.ago)
+    AdminDashboardStats.bust_backfill_cache!
+
+    warmed = AdminDashboardStats.warm_backfill!
+
+    assert_equal 1, warmed[:station_count]
+    assert warmed.key?(:per_state)
+    assert_equal warmed[:station_count], AdminDashboardStats.snapshot[:station_count]
+  end
+
   test "unknown section raises" do
     assert_raises(ArgumentError) { AdminDashboardStats.section(:nope) }
   end

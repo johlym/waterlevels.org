@@ -6,7 +6,9 @@
 <div class="app-shell">
   <%= render Navigation::BarComponent.new %>
 
-  <main class="page-main admin-dashboard">
+  <main class="page-main admin-dashboard"
+        data-controller="admin-sections"
+        data-admin-sections-order-value="<%= AdminDashboardStats.section_load_order.to_json %>">
     <div class="admin-dashboard-chrome">
       <div class="section-header">
         <div>
@@ -30,8 +32,11 @@
       [ :health, "Health", "USGS budget, circuits & Sidekiq", "admin-health-heading", 3 ]
     ].each do |section, eyebrow, heading, heading_id, cards| %>
       <%= turbo_frame_tag "admin_section_#{section}",
-            src: admin_dashboard_section_path(section: section),
-            data: { admin_section: section } do %>
+            data: {
+              admin_section: section,
+              admin_sections_target: "frame",
+              admin_sections_src: admin_dashboard_section_path(section: section)
+            } do %>
         <%= render "admin/dashboard/section_skeleton",
               eyebrow: eyebrow,
               heading: heading,
