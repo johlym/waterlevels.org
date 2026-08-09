@@ -113,6 +113,33 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Sidekiq UI"
   end
 
+  test "health section renders when cached stats omit usgs_keys" do
+    ENV["DASHBOARD_PW"] = "secret-dashboard"
+    post admin_login_path, params: { password: "secret-dashboard" }
+
+    stale = {
+      tip_circuit_open: false,
+      history_circuits: [],
+      history_keys_exhausted: false,
+      database_read_only: false,
+      sidekiq: { enqueued: 0, retry_size: 0, dead_size: 0, failed: 0, queues: {} }
+    }
+    original = AdminDashboardStats.method(:section)
+    AdminDashboardStats.define_singleton_method(:section) do |name|
+      name.to_sym == :health ? stale : original.call(name)
+    end
+
+    get admin_dashboard_section_path(section: :health)
+
+    assert_response :success
+    assert_includes response.body, 'id="admin_section_health"'
+    assert_includes response.body, "API keys"
+    assert_includes response.body, "history_continuous"
+    refute_includes response.body, "Content missing"
+  ensure
+    AdminDashboardStats.define_singleton_method(:section, original)
+  end
+
   test "unknown section returns not found" do
     ENV["DASHBOARD_PW"] = "secret-dashboard"
     post admin_login_path, params: { password: "secret-dashboard" }

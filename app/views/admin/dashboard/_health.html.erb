@@ -16,7 +16,9 @@
     </p>
   </div>
 
-  <% keys = stats[:usgs_keys] %>
+  <%# Prefer live key/circuit status — cheap (ENV + cache flags) and avoids
+      crashing on a stale section cache that predates :usgs_keys. %>
+  <% keys = stats[:usgs_keys].presence || Usgs::HistoryKeyPool.dashboard_statuses %>
   <div class="budget-panel">
     <h3>API keys &amp; circuits</h3>
     <p class="hint">
@@ -24,7 +26,7 @@
       Unset history keys fall back to the tip key.
     </p>
     <ul class="status-list key-status-list">
-      <% ([ keys[:tip] ] + keys[:history]).each do |row| %>
+      <% ([ keys[:tip] ] + Array(keys[:history])).each do |row| %>
         <li>
           <span class="name">
             <%= row[:key] %>
@@ -46,8 +48,8 @@
       <li>
         <span class="name">history pool</span>
         <span class="meta">Any purpose still callable</span>
-        <span class="badge <%= stats[:history_keys_exhausted] ? "bad" : "ok" %>">
-          <%= stats[:history_keys_exhausted] ? "Exhausted" : "Available" %>
+        <span class="badge <%= keys[:exhausted] ? "bad" : "ok" %>">
+          <%= keys[:exhausted] ? "Exhausted" : "Available" %>
         </span>
       </li>
       <li>
