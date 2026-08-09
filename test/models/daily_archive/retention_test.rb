@@ -181,6 +181,64 @@ module DailyArchive
       assert_nil RetentionCheckpoint.read_raw
     end
 
+    test "batches multi-day handoff into one year-shard write" do
+      zone = ActiveSupport::TimeZone["America/Los_Angeles"]
+      days = [ Date.new(2026, 7, 6), Date.new(2026, 7, 7), Date.new(2026, 7, 8) ]
+      days.each do |day|
+        t = zone.local(day.year, day.month, day.day, 0, 0, 0)
+        96.times do
+          ContinuousObservation.create!(time_series: @series, observed_at: t, value: 8.0)
+          t += 15.minutes
+        end
+      end
+
+      put_count = 0
+      store = @store
+      store.define_singleton_method(:put) do |key, body, **kwargs|
+        put_count += 1
+        @objects[key] = body.to_s.b
+        :put
+      end
+
+      stats = Retention.new(store: store, as_of: @as_of, client: nil).perform
+      assert_equal 3, stats[:derived]
+      assert_equal 1, put_count, "expected one R2 put for the 2026 year shard, got #{put_count}"
+
+      points = Reader.new(store: store).points_for(
+        time_series_id: @series.id,
+        start_on: days.first,
+        end_on: days.last
+      )
+      assert_equal 3, points.size
+    end
+
+    test "skips already-archived days without rewriting the year shard" do
+      zone = ActiveSupport::TimeZone["America/Los_Angeles"]
+      day = Date.new(2026, 7, 8)
+      Writer.new(store: @store).upsert(
+        time_series_id: @series.id,
+        points: [ { "d" => day.iso8601, "v" => 9.0, "s" => "usgs" } ]
+      )
+      t = zone.local(day.year, day.month, day.day, 0, 0, 0)
+      96.times do
+        ContinuousObservation.create!(time_series: @series, observed_at: t, value: 1.0)
+        t += 15.minutes
+      end
+
+      put_count = 0
+      store = @store
+      store.define_singleton_method(:put) do |key, body, **kwargs|
+        put_count += 1
+        @objects[key] = body.to_s.b
+        :put
+      end
+
+      stats = Retention.new(store: store, as_of: @as_of, client: nil).perform
+      assert_operator stats[:usgs_ensured], :>=, 1
+      assert_equal 0, stats[:derived]
+      assert_equal 0, put_count
+    end
+
     test "resumes iv prune after the last completed series without redoing it" do
       zone = ActiveSupport::TimeZone["America/Los_Angeles"]
       old_day = Date.new(2026, 6, 20)
