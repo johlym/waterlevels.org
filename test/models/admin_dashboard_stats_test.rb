@@ -16,6 +16,28 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
     nil
   end
 
+  test "tip freshness histogram buckets stations by age" do
+    travel_to Time.find_zone!("America/Los_Angeles").local(2026, 8, 3, 15, 0, 0) do
+      create(:monitoring_location, state_code: "wa", latest_observed_at: 30.minutes.ago)
+      create(:monitoring_location, state_code: "or", latest_observed_at: 2.hours.ago)
+      create(:monitoring_location, state_code: "id", latest_observed_at: 12.hours.ago)
+      create(:monitoring_location, state_code: "ca", latest_observed_at: 36.hours.ago)
+      create(:monitoring_location, state_code: "nv", latest_observed_at: 4.days.ago)
+      create(:monitoring_location, state_code: "az", latest_observed_at: 2.weeks.ago)
+      create(:monitoring_location, state_code: "ut", latest_observed_at: nil)
+      create(:monitoring_location, active: false, latest_observed_at: 30.minutes.ago)
+
+      freshness = AdminDashboardStats.snapshot[:tip_freshness]
+
+      assert_equal 1, freshness[:current]
+      assert_equal 1, freshness[:h1_plus]
+      assert_equal 1, freshness[:h6_plus]
+      assert_equal 1, freshness[:h24_plus]
+      assert_equal 1, freshness[:h72_plus]
+      assert_equal 2, freshness[:stale]
+    end
+  end
+
   test "snapshot reports station measurement and tip refresh stats" do
     travel_to Time.find_zone!("America/Los_Angeles").local(2026, 8, 3, 15, 0, 0) do
       fresh = create(:monitoring_location, state_code: "wa", latest_observed_at: 30.minutes.ago)
@@ -60,7 +82,11 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
       assert_equal 9, stats[:last_tip_refresh_series_upserted]
       assert_nil stats[:last_tip_refresh_state]
       assert_equal fresh.site_number, stats[:last_station_updated][:site_number]
-      assert_equal 1, stats[:tip_freshness][:under_1h]
+      assert_equal 1, stats[:tip_freshness][:current]
+      assert_equal 0, stats[:tip_freshness][:h1_plus]
+      assert_equal 0, stats[:tip_freshness][:h6_plus]
+      assert_equal 0, stats[:tip_freshness][:h24_plus]
+      assert_equal 0, stats[:tip_freshness][:h72_plus]
       assert_equal 1, stats[:tip_freshness][:stale]
       assert_equal 1, stats[:continuous_last_24h]
       assert_equal 1, stats[:continuous_last_7d]

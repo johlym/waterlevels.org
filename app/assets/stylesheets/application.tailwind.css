@@ -2199,27 +2199,87 @@ body.dialog-open {
     }
   }
 
-  .freshness-bars {
-    @apply mt-6 space-y-4;
+  .freshness-stack {
+    @apply mt-5 flex h-3 overflow-hidden rounded bg-zinc-800;
 
-    .row {
-      @apply mb-1.5 flex items-center justify-between gap-4;
+    .segment {
+      @apply block h-full min-w-0;
+
+      &.current {
+        @apply bg-emerald-400;
+      }
+
+      &.h1 {
+        @apply bg-cyan-400;
+      }
+
+      &.h6 {
+        @apply bg-sky-500;
+      }
+
+      &.h24 {
+        @apply bg-amber-400;
+      }
+
+      &.h72 {
+        @apply bg-orange-500;
+      }
+
+      &.stale {
+        @apply bg-rose-500;
+      }
+
+      &.empty {
+        @apply bg-zinc-800;
+      }
+    }
+  }
+
+  .freshness-legend {
+    @apply mt-4 grid grid-cols-1 gap-x-12 gap-y-2 sm:grid-cols-2;
+
+    li {
+      @apply inline-flex w-max max-w-full items-baseline gap-1.5 text-sm;
+    }
+
+    .swatch {
+      @apply relative top-px size-2.5 shrink-0 self-center rounded-sm;
+
+      &.current {
+        @apply bg-emerald-400;
+      }
+
+      &.h1 {
+        @apply bg-cyan-400;
+      }
+
+      &.h6 {
+        @apply bg-sky-500;
+      }
+
+      &.h24 {
+        @apply bg-amber-400;
+      }
+
+      &.h72 {
+        @apply bg-orange-500;
+      }
+
+      &.stale {
+        @apply bg-rose-500;
+      }
     }
 
     .name {
-      @apply text-sm text-zinc-300;
+      @apply text-zinc-300;
     }
 
     .meta {
-      @apply font-display text-sm font-semibold text-white;
+      @apply font-display font-semibold text-white;
     }
 
-    .bar {
-      @apply h-2 overflow-hidden rounded bg-zinc-800;
-
-      span {
-        @apply block h-full rounded bg-linear-to-r from-cyan-400 to-blue-500;
-      }
+    .pct {
+      @apply font-sans text-xs font-normal text-zinc-500;
     }
   }
 

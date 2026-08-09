@@ -87,6 +87,13 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     get admin_dashboard_section_path(section: :growth)
     assert_response :success
     assert_includes response.body, "Tip freshness"
+    assert_includes response.body, "freshness-stack"
+    assert_includes response.body, "Current"
+    assert_includes response.body, "1+ Hour"
+    assert_includes response.body, "6+ Hours"
+    assert_includes response.body, "24+ Hours"
+    assert_includes response.body, "72+ Hours"
+    assert_includes response.body, "1+ Week/Stale"
 
     get admin_dashboard_section_path(section: :jobs)
     assert_response :success
