@@ -122,7 +122,7 @@ module DailyArchive
 
       lock_key = "#{Writer::LOCK_PREFIX}#{@series.id}:#{day.year}"
       Rails.cache.write(lock_key, true, expires_in: 1.minute)
-      writer = Writer.new(store: @store, sleeper: ->(_seconds) {}, lock_wait: 0.05.seconds)
+      writer = Writer.new(store: @store, sleeper: ->(_seconds) { }, lock_wait: 0.05.seconds)
 
       stats = Retention.new(store: @store, writer: writer, as_of: @as_of, client: nil).perform
       assert_operator stats[:retrying], :>=, 1
