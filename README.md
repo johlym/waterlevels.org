@@ -75,7 +75,8 @@ bin/rails test
 - Redis TLS: Sidekiq, cache, and Action Cable use `ssl_params.verify_mode = VERIFY_NONE` for Heroku self-signed `rediss://` certs
 - After deploy: `heroku run bin/rails usgs:enqueue_bootstrap -a <app>`
 - Optional: `MALLOC_ARENA_MAX=2` if worker RSS climbs
-- Put Cloudflare in front; honor `Cache-Control` / `Cache-Tag` from the app. Use a Cache Rule (Eligible for cache + Origin Cache Control) for public HTML/JSON; bypass `/contact` and `/admin`. Public pages skip the Rails session cookie so HTML is not forced to `BYPASS`.
+- Put Cloudflare in front; honor `Cache-Control` / `Cache-Tag` from the app. Use a Cache Rule (Eligible for cache + Origin Cache Control) for public HTML; bypass `/contact`, `/admin`, and `/api/*`. Public pages skip the Rails session cookie so HTML is not forced to `BYPASS`.
+- Internal `/api/*` JSON is first-party-only (`X-WaterLevels-Client: web` + same-origin browser context), returns `private, no-store`, and is cached in Redis via `ApiResponseCache` (invalidated when syncs bump generation counters).
 - Optional ops dashboard at `/admin` when `DASHBOARD_PW` is set (session login at `/admin/login`). Returns 404 when the env var is unset. Login attempts are rate-limited (Rails `rate_limit`, 10 per 3 minutes per IP). Sidekiq Web is at `/admin/sidekiq` behind the same session.
 - **Cold first request:** Eco/Hobby web dynos sleep when idle; the next hit waits for Puma/Rails boot (often multi-second). Prefer an always-on web dyno, or ping `/up` every few minutes. Puma also warms DB/Redis/`SiteStats` on boot so a post-sleep origin render is cheaper once the process is up.
 

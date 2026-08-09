@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 import L from "leaflet"
 import "leaflet.markercluster"
+import { FIRST_PARTY_API_HEADERS } from "../lib/api"
 import { geolocationErrorMessage } from "../lib/geolocation_errors"
 import { formatGaugeValue } from "../lib/gauge_value"
 
@@ -405,7 +406,7 @@ export default class extends Controller {
     const requestId = ++this.searchRequestId
     const query = this.query
     const url = `${this.searchUrlValue}?q=${encodeURIComponent(query)}`
-    const response = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" })
+    const response = await fetch(url, { headers: FIRST_PARTY_API_HEADERS, cache: "no-store" })
     if (!response.ok) return
     if (requestId !== this.searchRequestId || query !== this.query) return
 
@@ -418,7 +419,7 @@ export default class extends Controller {
     const bounds = this.map.getBounds()
     const bbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()].join(",")
     const url = `${this.stationsUrlValue}?bbox=${encodeURIComponent(bbox)}`
-    const response = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" })
+    const response = await fetch(url, { headers: FIRST_PARTY_API_HEADERS, cache: "no-store" })
     if (!response.ok) return
     const data = await response.json()
     this.stations = data.stations || []

@@ -17,6 +17,8 @@ class EdgeCacheInvalidationTest < ActiveSupport::TestCase
   end
 
   setup do
+    @previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
     @purger = FakePurger.new
     @invalidation = EdgeCacheInvalidation.new(purger: @purger)
     EdgeCachePurgeBuffer.backend = EdgeCachePurgeBuffer::MemoryBackend.new
@@ -25,9 +27,16 @@ class EdgeCacheInvalidationTest < ActiveSupport::TestCase
 
   teardown do
     EdgeCachePurgeBuffer.reset!
+    Rails.cache = @previous_cache
   end
 
-  test "national latest sync purges aggregate surface tags" do
+  test "national latest sync purges aggregate surface tags and invalidates API Redis cache" do
+    map_calls = 0
+    ApiResponseCache.fetch_map_stations("-1,2,-3,4") do
+      map_calls += 1
+      { stations: [] }
+    end
+
     @invalidation.after_latest_sync!(state: nil)
     tags = @purger.calls.first
     assert_includes tags, "home"
@@ -35,8 +44,14 @@ class EdgeCacheInvalidationTest < ActiveSupport::TestCase
     assert_includes tags, "alerts"
     assert_includes tags, "gauges"
     assert_includes tags, "states"
-    assert_includes tags, "map-stations"
+    assert_not_includes tags, "map-stations"
     assert_not tags.any? { |tag| tag.start_with?("gauge:") }
+
+    ApiResponseCache.fetch_map_stations("-1,2,-3,4") do
+      map_calls += 1
+      { stations: [ { id: "fresh" } ] }
+    end
+    assert_equal 2, map_calls
   end
 
   test "state-scoped latest sync purges that state's gauges" do
@@ -52,6 +67,16 @@ class EdgeCacheInvalidationTest < ActiveSupport::TestCase
 
   test "station history queues gauge, state, and shared map tags for a deferred flush" do
     location = create(:monitoring_location, site_number: "12101000", state_code: "wa")
+    obs_calls = 0
+    ApiResponseCache.fetch_observations(
+      site_number: location.site_number,
+      parameter_code: "00065",
+      kind: "water_level",
+      range: "7d"
+    ) do
+      obs_calls += 1
+      { points: [ 1 ] }
+    end
 
     assert_enqueued_with(job: EdgeCachePurgeJob) do
       assert_equal :queued, @invalidation.after_station_history!(location)
@@ -64,8 +89,19 @@ class EdgeCacheInvalidationTest < ActiveSupport::TestCase
     assert_includes tags, "gauge:12101000"
     assert_includes tags, "gauges"
     assert_includes tags, "state:wa"
-    assert_includes tags, "map-stations"
     assert_includes tags, "map"
+    assert_not_includes tags, "map-stations"
+
+    ApiResponseCache.fetch_observations(
+      site_number: location.site_number,
+      parameter_code: "00065",
+      kind: "water_level",
+      range: "7d"
+    ) do
+      obs_calls += 1
+      { points: [ 2 ] }
+    end
+    assert_equal 2, obs_calls
   end
 
   test "coalesce flushes history tags once across many stations" do

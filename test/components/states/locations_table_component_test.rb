@@ -61,9 +61,30 @@ class States::LocationsTableComponentTest < ViewComponent::TestCase
     assert_not_includes html, "Quick county jump"
     assert_includes html, "Washington"
     assert_includes html, "Texas"
+    assert_includes html, 'id="washington"'
+    assert_includes html, 'href="#washington">Washington</a>'
+    assert_includes html, 'id="texas"'
+    assert_includes html, 'href="#texas">Texas</a>'
     assert_not_includes html, "Stations with alerts"
     assert_not_includes html, "Flood stages"
     assert_operator html.index("Texas"), :<, html.index("Washington")
+  end
+
+  test "renders county section anchors and sticky header links" do
+    html = render_inline(
+      States::LocationsTableComponent.new(
+        locations: [
+          { name: "Quiet Creek", flood_alert: false, county_name: "King County", path: "/gauges/wa/1", site_number: "1" },
+          { name: "Stony Brook", flood_alert: false, county_name: "St. Louis", path: "/gauges/wa/2", site_number: "2" }
+        ]
+      )
+    ).to_html
+
+    assert_includes html, 'id="king"'
+    assert_includes html, 'href="#king">King</a>'
+    assert_includes html, 'id="st-louis"'
+    assert_includes html, 'href="#st-louis">St. Louis</a>'
+    assert_includes html, 'href="#king">King (1)</a>'
   end
 
   test "renders flood stage filters above measurement types when enabled" do

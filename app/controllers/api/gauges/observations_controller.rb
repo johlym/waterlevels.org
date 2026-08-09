@@ -1,8 +1,6 @@
 module Api
   module Gauges
-    class ObservationsController < ApplicationController
-      include CacheableResponse
-
+    class ObservationsController < Api::BaseController
       def index
         location = MonitoringLocation.find_by!(site_number: params[:gauge_id])
         parameter_code = params[:parameter_code].presence
@@ -16,16 +14,24 @@ module Api
         range = params[:range].presence || "7d"
         range = "7d" unless HydrographSeries::RANGES.key?(range)
 
-        payload = HydrographSeries.for(location: location, kind: kind, parameter_code: parameter_code, range: range)
+        payload = ApiResponseCache.fetch_observations(
+          site_number: location.site_number,
+          parameter_code: parameter_code,
+          kind: kind,
+          range: range
+        ) do
+          HydrographSeries.for(location: location, kind: kind, parameter_code: parameter_code, range: range)
+        end
+
         Telemetry.add_attributes(
           "app.site_number" => location.site_number,
           "app.state" => location.state_code,
           "app.parameter_code" => parameter_code,
           "app.measurement_kind" => kind,
           "app.range" => range,
-          "app.observation_count" => Array(payload[:points]).size
+          "app.observation_count" => Array(payload[:points] || payload["points"]).size
         )
-        cache_public!(tags: [ "gauge:#{location.site_number}" ])
+        cache_private!
         render json: payload
       end
 

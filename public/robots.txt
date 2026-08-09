@@ -2,5 +2,6 @@
 
 User-agent: *
 Disallow: /admin
+Disallow: /api
 
 Sitemap: https://waterlevels.org/sitemap.xml

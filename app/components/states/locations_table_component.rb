@@ -33,7 +33,7 @@ module States
     end
 
     def group_dom_id(group_name)
-      group_name.to_s.parameterize.presence || "unspecified"
+      helpers.directory_group_anchor(group_name)
     end
 
     def county_dom_id(county_name)

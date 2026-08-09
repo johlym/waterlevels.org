@@ -1,65 +1,75 @@
 module Api
   module Map
-    class StationsController < ApplicationController
-      include CacheableResponse
-
+    class StationsController < Api::BaseController
       SEARCH_LIMIT = 8
       SEARCH_MIN_LENGTH = 2
 
       def index
         west, south, east, north = bbox_params
-        stations = MonitoringLocation
-          .in_bbox(west, south, east, north)
-          .includes(selected_time_series: :latest_observation)
-          .limit(2000)
-          .map { |loc| MapStationPayload.build(loc) }
+        bbox = "#{west},#{south},#{east},#{north}"
+        payload = ApiResponseCache.fetch_map_stations(bbox) do
+          stations = MonitoringLocation
+            .in_bbox(west, south, east, north)
+            .includes(selected_time_series: :latest_observation)
+            .limit(2000)
+            .map { |loc| MapStationPayload.build(loc) }
+          { stations: stations }
+        end
 
         Telemetry.add_attributes(
           "app.operation" => "map.stations.index",
-          "app.bbox" => "#{west},#{south},#{east},#{north}",
-          "app.station_count" => stations.size,
-          "app.batch_size" => stations.size
+          "app.bbox" => bbox,
+          "app.station_count" => Array(payload[:stations] || payload["stations"]).size,
+          "app.batch_size" => Array(payload[:stations] || payload["stations"]).size
         )
-        cache_public!(max_age: 30, s_maxage: 300, tags: [ "map-stations" ])
-        render json: { stations: stations }
+        cache_private!
+        render json: payload
       end
 
       def search
         query = params[:q].to_s.strip
-        results =
-          if query.length < SEARCH_MIN_LENGTH
-            []
-          else
-            build_search_results(query)
-          end
+        payload = ApiResponseCache.fetch_map_search(query) do
+          results =
+            if query.length < SEARCH_MIN_LENGTH
+              []
+            else
+              build_search_results(query)
+            end
+          { stations: results }
+        end
 
         Telemetry.add_attributes(
           "app.operation" => "map.stations.search",
           "app.query_length" => query.length,
-          "app.result_count" => results.size,
-          "app.batch_size" => results.size
+          "app.result_count" => Array(payload[:stations] || payload["stations"]).size,
+          "app.batch_size" => Array(payload[:stations] || payload["stations"]).size
         )
-        cache_public!(max_age: 30, s_maxage: 300, tags: [ "map-station-search" ])
-        render json: { stations: results }
+        cache_private!
+        render json: payload
       end
 
       def nearest
         lat = params.require(:lat)
         lon = params.require(:lon)
-        location = NearbyStations.nearest_to(lat, lon)
+        payload = ApiResponseCache.fetch_map_nearest(lat, lon) do
+          location = NearbyStations.nearest_to(lat, lon)
+          if location
+            { station: search_payload(location), status: :ok }
+          else
+            { station: nil, status: :not_found }
+          end
+        end
 
+        station = payload[:station] || payload["station"]
+        status = (payload[:status] || payload["status"] || (station ? :ok : :not_found)).to_sym
         Telemetry.add_attributes(
           "app.operation" => "map.stations.nearest",
-          "app.found" => location.present?,
-          "app.site_number" => location&.site_number,
-          "app.state" => location&.state_code
+          "app.found" => station.present?,
+          "app.site_number" => station&.dig(:id) || station&.dig("id"),
+          "app.state" => station&.dig(:state) || station&.dig("state")
         )
-        cache_public!(max_age: 30, s_maxage: 120, tags: [ "map-station-nearest" ])
-        if location
-          render json: { station: search_payload(location) }
-        else
-          render json: { station: nil }, status: :not_found
-        end
+        cache_private!
+        render json: { station: station }, status: status
       end
 
       private

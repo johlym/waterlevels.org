@@ -16,6 +16,13 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_equal "St. Louis", display_county_name("St. Louis County")
   end
 
+  test "directory_group_anchor parameterizes group names" do
+    assert_equal "king", directory_group_anchor("King")
+    assert_equal "st-louis", directory_group_anchor("St. Louis")
+    assert_equal "unspecified", directory_group_anchor("")
+    assert_equal "unspecified", directory_group_anchor(nil)
+  end
+
   test "formats gauge values with two decimal places when fractional" do
     assert_equal "541.10", display_gauge_value(541.1)
     assert_equal "540", display_gauge_value(540)

@@ -1791,13 +1791,18 @@ body.dialog-open {
 
   .county-group {
     @apply space-y-4;
+    scroll-margin-top: 0.75rem;
   }
 
   .county-head {
-    @apply flex items-baseline justify-between border-b border-zinc-800 pb-2;
+    @apply sticky top-0 z-10 -mx-1 flex items-baseline justify-between border-b border-zinc-800 bg-zinc-950/95 px-1 py-3 backdrop-blur-sm;
 
     h2 {
       @apply font-display text-2xl font-bold text-white;
+
+      a {
+        @apply text-inherit no-underline transition-colors hover:text-cyan-400 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400;
+      }
     }
 
     span {

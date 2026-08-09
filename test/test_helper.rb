@@ -37,5 +37,17 @@ end
 module ActionDispatch
   class IntegrationTest
     include FactoryBot::Syntax::Methods
+
+    def first_party_api_headers
+      {
+        "X-WaterLevels-Client" => FirstPartyApiRequest::CLIENT_VALUE,
+        "Sec-Fetch-Site" => "same-origin"
+      }
+    end
+
+    def api_get(path, **kwargs)
+      headers = kwargs.delete(:headers) || {}
+      get path, **kwargs.merge(headers: first_party_api_headers.merge(headers))
+    end
   end
 end

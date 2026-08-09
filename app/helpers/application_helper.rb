@@ -45,6 +45,11 @@ module ApplicationHelper
     name.to_s.gsub(/\s+County\z/i, "").strip
   end
 
+  # Fragment id for county/state group sections on directory pages.
+  def directory_group_anchor(name)
+    name.to_s.parameterize.presence || "unspecified"
+  end
+
   # e.g. "August 1, 2026 at 09:30:00 PM CDT" in the station's local zone when known.
   def display_timestamp(value, time_zone: nil, state_code: nil)
     time = coerce_time(value)
