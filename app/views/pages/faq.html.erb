@@ -26,12 +26,12 @@
     </div>
   </section>
 
-  <main class="page-main faq-main">
+  <main id="main" class="page-main faq-main">
     <div class="faq-page" data-controller="faq">
       <aside class="faq-sidebar">
         <div class="sidebar-sticky">
           <h2 class="sidebar-label">Categories</h2>
-          <nav class="faq-categories" aria-label="FAQ categories" role="tablist">
+          <nav class="faq-categories" aria-label="FAQ categories">
             <button
               type="button"
               class="category-btn"
@@ -39,8 +39,7 @@
               data-faq-category-param="general"
               data-active
               data-action="faq#selectCategory"
-              role="tab"
-              aria-selected="true"
+              aria-current="true"
             >
               General
             </button>
@@ -50,8 +49,7 @@
               data-faq-target="category"
               data-faq-category-param="data"
               data-action="faq#selectCategory"
-              role="tab"
-              aria-selected="false"
+              aria-current="false"
             >
               Data &amp; sources
             </button>
@@ -61,8 +59,7 @@
               data-faq-target="category"
               data-faq-category-param="stations"
               data-action="faq#selectCategory"
-              role="tab"
-              aria-selected="false"
+              aria-current="false"
             >
               Map &amp; stations
             </button>
@@ -72,8 +69,7 @@
               data-faq-target="category"
               data-faq-category-param="glossary"
               data-action="faq#selectCategory"
-              role="tab"
-              aria-selected="false"
+              aria-current="false"
             >
               Glossary
             </button>

@@ -27,7 +27,7 @@ export default class extends Controller {
     this.categoryTargets.forEach((button) => {
       const active = button.dataset.faqCategoryParam === category
       button.toggleAttribute("data-active", active)
-      button.setAttribute("aria-selected", active ? "true" : "false")
+      button.setAttribute("aria-current", active ? "true" : "false")
     })
 
     this.sectionTargets.forEach((section) => {

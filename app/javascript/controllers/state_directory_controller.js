@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["search", "type", "floodStage", "alertsOnly", "card", "county", "countyCount", "empty", "listings", "countyJump"]
+  static targets = ["search", "type", "floodStage", "alertsOnly", "card", "county", "countyCount", "empty", "listings", "countyJump", "status"]
 
   connect() {
     this.filter()
@@ -60,6 +60,12 @@ export default class extends Controller {
 
     if (this.hasEmptyTarget) {
       this.emptyTarget.hidden = visibleCards > 0
+    }
+
+    if (this.hasStatusTarget) {
+      this.statusTarget.textContent = visibleCards === 0
+        ? "No stations match these filters."
+        : `${visibleCards} ${visibleCards === 1 ? "station" : "stations"} shown`
     }
   }
 }

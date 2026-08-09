@@ -8,15 +8,15 @@
       </div>
       <p>
         © <%= @year %> WaterLevels.org ·
-        <%= link_to "Disclosures", disclosures_path %>
+        <%= link_to "Disclosures", disclosures_path, **footer_link_attrs(disclosures_path) %>
       </p>
     </div>
     <nav aria-label="Footer">
-      <%= link_to "About", about_path %>
-      <%= link_to "FAQ", faq_path %>
-      <%= link_to "Contact", contact_path %>
-      <%= link_to "Privacy", privacy_path %>
-      <%= link_to "Terms", terms_path %>
+      <%= link_to "About", about_path, **footer_link_attrs(about_path) %>
+      <%= link_to "FAQ", faq_path, **footer_link_attrs(faq_path) %>
+      <%= link_to "Contact", contact_path, **footer_link_attrs(contact_path) %>
+      <%= link_to "Privacy", privacy_path, **footer_link_attrs(privacy_path) %>
+      <%= link_to "Terms", terms_path, **footer_link_attrs(terms_path) %>
     </nav>
   </div>
 </footer>

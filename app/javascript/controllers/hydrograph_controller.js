@@ -10,10 +10,10 @@ const SERIES_COLORS = {
 }
 
 const FLOOD_STAGE_COLORS = {
-  action: { border: "#fbbf24", legend: "bg-flood-action" },
-  minor: { border: "#fb923c", legend: "bg-flood-minor" },
-  moderate: { border: "#f43f5e", legend: "bg-flood-moderate" },
-  major: { border: "#ef4444", legend: "bg-flood-major" }
+  action: { border: "#fbbf24", legend: "bg-flood-action", dash: [6, 4] },
+  minor: { border: "#fb923c", legend: "bg-flood-minor", dash: [2, 2] },
+  moderate: { border: "#f43f5e", legend: "bg-flood-moderate", dash: [8, 3, 2, 3] },
+  major: { border: "#ef4444", legend: "bg-flood-major", dash: [12, 4] }
 }
 
 const FLOOD_STAGE_LABELS = {
@@ -129,12 +129,26 @@ export default class extends Controller {
     if (!primary) return
 
     this.series = primary
+    this.updateCanvasLabel(primary)
     this.renderLegend()
     this.renderStats(primary.points || [])
     this.renderEstimatedNote(primary.points || [])
     this.renderChart()
     this.renderDaySelect()
     this.renderHistory()
+  }
+
+  updateCanvasLabel(series) {
+    if (!this.hasCanvasTarget) return
+    const label = series.label || series.kind || "Measurement"
+    const unit = this.unitLabel(series)
+    const rangeLabels = { "7d": "7 days", "30d": "30 days", "1y": "1 year", "3y": "3 years" }
+    const range = rangeLabels[this.range] || this.range
+    const unitSuffix = unit ? ` in ${unit}` : ""
+    this.canvasTarget.setAttribute(
+      "aria-label",
+      `Trend chart for ${label}${unitSuffix} over ${range}. Use the hourly measurements table below for the same data.`
+    )
   }
 
   hasEstimatedPoints(points = []) {
@@ -352,7 +366,7 @@ export default class extends Controller {
     const columns = this.tableColumns()
     const count = day.rows.length
 
-    const head = columns.map((col) => `<th class="num">${this.escapeHtml(col.header)}</th>`).join("")
+    const head = columns.map((col) => `<th scope="col" class="num">${this.escapeHtml(col.header)}</th>`).join("")
     const body = day.rows.map((row) => {
       const cells = columns.map((col) => {
         const value = row.values[col.key]
@@ -368,7 +382,10 @@ export default class extends Controller {
           <td class="time">${this.escapeHtml(this.formatClock(row.t))}</td>
           ${cells}
           <td class="status">
-            <span class="dot ${status.className}" aria-label="${status.label}"></span>
+            <span class="status-pill ${status.className}">
+              <span class="dot" aria-hidden="true"></span>
+              ${status.label}
+            </span>
           </td>
         </tr>
       `
@@ -381,11 +398,12 @@ export default class extends Controller {
     this.historyTarget.innerHTML = `
       <div class="scroll">
         <table>
+          <caption class="sr-only">Hourly observations for ${this.escapeHtml(day.key)}</caption>
           <thead>
             <tr>
-              <th>${this.escapeHtml(this.timeColumnLabel())}</th>
+              <th scope="col">${this.escapeHtml(this.timeColumnLabel())}</th>
               ${head}
-              <th class="center">Status</th>
+              <th scope="col" class="center">Status</th>
             </tr>
           </thead>
           <tbody>${body}</tbody>
@@ -570,11 +588,11 @@ export default class extends Controller {
         data: primaryPoints.length ? primaryPoints.map(() => value) : [value],
         borderColor: stageColors.border,
         backgroundColor: "transparent",
-        borderDash: [6, 4],
+        borderDash: stageColors.dash || [6, 4],
         fill: false,
         tension: 0,
         pointRadius: 0,
-        borderWidth: 1.5,
+        borderWidth: 2,
         yAxisID: "y",
         seriesKind: "water_level",
         isFloodStage: true

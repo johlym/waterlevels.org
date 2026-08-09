@@ -52,5 +52,8 @@ class ContactsControllerTest < ActionDispatch::IntegrationTest
       "cf-turnstile-response" => "test-token"
     }
     assert_response :unprocessable_content
+    assert_includes response.body, 'aria-invalid="true"'
+    assert_includes response.body, "contact-email-error"
+    assert_includes response.body, "Email hello@waterlevels.org"
   end
 end

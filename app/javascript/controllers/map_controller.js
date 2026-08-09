@@ -9,21 +9,24 @@ export default class extends Controller {
     "canvas",
     "search",
     "results",
+    "status",
     "filter",
     "dischargeCount",
     "waterLevelCount",
     "temperatureCount",
     "settingsPanel",
     "settingsButton",
-    "mobileSearch"
+    "mobileSearch",
+    "stationList",
+    "stationListStatus"
   ]
   static outlets = ["dialog"]
 
   static FLOOD_COLORS = {
-    action: { color: "#fbbf24", fill: "#f59e0b" },
-    minor: { color: "#fb923c", fill: "#f97316" },
-    moderate: { color: "#f43f5e", fill: "#e11d48" },
-    major: { color: "#ef4444", fill: "#b91c1c" }
+    action: { color: "#fbbf24", fill: "#f59e0b", glyph: "A", shape: "diamond" },
+    minor: { color: "#fb923c", fill: "#f97316", glyph: "1", shape: "square" },
+    moderate: { color: "#f43f5e", fill: "#e11d48", glyph: "2", shape: "triangle" },
+    major: { color: "#ef4444", fill: "#b91c1c", glyph: "3", shape: "triangle" }
   }
   static values = {
     stationsUrl: String,
@@ -42,6 +45,7 @@ export default class extends Controller {
     this.markersById = new Map()
     this.query = ""
     this.searchRequestId = 0
+    this.searchActiveIndex = -1
     this.syncingHashFromMap = false
     this.layers = {
       discharge: true,
@@ -51,6 +55,11 @@ export default class extends Controller {
 
     const initial = this.initialView()
     this.map = L.map(this.canvasTarget, { zoomControl: false, attributionControl: false }).setView(initial.center, initial.zoom)
+    this.canvasTarget.setAttribute("role", "img")
+    this.canvasTarget.setAttribute(
+      "aria-label",
+      "Water gauges map. Use Search stations or the Stations in view list for keyboard access."
+    )
     L.control.attribution({
       position: "bottomleft",
       prefix: this.attributionPrefix()
@@ -308,8 +317,27 @@ export default class extends Controller {
 
   onKeydown(event) {
     if (event.key === "Escape") {
+      if (this.map?.closePopup) this.map.closePopup()
       this.closeMobileSearch()
       this.closeSettings()
+      return
+    }
+
+    if (!this.hasResultsTarget || this.resultsTarget.hidden) return
+    if (!this.hasSearchTarget || document.activeElement !== this.searchTarget) return
+
+    const items = this.searchResultItems()
+    if (event.key === "ArrowDown") {
+      event.preventDefault()
+      this.searchActiveIndex = Math.min(this.searchActiveIndex + 1, items.length - 1)
+      this.syncSearchActiveItem(items)
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault()
+      this.searchActiveIndex = Math.max(this.searchActiveIndex - 1, 0)
+      this.syncSearchActiveItem(items)
+    } else if (event.key === "Enter" && this.searchActiveIndex >= 0 && items[this.searchActiveIndex]) {
+      event.preventDefault()
+      items[this.searchActiveIndex].click()
     }
   }
 
@@ -328,6 +356,7 @@ export default class extends Controller {
 
   search() {
     this.query = (this.searchTarget.value || "").trim()
+    this.searchActiveIndex = -1
     if (this.searchTimer) clearTimeout(this.searchTimer)
 
     if (this.query.length < 2) {
@@ -436,26 +465,87 @@ export default class extends Controller {
     this.cluster.clearLayers()
     this.markersById.clear()
 
-    this.visibleStations().forEach((station) => {
+    const visible = this.visibleStations()
+    visible.forEach((station) => {
       const style = this.markerStyle(station)
-      const marker = L.circleMarker([station.lat, station.lon], {
-        radius: station.flood_alert ? 7 : 6,
-        color: style.color,
-        fillColor: style.fill,
-        fillOpacity: 0.85,
-        weight: 2
+      const marker = L.marker([station.lat, station.lon], {
+        icon: this.markerIcon(station, style),
+        keyboard: false,
+        title: `${station.name} — ${this.stationStatusLabel(station)}`
       })
       marker.bindPopup(this.popupHtml(station))
       this.markersById.set(station.id, marker)
       this.cluster.addLayer(marker)
     })
+    this.renderStationList(visible)
   }
 
   markerStyle(station) {
-    if (station.stale) return { color: "#71717a", fill: "#a1a1aa" }
+    if (station.stale) return { color: "#d4d4d8", fill: "#a1a1aa", glyph: "×", shape: "circle" }
     const flood = this.constructor.FLOOD_COLORS[station.flood_category]
     if (flood) return flood
-    return { color: "#22d3ee", fill: "#06b6d4" }
+    return { color: "#22d3ee", fill: "#06b6d4", glyph: "", shape: "circle" }
+  }
+
+  markerIcon(station, style) {
+    const size = station.flood_alert ? 18 : 14
+    const glyph = style.glyph
+      ? `<span class="map-marker-glyph">${this.escapeHtml(style.glyph)}</span>`
+      : ""
+    return L.divIcon({
+      className: `map-marker map-marker--${style.shape}`,
+      html: `<span class="map-marker-shape" style="--marker-color:${style.color};--marker-fill:${style.fill}">${glyph}</span>`,
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+      popupAnchor: [0, -size / 2]
+    })
+  }
+
+  stationStatusLabel(station) {
+    if (station.stale) return "Inactive"
+    return station.flood_category_label || (station.flood_category === "no_flooding" ? "Normal" : "Active")
+  }
+
+  renderStationList(stations) {
+    if (!this.hasStationListTarget) return
+
+    const sorted = [...stations].sort((a, b) => String(a.name).localeCompare(String(b.name)))
+    const limit = 40
+    const shown = sorted.slice(0, limit)
+
+    if (!shown.length) {
+      this.stationListTarget.innerHTML = `<p class="empty">No stations match the current filters in this view.</p>`
+      this.announceStationList("No stations in view")
+      return
+    }
+
+    const more = sorted.length > limit
+      ? `<p class="aside">Showing ${limit} of ${sorted.length}. Zoom in or search to narrow results.</p>`
+      : ""
+
+    this.stationListTarget.innerHTML = `
+      <ul class="map-station-list">
+        ${shown.map((station) => {
+          const status = this.stationStatusLabel(station)
+          const path = this.escapeHtml(station.path || `/gauges/${station.id}`)
+          return `
+            <li>
+              <a href="${path}">
+                <span class="name">${this.escapeHtml(station.name)}</span>
+                <span class="meta">${this.escapeHtml(status)} · ${this.escapeHtml(station.id)}</span>
+              </a>
+            </li>
+          `
+        }).join("")}
+      </ul>
+      ${more}
+    `
+    this.announceStationList(`${sorted.length} ${sorted.length === 1 ? "station" : "stations"} in view`)
+  }
+
+  announceStationList(message) {
+    if (!this.hasStationListStatusTarget) return
+    this.stationListStatusTarget.textContent = message
   }
 
   renderSearchResults({ waiting = false } = {}) {
@@ -464,24 +554,31 @@ export default class extends Controller {
     if (!this.query || waiting) {
       this.resultsTarget.innerHTML = ""
       this.resultsTarget.hidden = true
+      this.setSearchExpanded(false)
+      this.announceSearch("")
       return
     }
 
     const matches = this.searchResults
     this.resultsTarget.hidden = false
+    this.setSearchExpanded(true)
 
     if (!matches.length) {
-      this.resultsTarget.innerHTML = `<p class="empty">No matching stations.</p>`
+      this.resultsTarget.innerHTML = `<p class="empty" role="option" aria-disabled="true">No matching stations.</p>`
+      this.announceSearch("No matching stations")
       return
     }
 
-    this.resultsTarget.innerHTML = matches.map((result) => this.searchResultItemHtml(result)).join("")
+    this.resultsTarget.innerHTML = matches.map((result, index) => this.searchResultItemHtml(result, index)).join("")
+    const count = matches.length
+    this.announceSearch(`${count} ${count === 1 ? "result" : "results"} available`)
   }
 
-  searchResultItemHtml(result) {
+  searchResultItemHtml(result, index) {
+    const optionId = `map-search-option-${index}`
     if (result.type === "state") {
       return `
-        <a href="${this.escapeHtml(result.path)}" class="item">
+        <a href="${this.escapeHtml(result.path)}" class="item" role="option" id="${optionId}">
           <div class="icon" aria-hidden="true">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
@@ -498,7 +595,7 @@ export default class extends Controller {
 
     if (result.type === "zip") {
       return `
-        <a href="${this.escapeHtml(result.path)}" class="item" data-action="click->map#selectSearchResult">
+        <a href="${this.escapeHtml(result.path)}" class="item" role="option" id="${optionId}" data-action="click->map#selectSearchResult">
           <div class="icon" aria-hidden="true">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
@@ -517,7 +614,7 @@ export default class extends Controller {
     const status = result.stale ? "Inactive" : "Active"
     const statusClass = result.stale ? "inactive" : "active"
     return `
-      <a href="${this.escapeHtml(result.path)}" class="item">
+      <a href="${this.escapeHtml(result.path)}" class="item" role="option" id="${optionId}">
         <div class="icon" aria-hidden="true">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
@@ -532,11 +629,38 @@ export default class extends Controller {
     `
   }
 
+  searchResultItems() {
+    if (!this.hasResultsTarget) return []
+    return Array.from(this.resultsTarget.querySelectorAll("a.item"))
+  }
+
+  syncSearchActiveItem(items) {
+    items.forEach((item, index) => {
+      const active = index === this.searchActiveIndex
+      item.classList.toggle("is-active", active)
+      item.setAttribute("aria-selected", active ? "true" : "false")
+    })
+    const activeItem = items[this.searchActiveIndex]
+    if (activeItem && this.hasSearchTarget) {
+      this.searchTarget.setAttribute("aria-activedescendant", activeItem.id)
+    } else if (this.hasSearchTarget) {
+      this.searchTarget.removeAttribute("aria-activedescendant")
+    }
+  }
+
+  setSearchExpanded(expanded) {
+    if (!this.hasSearchTarget) return
+    this.searchTarget.setAttribute("aria-expanded", expanded ? "true" : "false")
+  }
+
+  announceSearch(message) {
+    if (!this.hasStatusTarget) return
+    this.statusTarget.textContent = message
+  }
+
   popupHtml(station) {
     const rows = []
-    const status = station.stale
-      ? "Inactive"
-      : (station.flood_category_label || (station.flood_category === "no_flooding" ? "Normal" : "Active"))
+    const status = this.stationStatusLabel(station)
     rows.push(`<div class="popup-meta">Status: <strong>${this.escapeHtml(status)}</strong></div>`)
 
     if (station.water_level != null) {

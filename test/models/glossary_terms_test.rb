@@ -18,5 +18,7 @@ class GlossaryTermsTest < ActiveSupport::TestCase
 
     assert_includes GlossaryTerms.definition_for("datum"), "reference surface"
     assert_includes GlossaryTerms.definition_for("Provisional"), "revised"
+    assert_includes GlossaryTerms.definition_for("Major flood"), "extensive inundation"
+    assert_includes GlossaryTerms.definition_for("Flood stage"), "overflow"
   end
 end

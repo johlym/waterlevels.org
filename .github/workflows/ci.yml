@@ -105,4 +105,6 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/waterlevels_test
           # Intentionally unset REDIS_URL so RedisConfig keeps its default
           # (asserted by test/lib/redis_config_test.rb).
+          # Includes test/integration/accessibility_smoke_test.rb (skip links,
+          # landmarks, combobox, FAQ, contact field errors, nav current page).
         run: bin/rails db:test:prepare test
