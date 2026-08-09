@@ -2,6 +2,10 @@ module Usgs
   module StateCodes
     # USGS OGC API `state_code` is the two-digit ANSI/FIPS code.
     # The app stores and routes on USPS abbreviations.
+    #
+    # National catalog responses also include Mexican states (81–86) and
+    # Canadian provinces (90–98). Those are intentionally omitted here; catalog
+    # sync skips them via {.try_normalize_postal}.
     STATES = {
       "al" => { fips: "01", name: "Alabama" },
       "ak" => { fips: "02", name: "Alaska" },
@@ -62,12 +66,23 @@ module Usgs
 
     module_function
 
-    def normalize_postal(value)
+    # Returns a lowercase USPS code for a supported postal or FIPS value, or nil
+    # when the code is blank/unsupported (e.g. Canadian province FIPS 95).
+    def try_normalize_postal(value)
       code = value.to_s.strip.downcase
+      return if code.blank?
       return code if STATES.key?(code)
-      return FIPS_TO_POSTAL[code] if FIPS_TO_POSTAL.key?(code)
 
-      raise ArgumentError, "Unknown state #{value.inspect}; use a USPS code like WA or FIPS like 53"
+      FIPS_TO_POSTAL[code]
+    end
+
+    def known?(value)
+      !try_normalize_postal(value).nil?
+    end
+
+    def normalize_postal(value)
+      try_normalize_postal(value) ||
+        raise(ArgumentError, "Unknown state #{value.inspect}; use a USPS code like WA or FIPS like 53")
     end
 
     def fips_for(value)
