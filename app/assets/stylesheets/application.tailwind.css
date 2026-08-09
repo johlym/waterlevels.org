@@ -2236,7 +2236,7 @@ body.dialog-open {
   }
 
   .freshness-legend {
-    @apply mt-4 flex flex-wrap gap-x-6 gap-y-2;
+    @apply mt-4 grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3;
 
     li {
       @apply flex items-center gap-2 text-sm;
@@ -2270,6 +2270,10 @@ body.dialog-open {
       }
     }
 
+    .entry {
+      @apply flex min-w-0 flex-wrap items-baseline gap-x-1.5;
+    }
+
     .name {
       @apply text-zinc-300;
     }
@@ -2279,7 +2283,7 @@ body.dialog-open {
     }
 
     .pct {
-      @apply ml-1.5 font-sans text-xs font-normal text-zinc-500;
+      @apply font-sans text-xs font-normal text-zinc-500;
     }
   }
 
