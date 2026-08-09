@@ -10,6 +10,11 @@ module DailyArchive
   #
   # Progress is checkpointed per series so a canceled/retried job on the same
   # UTC day resumes instead of redoing completed handoff/prune work.
+  #
+  # Handoff batches archive writes per series (Writer groups by year) so a
+  # multi-day backlog does one R2 read-modify-write per year shard instead of
+  # one per local day. Year shards are cached in-process for presence/source
+  # checks to avoid repeated get/decode.
   class Retention
     def initialize(store: DailyArchive.store, writer: nil, as_of: Time.current, client: nil, progress: nil, checkpoint: nil)
       @store = store
@@ -19,6 +24,7 @@ module DailyArchive
       @progress = progress
       @checkpoint = checkpoint
       @gap_days = Set.new # [time_series_id, iso_day] alerted this run
+      @archived_points_cache = {}
     end
 
     def perform
@@ -116,24 +122,15 @@ module DailyArchive
         TimeSeries.where(id: series_ids).includes(:monitoring_location)
       )
       scope.find_each do |series|
-        series_usgs = 0
-        series_derived = 0
-        series_retrying = 0
-        aged_local_days(series, frontier).each do |day|
-          case ensure_day!(series, day)
-          when :usgs then series_usgs += 1
-          when :derived then series_derived += 1
-          when :retrying then series_retrying += 1
-          end
-        end
-        usgs_ensured += series_usgs
-        derived += series_derived
-        retrying += series_retrying
+        counts = ensure_series_days!(series, aged_local_days(series, frontier))
+        usgs_ensured += counts[:usgs_ensured]
+        derived += counts[:derived]
+        retrying += counts[:retrying]
         @checkpoint.mark_series!(
           series.id,
-          usgs_ensured: series_usgs,
-          derived: series_derived,
-          retrying: series_retrying
+          usgs_ensured: counts[:usgs_ensured],
+          derived: counts[:derived],
+          retrying: counts[:retrying]
         )
         processed += 1
         if (processed % 50).zero?
@@ -165,95 +162,136 @@ module DailyArchive
         .map { |day| day.is_a?(Date) ? day : Date.parse(day.to_s) }
     end
 
-    def ensure_day!(series, day)
-      if archived_day?(series.id, day)
-        if postgres_usgs_daily?(series, day) && !archived_usgs_day?(series.id, day)
-          dual_write_postgres_day!(series, day)
-          return :usgs
+    # Ensure every aged local day for one series, buffering archive writes so
+    # each year shard is rewritten at most once for the backlog.
+    def ensure_series_days!(series, days)
+      return { usgs_ensured: 0, derived: 0, retrying: 0 } if days.empty?
+
+      usgs_ensured = 0
+      derived = 0
+      retrying = 0
+      pending = [] # { point:, kind: :usgs|:derived }
+
+      postgres_by_day = postgres_usgs_dailies_by_day(series, days)
+      missing_days = []
+
+      days.each do |day|
+        if archived_day?(series.id, day)
+          if postgres_by_day[day] && !archived_usgs_day?(series.id, day)
+            pending << { point: postgres_point(postgres_by_day[day]), kind: :usgs }
+          elsif archived_usgs_day?(series.id, day)
+            usgs_ensured += 1
+          end
+          # Already-archived derived days are :present — no counter bump.
+          next
         end
-        return archived_usgs_day?(series.id, day) ? :usgs : :present
+
+        if (row = postgres_by_day[day])
+          pending << { point: postgres_point(row), kind: :usgs }
+          next
+        end
+
+        missing_days << day
       end
 
-      if postgres_usgs_daily?(series, day)
-        dual_write_postgres_day!(series, day)
-        return :usgs
+      usgs_by_day = fetch_usgs_dailies_for_days!(series, missing_days)
+      missing_days.each do |day|
+        if (point = usgs_by_day[day])
+          pending << { point: point, kind: :usgs }
+          next
+        end
+
+        point = UsgsLikeDailyMean.new(time_series: series, day: day).compute
+        if point
+          pending << { point: point, kind: :derived }
+        else
+          retrying += 1
+        end
       end
 
-      if fetch_and_store_usgs_daily!(series, day)
-        return :usgs
+      if pending.any?
+        begin
+          @writer.upsert(
+            time_series_id: series.id,
+            points: pending.map { |entry| entry[:point] }
+          )
+          invalidate_archive_cache!(series.id, pending.map { |entry| entry[:point] })
+          pending.each do |entry|
+            case entry[:kind]
+            when :usgs then usgs_ensured += 1
+            when :derived then derived += 1
+            end
+          end
+        rescue Writer::LockBusyError => e
+          Rails.logger.warn(
+            "[DailyArchive::Retention] archive write lock busy series=#{series.id} " \
+            "pending_days=#{pending.size}: #{e.message}"
+          )
+          retrying += pending.size
+        end
       end
 
-      point = UsgsLikeDailyMean.new(time_series: series, day: day).compute
-      if point
-        @writer.upsert(time_series_id: series.id, points: [ point ])
-        # Invalidate day cache so prune sees the new point.
-        @archived_days_cache&.delete([ series.id, day.year ])
-        return :derived
-      end
-
-      :retrying
-    rescue Writer::LockBusyError => e
-      # Concurrent export/backfill holds the year shard; leave IV in place for a later run.
-      Rails.logger.warn(
-        "[DailyArchive::Retention] archive write lock busy series=#{series.id} day=#{day}: #{e.message}"
-      )
-      :retrying
+      { usgs_ensured: usgs_ensured, derived: derived, retrying: retrying }
     end
 
-    def postgres_usgs_daily?(series, day)
-      row = series.daily_observations.find_by(observed_on: day)
-      row.present? && row.qualifier != "derived_continuous"
+    def postgres_usgs_dailies_by_day(series, days)
+      series.daily_observations
+        .where(observed_on: days)
+        .where("qualifier IS NULL OR qualifier != ?", "derived_continuous")
+        .index_by(&:observed_on)
     end
 
-    def dual_write_postgres_day!(series, day)
-      row = series.daily_observations.find_by(observed_on: day)
-      return if row.blank?
-
-      @writer.upsert(
-        time_series_id: series.id,
-        points: [ {
-          "d" => day.iso8601,
-          "v" => row.value.to_f,
-          "s" => DailyArchive::SOURCE_USGS,
-          "a" => row.approval_status
-        } ]
-      )
-      @archived_days_cache&.delete([ series.id, day.year ])
+    def postgres_point(row)
+      {
+        "d" => row.observed_on.iso8601,
+        "v" => row.value.to_f,
+        "s" => DailyArchive::SOURCE_USGS,
+        "a" => row.approval_status
+      }
     end
 
-    def fetch_and_store_usgs_daily!(series, day)
+    # One USGS daily request per year span covering missing days (not per day).
+    def fetch_usgs_dailies_for_days!(series, days)
+      return {} if days.empty?
+
       client = usgs_client
-      return false if client.nil?
-      return false if Usgs::RateLimitCircuit.open?(client.circuit_key)
+      return {} if client.nil?
+      return {} if Usgs::RateLimitCircuit.open?(client.circuit_key)
 
+      wanted = days.to_set
+      found = {}
       location = series.monitoring_location
-      found = false
-      client.each_collection_item(
-        "daily",
-        monitoring_location_id: location.usgs_monitoring_location_id,
-        parameter_code: series.parameter_code,
-        datetime: "#{day.iso8601}/#{day.iso8601}"
-      ) do |item|
-        item_day = Date.parse(item["time"] || item["date"] || item["datetime"].to_s) rescue nil
-        next unless item_day == day
-        next if item["value"].blank?
 
-        @writer.upsert(
-          time_series_id: series.id,
-          points: [ {
-            "d" => day.iso8601,
-            "v" => item["value"].to_f,
-            "s" => DailyArchive::SOURCE_USGS,
-            "a" => item["approval_status"]
-          } ]
-        )
-        @archived_days_cache&.delete([ series.id, day.year ])
-        found = true
+      days.group_by(&:year).each_value do |year_days|
+        start_day = year_days.min
+        end_day = year_days.max
+        begin
+          client.each_collection_item(
+            "daily",
+            monitoring_location_id: location.usgs_monitoring_location_id,
+            parameter_code: series.parameter_code,
+            datetime: "#{start_day.iso8601}/#{end_day.iso8601}"
+          ) do |item|
+            item_day = Date.parse(item["time"] || item["date"] || item["datetime"].to_s) rescue nil
+            next unless item_day && wanted.include?(item_day)
+            next if item["value"].blank?
+
+            found[item_day] = {
+              "d" => item_day.iso8601,
+              "v" => item["value"].to_f,
+              "s" => DailyArchive::SOURCE_USGS,
+              "a" => item["approval_status"]
+            }
+          end
+        rescue Usgs::Client::Error, Usgs::Client::RateLimitError => e
+          Rails.logger.warn(
+            "[DailyArchive::Retention] USGS daily fetch failed series=#{series.id} " \
+            "range=#{start_day}/#{end_day}: #{e.message}"
+          )
+        end
       end
+
       found
-    rescue Usgs::Client::Error, Usgs::Client::RateLimitError => e
-      Rails.logger.warn("[DailyArchive::Retention] USGS daily fetch failed series=#{series.id} day=#{day}: #{e.message}")
-      false
     end
 
     def usgs_client
@@ -478,23 +516,31 @@ module DailyArchive
     end
 
     def archived_day?(time_series_id, day)
-      archived_days_for(time_series_id, day.year).include?(day.iso8601)
+      archived_points_for(time_series_id, day.year).key?(day.iso8601)
     end
 
     def archived_usgs_day?(time_series_id, day)
-      key = DailyArchive.object_key(time_series_id, day.year)
-      Codec.decode(@store.get(key)).any? do |p|
-        p["d"] == day.iso8601 && p["s"] == DailyArchive::SOURCE_USGS
-      end
+      point = archived_points_for(time_series_id, day.year)[day.iso8601]
+      point.present? && point["s"] == DailyArchive::SOURCE_USGS
     end
 
     def archived_days_for(time_series_id, year)
-      @archived_days_cache ||= {}
+      archived_points_for(time_series_id, year).keys.to_set
+    end
+
+    # Decode each year shard once per retention run; presence + source checks
+    # share this map so handoff does not re-get R2 for every local day.
+    def archived_points_for(time_series_id, year)
       cache_key = [ time_series_id, year ]
-      @archived_days_cache[cache_key] ||= begin
+      @archived_points_cache[cache_key] ||= begin
         key = DailyArchive.object_key(time_series_id, year)
-        Codec.decode(@store.get(key)).to_set { |p| p["d"] }
+        Codec.decode(@store.get(key)).index_by { |p| p["d"] }
       end
+    end
+
+    def invalidate_archive_cache!(time_series_id, points)
+      years = points.filter_map { |point| Date.parse(point["d"]).year rescue nil }.uniq
+      years.each { |year| @archived_points_cache.delete([ time_series_id, year ]) }
     end
 
     def local_zone(location)
