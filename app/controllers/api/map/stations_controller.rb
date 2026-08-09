@@ -1,8 +1,6 @@
 module Api
   module Map
-    class StationsController < ApplicationController
-      include CacheableResponse
-
+    class StationsController < Api::BaseController
       SEARCH_LIMIT = 8
       SEARCH_MIN_LENGTH = 2
 

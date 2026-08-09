@@ -190,7 +190,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
   test "map stations include station time zone fields" do
     @location.update!(time_zone: "CST", state_code: "tx", state_name: "Texas", latitude: 30.27, longitude: -97.74)
 
-    get "/api/map/stations", params: { bbox: "-98,30,-97,31" }
+    api_get "/api/map/stations", params: { bbox: "-98,30,-97,31" }
     assert_response :success
     station = JSON.parse(response.body)["stations"].find { |row| row["id"] == @location.site_number }
     assert_equal "CST", station["time_zone"]
@@ -209,7 +209,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
       longitude: -121.8
     )
 
-    get "/api/map/stations", params: { bbox: "-125,45,-120,49" }
+    api_get "/api/map/stations", params: { bbox: "-125,45,-120,49" }
     assert_response :success
     station = JSON.parse(response.body)["stations"].find { |row| row["id"] == @location.site_number }
     assert_equal "moderate", station["flood_category"]
@@ -277,7 +277,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "returns map stations for a bbox" do
-    get "/api/map/stations", params: { bbox: "-125,45,-120,49" }
+    api_get "/api/map/stations", params: { bbox: "-125,45,-120,49" }
     assert_response :success
     json = JSON.parse(response.body)
     assert_kind_of Array, json["stations"]
@@ -296,7 +296,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
       latest_observed_at: observed_at
     )
 
-    get "/api/map/stations", params: { bbox: "-125,45,-120,49" }
+    api_get "/api/map/stations", params: { bbox: "-125,45,-120,49" }
     assert_response :success
     station = JSON.parse(response.body)["stations"].find { |row| row["id"] == @location.site_number }
     assert station
@@ -331,7 +331,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
       synced_at: Time.current
     )
 
-    get "/api/map/stations", params: { bbox: "-125,45,-120,49" }
+    api_get "/api/map/stations", params: { bbox: "-125,45,-120,49" }
     assert_response :success
     station = JSON.parse(response.body)["stations"].find { |row| row["id"] == @location.site_number }
     assert station
@@ -359,7 +359,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
       state_code: "md"
     )
 
-    get "/api/map/stations/search", params: { q: "potomac" }
+    api_get "/api/map/stations/search", params: { q: "potomac" }
     assert_response :success
     stations = JSON.parse(response.body)["stations"]
     ids = stations.map { |row| row["id"] }
@@ -373,7 +373,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
   test "station search requires at least two characters" do
     create(:monitoring_location, name: "POTOMAC RIVER NEAR WASH, DC", state_code: "md")
 
-    get "/api/map/stations/search", params: { q: "p" }
+    api_get "/api/map/stations/search", params: { q: "p" }
     assert_response :success
     assert_equal [], JSON.parse(response.body)["stations"]
   end
@@ -388,7 +388,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
       state_name: "Texas"
     )
 
-    get "/api/map/stations/search", params: { q: "Texas" }
+    api_get "/api/map/stations/search", params: { q: "Texas" }
     assert_response :success
     results = JSON.parse(response.body)["stations"]
 
@@ -408,7 +408,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
       state_name: "Texas"
     )
 
-    get "/api/map/stations/search", params: { q: "Texas" }
+    api_get "/api/map/stations/search", params: { q: "Texas" }
     assert_response :success
     results = JSON.parse(response.body)["stations"]
 
@@ -421,7 +421,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     create(:monitoring_location, site_number: "20000001", latitude: 47.0, longitude: -122.0)
     near = create(:monitoring_location, site_number: "20000002", latitude: 47.05, longitude: -122.05)
 
-    get "/api/map/stations/nearest", params: { lat: 47.051, lon: -122.051 }
+    api_get "/api/map/stations/nearest", params: { lat: 47.051, lon: -122.051 }
     assert_response :success
     station = JSON.parse(response.body)["station"]
     assert_equal near.site_number, station["id"]
@@ -447,7 +447,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
         }.to_json
       )
 
-    get "/api/map/stations/search", params: { q: "98101" }
+    api_get "/api/map/stations/search", params: { q: "98101" }
     assert_response :success
     results = JSON.parse(response.body)["stations"]
 
@@ -477,7 +477,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
         }.to_json
       )
 
-    get "/api/map/stations/search", params: { q: "78701-0143" }
+    api_get "/api/map/stations/search", params: { q: "78701-0143" }
     assert_response :success
     results = JSON.parse(response.body)["stations"]
 
@@ -489,7 +489,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     stub_request(:get, "https://api.zippopotam.us/us/00000")
       .to_return(status: 404, body: "{}")
 
-    get "/api/map/stations/search", params: { q: "00000" }
+    api_get "/api/map/stations/search", params: { q: "00000" }
     assert_response :success
     results = JSON.parse(response.body)["stations"]
 

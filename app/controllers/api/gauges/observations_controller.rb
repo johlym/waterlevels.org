@@ -1,8 +1,6 @@
 module Api
   module Gauges
-    class ObservationsController < ApplicationController
-      include CacheableResponse
-
+    class ObservationsController < Api::BaseController
       def index
         location = MonitoringLocation.find_by!(site_number: params[:gauge_id])
         parameter_code = params[:parameter_code].presence
