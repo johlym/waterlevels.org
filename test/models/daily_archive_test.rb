@@ -27,38 +27,50 @@ class DailyArchiveTest < ActiveSupport::TestCase
     refute_includes ids, missing_series.id
   end
 
-  test "cold_archive_point_count sums shards entirely before the hot cutoff" do
-    travel_to Time.zone.local(2026, 8, 6, 12, 0, 0) do
-      series = create(:time_series)
-      cutoff = DailyArchive.hot_cutoff_on
-      # Fully cold prior calendar year vs straddling tip-year shard.
-      cold_year = cutoff.year - 1
-      tip_year = cutoff.year
+  test "archive_point_count sums all shard point_counts" do
+    series = create(:time_series)
+    DailyArchiveShard.create!(
+      time_series: series,
+      year: 2024,
+      object_key: "daily/v1/#{series.id}/2024.json.gz",
+      content_sha256: "a",
+      point_count: 7,
+      min_on: Date.new(2024, 1, 1),
+      max_on: Date.new(2024, 12, 31),
+      source_mix: "usgs",
+      synced_at: Time.current
+    )
+    DailyArchiveShard.create!(
+      time_series: series,
+      year: 2025,
+      object_key: "daily/v1/#{series.id}/2025.json.gz",
+      content_sha256: "b",
+      point_count: 9,
+      min_on: Date.new(2025, 1, 1),
+      max_on: Date.new(2025, 6, 1),
+      source_mix: "usgs",
+      synced_at: Time.current
+    )
 
-      DailyArchiveShard.create!(
-        time_series: series,
-        year: cold_year,
-        object_key: "daily/v1/#{series.id}/#{cold_year}.json.gz",
-        content_sha256: "cold",
-        point_count: 7,
-        min_on: Date.new(cold_year, 1, 1),
-        max_on: Date.new(cold_year, 12, 31),
-        source_mix: "usgs",
-        synced_at: Time.current
-      )
-      DailyArchiveShard.create!(
-        time_series: series,
-        year: tip_year,
-        object_key: "daily/v1/#{series.id}/#{tip_year}.json.gz",
-        content_sha256: "hot",
-        point_count: 9,
-        min_on: Date.new(tip_year, 1, 1),
-        max_on: Date.new(tip_year, 12, 31),
-        source_mix: "usgs",
-        synced_at: Time.current
-      )
+    assert_equal 16, DailyArchive.archive_point_count
+    assert_equal 16, DailyArchive.cold_archive_point_count
+  end
 
-      assert_equal 7, DailyArchive.cold_archive_point_count
-    end
+  test "time_series_ids_with_fresh_daily_tip uses shard max_on" do
+    series = create(:time_series)
+    DailyArchiveShard.create!(
+      time_series: series,
+      year: Date.current.year,
+      object_key: "daily/v1/#{series.id}/#{Date.current.year}.json.gz",
+      content_sha256: "c",
+      point_count: 2,
+      min_on: 10.days.ago.to_date,
+      max_on: Date.current,
+      source_mix: "usgs",
+      synced_at: Time.current
+    )
+
+    ids = DailyArchive.time_series_ids_with_fresh_daily_tip(2.days.ago.to_date).pluck(:time_series_id)
+    assert_includes ids, series.id
   end
 end

@@ -21,7 +21,8 @@ module DailyArchive
       scope.find_in_batches(batch_size: @batch_size) do |batch|
         batch.each do |series|
           relation = series.daily_observations.order(:observed_on)
-          relation = relation.where("observed_on < ?", DailyArchive.hot_cutoff_on) if only_cold
+          # only_cold: settled calendar days (legacy leftover drain), not "today".
+          relation = relation.where("observed_on < ?", Date.current) if only_cold
           next if relation.none?
 
           count = @writer.upsert_from_daily_observations(time_series_id: series.id, relation: relation)

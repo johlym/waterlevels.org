@@ -108,4 +108,18 @@ describe("coalesceHourlyReadings", () => {
     assert.equal(result[0].status, "ok")
     assert.equal(result[0].t, "2026-08-07T12:15:00.000Z")
   })
+
+  it("marks rows estimated when a source is estimated", () => {
+    const rows = [ {
+      t: "2026-07-01T00:00:00.000Z",
+      sort: Date.parse("2026-07-01T00:00:00.000Z"),
+      values: { "00065": 5.1, "00060": 1200, "00010": 14.2 },
+      sources: { "00065": "estimated", "00060": "ok", "00010": "ok" }
+    } ]
+
+    const result = coalesceHourlyReadings(rows, COLUMNS, hourKey)
+
+    assert.equal(result.length, 1)
+    assert.equal(result[0].status, "estimated")
+  })
 })

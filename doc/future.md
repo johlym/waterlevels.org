@@ -1,8 +1,8 @@
 # Future: history beyond 3 years
 
-How we go past the near-term **3-year daily** cache ([`plan-3y-daily-history.md`](./plan-3y-daily-history.md)) toward **hourly resolution for the full period of record**, without exhausting the USGS Water Data API budget.
+How we go past today’s **R2 daily history** ([`postgres-r2-daily-archive.md`](./postgres-r2-daily-archive.md); historical notes in [`plan-3y-daily-history.md`](./plan-3y-daily-history.md)) toward **hourly resolution for the full period of record**, without exhausting the USGS Water Data API budget.
 
-Cold **daily** history beyond the Postgres hot tip is archived in Cloudflare R2 ([`postgres-r2-daily-archive.md`](./postgres-r2-daily-archive.md)). That path does not replace this hourly POR rising-tide plan — R2 daily is the cheap long archive; hourly remains a separate grain.
+**Daily** history already lives in Cloudflare R2 (Postgres keeps only a ~35-day IV tip). That path does not replace this hourly POR rising-tide plan — R2 daily is the cheap long archive; hourly remains a separate grain.
 
 North star: same sub-daily grain on long charts (hourly, not daily-after-30d), back to each series’ historical max (metadata `start`), filled as a rising tide on the dedicated history API keys.
 
@@ -19,9 +19,9 @@ We use the modern OGC API (`https://api.waterdata.usgs.gov/ogcapi/v0/`), not leg
 
 Official USGS/`dataRetrieval` guidance: continuous is limited to three years **per request**, not three years total archive. Longer continuous POR is done by partitioning queries. Direct-download helpers may improve later; until then, chunked API pulls are the supported path.
 
-**Today’s product grain:** short charts use ~15‑minute continuous (retained ~90 days); `1y` / `3y` charts use **daily** means. There is no hourly series yet.
+**Today’s product grain:** short charts use ~15‑minute continuous (retained ~35 days); `1y` / `3y` charts use **daily** means from R2. There is no hourly series yet.
 
-**Target product grain (this doc’s north star):** **hourly resolution for the full period of record** (metadata `start` → now), so long-range charts no longer drop to daily after 30 days. Daily can remain as a cheap derived/summary layer; full IV (~15‑minute) stays for the recent window only unless product later demands it.
+**Target product grain (this doc’s north star):** **hourly resolution for the full period of record** (metadata `start` → now), so long-range charts no longer drop to daily after 30 days. Daily remains the cheap long archive in R2; full IV (~15‑minute) stays for the recent window only unless product later demands it.
 
 USGS does not expose a first-class “hourly” collection. Hourly POR means: fetch `continuous` in chunked windows, **downsample to one point/hour on ingest** (e.g. mean or last-in-bucket), and store that grain (new table or a `resolution` discriminator — TBD). API cost still tracks continuous page volume; storage is ~24× daily, ~1/4 to ~1/6 of raw 15‑minute IV.
 
@@ -29,9 +29,9 @@ USGS does not expose a first-class “hourly” collection. Hourly POR means: fe
 
 ## Recommended stages
 
-### Stage A — Finish near-term daily 3y (current plan)
+### Stage A — Daily 3y + R2-first retention (done / current)
 
-Ship / stabilize [`plan-3y-daily-history.md`](./plan-3y-daily-history.md). Keep continuous at ~90 days. This remains the cheap chart path until hourly coverage exists.
+The 1y→3y daily expansion ([`plan-3y-daily-history.md`](./plan-3y-daily-history.md)) and R2-first retention ([`postgres-r2-daily-archive.md`](./postgres-r2-daily-archive.md)) are the current cheap chart path: ~35-day IV tip, dailies in R2. Hourly POR below is the next grain upgrade.
 
 ### Stage B — Hourly rising tide to POR (primary future path)
 
@@ -61,7 +61,7 @@ Concrete rules:
 7. **Sunday.** Catalog remains on the tip key; history may run if the history pool is isolated (revisit the Sunday pause once tip/history split is proven in prod).
 8. **Prune / retention.** Recent window may keep native continuous (~15‑minute). Hourly POR is retained to metadata `start` (or a product max). Daily optional for medians / FAQ.
 
-### Stage C — Optional: native continuous (15‑minute) beyond 90 days
+### Stage C — Optional: native continuous (15‑minute) beyond ~35 days
 
 Only if product needs sub-hourly charts past the recent window. Much heavier than hourly POR — treat as a separate, smaller-batch ladder after hourly tide is healthy.
 

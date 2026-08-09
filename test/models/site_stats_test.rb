@@ -43,7 +43,7 @@ class SiteStatsTest < ActiveSupport::TestCase
       location = create(:monitoring_location, latest_observed_at: 1.hour.ago)
       series = create(:time_series, monitoring_location: location, parameter_code: "00060")
       DailyObservation.create!(time_series: series, value: 1, observed_on: Date.current)
-      cold_day = DailyArchive.hot_cutoff_on - 10
+      cold_day = Date.new(2024, 6, 1)
       DailyArchiveShard.create!(
         time_series: series,
         year: cold_day.year,

@@ -57,11 +57,26 @@
     </article>
 
     <article>
-      <p class="value value-sm">
+      <p class="value value-sm<%= " alert" if stats[:last_prune_gaps_alerted].to_i.positive? %>">
         <%= stats[:last_prune_at] ? "#{time_ago_in_words(stats[:last_prune_at])} ago" : "—" %>
       </p>
-      <p class="label">Continuous prune</p>
-      <p class="hint">Retention cleanup</p>
+      <p class="label">Day-31 handoff + retention</p>
+      <p class="hint">
+        <% if stats[:last_prune_at] %>
+          <%= number_with_delimiter(stats[:last_prune_usgs_ensured].to_i) %> USGS ·
+          <%= number_with_delimiter(stats[:last_prune_derived].to_i) %> estimated ·
+          <%= number_with_delimiter(stats[:last_prune_retrying].to_i) %> retrying ·
+          <span class="<%= "alert" if stats[:last_prune_gaps_alerted].to_i.positive? %>">
+            <%= number_with_delimiter(stats[:last_prune_gaps_alerted].to_i) %> gaps
+          </span>
+          · IV −<%= number_with_delimiter(stats[:last_prune_iv_deleted].to_i) %>
+          <% if stats[:last_prune_iv_blocked].to_i.positive? %>
+            (<%= number_with_delimiter(stats[:last_prune_iv_blocked].to_i) %> blocked)
+          <% end %>
+        <% else %>
+          USGS-first ensure, then IV prune + Postgres daily drain
+        <% end %>
+      </p>
     </article>
 
     <article>

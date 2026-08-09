@@ -14,7 +14,7 @@ module Usgs
     HOURLY_REQUEST_LIMIT = 1000
     # Planning costs for sizing HistoryBackfillBatchJob so we approach the
     # per-key hourly cap without consistently overshooting into 429s.
-    PHASE1_REQUESTS_PER_STATION = 20 # cold 1y: ~90d continuous pages + daily + peaks
+    PHASE1_REQUESTS_PER_STATION = 12 # cold 1y: ~35d continuous pages + daily + peaks
     DEEP_REQUESTS_PER_STATION = 2 # 1y→3y daily gap is usually 1–2 pages
 
     def self.configured?

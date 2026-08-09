@@ -26,7 +26,7 @@ const FLOOD_STAGE_LABELS = {
 const FLOOD_STAGE_ORDER = ["action", "minor", "moderate", "major"]
 
 export default class extends Controller {
-  static targets = ["canvas", "history", "rangeButton", "legend", "stats", "daySelect"]
+  static targets = ["canvas", "history", "rangeButton", "legend", "stats", "daySelect", "estimatedNote"]
   static values = {
     url: String,
     measurements: Array,
@@ -131,9 +131,21 @@ export default class extends Controller {
     this.series = primary
     this.renderLegend()
     this.renderStats(primary.points || [])
+    this.renderEstimatedNote(primary.points || [])
     this.renderChart()
     this.renderDaySelect()
     this.renderHistory()
+  }
+
+  hasEstimatedPoints(points = []) {
+    return points.some((point) => point.s === "derived")
+  }
+
+  renderEstimatedNote(points) {
+    if (!this.hasEstimatedNoteTarget) return
+    const dailyRange = this.range === "1y" || this.range === "3y"
+    const show = dailyRange && this.hasEstimatedPoints(points)
+    this.estimatedNoteTarget.hidden = !show
   }
 
   uniqueMeasurements() {
@@ -346,16 +358,25 @@ export default class extends Controller {
         const value = row.values[col.key]
         return `<td class="num">${value == null ? "—" : this.escapeHtml(this.formatCellValue(value, col.kind))}</td>`
       }).join("")
+      const status = row.status === "estimated"
+        ? { className: "warn", label: "Estimated" }
+        : row.status === "ok"
+          ? { className: "ok", label: "Complete" }
+          : { className: "warn", label: "Partial" }
       return `
         <tr>
           <td class="time">${this.escapeHtml(this.formatClock(row.t))}</td>
           ${cells}
           <td class="status">
-            <span class="dot ${row.status === "ok" ? "ok" : "warn"}" aria-label="${row.status === "ok" ? "Complete" : "Partial"}"></span>
+            <span class="dot ${status.className}" aria-label="${status.label}"></span>
           </td>
         </tr>
       `
     }).join("")
+
+    const estimatedFootnote = day.rows.some((row) => row.status === "estimated")
+      ? `<p class="aside">Estimated daily mean from continuous data (USGS daily unavailable).</p>`
+      : ""
 
     this.historyTarget.innerHTML = `
       <div class="scroll">
@@ -372,6 +393,7 @@ export default class extends Controller {
       </div>
       <div class="table-foot">
         <p>${count} ${count === 1 ? "reading" : "readings"}</p>
+        ${estimatedFootnote}
       </div>
     `
   }
@@ -420,9 +442,11 @@ export default class extends Controller {
         const day = buckets.get(dayKey)
         const minuteKey = this.minuteKeyFromDate(date)
         if (!day.rowsByMinute.has(minuteKey)) {
-          day.rowsByMinute.set(minuteKey, { t: point.t, values: {}, sort: date.getTime() })
+          day.rowsByMinute.set(minuteKey, { t: point.t, values: {}, sources: {}, sort: date.getTime() })
         }
-        day.rowsByMinute.get(minuteKey).values[key] = point.v
+        const row = day.rowsByMinute.get(minuteKey)
+        row.values[key] = point.v
+        row.sources[key] = point.s === "derived" ? "estimated" : "ok"
       })
     })
 
@@ -495,6 +519,7 @@ export default class extends Controller {
     const narrow = typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches
     const maxTicksLimit = this.range === "24h" ? (narrow ? 4 : 6) : (narrow ? 4 : 5)
 
+    const estimatedFlags = primaryPoints.map((point) => point.s === "derived")
     const datasets = [{
       label: primary.label || primary.kind,
       data: primaryPoints.map((point) => point.v),
@@ -502,10 +527,15 @@ export default class extends Controller {
       backgroundColor: colors.fill,
       fill: true,
       tension: 0.25,
-      pointRadius: 0,
+      pointRadius: estimatedFlags.map((estimated) => estimated ? 3 : 0),
+      pointHoverRadius: estimatedFlags.map((estimated) => estimated ? 4 : 3),
+      pointBackgroundColor: estimatedFlags.map((estimated) => estimated ? colors.border : "transparent"),
+      pointBorderColor: estimatedFlags.map((estimated) => estimated ? "#09090b" : "transparent"),
+      pointBorderWidth: 1,
       borderWidth: 2,
       yAxisID: "y",
-      seriesKind: primary.kind
+      seriesKind: primary.kind,
+      estimatedFlags
     }]
 
     if (companion && (companion.points || []).length) {
@@ -584,7 +614,10 @@ export default class extends Controller {
                     return `${context.dataset.label}: ${this.displayValue(raw, "water_level")} ft`
                   }
                   const series = context.dataset.seriesKind === companion?.kind ? companion : primary
-                  return `${context.dataset.label}: ${this.displayValue(raw, series.kind)} ${this.unitLabel(series) || ""}`.trim()
+                  const estimated = Array.isArray(context.dataset.estimatedFlags)
+                    && context.dataset.estimatedFlags[context.dataIndex]
+                  const suffix = estimated ? " (Estimated)" : ""
+                  return `${context.dataset.label}: ${this.displayValue(raw, series.kind)} ${this.unitLabel(series) || ""}${suffix}`.trim()
                 }
               }
             }

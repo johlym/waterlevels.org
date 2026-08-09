@@ -5,10 +5,10 @@ class HistoryIngestion
 
   DEFAULT_RANGE = "1y"
   DEEP_RANGE = "3y"
-  # High-resolution continuous is capped; 1y/3y charts use daily values.
-  CONTINUOUS_RETENTION = 90.days
+  # High-resolution continuous tip; 1y/3y charts use daily values from R2.
+  CONTINUOUS_RETENTION = 35.days
   DAILY_RETENTION = 3.years
-  # Phase-1 window for cold/lazy backfill (DEFAULT_RANGE). Retention may be longer.
+  # Phase-1 window for cold/lazy backfill (DEFAULT_RANGE). Daily history lives in R2.
   DAILY_YEAR_WINDOW = 1.year
   # A selected series is considered year-loaded once it has a daily point this old.
   DAILY_HISTORY_ANCHOR = 11.months
@@ -16,7 +16,7 @@ class HistoryIngestion
   DAILY_DEEP_HISTORY_ANCHOR = 35.months
   # Continuous is considered loaded once a point reaches this age (~retention slack).
   # Tip-only stations from LatestObservationSync must still pull the older IV window.
-  CONTINUOUS_HISTORY_ANCHOR = 85.days
+  CONTINUOUS_HISTORY_ANCHOR = 32.days
   # Refresh continuous tips when the newest local point is older than this.
   CONTINUOUS_FRESHNESS = 7.days
   # Refresh daily tips when the newest local day is older than this.
@@ -101,10 +101,10 @@ class HistoryIngestion
   end
 
   def needs_daily?(series)
-    # Deep/year anchors may exist only in cold archive after prune — don't re-pull USGS.
+    # Deep/year anchors live in R2 — don't re-pull USGS when coverage exists.
     return true unless series.has_daily_on_or_before?(daily_history_anchor)
 
-    newest = series.daily_observations.maximum(:observed_on)
+    newest = series.newest_daily_on
     newest.blank? || newest < DAILY_FRESHNESS.ago.to_date
   end
 
@@ -203,8 +203,8 @@ class HistoryIngestion
   def daily_datetime_ranges(series)
     window_start = daily_window_start
     today = Date.current
-    oldest = series.daily_observations.minimum(:observed_on)
-    newest = series.daily_observations.maximum(:observed_on)
+    oldest = series.oldest_daily_on
+    newest = series.newest_daily_on
     ranges = []
 
     if oldest.nil?
@@ -396,25 +396,17 @@ class HistoryIngestion
           next if day.blank? || value.blank?
           next if temperature_outlier?(series, value)
 
-          DailyObservation.upsert(
-            {
-              time_series_id: series.id,
-              observed_on: day,
-              value: value,
-              approval_status: item["approval_status"],
-              qualifier: item["qualifier"],
-              created_at: Time.current,
-              updated_at: Time.current
-            },
-            unique_by: %i[time_series_id observed_on]
-          )
-          if DailyArchive.dual_write_enabled? && DailyArchive.cold?(day)
-            archive_buffer[series.id] << {
-              "d" => day.iso8601,
-              "v" => value.to_f,
-              "s" => DailyArchive::SOURCE_USGS,
-              "a" => item["approval_status"]
-            }
+          point = {
+            "d" => day.iso8601,
+            "v" => value.to_f,
+            "s" => DailyArchive::SOURCE_USGS,
+            "a" => item["approval_status"],
+            "qualifier" => item["qualifier"]
+          }
+          if DailyArchive.archive_writes_enabled?
+            archive_buffer[series.id] << point
+          else
+            upsert_postgres_daily!(series, day, item)
           end
           count += 1
           progress&.increment
@@ -427,6 +419,21 @@ class HistoryIngestion
     end
   end
 
+  def upsert_postgres_daily!(series, day, item)
+    DailyObservation.upsert(
+      {
+        time_series_id: series.id,
+        observed_on: day,
+        value: item["value"],
+        approval_status: item["approval_status"],
+        qualifier: item["qualifier"],
+        created_at: Time.current,
+        updated_at: Time.current
+      },
+      unique_by: %i[time_series_id observed_on]
+    )
+  end
+
   def flush_daily_archive!(archive_buffer)
     return if archive_buffer.blank?
 
@@ -435,10 +442,29 @@ class HistoryIngestion
       writer.upsert(time_series_id: time_series_id, points: points)
     end
   rescue Cloudflare::R2Client::Error => e
-    Rails.logger.warn("[HistoryIngestion] daily archive dual-write failed: #{e.message}")
+    Rails.logger.warn("[HistoryIngestion] daily archive write failed; falling back to Postgres: #{e.message}")
     Sentry.capture_exception(e) if defined?(Sentry)
+    archive_buffer.each do |time_series_id, points|
+      series = series_list_by_id[time_series_id]
+      next unless series
+
+      points.each do |point|
+        upsert_postgres_daily!(
+          series,
+          Date.parse(point["d"]),
+          {
+            "value" => point["v"],
+            "approval_status" => point["a"],
+            "qualifier" => point["qualifier"]
+          }
+        )
+      end
+    end
   end
 
+  def series_list_by_id
+    @series_list_by_id ||= monitoring_location.time_series.selected.index_by(&:id)
+  end
 
   def ingest_peaks_for(series_list)
     if series_list.empty?

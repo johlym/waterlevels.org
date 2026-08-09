@@ -17,7 +17,6 @@ module DailyArchive
       FileUtils.rm_rf(@root)
       ENV.delete("DAILY_ARCHIVE_ALLOW_LOCAL_IN_TEST")
       ENV.delete("DAILY_ARCHIVE_STORE")
-      ENV.delete("DAILY_ARCHIVE_HOT_RETENTION_DAYS")
     end
 
     test "put and get round-trip on disk" do
@@ -39,11 +38,6 @@ module DailyArchive
       ENV.delete("DAILY_ARCHIVE_ALLOW_LOCAL_IN_TEST")
       DailyArchive.reset_store!
       assert_instance_of Cloudflare::R2Client, DailyArchive.build_store
-    end
-
-    test "hot_cutoff_on honors DAILY_ARCHIVE_HOT_RETENTION_DAYS" do
-      ENV["DAILY_ARCHIVE_HOT_RETENTION_DAYS"] = "7"
-      assert_equal 7.days.ago.to_date, DailyArchive.hot_cutoff_on
     end
   end
 end

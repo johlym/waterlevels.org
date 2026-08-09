@@ -71,13 +71,19 @@ class MonitoringLocation < ApplicationRecord
     missing_continuous_anchor = TimeSeries.selected.where.not(
       id: ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id)
     )
-    # Year anchor may live only in cold archive after a short hot tip + prune.
+    # Year anchor lives in R2 (legacy Postgres rows still count during drain).
     missing_daily_anchor = TimeSeries.selected.where.not(
       id: DailyArchive.time_series_ids_with_daily_on_or_before(daily_anchor)
     )
-    stale_daily_tip = TimeSeries.selected.where.not(
-      id: DailyObservation.where(observed_on: daily_fresh_since..).select(:time_series_id)
-    )
+    fresh_daily_tip_ids = DailyArchive.time_series_ids_with_fresh_daily_tip(daily_fresh_since)
+    fresh_daily_tip_ids = DailyObservation
+      .select(:time_series_id)
+      .from(
+        Arel.sql(
+          "(#{fresh_daily_tip_ids.to_sql} UNION #{DailyObservation.where(observed_on: daily_fresh_since..).select(:time_series_id).to_sql}) AS daily_observations"
+        )
+      )
+    stale_daily_tip = TimeSeries.selected.where.not(id: fresh_daily_tip_ids)
     where(id: missing_continuous_tip.select(:monitoring_location_id))
       .or(where(id: missing_continuous_anchor.select(:monitoring_location_id)))
       .or(where(id: missing_daily_anchor.select(:monitoring_location_id)))
@@ -86,9 +92,9 @@ class MonitoringLocation < ApplicationRecord
   }
   # Year-ready stations that still lack ~3-year daily history. Excludes phase-1
   # candidates so the deep batch never competes with cold/lazy 1y fills.
-  # Deep anchors are expected in R2 once DAILY_ARCHIVE_PRUNE removes the hot tip.
-  # Intentionally does NOT nest needing_history_backfill (that OR tree re-scans
-  # observation tables); phase-1 continuous/tip gates are inlined instead.
+  # Deep anchors are expected in R2. Intentionally does NOT nest
+  # needing_history_backfill (that OR tree re-scans observation tables);
+  # phase-1 continuous/tip gates are inlined instead.
   scope :needing_deep_history_backfill, lambda {
     year_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
@@ -100,7 +106,14 @@ class MonitoringLocation < ApplicationRecord
     has_deep = DailyArchive.time_series_ids_with_daily_on_or_before(deep_anchor)
     has_continuous_tip = ContinuousObservation.where(observed_at: continuous_since..).select(:time_series_id)
     has_continuous_anchor = ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id)
-    has_daily_tip = DailyObservation.where(observed_on: daily_fresh_since..).select(:time_series_id)
+    has_daily_tip = DailyArchive.time_series_ids_with_fresh_daily_tip(daily_fresh_since)
+    has_daily_tip = DailyObservation
+      .select(:time_series_id)
+      .from(
+        Arel.sql(
+          "(#{has_daily_tip.to_sql} UNION #{DailyObservation.where(observed_on: daily_fresh_since..).select(:time_series_id).to_sql}) AS daily_observations"
+        )
+      )
 
     candidate_series = TimeSeries.selected
       .where(id: has_year)
@@ -146,7 +159,7 @@ class MonitoringLocation < ApplicationRecord
       s.continuous_observations.where(observed_at: continuous_since..).none? ||
         s.continuous_observations.where(observed_at: ..continuous_anchor).none? ||
         !s.has_daily_on_or_before?(daily_anchor) ||
-        s.daily_observations.where(observed_on: daily_fresh_since..).none?
+        s.newest_daily_on.blank? || s.newest_daily_on < daily_fresh_since
     end
   end
 
