@@ -5,12 +5,17 @@ module DailyArchive
     setup do
       @store = MemoryStore.new
       DailyArchive.store = @store
+      @previous_cache = Rails.cache
+      Rails.cache = ActiveSupport::Cache::MemoryStore.new
+      RetentionCheckpoint.clear!
       @location = create(:monitoring_location, time_zone: "PST", state_code: "wa")
       @series = create(:time_series, monitoring_location: @location)
       @as_of = Time.utc(2026, 8, 7, 12, 0, 0)
     end
 
     teardown do
+      RetentionCheckpoint.clear!
+      Rails.cache = @previous_cache
       DailyArchive.reset_store!
       ENV.delete("DAILY_ARCHIVE_PRUNE")
     end
@@ -103,15 +108,56 @@ module DailyArchive
 
       output = io.string
       assert_match(/starting retention handoff \+ postgres prune/, output)
-      assert_match(/iv prune scanning candidates=/, output)
-      assert_match(/daily prune scanning candidates=/, output)
+      assert_match(/iv prune series=/, output)
+      assert_match(/daily prune series=/, output)
       assert_match(/daily prune done deleted=1/, output)
     end
 
-    test "counts lock-busy archive writes as retrying without aborting prune" do
-      previous_cache = Rails.cache
-      Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    test "prunes archived IV by local day without leaving tip rows" do
+      zone = ActiveSupport::TimeZone["America/Los_Angeles"]
+      # Older than 35-day retention relative to @as_of (2026-08-07).
+      old_day = Date.new(2026, 6, 20)
+      tip_day = Date.new(2026, 8, 1)
+      Writer.new(store: @store).upsert(
+        time_series_id: @series.id,
+        points: [ { "d" => old_day.iso8601, "v" => 4.0, "s" => "usgs" } ]
+      )
 
+      old_t = zone.local(old_day.year, old_day.month, old_day.day, 0, 0, 0)
+      4.times do
+        ContinuousObservation.create!(time_series: @series, observed_at: old_t, value: 4.0)
+        old_t += 15.minutes
+      end
+      tip_t = zone.local(tip_day.year, tip_day.month, tip_day.day, 12, 0, 0)
+      ContinuousObservation.create!(time_series: @series, observed_at: tip_t, value: 5.0)
+
+      stats = Retention.new(store: @store, as_of: @as_of, client: nil).perform
+      assert_equal 4, stats[:iv_deleted]
+      assert_equal 0, stats[:iv_prune_blocked]
+      assert_equal 1, ContinuousObservation.where(time_series_id: @series.id).count
+      assert_equal tip_t, ContinuousObservation.find_by!(time_series_id: @series.id).observed_at
+    end
+
+    test "blocks IV prune for unarchived cutoff-day rows still inside retry window" do
+      zone = ActiveSupport::TimeZone["America/Los_Angeles"]
+      # Retention cutoff is 2026-07-03 12:00 UTC. Local July 3 morning points are
+      # older than cutoff but the local calendar day is not yet past_retry_window?
+      # (day < cutoff.to_date). Coverage is too thin to derive, so prune blocks.
+      day = Date.new(2026, 7, 3)
+      t = zone.local(day.year, day.month, day.day, 0, 0, 0)
+      3.times do
+        ContinuousObservation.create!(time_series: @series, observed_at: t, value: 1.0)
+        t += 15.minutes
+      end
+
+      stats = Retention.new(store: @store, as_of: @as_of, client: nil).perform
+      assert_equal 0, stats[:derived]
+      assert_equal 0, stats[:iv_deleted]
+      assert_equal 3, stats[:iv_prune_blocked]
+      assert_equal 3, ContinuousObservation.where(time_series_id: @series.id).count
+    end
+
+    test "counts lock-busy archive writes as retrying without aborting prune" do
       zone = ActiveSupport::TimeZone["America/Los_Angeles"]
       day = Date.new(2026, 7, 8)
       t = zone.local(day.year, day.month, day.day, 0, 0, 0)
@@ -128,8 +174,49 @@ module DailyArchive
       assert_operator stats[:retrying], :>=, 1
       assert_equal 0, stats[:derived]
       assert_nil DailyArchiveShard.find_by(time_series_id: @series.id, year: day.year)
-    ensure
-      Rails.cache = previous_cache
+    end
+
+    test "clears checkpoint after a successful full retention pass" do
+      Retention.new(store: @store, as_of: @as_of, client: nil).perform
+      assert_nil RetentionCheckpoint.read_raw
+    end
+
+    test "resumes iv prune after the last completed series without redoing it" do
+      zone = ActiveSupport::TimeZone["America/Los_Angeles"]
+      old_day = Date.new(2026, 6, 20)
+      location_b = create(:monitoring_location, time_zone: "PST", state_code: "wa")
+      series_b = create(:time_series, monitoring_location: location_b)
+      first, second = [ @series, series_b ].sort_by(&:id)
+
+      [ first, second ].each do |series|
+        Writer.new(store: @store).upsert(
+          time_series_id: series.id,
+          points: [ { "d" => old_day.iso8601, "v" => 4.0, "s" => "usgs" } ]
+        )
+        ContinuousObservation.create!(
+          time_series: series,
+          observed_at: zone.local(old_day.year, old_day.month, old_day.day, 12, 0, 0),
+          value: 4.0
+        )
+      end
+
+      # Simulate cancel after handoff + first series IV prune completed.
+      ContinuousObservation.where(time_series_id: first.id).delete_all
+      checkpoint = RetentionCheckpoint.start!(@as_of)
+      checkpoint.complete_phase!("handoff", usgs_ensured: 2, derived: 0, retrying: 0)
+      checkpoint.mark_orphans_done!
+      checkpoint.mark_series!(first.id, iv_deleted: 1)
+
+      io = StringIO.new
+      progress = SyncProgress.new("RetentionResume", io: io, logger: nil, every: 1)
+      stats = Retention.new(store: @store, as_of: @as_of, client: nil, progress: progress).perform
+
+      assert_match(/resuming retention phase=iv_prune after_series_id=#{first.id}/, io.string)
+      assert_match(/handoff skipped: already completed/, io.string)
+      # Cumulative across the canceled run + resume (1 already pruned + 1 now).
+      assert_equal 2, stats[:iv_deleted]
+      assert_equal 0, ContinuousObservation.where(time_series_id: second.id).count
+      assert_nil RetentionCheckpoint.read_raw
     end
   end
 end
