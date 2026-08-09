@@ -15,7 +15,7 @@ class AdminDashboardStats
   TIP_REFRESH_TTL = 7.days
   APPROX_COUNT_THRESHOLD = SiteStats::APPROX_COUNT_THRESHOLD
   SECTIONS = %i[core pipeline growth jobs states health].freeze
-  BACKFILL_CACHE_KEY = "admin_dashboard/backfill_aggregates/v1".freeze
+  BACKFILL_CACHE_KEY = "admin_dashboard/backfill_aggregates/v2".freeze
   BACKFILL_TTL = 30.seconds
 
   class << self
@@ -131,16 +131,18 @@ class AdminDashboardStats
     continuous_count = approximate_or_exact_count(ContinuousObservation)
     daily_count = approximate_or_exact_count(DailyObservation)
     peak_count = approximate_or_exact_count(PeakObservation)
+    archive_daily_count = DailyArchive.cold_archive_point_count
     backfill = backfill_aggregates
 
     {
       station_count: backfill[:station_count],
       stations_needing_history: backfill[:stations_needing_history],
       stations_missing_year_history: backfill[:stations_missing_year_history],
-      measurement_count: continuous_count + daily_count + peak_count,
+      measurement_count: continuous_count + daily_count + peak_count + archive_daily_count,
       continuous_observation_count: continuous_count,
       daily_observation_count: daily_count,
       peak_observation_count: peak_count,
+      archive_daily_observation_count: archive_daily_count,
       last_station_updated: last_station && {
         id: last_station.id,
         site_number: last_station.site_number,
@@ -187,6 +189,7 @@ class AdminDashboardStats
     catalog = self.class.last_job(:catalog_sync) || {}
     flood = self.class.last_job(:flood_sync) || {}
     prune = self.class.last_job(:prune) || {}
+    archive_export = self.class.last_job(:daily_archive_export) || {}
 
     {
       last_tip_refresh_finished_at: parse_time(tip[:finished_at]),
@@ -195,7 +198,10 @@ class AdminDashboardStats
       last_catalog_sync_state: catalog[:state],
       last_flood_sync_at: parse_time(flood[:finished_at]),
       last_flood_sync_state: flood[:state],
-      last_prune_at: parse_time(prune[:finished_at])
+      last_prune_at: parse_time(prune[:finished_at]),
+      last_daily_archive_export_at: parse_time(archive_export[:finished_at]),
+      last_daily_archive_export_series: archive_export[:series],
+      last_daily_archive_export_points: archive_export[:points]
     }
   end
 
@@ -310,11 +316,12 @@ class AdminDashboardStats
   end
 
   # Active stations whose selected series still lack daily points near the
-  # ~1-year anchor. Overlaps phase-1 backlog; never includes deep-only rows.
+  # ~1-year anchor (Postgres or cold archive). Overlaps phase-1 backlog;
+  # never includes deep-only rows.
   def missing_year_history_by_state
     year_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     missing_year_series = TimeSeries.selected.where.not(
-      id: DailyObservation.where(observed_on: ..year_anchor).select(:time_series_id)
+      id: DailyArchive.time_series_ids_with_daily_on_or_before(year_anchor)
     )
     MonitoringLocation.active
       .where(id: missing_year_series.select(:monitoring_location_id))

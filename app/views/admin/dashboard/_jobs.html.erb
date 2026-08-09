@@ -63,5 +63,20 @@
       <p class="label">Continuous prune</p>
       <p class="hint">Retention cleanup</p>
     </article>
+
+    <article>
+      <p class="value value-sm">
+        <%= stats[:last_daily_archive_export_at] ? "#{time_ago_in_words(stats[:last_daily_archive_export_at])} ago" : "—" %>
+      </p>
+      <p class="label">Daily archive export</p>
+      <p class="hint">
+        <% if stats[:last_daily_archive_export_at] %>
+          <%= number_with_delimiter(stats[:last_daily_archive_export_series].to_i) %> series ·
+          <%= number_with_delimiter(stats[:last_daily_archive_export_points].to_i) %> points
+        <% else %>
+          Postgres → R2 / local shards
+        <% end %>
+      </p>
+    </article>
   </div>
 </section>

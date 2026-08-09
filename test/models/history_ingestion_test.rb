@@ -282,6 +282,36 @@ class HistoryIngestionTest < ActiveSupport::TestCase
     end
   end
 
+  test "3y ingest skips daily fetch when deep anchor exists only in archive shards" do
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do
+      ContinuousObservation.create!(
+        time_series: @series,
+        observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
+        value: 0.9
+      )
+      ContinuousObservation.create!(time_series: @series, observed_at: 1.hour.ago, value: 1.0)
+      DailyObservation.create!(time_series: @series, observed_on: 11.months.ago.to_date, value: 1.0)
+      DailyObservation.create!(time_series: @series, observed_on: Date.current, value: 1.1)
+      PeakObservation.create!(time_series: @series, water_year: 2025, value: 9.0, peak_kind: "high")
+      deep_day = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
+      DailyArchiveShard.create!(
+        time_series: @series,
+        year: deep_day.year,
+        object_key: "daily/v1/#{@series.id}/#{deep_day.year}.json.gz",
+        content_sha256: "archive-only",
+        point_count: 1,
+        min_on: deep_day,
+        max_on: deep_day,
+        source_mix: "usgs",
+        synced_at: Time.current
+      )
+
+      HistoryIngestion.new(monitoring_location: @location, range: "3y").perform
+
+      assert_not_requested :get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/daily/items}
+    end
+  end
+
   test "advances latest tips and denormalized map columns from fresher continuous points" do
     older = 4.days.ago.change(sec: 0)
     newer = 1.hour.ago.change(sec: 0)

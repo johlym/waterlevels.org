@@ -147,6 +147,37 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     assert location.has_deep_history?
   end
 
+  test "has_deep_history? is true when deep daily exists only in cold archive shards" do
+    location = create(:monitoring_location)
+    series = create(:time_series, monitoring_location: location, selected_for_display: true)
+    deep_day = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
+    year_day = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
+
+    ContinuousObservation.create!(
+      time_series: series,
+      observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
+      value: 11.0
+    )
+    ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: series, observed_on: year_day, value: 10.0)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+    DailyArchiveShard.create!(
+      time_series: series,
+      year: deep_day.year,
+      object_key: "daily/v1/#{series.id}/#{deep_day.year}.json.gz",
+      content_sha256: "abc",
+      point_count: 1,
+      min_on: deep_day,
+      max_on: deep_day,
+      source_mix: "usgs",
+      synced_at: Time.current
+    )
+
+    refute location.missing_deep_history?
+    assert location.has_deep_history?
+    refute_includes MonitoringLocation.needing_deep_history_backfill.pluck(:id), location.id
+  end
+
   test "needing_deep_history_backfill includes year-ready stations missing deep daily" do
     year_ready = create(:monitoring_location, site_number: "20000010")
     year_series = create(:time_series, monitoring_location: year_ready, selected_for_display: true)

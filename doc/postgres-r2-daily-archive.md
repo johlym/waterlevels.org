@@ -73,6 +73,12 @@ Keep `CLOUDFLARE_ZONE_ID` / `CLOUDFLARE_API_TOKEN` for Cache-Tag purge only — 
 - `ContinuousPruneJob` (daily 04:15) — rollup day-31 derived dailies, then prune IV; when `DAILY_ARCHIVE_PRUNE=1`, prune daily older than the hot tip only if archive shards cover those days.
 - Historical USGS backfill **keeps running** alongside export; enable dual-write before tightening prune.
 
+## Admin / readiness after prune
+
+Backfill eligibility and `/admin` 1y/3y backlog treat a series as having a daily anchor when **either** hot `daily_observations` **or** a `daily_archive_shards` row has `min_on` on/before that anchor. Otherwise pruned deep history would look “missing”, inflate “need 3y”, hide the gauge `3y` tab, and re-fetch USGS.
+
+Measurement totals add `DailyArchive.cold_archive_point_count` (sum of `point_count` for shards with `max_on` before the hot cutoff) so fully cold years are not dropped from marketing/admin counts after prune. Boundary-year cold days in a straddling shard are omitted rather than double-counted with the hot tip.
+
 ## Rollout order
 
 1. Credentials in prod (done) + deploy code with flags off.

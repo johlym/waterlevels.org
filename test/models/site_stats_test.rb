@@ -38,6 +38,28 @@ class SiteStatsTest < ActiveSupport::TestCase
     end
   end
 
+  test "measurement_count includes fully cold archive shard points" do
+    travel_to Time.zone.local(2026, 8, 6, 12, 0, 0) do
+      location = create(:monitoring_location, latest_observed_at: 1.hour.ago)
+      series = create(:time_series, monitoring_location: location, parameter_code: "00060")
+      DailyObservation.create!(time_series: series, value: 1, observed_on: Date.current)
+      cold_day = DailyArchive.hot_cutoff_on - 10
+      DailyArchiveShard.create!(
+        time_series: series,
+        year: cold_day.year,
+        object_key: "daily/v1/#{series.id}/#{cold_day.year}.json.gz",
+        content_sha256: "stats",
+        point_count: 4,
+        min_on: cold_day,
+        max_on: cold_day,
+        source_mix: "usgs",
+        synced_at: Time.current
+      )
+
+      assert_equal 5, SiteStats.compute[:measurement_count]
+    end
+  end
+
   test "station_count excludes inactive and stale locations" do
     create(:monitoring_location, active: true, latest_observed_at: 1.hour.ago)
     create(:monitoring_location, active: false, latest_observed_at: 1.hour.ago)

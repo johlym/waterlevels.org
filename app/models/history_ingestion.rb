@@ -101,7 +101,8 @@ class HistoryIngestion
   end
 
   def needs_daily?(series)
-    return true if series.daily_observations.where(observed_on: ..daily_history_anchor).none?
+    # Deep/year anchors may exist only in cold archive after prune — don't re-pull USGS.
+    return true unless series.has_daily_on_or_before?(daily_history_anchor)
 
     newest = series.daily_observations.maximum(:observed_on)
     newest.blank? || newest < DAILY_FRESHNESS.ago.to_date
