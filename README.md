@@ -67,7 +67,7 @@ bin/rails test
 
 ## Heroku
 
-- Dynos: `web`, `worker`
+- Dynos: `web`, `worker` (default queue + scheduler), `sync_worker` (`sync` queue), `historical_worker` (`backfill` queue)
 - Add-ons: Postgres, Redis
 - Set `USGS_API_KEY` (tip/catalog), optional `USGS_API_HISTORY_1_KEY` / `USGS_API_HISTORY_2_KEY` (history backfill), `REDIS_URL`, `DATABASE_URL`, `APP_HOST`, `SENTRY_DSN`; optional `CLOUDFLARE_ZONE_ID` + `CLOUDFLARE_API_TOKEN` for post-sync Cache-Tag purge; optional `CLOUDFLARE_R2_*` for the yearly daily-means archive ([`doc/postgres-r2-daily-archive.md`](doc/postgres-r2-daily-archive.md))
 - Enable [runtime dyno metadata](https://devcenter.heroku.com/articles/dyno-metadata) so `HEROKU_RELEASE_VERSION` is available; Sentry uses it as the release and tags environment as `production`

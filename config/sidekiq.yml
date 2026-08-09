@@ -1,11 +1,9 @@
-# Single basic/eco worker dyno (~512MB): keep this modest. USGS history throughput
-# is capped at ~1000 req/hr/key (~0.6 req/s with two keys), so a few threads are
-# enough to soak the budget without blowing RAM/DB connections.
-:concurrency: 3
+# Default worker: one-off / non-queue-specific jobs (prune, edge purge, etc.).
+# Also owns sidekiq-scheduler so sync/history cron entries are enqueued once.
+# Each dyno is ~512MB eco — keep a single thread.
+:concurrency: 1
 :queues:
   - default
-  - sync
-  - backfill
 
 :scheduler:
   :schedule:
