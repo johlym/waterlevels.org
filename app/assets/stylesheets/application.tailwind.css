@@ -2236,10 +2236,10 @@ body.dialog-open {
   }
 
   .freshness-legend {
-    @apply mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3;
+    @apply mt-4 flex flex-wrap gap-x-6 gap-y-2;
 
     li {
-      @apply flex items-center gap-2.5 text-sm;
+      @apply flex items-center gap-2 text-sm;
     }
 
     .swatch {
@@ -2271,11 +2271,11 @@ body.dialog-open {
     }
 
     .name {
-      @apply min-w-0 flex-1 text-zinc-300;
+      @apply text-zinc-300;
     }
 
     .meta {
-      @apply font-display shrink-0 font-semibold text-white;
+      @apply font-display font-semibold text-white;
     }
 
     .pct {
