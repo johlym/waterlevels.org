@@ -326,19 +326,36 @@ class StationCatalogSync
   def prune_inactive_locations!(kept_usgs_ids)
     progress&.step("pruning locations without active continuous data")
     kept_set = kept_usgs_ids.to_set
-    removable_ids = location_scope.pluck(
-      :id,
-      :usgs_monitoring_location_id,
-      :has_water_level,
-      :has_discharge,
-      :has_temperature,
-      :latest_observed_at
-    ).filter_map do |id, usgs_id, has_wl, has_q, has_t, latest_at|
-      inactive = kept_set.exclude?(usgs_id) || latest_at.nil? || !(has_wl || has_q || has_t)
-      id if inactive
-    end
+    deleted = 0
+    batch = []
 
-    deleted = MonitoringLocation.purge_ids!(removable_ids)
+    # Stream candidates instead of plucking the whole catalog into one id list
+    # and issuing a single giant purge (IV tip deletes dominate).
+    location_scope
+      .select(
+        :id,
+        :usgs_monitoring_location_id,
+        :has_water_level,
+        :has_discharge,
+        :has_temperature,
+        :latest_observed_at
+      )
+      .find_each do |location|
+        inactive =
+          kept_set.exclude?(location.usgs_monitoring_location_id) ||
+          location.latest_observed_at.nil? ||
+          !(location.has_water_level? || location.has_discharge? || location.has_temperature?)
+        next unless inactive
+
+        batch << location.id
+        next if batch.size < MonitoringLocation::PURGE_LOCATION_BATCH
+
+        deleted += MonitoringLocation.purge_ids!(batch)
+        batch.clear
+        progress&.step("pruned locations=#{deleted}")
+      end
+
+    deleted += MonitoringLocation.purge_ids!(batch) if batch.any?
     progress&.step("pruned locations=#{deleted}")
   end
 

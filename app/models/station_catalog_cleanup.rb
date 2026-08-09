@@ -52,7 +52,12 @@ class StationCatalogCleanup
     return report unless apply
     return report if removable_ids.empty?
 
-    deleted = MonitoringLocation.purge_ids!(removable_ids)
+    # purge_ids! chunks locations + IV tip deletes; still feed it in pages so
+    # audit id lists don't force one giant call site.
+    deleted = 0
+    removable_ids.each_slice(MonitoringLocation::PURGE_LOCATION_BATCH) do |batch|
+      deleted += MonitoringLocation.purge_ids!(batch)
+    end
     NearbyStations.refresh_all
     StateListingCache.warm_all
     AlertsListingCache.warm

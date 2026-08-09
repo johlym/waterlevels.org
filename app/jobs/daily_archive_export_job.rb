@@ -7,7 +7,8 @@ class DailyArchiveExportJob < ApplicationJob
     end
     return unless DailyArchive.configured?
 
-    result = DailyArchive::Exporter.new.perform(
+    progress = SyncProgress.new("DailyArchiveExportJob", io: nil)
+    result = DailyArchive::Exporter.new(progress: progress).perform(
       time_series_ids: time_series_ids,
       only_cold: only_cold
     )
@@ -16,5 +17,6 @@ class DailyArchiveExportJob < ApplicationJob
       series: result[:series],
       points: result[:points]
     )
+    progress.finish("series=#{result[:series]} points=#{result[:points]}")
   end
 end

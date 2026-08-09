@@ -225,23 +225,56 @@ class MonitoringLocation < ApplicationRecord
     { display_name: display, search_name: display.downcase }
   end
 
-  # Hard-delete locations and dependent rows without AR callbacks (fast purge).
-  def self.purge_ids!(ids)
+  # Hard-delete locations and dependent rows without AR callbacks.
+  # Chunked so Sunday catalog prune / cleanup cannot issue one multi-million-row
+  # DELETE against continuous_observations (IV tip) and stall Postgres.
+  PURGE_LOCATION_BATCH = 50
+  PURGE_CONTINUOUS_BATCH = 5_000
+
+  def self.purge_ids!(
+    ids,
+    location_batch_size: PURGE_LOCATION_BATCH,
+    continuous_batch_size: PURGE_CONTINUOUS_BATCH
+  )
     ids = Array(ids).compact.uniq
     return 0 if ids.empty?
 
-    ts_ids = TimeSeries.where(monitoring_location_id: ids).pluck(:id)
-    if ts_ids.any?
-      LatestObservation.where(time_series_id: ts_ids).delete_all
-      ContinuousObservation.where(time_series_id: ts_ids).delete_all
-      DailyObservation.where(time_series_id: ts_ids).delete_all
-      PeakObservation.where(time_series_id: ts_ids).delete_all
-      # Catalog rows for R2 year objects — must go before time_series (FK).
-      DailyArchiveShard.where(time_series_id: ts_ids).delete_all
-      TimeSeries.where(id: ts_ids).delete_all
+    deleted = 0
+    ids.each_slice(location_batch_size) do |batch|
+      deleted += purge_id_batch!(batch, continuous_batch_size: continuous_batch_size)
     end
-    where(id: ids).delete_all
+    deleted
   end
+
+  def self.purge_id_batch!(ids, continuous_batch_size: PURGE_CONTINUOUS_BATCH)
+    ids = Array(ids).compact.uniq
+    return 0 if ids.empty?
+
+    transaction do
+      ts_ids = TimeSeries.where(monitoring_location_id: ids).pluck(:id)
+      if ts_ids.any?
+        LatestObservation.where(time_series_id: ts_ids).delete_all
+        ts_ids.each do |ts_id|
+          purge_continuous_for_series!(ts_id, batch_size: continuous_batch_size)
+        end
+        DailyObservation.where(time_series_id: ts_ids).delete_all
+        PeakObservation.where(time_series_id: ts_ids).delete_all
+        # Catalog rows for R2 year objects — must go before time_series (FK).
+        DailyArchiveShard.where(time_series_id: ts_ids).delete_all
+        TimeSeries.where(id: ts_ids).delete_all
+      end
+      where(id: ids).delete_all
+    end
+  end
+  private_class_method :purge_id_batch!
+
+  def self.purge_continuous_for_series!(time_series_id, batch_size: PURGE_CONTINUOUS_BATCH)
+    scope = ContinuousObservation.where(time_series_id: time_series_id)
+    scope.in_batches(of: batch_size) do |batch|
+      batch.delete_all
+    end
+  end
+  private_class_method :purge_continuous_for_series!
 
   private
 
