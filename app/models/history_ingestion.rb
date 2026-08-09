@@ -5,6 +5,8 @@ class HistoryIngestion
 
   DEFAULT_RANGE = "1y"
   DEEP_RANGE = "3y"
+  # Batch continuous upserts so tip/gap fills don't one-row round-trip Postgres.
+  CONTINUOUS_UPSERT_BATCH = 500
   # High-resolution continuous tip; 1y/3y charts use daily values from R2.
   CONTINUOUS_RETENTION = 35.days
   DAILY_RETENTION = 3.years
@@ -314,6 +316,7 @@ class HistoryIngestion
     ) do
       progress&.step("continuous location batch parameters=#{codes} ranges=#{ranges.size}")
       count = 0
+      buffer = []
       ranges.each do |starts, ends|
         datetime = "#{starts.iso8601}/#{ends.iso8601}"
         client.each_collection_item(
@@ -330,26 +333,39 @@ class HistoryIngestion
           next if observed_at.blank? || value.blank?
           next if temperature_outlier?(series, value)
 
-          ContinuousObservation.upsert(
-            {
-              time_series_id: series.id,
-              observed_at: observed_at,
-              value: value,
-              approval_status: item["approval_status"],
-              qualifier: item["qualifier"],
-              created_at: Time.current,
-              updated_at: Time.current
-            },
-            unique_by: %i[time_series_id observed_at]
-          )
+          now = Time.current
+          buffer << {
+            time_series_id: series.id,
+            observed_at: observed_at,
+            value: value,
+            approval_status: item["approval_status"],
+            qualifier: item["qualifier"],
+            created_at: now,
+            updated_at: now
+          }
+          if buffer.size >= CONTINUOUS_UPSERT_BATCH
+            flush_continuous_buffer!(buffer)
+          end
           count += 1
           progress&.increment
         end
       end
+      flush_continuous_buffer!(buffer)
       Telemetry.add_attributes("app.observation_count" => count)
       progress&.step("continuous upserted=#{count}")
       count
     end
+  end
+
+  def flush_continuous_buffer!(buffer)
+    return if buffer.empty?
+
+    ContinuousObservation.upsert_all(
+      buffer,
+      unique_by: %i[time_series_id observed_at],
+      update_only: %i[value approval_status qualifier]
+    )
+    buffer.clear
   end
 
   def ingest_daily_for(series_list)

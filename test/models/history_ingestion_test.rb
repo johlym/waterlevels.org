@@ -49,6 +49,40 @@ class HistoryIngestionTest < ActiveSupport::TestCase
     assert_in_delta 540.1, @series.continuous_observations.first.value, 0.001
   end
 
+  test "continuous ingest flushes upserts in batches" do
+    features = 12.times.map do |i|
+      {
+        id: i.to_s,
+        properties: {
+          time_series_id: @series.usgs_time_series_id,
+          parameter_code: "62614",
+          time: (12.hours.ago + (i * 15).minutes).utc.iso8601,
+          value: 500 + i,
+          approval_status: "Provisional"
+        }
+      }
+    end
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/continuous/items})
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/geo+json" },
+        body: { features: features, links: [] }.to_json
+      )
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/peaks/items})
+      .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+
+    previous = HistoryIngestion::CONTINUOUS_UPSERT_BATCH
+    HistoryIngestion.send(:remove_const, :CONTINUOUS_UPSERT_BATCH)
+    HistoryIngestion.const_set(:CONTINUOUS_UPSERT_BATCH, 5)
+
+    HistoryIngestion.new(monitoring_location: @location, range: "7d").perform
+    assert_equal 12, @series.continuous_observations.count
+    assert_in_delta 511.0, @series.continuous_observations.order(:observed_at).last.value, 0.001
+  ensure
+    HistoryIngestion.send(:remove_const, :CONTINUOUS_UPSERT_BATCH)
+    HistoryIngestion.const_set(:CONTINUOUS_UPSERT_BATCH, previous)
+  end
+
   test "1y ingest loads daily year history and continuous within retention" do
     continuous_query = nil
     daily_query = nil

@@ -31,15 +31,31 @@ module DailyArchive
     end
 
     def upsert_from_daily_observations(time_series_id:, relation:)
-      points = relation.pluck(:observed_on, :value, :approval_status).map do |day, value, approval|
-        {
-          "d" => day.iso8601,
-          "v" => value.to_f,
-          "s" => DailyArchive::SOURCE_USGS,
-          "a" => approval
-        }
+      # Stream by calendar year so multi-year leftover drains don't pluck the
+      # entire Postgres daily history for a series into one Ruby array.
+      unordered = relation.except(:order)
+      bounds = unordered.pick(Arel.sql("MIN(observed_on), MAX(observed_on)"))
+      return 0 if bounds.nil? || bounds[0].nil?
+
+      min_on, max_on = bounds
+      total = 0
+      (min_on.year..max_on.year).each do |year|
+        year_relation = unordered.where(
+          observed_on: Date.new(year, 1, 1)..Date.new(year, 12, 31)
+        )
+        points = year_relation.pluck(:observed_on, :value, :approval_status).map do |day, value, approval|
+          {
+            "d" => day.iso8601,
+            "v" => value.to_f,
+            "s" => DailyArchive::SOURCE_USGS,
+            "a" => approval
+          }
+        end
+        next if points.empty?
+
+        total += upsert(time_series_id: time_series_id, points: points)
       end
-      upsert(time_series_id: time_series_id, points: points)
+      total
     end
 
     private

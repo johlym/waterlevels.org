@@ -94,14 +94,19 @@ class FloodStageSync
     return 0 if by_lid.empty?
 
     updated = 0
+    unchanged = 0
     sync_scope.where.not(nwps_lid: [ nil, "" ]).find_each do |location|
       gauge = by_lid[location.nwps_lid.to_s.upcase]
       next unless gauge
 
-      apply_list_status!(location, gauge)
-      updated += 1
+      if apply_list_status!(location, gauge)
+        updated += 1
+      else
+        unchanged += 1
+      end
       progress&.increment
     end
+    progress&.step("list refresh updated=#{updated} unchanged=#{unchanged}")
     updated
   end
 
@@ -154,30 +159,43 @@ class FloodStageSync
     raw = usgs_id.to_s.strip
     return if raw.blank?
 
+    candidates = site_number_candidates(raw)
+    candidates.each do |site_number|
+      location = location_by_site_number[site_number]
+      return location if location
+    end
+    nil
+  end
+
+  def site_number_candidates(raw)
     candidates = [ raw ]
     if raw.match?(/\A\d+\z/)
       candidates << raw.rjust(8, "0")
       candidates << raw.sub(/\A0+/, "")
     end
-    candidates = candidates.map(&:presence).compact.uniq
-    sync_scope.find_by(site_number: candidates)
+    candidates.map(&:presence).compact.uniq
+  end
+
+  def location_by_site_number
+    @location_by_site_number ||= sync_scope.index_by(&:site_number)
   end
 
   # Phase 2: USGS site-number detail lookups for first-time matches and
-  # periodic threshold refresh. Never-synced sites are ordered first so
-  # coverage expands before we re-detail known matches.
+  # periodic threshold refresh.
+  #
+  # Due filtering is in SQL so we don't load the whole active catalog every
+  # hour, and a canceled run naturally resumes: finished rows get a fresh
+  # nwps_synced_at and drop out of the due set.
   def discover_and_refresh_details
     matched = 0
     unmatched = 0
     skipped = 0
     errors = 0
 
-    detail_scope.find_each do |location|
-      unless due_for_detail_sync?(location)
-        skipped += 1
-        next
-      end
+    due = detail_scope
+    progress&.step("detail sync due=#{due.count}")
 
+    due.find_each do |location|
       begin
         gauge = client.gauge(location.site_number)
         if gauge.present?
@@ -199,14 +217,15 @@ class FloodStageSync
   end
 
   def detail_scope
-    sync_scope.order(Arel.sql("nwps_synced_at ASC NULLS FIRST, site_number ASC"))
-  end
-
-  def due_for_detail_sync?(location)
-    return true if location.nwps_synced_at.blank?
-    return true if location.nwps_matched? && location.nwps_synced_at < MATCHED_DETAIL_REFRESH_AFTER.ago
-
-    !location.nwps_matched? && location.nwps_synced_at < UNMATCHED_RETRY_AFTER.ago
+    matched_cutoff = MATCHED_DETAIL_REFRESH_AFTER.ago
+    unmatched_cutoff = UNMATCHED_RETRY_AFTER.ago
+    sync_scope.where(
+      "nwps_synced_at IS NULL OR " \
+      "(nwps_matched = TRUE AND nwps_synced_at < ?) OR " \
+      "(nwps_matched = FALSE AND nwps_synced_at < ?)",
+      matched_cutoff,
+      unmatched_cutoff
+    )
   end
 
   def apply_list_status!(location, gauge)
@@ -217,9 +236,25 @@ class FloodStageSync
       attrs[:flood_category] = category
       attrs[:flood_category_observed_at] = category_at || location.flood_category_observed_at
     end
+
+    # Avoid rewrite + snapshot warm when the list status did not change.
+    return false if list_status_unchanged?(location, attrs)
+
     # List responses omit thresholds; keep existing stage columns.
     location.update!(attrs)
     StationSnapshotCache.warm(location)
+    true
+  end
+
+  def list_status_unchanged?(location, attrs)
+    return false unless location.nwps_matched?
+
+    if attrs.key?(:flood_category)
+      location.flood_category.to_s == attrs[:flood_category].to_s &&
+        location.flood_category_observed_at.to_i == attrs[:flood_category_observed_at].to_i
+    else
+      true
+    end
   end
 
   def apply_match!(location, gauge)

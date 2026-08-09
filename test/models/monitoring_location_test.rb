@@ -335,4 +335,42 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     assert MonitoringLocation.exists?(keep.id)
     assert DailyArchiveShard.exists?(time_series_id: keep_series.id)
   end
+
+  test "purge_ids! deletes large IV tips in batches without leaving dependents" do
+    doomed = create(:monitoring_location, site_number: "30000003")
+    series = create(:time_series, monitoring_location: doomed)
+    observed_at = 40.days.ago.beginning_of_hour
+    120.times do |i|
+      ContinuousObservation.create!(
+        time_series: series,
+        observed_at: observed_at + (i * 15).minutes,
+        value: i
+      )
+    end
+    DailyObservation.create!(time_series: series, observed_on: Date.current - 40, value: 9.0)
+    PeakObservation.create!(
+      time_series: series,
+      water_year: 2024,
+      value: 11.0,
+      peak_kind: "high"
+    )
+    LatestObservation.create!(
+      time_series: series,
+      observed_at: observed_at,
+      value: 1.0,
+      unit_of_measure: "ft",
+      synced_at: Time.current
+    )
+
+    assert_equal 1, MonitoringLocation.purge_ids!(
+      [ doomed.id ],
+      location_batch_size: 1,
+      continuous_batch_size: 25
+    )
+    assert_not ContinuousObservation.exists?(time_series_id: series.id)
+    assert_not DailyObservation.exists?(time_series_id: series.id)
+    assert_not PeakObservation.exists?(time_series_id: series.id)
+    assert_not LatestObservation.exists?(time_series_id: series.id)
+    assert_not MonitoringLocation.exists?(doomed.id)
+  end
 end
