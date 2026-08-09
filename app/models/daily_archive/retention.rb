@@ -7,18 +7,34 @@ module DailyArchive
   # IV/daily GC is day-oriented: decide per (series, local day), then DELETE by
   # indexed time/date ranges. Avoids scanning every tip row into a giant Ruby
   # id list on large fleets.
+  #
+  # Progress is checkpointed per series so a canceled/retried job on the same
+  # UTC day resumes instead of redoing completed handoff/prune work.
   class Retention
-    def initialize(store: DailyArchive.store, writer: nil, as_of: Time.current, client: nil, progress: nil)
+    def initialize(store: DailyArchive.store, writer: nil, as_of: Time.current, client: nil, progress: nil, checkpoint: nil)
       @store = store
       @writer = writer || Writer.new(store: store)
       @as_of = as_of
       @client = client
       @progress = progress
+      @checkpoint = checkpoint
       @gap_days = Set.new # [time_series_id, iso_day] alerted this run
     end
 
     def perform
-      @progress&.step("starting retention handoff + postgres prune")
+      @checkpoint ||= RetentionCheckpoint.resume_or_start!(as_of: @as_of)
+      @as_of = @checkpoint.as_of
+      @gap_days = Set.new(@checkpoint.gap_days)
+
+      if @checkpoint.resumed
+        @progress&.step(
+          "resuming retention phase=#{@checkpoint.phase} " \
+          "after_series_id=#{@checkpoint.after_series_id} as_of=#{@as_of.utc.iso8601}"
+        )
+      else
+        @progress&.step("starting retention handoff + postgres prune as_of=#{@as_of.utc.iso8601}")
+      end
+
       handoff = ensure_aged_days!
       @progress&.step(
         "handoff done usgs_ensured=#{handoff[:usgs_ensured]} " \
@@ -35,6 +51,8 @@ module DailyArchive
       @progress&.step(
         "daily prune done deleted=#{daily_result[:deleted]} blocked=#{daily_result[:blocked]}"
       )
+
+      @checkpoint.clear!
 
       {
         usgs_ensured: handoff[:usgs_ensured],
@@ -55,11 +73,30 @@ module DailyArchive
     private
 
     def ensure_aged_days!
-      usgs_ensured = 0
-      derived = 0
-      retrying = 0
+      if @checkpoint.phase_completed?("handoff")
+        stats = @checkpoint.stats
+        @progress&.step(
+          "handoff skipped: already completed usgs_ensured=#{stats["usgs_ensured"]} " \
+          "derived=#{stats["derived"]} retrying=#{stats["retrying"]}"
+        )
+        return {
+          usgs_ensured: stats["usgs_ensured"],
+          derived: stats["derived"],
+          retrying: stats["retrying"]
+        }
+      end
+
+      usgs_ensured = @checkpoint.stats["usgs_ensured"]
+      derived = @checkpoint.stats["derived"]
+      retrying = @checkpoint.stats["retrying"]
       unless @store.enabled?
         @progress&.step("handoff skipped: archive store disabled")
+        @checkpoint.complete_phase!(
+          "handoff",
+          usgs_ensured: 0,
+          derived: 0,
+          retrying: 0
+        )
         return { usgs_ensured: 0, derived: 0, retrying: 0 }
       end
 
@@ -69,26 +106,50 @@ module DailyArchive
         .distinct
         .pluck(:time_series_id)
       total_series = series_ids.size
-      @progress&.step("handoff series=#{total_series} frontier=#{frontier.utc.iso8601}")
+      @progress&.step(
+        "handoff series=#{total_series} frontier=#{frontier.utc.iso8601} " \
+        "after_series_id=#{@checkpoint.after_series_id}"
+      )
 
       processed = 0
-      TimeSeries.where(id: series_ids).includes(:monitoring_location).find_each do |series|
+      scope = @checkpoint.series_scope(
+        TimeSeries.where(id: series_ids).includes(:monitoring_location)
+      )
+      scope.find_each do |series|
+        series_usgs = 0
+        series_derived = 0
+        series_retrying = 0
         aged_local_days(series, frontier).each do |day|
           case ensure_day!(series, day)
-          when :usgs then usgs_ensured += 1
-          when :derived then derived += 1
-          when :retrying then retrying += 1
+          when :usgs then series_usgs += 1
+          when :derived then series_derived += 1
+          when :retrying then series_retrying += 1
           end
         end
+        usgs_ensured += series_usgs
+        derived += series_derived
+        retrying += series_retrying
+        @checkpoint.mark_series!(
+          series.id,
+          usgs_ensured: series_usgs,
+          derived: series_derived,
+          retrying: series_retrying
+        )
         processed += 1
-        if (processed % 50).zero? || processed == total_series
+        if (processed % 50).zero?
           @progress&.step(
-            "handoff series=#{processed}/#{total_series} " \
+            "handoff series_done=#{processed} remaining_cursor=#{series.id} " \
             "usgs_ensured=#{usgs_ensured} derived=#{derived} retrying=#{retrying}"
           )
         end
       end
 
+      @checkpoint.complete_phase!(
+        "handoff",
+        usgs_ensured: usgs_ensured,
+        derived: derived,
+        retrying: retrying
+      )
       { usgs_ensured: usgs_ensured, derived: derived, retrying: retrying }
     end
 
@@ -205,18 +266,34 @@ module DailyArchive
     end
 
     def prune_continuous!
-      cutoff = HistoryIngestion::CONTINUOUS_RETENTION.ago(@as_of)
-      blocked = 0
-      deleted = 0
+      if @checkpoint.phase_completed?("iv_prune")
+        stats = @checkpoint.stats
+        @progress&.step(
+          "iv prune skipped: already completed deleted=#{stats["iv_deleted"]} " \
+          "blocked=#{stats["iv_blocked"]} gaps_alerted=#{@gap_days.size}"
+        )
+        return {
+          deleted: stats["iv_deleted"],
+          blocked: stats["iv_blocked"],
+          gaps_alerted: @gap_days.size
+        }
+      end
 
-      # Defensive: drop tip rows whose series is gone (FK normally prevents this).
-      orphan_scope = ContinuousObservation
-        .where("observed_at < ?", cutoff)
-        .where.not(time_series_id: TimeSeries.select(:id))
-      orphan_count = orphan_scope.count
-      if orphan_count.positive?
-        @progress&.step("iv prune deleting orphan rows=#{orphan_count}")
-        deleted += orphan_scope.delete_all
+      cutoff = HistoryIngestion::CONTINUOUS_RETENTION.ago(@as_of)
+      blocked = @checkpoint.stats["iv_blocked"]
+      deleted = @checkpoint.stats["iv_deleted"]
+
+      # Orphans only need one pass; skip when resuming after that work landed.
+      unless @checkpoint.orphans_done?
+        orphan_scope = ContinuousObservation
+          .where("observed_at < ?", cutoff)
+          .where.not(time_series_id: TimeSeries.select(:id))
+        orphan_count = orphan_scope.count
+        if orphan_count.positive?
+          @progress&.step("iv prune deleting orphan rows=#{orphan_count}")
+          deleted += orphan_scope.delete_all
+        end
+        @checkpoint.mark_orphans_done!(iv_deleted: orphan_count)
       end
 
       series_ids = ContinuousObservation
@@ -226,34 +303,51 @@ module DailyArchive
       total_series = series_ids.size
       @progress&.step(
         "iv prune series=#{total_series} cutoff=#{cutoff.utc.iso8601} " \
-        "(day-oriented GC; no per-row ID scan)"
+        "after_series_id=#{@checkpoint.after_series_id} (day-oriented GC)"
       )
 
       processed = 0
-      TimeSeries.where(id: series_ids).includes(:monitoring_location).find_each do |series|
+      scope = @checkpoint.series_scope(
+        TimeSeries.where(id: series_ids).includes(:monitoring_location)
+      )
+      scope.find_each do |series|
         zone = local_zone(series.monitoring_location)
+        series_deleted = 0
+        series_blocked = 0
         aged_local_days(series, cutoff).each do |day|
           day_scope = continuous_day_scope(series.id, zone, day, before: cutoff)
           if archived_day?(series.id, day) || gap_alerted?(series.id, day)
-            deleted += day_scope.delete_all
+            series_deleted += day_scope.delete_all
           elsif past_retry_window?(day)
             alert_gap!(series, day)
-            deleted += day_scope.delete_all
+            series_deleted += day_scope.delete_all
           else
-            blocked += day_scope.count
+            series_blocked += day_scope.count
           end
         end
+        deleted += series_deleted
+        blocked += series_blocked
+        @checkpoint.mark_series!(
+          series.id,
+          iv_deleted: series_deleted,
+          iv_blocked: series_blocked
+        )
 
         processed += 1
-        if (processed % 50).zero? || processed == total_series
+        if (processed % 50).zero?
           @progress&.step(
-            "iv prune series=#{processed}/#{total_series} " \
+            "iv prune series_done=#{processed} remaining_cursor=#{series.id} " \
             "deleted=#{deleted} blocked=#{blocked} gaps_alerted=#{@gap_days.size}"
           )
         end
       end
 
       gaps_alerted = @gap_days.size
+      @checkpoint.complete_phase!(
+        "iv_prune",
+        iv_deleted: deleted,
+        iv_blocked: blocked
+      )
       @progress&.step(
         "iv prune complete deleted=#{deleted} blocked=#{blocked} gaps_alerted=#{gaps_alerted}"
       )
@@ -270,6 +364,7 @@ module DailyArchive
       return if @gap_days.include?(key)
 
       @gap_days << key
+      @checkpoint&.record_gap!(series.id, day.iso8601)
       message = "[DailyArchive::Retention] daily gap alerted series=#{series.id} site=#{series.monitoring_location.site_number} day=#{day}"
       Rails.logger.error(message)
       Sentry.capture_message(message, level: :warning) if defined?(Sentry)
@@ -281,20 +376,32 @@ module DailyArchive
     end
 
     def prune_daily!
+      if @checkpoint.phase_completed?("daily_prune")
+        stats = @checkpoint.stats
+        return { deleted: stats["daily_deleted"], blocked: stats["daily_blocked"] }
+      end
+
       if DailyArchive.prune_enabled?
         # Drain every Postgres daily that already exists in R2 — no scratch tip.
         # Work per series so we load each year shard once and delete by date list
         # instead of accumulating every row id in Ruby.
-        blocked = 0
-        deleted = 0
-        series_ids = DailyObservation.distinct.pluck(:time_series_id)
+        blocked = @checkpoint.stats["daily_blocked"]
+        deleted = @checkpoint.stats["daily_deleted"]
+        series_ids = DailyObservation
+          .distinct
+          .where("time_series_id > ?", @checkpoint.after_series_id)
+          .order(:time_series_id)
+          .pluck(:time_series_id)
         total_series = series_ids.size
         @progress&.step(
-          "daily prune series=#{total_series} (R2 drain mode; day-oriented GC)"
+          "daily prune series=#{total_series} after_series_id=#{@checkpoint.after_series_id} " \
+          "(R2 drain mode; day-oriented GC)"
         )
 
         processed = 0
         series_ids.each do |time_series_id|
+          series_deleted = 0
+          series_blocked = 0
           days_by_year = DailyObservation
             .where(time_series_id: time_series_id)
             .pluck(:observed_on)
@@ -303,13 +410,21 @@ module DailyArchive
           days_by_year.each do |year, days|
             archived_days = archived_days_for(time_series_id, year)
             deletable_days = days.select { |day| archived_days.include?(day.iso8601) }
-            blocked += days.size - deletable_days.size
+            series_blocked += days.size - deletable_days.size
             next if deletable_days.empty?
 
-            deleted += DailyObservation
+            series_deleted += DailyObservation
               .where(time_series_id: time_series_id, observed_on: deletable_days)
               .delete_all
           end
+
+          deleted += series_deleted
+          blocked += series_blocked
+          @checkpoint.mark_series!(
+            time_series_id,
+            daily_deleted: series_deleted,
+            daily_blocked: series_blocked
+          )
 
           processed += 1
           if (processed % 50).zero? || processed == total_series
@@ -320,6 +435,11 @@ module DailyArchive
           end
         end
 
+        @checkpoint.complete_phase!(
+          "daily_prune",
+          daily_deleted: deleted,
+          daily_blocked: blocked
+        )
         @progress&.step("daily prune complete deleted=#{deleted} blocked=#{blocked}")
         { deleted: deleted, blocked: blocked }
       else
@@ -329,6 +449,11 @@ module DailyArchive
           "daily prune age-cutoff mode candidates=#{candidate_count} cutoff_day=#{cutoff_day}"
         )
         deleted = DailyObservation.where("observed_on < ?", cutoff_day).delete_all
+        @checkpoint.complete_phase!(
+          "daily_prune",
+          daily_deleted: deleted,
+          daily_blocked: 0
+        )
         @progress&.step("daily prune age-cutoff deleted=#{deleted}")
         { deleted: deleted, blocked: 0 }
       end
