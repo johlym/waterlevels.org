@@ -106,7 +106,8 @@ class AdminDashboardStats
     def with_statement_timeout(ms = STATEMENT_TIMEOUT_MS)
       connection = ActiveRecord::Base.connection
       previous = connection.select_value("SHOW statement_timeout")
-      connection.execute("SET statement_timeout TO #{Integer(ms)}")
+      # Quote the coerced integer so Brakeman does not flag string interpolation.
+      connection.execute("SET statement_timeout TO #{connection.quote(Integer(ms))}")
       yield
     ensure
       if previous
