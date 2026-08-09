@@ -236,6 +236,8 @@ class MonitoringLocation < ApplicationRecord
       ContinuousObservation.where(time_series_id: ts_ids).delete_all
       DailyObservation.where(time_series_id: ts_ids).delete_all
       PeakObservation.where(time_series_id: ts_ids).delete_all
+      # Catalog rows for R2 year objects — must go before time_series (FK).
+      DailyArchiveShard.where(time_series_id: ts_ids).delete_all
       TimeSeries.where(id: ts_ids).delete_all
     end
     where(id: ids).delete_all
