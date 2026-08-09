@@ -230,4 +230,133 @@ class LatestObservationSyncTest < ActiveSupport::TestCase
     # No plausible tip remains, so denormalize clears the map column instead of writing -100000.
     assert_nil @location.reload.latest_temperature_c
   end
+
+  test "skips non-selected series without writing tips" do
+    create(
+      :time_series,
+      monitoring_location: @location,
+      usgs_time_series_id: "ts-unselected",
+      parameter_code: "00060",
+      measurement_kind: "discharge",
+      selected_for_display: false
+    )
+
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/latest-continuous/items})
+      .to_return do |request|
+        features =
+          if request.uri.query.to_s.include?("parameter_code=00060")
+            [ {
+              id: "ts-unselected",
+              properties: {
+                time_series_id: "ts-unselected",
+                time: "2026-08-02T18:00:00Z",
+                value: 100.0,
+                unit_of_measure: "ft3/s"
+              }
+            } ]
+          else
+            []
+          end
+        {
+          status: 200,
+          headers: { "Content-Type" => "application/geo+json" },
+          body: { features: features, links: [] }.to_json
+        }
+      end
+
+    LatestObservationSync.new(state: "wa").perform
+
+    assert_equal 0, LatestObservation.count
+    assert_equal 0, ContinuousObservation.count
+  end
+
+  test "denormalizes tips without warming station snapshot cache" do
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/latest-continuous/items})
+      .to_return do |request|
+        features =
+          if request.uri.query.to_s.include?("parameter_code=00065")
+            [ {
+              id: "ts-latest-sync",
+              properties: {
+                time_series_id: "ts-latest-sync",
+                time: "2026-08-02T18:00:00Z",
+                value: 12.5,
+                unit_of_measure: "ft",
+                approval_status: "Provisional"
+              }
+            } ]
+          else
+            []
+          end
+        {
+          status: 200,
+          headers: { "Content-Type" => "application/geo+json" },
+          body: { features: features, links: [] }.to_json
+        }
+      end
+
+    LatestObservationSync.new(state: "wa").perform
+
+    @location.reload
+    assert_in_delta 12.5, @location.latest_water_level_value, 0.001
+    assert_nil StationSnapshotCache.read(@location)
+  end
+
+  test "national sync processes each state and records aggregate tip stats" do
+    oregon = create(:monitoring_location, site_number: "14101000", state_code: "or")
+    oregon_series = create(
+      :time_series,
+      monitoring_location: oregon,
+      usgs_time_series_id: "ts-or-latest",
+      parameter_code: "00065",
+      measurement_kind: "water_level",
+      selected_for_display: true
+    )
+
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/latest-continuous/items})
+      .to_return do |request|
+        query = request.uri.query.to_s
+        features = []
+        if query.include?("parameter_code=00065")
+          if query.include?("state_code=#{Usgs::StateCodes.fips_for('wa')}")
+            features << {
+              id: "ts-latest-sync",
+              properties: {
+                time_series_id: "ts-latest-sync",
+                time: "2026-08-02T18:00:00Z",
+                value: 12.5,
+                unit_of_measure: "ft"
+              }
+            }
+          elsif query.include?("state_code=#{Usgs::StateCodes.fips_for('or')}")
+            features << {
+              id: "ts-or-latest",
+              properties: {
+                time_series_id: "ts-or-latest",
+                time: "2026-08-02T18:15:00Z",
+                value: 8.25,
+                unit_of_measure: "ft"
+              }
+            }
+          end
+        end
+        {
+          status: 200,
+          headers: { "Content-Type" => "application/geo+json" },
+          body: { features: features, links: [] }.to_json
+        }
+      end
+
+    LatestObservationSync.new.perform
+
+    assert LatestObservation.exists?(time_series_id: @series.id)
+    assert LatestObservation.exists?(time_series_id: oregon_series.id)
+    assert_in_delta 12.5, @location.reload.latest_water_level_value, 0.001
+    assert_in_delta 8.25, oregon.reload.latest_water_level_value, 0.001
+
+    tip = AdminDashboardStats.last_tip_refresh
+    assert_equal 2, tip[:stations_updated]
+    assert_equal 2, tip[:series_upserted]
+    assert_nil tip[:state]
+  end
 end

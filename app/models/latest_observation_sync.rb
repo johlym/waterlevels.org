@@ -5,6 +5,19 @@ class LatestObservationSync
   # slices instead of one upsert round-trip per USGS feature.
   UPSERT_BATCH = 200
 
+  # Lean stand-in for TimeSeries during tip upserts — avoids caching full AR
+  # graphs (and monitoring_location) for every USGS feature, including skips.
+  SelectedSeries = Data.define(
+    :id,
+    :monitoring_location_id,
+    :measurement_kind,
+    :unit_of_measure
+  ) do
+    def selected_for_display?
+      true
+    end
+  end
+
   attr_accessor :client, :state, :progress
 
   def initialize(client: Usgs::Client.for_tip, state: nil, progress: nil)
@@ -24,11 +37,13 @@ class LatestObservationSync
       sync_error = nil
       @upserted_series_ids = Set.new
       @denormalize_location_ids = Set.new
-      @series_cache = {}
+      @locations_denormalized = 0
       progress&.step(scope_label)
       begin
-        Usgs::ParameterCodes::ALL.each do |parameter_code|
-          sync_parameter(parameter_code)
+        if postal_code
+          sync_scoped!
+        else
+          sync_national_by_state!
         end
       rescue StandardError => e
         # Tip upserts may have succeeded for earlier parameters. Always denormalize
@@ -36,12 +51,12 @@ class LatestObservationSync
         sync_error = e
       end
 
-      denormalized = denormalize_locations
+      denormalize_locations
       record_tip_refresh_stats!
       Telemetry.add_attributes(
         "app.series_count" => @upserted_series_ids.size,
         "app.observation_count" => @upserted_series_ids.size,
-        "app.locations_count" => denormalized
+        "app.locations_count" => @locations_denormalized
       )
 
       unless sync_error
@@ -65,6 +80,59 @@ class LatestObservationSync
 
 
   private
+
+  def sync_scoped!
+    @selected_series_by_usgs_id = build_selected_series_index
+    sync_parameters!
+  ensure
+    @selected_series_by_usgs_id = nil
+  end
+
+  # Cap peak memory: one state's selected-series index + one parameter stream at
+  # a time, with incremental denormalize and GC between states.
+  def sync_national_by_state!
+    state_codes = MonitoringLocation.distinct.order(:state_code).pluck(:state_code)
+    progress&.step("national states=#{state_codes.size}")
+
+    state_codes.each do |code|
+      @state = code
+      @postal_code = nil
+      progress&.step("state=#{code}")
+      @selected_series_by_usgs_id = build_selected_series_index
+      sync_parameters!
+      denormalize_locations
+      @selected_series_by_usgs_id = nil
+      GC.start
+    end
+  ensure
+    @state = nil
+    @postal_code = nil
+    @selected_series_by_usgs_id = nil
+  end
+
+  def sync_parameters!
+    Usgs::ParameterCodes::ALL.each do |parameter_code|
+      sync_parameter(parameter_code)
+      GC.start
+    end
+  end
+
+  def build_selected_series_index
+    scope = TimeSeries.selected
+    if postal_code
+      scope = scope.joins(:monitoring_location).merge(MonitoringLocation.in_state(postal_code))
+    end
+
+    scope.pluck(
+      :usgs_time_series_id,
+      :id,
+      :monitoring_location_id,
+      :measurement_kind,
+      :unit_of_measure
+    ).each_with_object({}) do |(usgs_id, id, location_id, kind, unit), memo|
+      memo[usgs_id.to_s] = SelectedSeries.new(id, location_id, kind, unit)
+    end
+  end
 
   def record_tip_refresh_stats!
     series_ids = @upserted_series_ids.to_a
@@ -126,11 +194,7 @@ class LatestObservationSync
     client.each_collection_item("latest-continuous", latest_query(parameter_code)) do |item|
       ts_id = (item["time_series_id"] || item["id"]).to_s
       series = find_series(ts_id)
-      unless series&.selected_for_display?
-        skipped += 1
-        next
-      end
-      if postal_code && series.monitoring_location.state_code != postal_code
+      unless series
         skipped += 1
         next
       end
@@ -222,11 +286,7 @@ class LatestObservationSync
   end
 
   def find_series(usgs_time_series_id)
-    return @series_cache[usgs_time_series_id] if @series_cache.key?(usgs_time_series_id)
-
-    @series_cache[usgs_time_series_id] = TimeSeries
-      .includes(:monitoring_location)
-      .find_by(usgs_time_series_id: usgs_time_series_id)
+    @selected_series_by_usgs_id&.[](usgs_time_series_id)
   end
 
   def denormalize_locations
@@ -243,12 +303,15 @@ class LatestObservationSync
 
     scope.find_each do |location|
       selected = location.time_series.select(&:selected_for_display?)
+      # Tip sync only needs map/listing columns. Station snapshots rebuild lazily
+      # via StationSnapshotCache.fetch (peaks/daily are too heavy for hourly tip).
       DisplaySeriesSelection.denormalize!(location, selected: selected)
-      StationSnapshotCache.warm(location)
       count += 1
       progress&.increment
     end
 
+    @denormalize_location_ids = Set.new
+    @locations_denormalized += count
     Telemetry.add_attributes("app.locations_denormalized" => count)
     progress&.step("locations denormalized=#{count}")
     count
