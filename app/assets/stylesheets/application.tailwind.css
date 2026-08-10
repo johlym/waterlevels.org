@@ -1782,7 +1782,7 @@ body.dialog-open {
   }
 
   .county-listings {
-    @apply space-y-12 lg:col-span-8;
+    @apply space-y-12 overflow-visible lg:col-span-8;
   }
 
   .filter-empty {
@@ -1790,23 +1790,23 @@ body.dialog-open {
   }
 
   .county-group {
-    @apply space-y-4;
-    scroll-margin-top: 0.75rem;
+    @apply flex flex-col gap-4 overflow-visible;
   }
 
   .county-head {
-    @apply sticky top-0 z-10 -mx-1 flex items-baseline justify-between border-b border-zinc-800 bg-zinc-950/95 px-1 py-3 backdrop-blur-sm;
+    @apply sticky top-0 z-20 flex items-baseline justify-between gap-4 border-b border-zinc-800 bg-zinc-950 py-3;
+    scroll-margin-top: 0.75rem;
 
     h2 {
-      @apply font-display text-2xl font-bold text-white;
+      @apply m-0 font-display text-2xl font-bold text-white;
+    }
 
-      a {
-        @apply text-inherit no-underline transition-colors hover:text-cyan-400 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400;
-      }
+    a {
+      @apply text-white underline decoration-cyan-400/50 underline-offset-4 transition-colors hover:text-cyan-400 hover:decoration-cyan-400 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400;
     }
 
     span {
-      @apply text-xs text-zinc-400;
+      @apply shrink-0 text-xs text-zinc-400;
     }
   }
 
