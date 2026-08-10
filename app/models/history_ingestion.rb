@@ -118,6 +118,9 @@ class HistoryIngestion
   end
 
   def needs_daily?(series)
+    # IV-only parameters (no USGS daily DV) are not fillable via the daily API.
+    return false unless series.expects_daily_history?
+
     # Deep/year anchors live in R2 — don't re-pull USGS when coverage exists.
     return true unless series.has_daily_on_or_before?(daily_history_anchor)
 
@@ -430,7 +433,9 @@ class HistoryIngestion
         "circuit=#{client.circuit_key}"
       )
       count = 0
+      per_series_counts = Hash.new(0)
       archive_buffer = Hash.new { |h, k| h[k] = [] }
+      rate_limited = false
       begin
         ranges.each do |start_date, end_date|
           client.each_collection_item(
@@ -460,19 +465,62 @@ class HistoryIngestion
               upsert_postgres_daily!(series, day, item)
             end
             count += 1
+            per_series_counts[series.id] += 1
             progress&.increment
           end
         end
       rescue Usgs::Client::RateLimitError => e
+        rate_limited = true
         progress&.step("daily stopped (#{e.message})")
       end
       flush_daily_archive!(archive_buffer)
+      mark_usgs_daily_availability!(series_list, per_series_counts, rate_limited: rate_limited)
+
+      breakdown = series_list.filter_map { |s|
+        n = per_series_counts[s.id]
+        "#{s.parameter_code}=#{n}" if n.positive? || s.usgs_daily_absent?
+      }.join(",")
+      progress&.step(
+        "daily upserted=#{count}#{" by_parameter=#{breakdown}" if breakdown.present?}"
+      )
       Telemetry.add_attributes(
         "app.observation_count" => count,
         "app.circuit_key" => client.circuit_key
       )
-      progress&.step("daily upserted=#{count}")
       count
+    end
+  end
+
+  # When a successful daily request returns rows for some parameters but none
+  # for others that still lack the history anchor, USGS is not publishing DV for
+  # that parameter (IV-only). Mark it so we stop the "still loading" callout and
+  # 6h cooldown loop instead of inventing year-long derived dailies from a 35d tip.
+  def mark_usgs_daily_availability!(series_list, per_series_counts, rate_limited:)
+    return if rate_limited
+
+    series_list.each do |series|
+      received = per_series_counts[series.id].to_i
+      if received.positive?
+        if series.usgs_daily_absent?
+          series.update!(usgs_daily_absent: false)
+          progress&.step("daily available again parameter=#{series.parameter_code}")
+        end
+        next
+      end
+
+      series.daily_archive_shards.reset
+      series.association(:daily_observations).reset
+      # Only treat as IV-only when there is no ~1y daily at all. An empty deep
+      # (3y) gap fetch must not brand a series that already has year DV as absent.
+      year_anchor = DAILY_HISTORY_ANCHOR.ago.to_date
+      next if series.has_daily_on_or_before?(year_anchor)
+      next if series.usgs_daily_absent?
+
+      series.update!(usgs_daily_absent: true)
+      progress&.step(
+        "daily unavailable parameter=#{series.parameter_code} " \
+        "(USGS returned no DV; shorter ranges use continuous)"
+      )
     end
   end
 

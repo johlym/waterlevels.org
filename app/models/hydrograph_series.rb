@@ -72,6 +72,7 @@ class HydrographSeries
       range: range,
       unit: UnitLabel.format(time_series.unit_of_measure),
       parameter_code: time_series.parameter_code,
+      usgs_daily_absent: time_series.usgs_daily_absent?,
       points: points,
       peaks: peaks
     }

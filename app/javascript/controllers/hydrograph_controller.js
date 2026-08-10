@@ -258,11 +258,20 @@ export default class extends Controller {
     return stageEntries.filter((stage) => stage.value <= ceiling)
   }
 
+  emptyRangeMessage() {
+    const dailyRange = this.range === "1y" || this.range === "3y"
+    if (dailyRange && this.series?.usgs_daily_absent) {
+      const label = this.series.label || "this measurement"
+      return `USGS does not publish daily values for ${label}. Try 30 Days or shorter for continuous readings.`
+    }
+    return "No observations for this range yet."
+  }
+
   renderStats(points) {
     if (!this.hasStatsTarget) return
 
     if (!points.length) {
-      this.statsTarget.innerHTML = `<p class="empty">No observations for this range yet.</p>`
+      this.statsTarget.innerHTML = `<p class="empty">${this.emptyRangeMessage()}</p>`
       return
     }
 
@@ -357,7 +366,7 @@ export default class extends Controller {
     const day = this.currentDay()
 
     if (!day) {
-      this.historyTarget.innerHTML = `<p class="empty">No observations for this range yet.</p>`
+      this.historyTarget.innerHTML = `<p class="empty">${this.emptyRangeMessage()}</p>`
       return
     }
 

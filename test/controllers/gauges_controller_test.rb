@@ -142,6 +142,32 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, 'data-hydrograph-range-param="3y"'
   end
 
+  test "shows unavailable callout when USGS daily is absent for a parameter" do
+    create(
+      :time_series,
+      monitoring_location: @location,
+      selected_for_display: true,
+      usgs_daily_absent: true,
+      parameter_code: "00065",
+      measurement_kind: "water_level"
+    )
+    flow = create(
+      :time_series,
+      monitoring_location: @location,
+      selected_for_display: true,
+      parameter_code: "00060",
+      measurement_kind: "discharge"
+    )
+    DailyObservation.create!(time_series: flow, observed_on: 11.months.ago.to_date, value: 10.0)
+    DailyObservation.create!(time_series: flow, observed_on: Date.current, value: 11.0)
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_includes response.body, 'class="history-callout"'
+    assert_not_includes response.body, "Full-year history is still loading"
+    assert_includes response.body, "USGS does not publish daily history for Gage height"
+  end
+
   test "shows 3 year range tab when deep daily history is present" do
     series = create(:time_series, monitoring_location: @location, selected_for_display: true)
     ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)

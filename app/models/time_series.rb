@@ -16,6 +16,8 @@ class TimeSeries < ApplicationRecord
 
   scope :selected, -> { where(selected_for_display: true) }
   scope :for_kind, ->(kind) { where(measurement_kind: kind) }
+  # Series USGS publishes daily DV for (or unknown). Excludes confirmed IV-only params.
+  scope :expecting_daily, -> { where(usgs_daily_absent: false) }
 
   # Leftover Postgres rows and/or R2 shard catalog.
   def has_daily_on_or_before?(anchor)
@@ -41,5 +43,11 @@ class TimeSeries < ApplicationRecord
     return false if tip_at.blank?
 
     tip_at >= REPORTING_TIP_WINDOW.before(as_of)
+  end
+
+  # False once history ingest confirmed USGS returns no daily DV for this
+  # parameter (common for gage height at sites that only publish IV).
+  def expects_daily_history?
+    !usgs_daily_absent?
   end
 end

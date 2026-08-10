@@ -155,6 +155,13 @@
             the 1 Year chart will fill in as we finish backfilling from USGS.
           </p>
         </div>
+      <% elsif (unavailable = @location.daily_history_unavailable_labels).any? %>
+        <div class="history-callout" role="status">
+          <p>
+            USGS does not publish daily history for <%= unavailable.to_sentence %>.
+            Use 30 Days or shorter for continuous readings; other measurements may still have 1 Year / 3 Years charts.
+          </p>
+        </div>
       <% end %>
       <div class="chart-panel">
         <div class="pad">

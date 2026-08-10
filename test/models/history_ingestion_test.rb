@@ -440,6 +440,93 @@ class HistoryIngestionTest < ActiveSupport::TestCase
     assert_in_delta 14.2, @location.reload.latest_temperature_c, 0.001
   end
 
+  test "marks usgs_daily_absent when daily API returns sibling params but not this series" do
+    stage = @series
+    stage.update!(parameter_code: "00065", measurement_kind: "water_level", usgs_time_series_id: "ts-stage-iv")
+    flow = create(
+      :time_series,
+      monitoring_location: @location,
+      parameter_code: "00060",
+      measurement_kind: "discharge",
+      usgs_time_series_id: "ts-flow-dv"
+    )
+
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/continuous/items})
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/geo+json" },
+        body: {
+          features: [
+            {
+              id: "1",
+              properties: {
+                time_series_id: stage.usgs_time_series_id,
+                parameter_code: "00065",
+                time: 1.hour.ago.utc.iso8601,
+                value: 5.7
+              }
+            },
+            {
+              id: "2",
+              properties: {
+                time_series_id: flow.usgs_time_series_id,
+                parameter_code: "00060",
+                time: 1.hour.ago.utc.iso8601,
+                value: 11.0
+              }
+            }
+          ],
+          links: []
+        }.to_json
+      )
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/daily/items})
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/geo+json" },
+        body: {
+          features: [
+            {
+              id: "d1",
+              properties: {
+                time_series_id: "other-daily-id",
+                parameter_code: "00060",
+                time: 11.months.ago.to_date.iso8601,
+                value: 8.0
+              }
+            },
+            {
+              id: "d2",
+              properties: {
+                time_series_id: "other-daily-id",
+                parameter_code: "00060",
+                time: Date.current.iso8601,
+                value: 9.0
+              }
+            }
+          ],
+          links: []
+        }.to_json
+      )
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/peaks/items})
+      .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+
+    # Continuous anchors so only daily gates would keep needs_history_backfill.
+    [ stage, flow ].each do |series|
+      ContinuousObservation.create!(
+        time_series: series,
+        observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago - 1.day,
+        value: 1.0
+      )
+    end
+
+    HistoryIngestion.new(monitoring_location: @location, range: "1y").perform
+
+    assert stage.reload.usgs_daily_absent?
+    refute flow.reload.usgs_daily_absent?
+    refute @location.reload.missing_year_history?
+    refute @location.needs_history_backfill?
+  end
+
   test "coalesces multiple parameter codes into one continuous request per location" do
     discharge = create(
       :time_series,
