@@ -3,7 +3,9 @@
 # Used by /admin/stations/:site_number and `bin/rails usgs:inspect`.
 class StationInspector
   CONTINUOUS_FRESHNESS = HistoryIngestion::CONTINUOUS_FRESHNESS
+  CONTINUOUS_GAP_THRESHOLD = HistoryIngestion::CONTINUOUS_GAP_THRESHOLD
   CONTINUOUS_HISTORY_ANCHOR = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR
+  CONTINUOUS_RETENTION = HistoryIngestion::CONTINUOUS_RETENTION
   DAILY_HISTORY_ANCHOR = HistoryIngestion::DAILY_HISTORY_ANCHOR
   DAILY_DEEP_HISTORY_ANCHOR = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR
   DAILY_FRESHNESS = HistoryIngestion::DAILY_FRESHNESS
@@ -209,7 +211,7 @@ class StationInspector
     return [] unless series.selected_for_display?
 
     gaps = []
-    continuous_since = CONTINUOUS_FRESHNESS.ago
+    continuous_since = CONTINUOUS_GAP_THRESHOLD.ago
     continuous_anchor = CONTINUOUS_HISTORY_ANCHOR.ago
     daily_anchor = DAILY_HISTORY_ANCHOR.ago.to_date
     deep_anchor = DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
@@ -220,6 +222,13 @@ class StationInspector
     end
     if continuous_oldest.blank? || continuous_oldest > continuous_anchor
       gaps << "missing_continuous_anchor"
+    end
+    if HistoryIngestion.series_has_continuous_coverage_gap?(
+      series,
+      window_start: CONTINUOUS_RETENTION.ago
+    ) && continuous_newest.present? && continuous_newest >= continuous_since &&
+        continuous_oldest.present? && continuous_oldest <= continuous_anchor
+      gaps << "interior_continuous_gap"
     end
     if series.expects_daily_history?
       unless series.has_daily_on_or_before?(daily_anchor)
@@ -300,6 +309,16 @@ class StationInspector
         :warn,
         :partial_table_risk,
         "Selected #{series_label(s)} has a stale/missing continuous tip — hourly table rows can show Partial when this parameter is expected but absent for an hour."
+      )
+    end
+
+    selected.each do |s|
+      next unless s[:gaps].include?("interior_continuous_gap")
+
+      findings << finding(
+        :warn,
+        :interior_continuous_gap,
+        "Selected #{series_label(s)} has an interior continuous hole larger than #{CONTINUOUS_GAP_THRESHOLD.inspect} (tip may still be fresh). History ingest will re-fetch that window — common after overnight tip-sync misses."
       )
     end
 

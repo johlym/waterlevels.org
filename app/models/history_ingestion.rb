@@ -19,12 +19,17 @@ class HistoryIngestion
   # Continuous is considered loaded once a point reaches this age (~retention slack).
   # Tip-only stations from LatestObservationSync must still pull the older IV window.
   CONTINUOUS_HISTORY_ANCHOR = 32.days
-  # Refresh continuous tips when the newest local point is older than this.
+  # Legacy "tip looks fresh enough" gate for batch scopes that predate interior
+  # gap repair. Prefer CONTINUOUS_GAP_THRESHOLD for tip→now coverage checks.
   CONTINUOUS_FRESHNESS = 7.days
   # Refresh daily tips when the newest local day is older than this.
   DAILY_FRESHNESS = 2.days
   # Overlap when extending from an existing tip so revised USGS points are picked up.
   CONTINUOUS_OVERLAP = 30.minutes
+  # Consecutive IV spacing (or tip→now) above this is a hole we should re-fetch.
+  # Tip sync is ~hourly, so keep this above 1h to avoid endless densify of healthy
+  # tip spacing — overnight outages (many hours) still qualify.
+  CONTINUOUS_GAP_THRESHOLD = 2.hours
 
   def initialize(monitoring_location:, range: DEFAULT_RANGE, client: nil, progress: nil)
     @monitoring_location = monitoring_location
@@ -121,7 +126,13 @@ class HistoryIngestion
     return true if series.continuous_observations.where(observed_at: ..continuous_history_anchor).none?
 
     newest = series.continuous_observations.maximum(:observed_at)
-    newest.blank? || newest < CONTINUOUS_FRESHNESS.ago
+    return true if newest.blank? || newest < CONTINUOUS_GAP_THRESHOLD.ago
+
+    continuous_interior_gap_ranges(
+      series,
+      window_start: continuous_window_start,
+      ends: Time.current.utc
+    ).any?
   end
 
   def needs_daily?(series)
@@ -184,9 +195,15 @@ class HistoryIngestion
 
   # USGS continuous rejects bare ISO-8601 durations (P7D/PT24H) despite docs;
   # use an explicit RFC3339 interval instead.
-  # Gap-aware like daily: fill the older archive hole, and separately refresh a
-  # stale tip. Tip-only stations (LatestObservationSync / catalog) must still
-  # pull window_start → oldest so 30d/90d charts are complete.
+  #
+  # Coverage model (not just oldest-hole + stale tip):
+  # 1. empty → full window
+  # 2. oldest > window_start → fill leading archive hole
+  # 3. newest lagged past CONTINUOUS_GAP_THRESHOLD → extend tip→now
+  # 4. interior consecutive gaps > threshold → re-fetch each hole
+  #
+  # Tip sync only upserts the latest IV point, so overnight misses leave a fresh
+  # tip with a hollow middle — (4) is what repairs that.
   def continuous_datetime_ranges(series)
     window_start = continuous_window_start
     ends = Time.current.utc
@@ -195,20 +212,84 @@ class HistoryIngestion
     ranges = []
 
     if oldest.nil?
-      ranges << [ window_start, ends ]
-    else
-      if oldest > window_start
-        ranges << [ window_start, oldest ] if window_start < oldest
-      end
-
-      if newest.nil? || newest < CONTINUOUS_FRESHNESS.ago
-        tip_start = newest ? (newest - CONTINUOUS_OVERLAP) : window_start
-        tip_start = [ tip_start, window_start ].max
-        ranges << [ tip_start, ends ] if tip_start < ends
-      end
+      return [ [ window_start, ends ] ]
     end
 
+    if oldest > window_start
+      ranges << [ window_start, oldest ] if window_start < oldest
+    end
+
+    if newest.nil? || newest < CONTINUOUS_GAP_THRESHOLD.before(ends)
+      tip_start = newest ? (newest - CONTINUOUS_OVERLAP) : window_start
+      tip_start = [ tip_start, window_start ].max
+      ranges << [ tip_start, ends ] if tip_start < ends
+    end
+
+    ranges.concat(continuous_interior_gap_ranges(series, window_start: window_start, ends: ends))
     ranges
+  end
+
+  # [prev - overlap, next + overlap] for each consecutive pair spaced further
+  # apart than CONTINUOUS_GAP_THRESHOLD inside the retention window.
+  def continuous_interior_gap_ranges(series, window_start:, ends:)
+    times = series.continuous_observations
+      .where(observed_at: window_start..ends)
+      .order(:observed_at)
+      .pluck(:observed_at)
+    return [] if times.size < 2
+
+    threshold = CONTINUOUS_GAP_THRESHOLD
+    overlap = CONTINUOUS_OVERLAP
+    gaps = []
+    times.each_cons(2) do |prev_at, next_at|
+      next unless (next_at - prev_at) > threshold
+
+      gap_start = [ prev_at - overlap, window_start ].max
+      gap_end = [ next_at + overlap, ends ].min
+      gaps << [ gap_start.utc, gap_end.utc ] if gap_start < gap_end
+    end
+    gaps
+  end
+
+  # Class helper for backfill eligibility / batch scopes.
+  def self.series_has_continuous_coverage_gap?(series, window_start: CONTINUOUS_RETENTION.ago, ends: Time.current.utc)
+    newest = series.continuous_observations.maximum(:observed_at)
+    return true if newest.blank?
+    return true if newest < CONTINUOUS_GAP_THRESHOLD.before(ends)
+    return true if series.continuous_observations.where(observed_at: ..CONTINUOUS_HISTORY_ANCHOR.ago).none?
+
+    ingestion = new(monitoring_location: series.monitoring_location, range: DEFAULT_RANGE)
+    ingestion.send(
+      :continuous_interior_gap_ranges,
+      series,
+      window_start: window_start,
+      ends: ends
+    ).any?
+  end
+
+  # Selected time_series ids with a consecutive IV hole larger than threshold.
+  # Used by needing_history_backfill so cron repairs hollow tip-sync archives.
+  def self.time_series_ids_with_interior_continuous_gaps(
+    window_start: CONTINUOUS_RETENTION.ago,
+    threshold: CONTINUOUS_GAP_THRESHOLD,
+    time_series_scope: TimeSeries.selected
+  )
+    threshold_seconds = threshold.to_i
+    series_sql = time_series_scope.select(:id).to_sql
+    sql = <<~SQL.squish
+      SELECT DISTINCT time_series_id
+      FROM (
+        SELECT time_series_id,
+               observed_at - LAG(observed_at) OVER (
+                 PARTITION BY time_series_id ORDER BY observed_at
+               ) AS gap
+        FROM continuous_observations
+        WHERE observed_at >= #{ContinuousObservation.connection.quote(window_start)}
+          AND time_series_id IN (#{series_sql})
+      ) continuous_gaps
+      WHERE gap > INTERVAL '#{threshold_seconds} seconds'
+    SQL
+    ContinuousObservation.connection.select_values(sql).map!(&:to_i)
   end
 
   # Cover every series gap with as few location-level requests as possible.

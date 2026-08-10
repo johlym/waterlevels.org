@@ -30,6 +30,25 @@ module ActiveSupport
         ENV.delete("TURNSTILE_SECRET")
       end
     end
+
+    # Seed IV points dense enough that interior-gap repair won't re-fetch.
+    # Step defaults to 1 hour (under CONTINUOUS_GAP_THRESHOLD).
+    def seed_continuous_coverage!(series, from:, to:, step: 1.hour, value: 1.0)
+      now = Time.current
+      rows = []
+      t = from
+      while t <= to
+        rows << {
+          time_series_id: series.id,
+          observed_at: t,
+          value: value,
+          created_at: now,
+          updated_at: now
+        }
+        t += step
+      end
+      ContinuousObservation.insert_all(rows) if rows.any?
+    end
   end
 end
 

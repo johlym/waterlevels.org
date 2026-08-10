@@ -3,6 +3,12 @@ import Chart from "chart.js/auto"
 import { firstPartyApiFetch } from "../lib/api"
 import { formatGaugeValue } from "../lib/gauge_value"
 import { coalesceHourlyReadings } from "../lib/coalesce_hourly_readings"
+import {
+  chartPointsWithBreaks,
+  findGaps,
+  gapHatchPlugin,
+  isContinuousChartRange
+} from "../lib/hydrograph_gaps"
 
 const SERIES_COLORS = {
   discharge: { border: "#22d3ee", fill: "rgba(34, 211, 238, 0.18)", legend: "bg-cyan" },
@@ -521,37 +527,32 @@ export default class extends Controller {
     if (!primary) return
 
     const primaryPoints = primary.points || []
-    const labels = primaryPoints.map((point) => this.formatAxisLabel(point.t))
-    const dayKeys = this.range === "24h"
-      ? primaryPoints.map((point) => {
-          const date = new Date(point.t)
-          return Number.isNaN(date.getTime()) ? null : this.dayKeyFromDate(date)
-        })
-      : null
-    const dayLabels = this.range === "24h"
-      ? primaryPoints.map((point) => {
-          const date = new Date(point.t)
-          if (Number.isNaN(date.getTime())) return null
-          return date.toLocaleDateString("en-US", this.localeOptions({
-            month: "short",
-            day: "numeric"
-          }))
-        })
-      : null
+    const continuousRange = isContinuousChartRange(this.range)
     const colors = SERIES_COLORS[primary.kind] || SERIES_COLORS.discharge
     const grid = "rgba(255,255,255,0.08)"
     const tick = "#a1a1aa"
     const narrow = typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches
     const maxTicksLimit = this.range === "24h" ? (narrow ? 4 : 6) : (narrow ? 4 : 5)
 
-    const estimatedFlags = primaryPoints.map((point) => point.s === "derived")
+    const chartPoints = continuousRange
+      ? chartPointsWithBreaks(primaryPoints)
+      : primaryPoints.map((point) => point.v)
+    const labels = continuousRange ? undefined : primaryPoints.map((point) => this.formatAxisLabel(point.t))
+    const estimatedFlags = continuousRange
+      ? chartPoints.map((point) => Boolean(point?.estimated))
+      : primaryPoints.map((point) => point.s === "derived")
+    const gaps = continuousRange
+      ? findGaps(primaryPoints, undefined, { throughMs: Date.now() })
+      : []
+
     const datasets = [{
       label: primary.label || primary.kind,
-      data: primaryPoints.map((point) => point.v),
+      data: chartPoints,
       borderColor: colors.border,
       backgroundColor: colors.fill,
       fill: true,
       tension: 0.25,
+      spanGaps: false,
       pointRadius: estimatedFlags.map((estimated) => estimated ? 3 : 0),
       pointHoverRadius: estimatedFlags.map((estimated) => estimated ? 4 : 3),
       pointBackgroundColor: estimatedFlags.map((estimated) => estimated ? colors.border : "transparent"),
@@ -560,17 +561,33 @@ export default class extends Controller {
       borderWidth: 2,
       yAxisID: "y",
       seriesKind: primary.kind,
-      estimatedFlags
+      estimatedFlags,
+      parsing: continuousRange ? false : undefined
     }]
 
     if (companion && (companion.points || []).length) {
       const companionColors = SERIES_COLORS[companion.kind] || SERIES_COLORS.water_level
-      const companionByMinute = new Map(
-        (companion.points || []).map((point) => [String(point.t).slice(0, 16), point.v])
-      )
+      let companionData
+      if (continuousRange) {
+        const companionByMinute = new Map(
+          (companion.points || []).map((point) => [String(point.t).slice(0, 16), point.v])
+        )
+        companionData = chartPoints.map((point) => {
+          if (point?.gap || point?.y == null || point?.t == null) return { x: point.x, y: null }
+          return {
+            x: point.x,
+            y: companionByMinute.get(String(point.t).slice(0, 16)) ?? null
+          }
+        })
+      } else {
+        const companionByMinute = new Map(
+          (companion.points || []).map((point) => [String(point.t).slice(0, 16), point.v])
+        )
+        companionData = primaryPoints.map((point) => companionByMinute.get(String(point.t).slice(0, 16)) ?? null)
+      }
       datasets.push({
         label: companion.label || companion.kind,
-        data: primaryPoints.map((point) => companionByMinute.get(String(point.t).slice(0, 16)) ?? null),
+        data: companionData,
         borderColor: companionColors.border,
         backgroundColor: "transparent",
         borderDash: [4, 4],
@@ -579,8 +596,9 @@ export default class extends Controller {
         pointRadius: 0,
         borderWidth: 2,
         yAxisID: "y1",
-        spanGaps: true,
-        seriesKind: companion.kind
+        spanGaps: !continuousRange,
+        seriesKind: companion.kind,
+        parsing: continuousRange ? false : undefined
       })
     }
 
@@ -590,9 +608,17 @@ export default class extends Controller {
       : []
     floodStages.forEach(({ key, value }) => {
       const stageColors = FLOOD_STAGE_COLORS[key]
+      let stageData
+      if (continuousRange) {
+        stageData = chartPoints.length
+          ? chartPoints.map((point) => ({ x: point.x, y: point?.gap ? null : value }))
+          : []
+      } else {
+        stageData = primaryPoints.length ? primaryPoints.map(() => value) : [value]
+      }
       datasets.push({
         label: FLOOD_STAGE_LABELS[key] || key,
-        data: primaryPoints.length ? primaryPoints.map(() => value) : [value],
+        data: stageData,
         borderColor: stageColors.border,
         backgroundColor: "transparent",
         borderDash: stageColors.dash || [6, 4],
@@ -602,11 +628,12 @@ export default class extends Controller {
         borderWidth: 2,
         yAxisID: "y",
         seriesKind: "water_level",
-        isFloodStage: true
+        isFloodStage: true,
+        parsing: continuousRange ? false : undefined
       })
     })
 
-    if (!labels.length && floodStages.length) labels.push("")
+    if (!continuousRange && !labels.length && floodStages.length) labels.push("")
 
     // Only nudge the axis when visible flood stages are present. Without
     // thresholds, leave scaling to Chart.js so the series fills the plot.
@@ -614,24 +641,56 @@ export default class extends Controller {
       ? this.suggestedMaxForAxis(pointValues, floodStages.map((stage) => stage.value))
       : undefined
 
+    const dayKeys = (!continuousRange && this.range === "24h")
+      ? primaryPoints.map((point) => {
+          const date = new Date(point.t)
+          return Number.isNaN(date.getTime()) ? null : this.dayKeyFromDate(date)
+        })
+      : null
+    const dayLabels = dayKeys
+      ? primaryPoints.map((point) => {
+          const date = new Date(point.t)
+          if (Number.isNaN(date.getTime())) return null
+          return date.toLocaleDateString("en-US", this.localeOptions({
+            month: "short",
+            day: "numeric"
+          }))
+        })
+      : null
+
     try {
       this.chart = new Chart(this.canvasTarget.getContext("2d"), {
         type: "line",
-        data: { labels, datasets },
+        data: continuousRange ? { datasets } : { labels, datasets },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           interaction: { mode: "index", intersect: false },
           plugins: {
             legend: { display: false },
+            gapHatch: continuousRange ? { gaps, fillColor: "rgba(161, 161, 170, 0.55)" } : false,
             tooltip: {
               backgroundColor: "#18181b",
               titleColor: "#fafafa",
               bodyColor: "#d4d4d8",
               borderColor: "rgba(255,255,255,0.12)",
               borderWidth: 1,
-              filter: (context) => !context.dataset.isFloodStage || context.dataIndex === 0,
+              filter: (context) => {
+                if (context.dataset.isFloodStage) return context.dataIndex === 0
+                if (context.raw?.gap || context.parsed?.y == null) return false
+                return true
+              },
               callbacks: {
+                title: (items) => {
+                  const item = items?.[0]
+                  if (!item) return ""
+                  if (continuousRange) {
+                    const ms = item.parsed?.x
+                    if (!Number.isFinite(ms)) return ""
+                    return this.formatTimestamp(new Date(ms).toISOString())
+                  }
+                  return item.label || ""
+                },
                 label: (context) => {
                   const raw = context.parsed.y
                   if (raw == null) return `${context.dataset.label}: —`
@@ -648,7 +707,19 @@ export default class extends Controller {
             }
           },
           scales: {
-            x: {
+            x: continuousRange ? {
+              type: "linear",
+              display: true,
+              border: { display: false },
+              grid: { color: grid },
+              ticks: {
+                color: tick,
+                maxTicksLimit,
+                maxRotation: 0,
+                minRotation: 0,
+                callback: (value) => this.formatAxisLabel(new Date(value).toISOString())
+              }
+            } : {
               display: true,
               border: { display: false },
               grid: { color: grid },
@@ -701,7 +772,8 @@ export default class extends Controller {
               }
             } : {})
           }
-        }
+        },
+        plugins: continuousRange ? [ gapHatchPlugin ] : []
       })
     } catch (error) {
       console.error("Hydrograph chart failed to render", error)
