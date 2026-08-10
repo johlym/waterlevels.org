@@ -479,12 +479,24 @@ class HistoryIngestion
   def flush_continuous_buffer!(buffer)
     return if buffer.empty?
 
+    # USGS continuous payloads (and overlap around tip/gap fetches) can repeat the
+    # same (time_series_id, observed_at) in one batch. Postgres rejects
+    # ON CONFLICT DO UPDATE when a constrained row is proposed twice (WATER-K).
+    rows = dedupe_continuous_upsert_rows(buffer)
+
     ContinuousObservation.upsert_all(
-      buffer,
+      rows,
       unique_by: %i[time_series_id observed_at],
       update_only: %i[value approval_status qualifier]
     )
     buffer.clear
+  end
+
+  def dedupe_continuous_upsert_rows(rows)
+    rows.each_with_object({}) do |row, uniq|
+      key = [ row[:time_series_id], row[:observed_at].to_i ]
+      uniq[key] = row
+    end.values
   end
 
   def ingest_daily_for(series_list)

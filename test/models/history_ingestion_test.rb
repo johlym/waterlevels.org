@@ -83,6 +83,64 @@ class HistoryIngestionTest < ActiveSupport::TestCase
     HistoryIngestion.const_set(:CONTINUOUS_UPSERT_BATCH, previous)
   end
 
+  test "continuous ingest dedupes duplicate timestamps before upsert_all" do
+    observed_at = "2026-08-01T12:00:00Z"
+    features = [
+      {
+        id: "1",
+        properties: {
+          time_series_id: @series.usgs_time_series_id,
+          parameter_code: "62614",
+          time: observed_at,
+          value: 540.1,
+          approval_status: "Provisional",
+          qualifier: "P"
+        }
+      },
+      {
+        id: "2",
+        properties: {
+          time_series_id: @series.usgs_time_series_id,
+          parameter_code: "62614",
+          time: observed_at,
+          value: 540.9,
+          approval_status: "Approved",
+          qualifier: "A"
+        }
+      },
+      {
+        id: "3",
+        properties: {
+          time_series_id: @series.usgs_time_series_id,
+          parameter_code: "62614",
+          time: "2026-08-01T12:15:00Z",
+          value: 541.0,
+          approval_status: "Provisional"
+        }
+      }
+    ]
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/continuous/items})
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/geo+json" },
+        body: { features: features, links: [] }.to_json
+      )
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/peaks/items})
+      .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+
+    assert_nothing_raised do
+      HistoryIngestion.new(monitoring_location: @location, range: "7d").perform
+    end
+
+    observations = @series.continuous_observations.order(:observed_at)
+    assert_equal 2, observations.count
+    first = observations.first
+    assert_in_delta 540.9, first.value, 0.001
+    assert_equal "Approved", first.approval_status
+    assert_equal "A", first.qualifier
+    assert_in_delta 541.0, observations.last.value, 0.001
+  end
+
   test "1y ingest loads daily year history and continuous within retention" do
     continuous_query = nil
     daily_query = nil
