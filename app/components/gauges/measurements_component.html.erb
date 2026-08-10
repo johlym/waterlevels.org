@@ -72,17 +72,32 @@
           </div>
         <% end %>
         <div class="trends">
-          <% if change_24h %>
-            <p>24h <%= helpers.signed_number(change_24h, precision: precision) %> <%= unit %></p>
-          <% end %>
-          <% if yoy %>
-            <p>YoY <%= helpers.signed_number(yoy, precision: precision) %> <%= unit %></p>
-          <% end %>
-          <% if high || low %>
-            <p>
-              High <%= high ? helpers.display_gauge_value(high, precision: precision) : "—" %>
-              · Low <%= low ? helpers.display_gauge_value(low, precision: precision) : "—" %>
-            </p>
+          <% if kind == "temperature" %>
+            <% if change_24h %>
+              <p>24h <span data-temperature-unit-target="display" data-temp-delta-c="<%= change_24h %>"></span></p>
+            <% end %>
+            <% if yoy %>
+              <p>YoY <span data-temperature-unit-target="display" data-temp-delta-c="<%= yoy %>"></span></p>
+            <% end %>
+            <% if high || low %>
+              <p>
+                High <% if high %><span data-temperature-unit-target="display" data-temp-c="<%= high %>" data-temp-hide-unit="true"></span><% else %>—<% end %>
+                · Low <% if low %><span data-temperature-unit-target="display" data-temp-c="<%= low %>" data-temp-hide-unit="true"></span><% else %>—<% end %>
+              </p>
+            <% end %>
+          <% else %>
+            <% if change_24h %>
+              <p>24h <%= helpers.signed_number(change_24h, precision: precision) %> <%= unit %></p>
+            <% end %>
+            <% if yoy %>
+              <p>YoY <%= helpers.signed_number(yoy, precision: precision) %> <%= unit %></p>
+            <% end %>
+            <% if high || low %>
+              <p>
+                High <%= high ? helpers.display_gauge_value(high, precision: precision) : "—" %>
+                · Low <%= low ? helpers.display_gauge_value(low, precision: precision) : "—" %>
+              </p>
+            <% end %>
           <% end %>
         </div>
       </button>
