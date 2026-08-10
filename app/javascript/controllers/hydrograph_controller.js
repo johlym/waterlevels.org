@@ -9,6 +9,12 @@ import {
   gapHatchPlugin,
   isContinuousChartRange
 } from "../lib/hydrograph_gaps"
+import {
+  convertTemperatureC,
+  formatTemperature,
+  preferredTemperatureUnit,
+  temperatureUnitLabel
+} from "../lib/temperature_unit"
 
 const SERIES_COLORS = {
   discharge: { border: "#22d3ee", fill: "rgba(34, 211, 238, 0.18)", legend: "bg-cyan" },
@@ -852,12 +858,8 @@ export default class extends Controller {
   displayValue(value, kind = this.series?.kind) {
     if (value == null || Number.isNaN(value)) return "—"
     if (kind === "temperature") {
-      const unit = this.tempUnit()
-      const converted = unit === "c" ? value : (value * 9) / 5 + 32
-      return converted.toLocaleString("en-US", {
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1
-      })
+      const converted = convertTemperatureC(value, this.tempUnit())
+      return formatTemperature(converted) ?? "—"
     }
     if (kind === "discharge") {
       return formatGaugeValue(value, 0) ?? "—"
@@ -867,7 +869,7 @@ export default class extends Controller {
 
   unitLabel(series) {
     if (!series) return ""
-    if (series.kind === "temperature") return `°${this.tempUnit().toUpperCase()}`
+    if (series.kind === "temperature") return temperatureUnitLabel(this.tempUnit())
     return this.formatUnit(series.unit)
   }
 
@@ -877,8 +879,7 @@ export default class extends Controller {
   }
 
   tempUnit() {
-    const match = document.cookie.match(/(?:^|; )temperature_unit=([^;]*)/)
-    return match && match[1] === "c" ? "c" : "f"
+    return preferredTemperatureUnit(document.cookie)
   }
 
   escapeHtml(value) {
