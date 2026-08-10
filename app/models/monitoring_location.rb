@@ -72,7 +72,9 @@ class MonitoringLocation < ApplicationRecord
       id: ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id)
     )
     # Year anchor lives in R2 (legacy Postgres rows still count during drain).
-    missing_daily_anchor = TimeSeries.selected.where.not(
+    # Skip parameters USGS does not publish daily DV for (IV-only series).
+    expecting_daily = TimeSeries.selected.expecting_daily
+    missing_daily_anchor = expecting_daily.where.not(
       id: DailyArchive.time_series_ids_with_daily_on_or_before(daily_anchor)
     )
     fresh_daily_tip_ids = DailyArchive.time_series_ids_with_fresh_daily_tip(daily_fresh_since)
@@ -83,7 +85,7 @@ class MonitoringLocation < ApplicationRecord
           "(#{fresh_daily_tip_ids.to_sql} UNION #{DailyObservation.where(observed_on: daily_fresh_since..).select(:time_series_id).to_sql}) AS daily_observations"
         )
       )
-    stale_daily_tip = TimeSeries.selected.where.not(id: fresh_daily_tip_ids)
+    stale_daily_tip = expecting_daily.where.not(id: fresh_daily_tip_ids)
     where(id: missing_continuous_tip.select(:monitoring_location_id))
       .or(where(id: missing_continuous_anchor.select(:monitoring_location_id)))
       .or(where(id: missing_daily_anchor.select(:monitoring_location_id)))
@@ -115,7 +117,7 @@ class MonitoringLocation < ApplicationRecord
         )
       )
 
-    candidate_series = TimeSeries.selected
+    candidate_series = TimeSeries.selected.expecting_daily
       .where(id: has_year)
       .where.not(id: has_deep)
       .where(id: has_continuous_tip)
@@ -158,15 +160,20 @@ class MonitoringLocation < ApplicationRecord
     series.any? do |s|
       s.continuous_observations.where(observed_at: continuous_since..).none? ||
         s.continuous_observations.where(observed_at: ..continuous_anchor).none? ||
-        !s.has_daily_on_or_before?(daily_anchor) ||
-        s.newest_daily_on.blank? || s.newest_daily_on < daily_fresh_since
+        (
+          s.expects_daily_history? && (
+            !s.has_daily_on_or_before?(daily_anchor) ||
+            s.newest_daily_on.blank? || s.newest_daily_on < daily_fresh_since
+          )
+        )
     end
   end
 
-  # True when a selected series lacks daily points near the ~1-year
-  # anchor — i.e. the 1 Year chart is not fully loaded yet.
+  # True when a selected series that expects USGS daily still lacks points near
+  # the ~1-year anchor — i.e. the 1 Year chart is not fully loaded yet.
+  # IV-only parameters (usgs_daily_absent) do not keep this callout up.
   def missing_year_history?
-    series = time_series.selected
+    series = time_series.selected.select(&:expects_daily_history?)
     return false if series.none?
 
     daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
@@ -176,7 +183,7 @@ class MonitoringLocation < ApplicationRecord
   # True when year history is present but a selected series still lacks daily
   # points near the ~3-year deep anchor (Postgres hot tip or cold archive).
   def missing_deep_history?
-    series = time_series.selected
+    series = time_series.selected.select(&:expects_daily_history?)
     return false if series.none?
     return false if missing_year_history?
 
@@ -184,14 +191,25 @@ class MonitoringLocation < ApplicationRecord
     series.any? { |s| !s.has_daily_on_or_before?(deep_anchor) }
   end
 
-  # True when every selected series has daily points near the ~3-year anchor —
-  # used to expose the 3 Years chart tab (hot Postgres and/or R2 shards).
+  # True when every selected series that expects daily has points near the
+  # ~3-year anchor — used to expose the 3 Years chart tab.
   def has_deep_history?
-    series = time_series.selected
+    series = time_series.selected.select(&:expects_daily_history?)
     return false if series.none?
 
     deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
     series.all? { |s| s.has_daily_on_or_before?(deep_anchor) }
+  end
+
+  # Selected series confirmed to have no USGS daily DV (IV-only parameters).
+  def daily_history_unavailable_series
+    time_series.selected.where(usgs_daily_absent: true)
+  end
+
+  def daily_history_unavailable_labels
+    daily_history_unavailable_series.map do |series|
+      Usgs::ParameterCodes.label_for(series.parameter_code, fallback: series.parameter_description)
+    end.uniq
   end
 
   def to_param

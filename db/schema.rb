@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_09_023000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_10_163000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -159,6 +159,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_023000) do
     t.string "statistic_name"
     t.string "unit_of_measure"
     t.datetime "updated_at", null: false
+    t.boolean "usgs_daily_absent", default: false, null: false
     t.string "usgs_time_series_id", null: false
     t.index ["monitoring_location_id", "measurement_kind", "selected_for_display"], name: "index_time_series_on_location_kind_selected"
     t.index ["monitoring_location_id"], name: "index_time_series_on_monitoring_location_id"

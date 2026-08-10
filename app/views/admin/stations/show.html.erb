@@ -215,6 +215,7 @@
                 <th scope="col">Series</th>
                 <th scope="col">Selected</th>
                 <th scope="col">Reporting</th>
+                <th scope="col">USGS daily</th>
                 <th scope="col">Latest tip</th>
                 <th scope="col">Continuous</th>
                 <th scope="col">Daily</th>
@@ -242,6 +243,13 @@
                       <span class="badge ok">yes</span>
                     <% else %>
                       <span class="badge bad">no</span>
+                    <% end %>
+                  </td>
+                  <td>
+                    <% if series[:usgs_daily_absent] %>
+                      <span class="badge bad">absent</span>
+                    <% else %>
+                      <span class="badge ok">expected</span>
                     <% end %>
                   </td>
                   <td>

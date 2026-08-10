@@ -115,6 +115,48 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     refute location.missing_year_history?
   end
 
+  test "missing_year_history? ignores usgs_daily_absent series" do
+    location = create(:monitoring_location)
+    create(
+      :time_series,
+      monitoring_location: location,
+      selected_for_display: true,
+      usgs_daily_absent: true,
+      parameter_code: "00065",
+      measurement_kind: "water_level"
+    )
+    flow = create(
+      :time_series,
+      monitoring_location: location,
+      selected_for_display: true,
+      parameter_code: "00060",
+      measurement_kind: "discharge"
+    )
+    DailyObservation.create!(time_series: flow, observed_on: 11.months.ago.to_date, value: 10.0)
+    DailyObservation.create!(time_series: flow, observed_on: Date.current, value: 11.0)
+
+    refute location.missing_year_history?
+    assert_equal [ "Gage height" ], location.daily_history_unavailable_labels
+  end
+
+  test "needs_history_backfill? ignores daily gaps for usgs_daily_absent series" do
+    location = create(:monitoring_location)
+    series = create(
+      :time_series,
+      monitoring_location: location,
+      selected_for_display: true,
+      usgs_daily_absent: true
+    )
+    ContinuousObservation.create!(
+      time_series: series,
+      observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago - 1.day,
+      value: 1.0
+    )
+    ContinuousObservation.create!(time_series: series, observed_at: 1.hour.ago, value: 1.1)
+
+    refute location.needs_history_backfill?
+  end
+
   test "missing_deep_history? is false until year history exists" do
     location = create(:monitoring_location)
     series = create(:time_series, monitoring_location: location, selected_for_display: true)

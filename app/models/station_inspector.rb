@@ -174,6 +174,7 @@ class StationInspector
       primary_series: series.primary_series?,
       selected: series.selected_for_display?,
       reporting: series.reporting?,
+      usgs_daily_absent: series.usgs_daily_absent?,
       begins_at: series.begins_at,
       ends_at: series.ends_at,
       metadata_synced_at: series.metadata_synced_at,
@@ -218,14 +219,16 @@ class StationInspector
     if continuous_oldest.blank? || continuous_oldest > continuous_anchor
       gaps << "missing_continuous_anchor"
     end
-    unless series.has_daily_on_or_before?(daily_anchor)
-      gaps << "missing_year_daily"
-    end
-    if newest_daily.blank? || newest_daily < daily_fresh_since
-      gaps << "stale_or_missing_daily_tip"
-    end
-    unless series.has_daily_on_or_before?(deep_anchor)
-      gaps << "missing_deep_daily"
+    if series.expects_daily_history?
+      unless series.has_daily_on_or_before?(daily_anchor)
+        gaps << "missing_year_daily"
+      end
+      if newest_daily.blank? || newest_daily < daily_fresh_since
+        gaps << "stale_or_missing_daily_tip"
+      end
+      unless series.has_daily_on_or_before?(deep_anchor)
+        gaps << "missing_deep_daily"
+      end
     end
     gaps
   end
@@ -295,6 +298,27 @@ class StationInspector
         :warn,
         :partial_table_risk,
         "Selected #{series_label(s)} has a stale/missing continuous tip — hourly table rows can show Partial when this parameter is expected but absent for an hour."
+      )
+    end
+
+    selected.each do |s|
+      if s[:usgs_daily_absent]
+        findings << finding(
+          :info,
+          :usgs_daily_absent,
+          "Selected #{series_label(s)} is marked usgs_daily_absent — USGS returned no daily DV after backfill. It no longer blocks the year-history callout or cooldown; 1y/3y charts for this parameter stay empty by design."
+        )
+        next
+      end
+
+      next unless s[:gaps].include?("missing_year_daily")
+      next unless s[:continuous][:count].positive?
+      next if s[:daily][:postgres_count].positive? || s[:daily][:shard_count].positive?
+
+      findings << finding(
+        :warn,
+        :usgs_daily_likely_unavailable,
+        "Selected #{series_label(s)} has continuous IV but no daily archive rows yet — often USGS publishes IV without daily DV. After the next successful daily fetch with zero rows for this parameter, ingest will mark usgs_daily_absent and stop the “still loading” loop."
       )
     end
 
