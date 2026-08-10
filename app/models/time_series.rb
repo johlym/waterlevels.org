@@ -1,4 +1,9 @@
 class TimeSeries < ApplicationRecord
+  # Tip younger than this is treated as currently reported for display selection.
+  # Matches MonitoringLocation#stale? so a quiet parameter drops off while the
+  # station's other kinds are still live (e.g. discontinued temperature).
+  REPORTING_TIP_WINDOW = MonitoringLocation::STALE_AFTER
+
   belongs_to :monitoring_location
   has_one :latest_observation, dependent: :destroy
   has_many :daily_observations, dependent: :destroy
@@ -26,5 +31,15 @@ class TimeSeries < ApplicationRecord
 
   def oldest_daily_on
     [ daily_archive_shards.minimum(:min_on), daily_observations.minimum(:observed_on) ].compact.min
+  end
+
+  # True when this series still looks actively reported (fresh tip).
+  # USGS metadata ends_at alone is unreliable between weekly catalog syncs —
+  # tip age is what drives Partial rows and current-condition cards.
+  def reporting?(as_of: Time.current)
+    tip_at = latest_observation&.observed_at
+    return false if tip_at.blank?
+
+    tip_at >= REPORTING_TIP_WINDOW.before(as_of)
   end
 end

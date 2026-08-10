@@ -78,6 +78,35 @@ class StationInspectorTest < ActiveSupport::TestCase
     assert_match(/temperature\/00010/, finding[:summary])
   end
 
+  test "report flags discontinued series still selected while siblings report" do
+    LatestObservation.create!(
+      time_series: @stage,
+      value: 4.0,
+      unit_of_measure: "ft",
+      observed_at: 1.hour.ago,
+      synced_at: Time.current
+    )
+    LatestObservation.create!(
+      time_series: @flow,
+      value: 100.0,
+      unit_of_measure: "ft3/s",
+      observed_at: 1.hour.ago,
+      synced_at: Time.current
+    )
+    LatestObservation.create!(
+      time_series: @temp,
+      value: 18.0,
+      unit_of_measure: "degC",
+      observed_at: Time.utc(2026, 7, 20, 12, 0, 0),
+      synced_at: Time.current
+    )
+
+    report = StationInspector.report(@location)
+    finding = report[:findings].find { |f| f[:code] == "discontinued_still_selected" }
+    assert finding
+    assert_match(/temperature\/00010/, finding[:summary])
+  end
+
   test "report surfaces backfill cooldown when station still needs fill" do
     HistoryBackfillLock.cooldown!(@location.id)
     report = StationInspector.report(@location)
