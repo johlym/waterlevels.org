@@ -73,4 +73,30 @@ class DailyArchiveTest < ActiveSupport::TestCase
     ids = DailyArchive.time_series_ids_with_fresh_daily_tip(2.days.ago.to_date).pluck(:time_series_id)
     assert_includes ids, series.id
   end
+
+  test "fresh_daily_tip_series_ids unions hot rows and shard max_on" do
+    hot_series = create(:time_series)
+    cold_series = create(:time_series)
+    stale_series = create(:time_series)
+    since_on = 2.days.ago.to_date
+
+    DailyObservation.create!(time_series: hot_series, observed_on: Date.current, value: 1.0)
+    DailyArchiveShard.create!(
+      time_series: cold_series,
+      year: Date.current.year,
+      object_key: "daily/v1/#{cold_series.id}/#{Date.current.year}.json.gz",
+      content_sha256: "tip",
+      point_count: 2,
+      min_on: 10.days.ago.to_date,
+      max_on: Date.current,
+      source_mix: "usgs",
+      synced_at: Time.current
+    )
+    DailyObservation.create!(time_series: stale_series, observed_on: 10.days.ago.to_date, value: 1.0)
+
+    ids = DailyArchive.fresh_daily_tip_series_ids(since_on)
+    assert_includes ids, hot_series.id
+    assert_includes ids, cold_series.id
+    refute_includes ids, stale_series.id
+  end
 end

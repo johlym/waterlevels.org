@@ -101,6 +101,7 @@ Keep `CLOUDFLARE_ZONE_ID` / `CLOUDFLARE_API_TOKEN` for Cache-Tag purge only — 
 - `DailyArchiveExportJob` / `bin/rails archive:export_daily` — one-time / catch-up Postgres → R2 for leftover rows (safe to re-run).
 - `ContinuousPruneJob` (daily 04:15) — USGS-first day-31+ ensure, estimated fallback, gap alerts, IV prune, and Postgres daily drain when `DAILY_ARCHIVE_PRUNE=1`.
 - Readiness / freshness gates use R2 shard catalog (`min_on` / `max_on`), not Postgres daily row presence.
+- Admin `/admin` coverage aggregates use the same gates (`DailyArchive.daily_coverage_series_ids` + `fresh_daily_tip_series_ids`) so prune does not zero out “have ~1y → need 3y”.
 
 ## Rollout order
 

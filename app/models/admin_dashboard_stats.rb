@@ -21,12 +21,12 @@ class AdminDashboardStats
   # Cheap sections first so the sequential frame loader warms UI quickly, then
   # core (which fills the backfill cache), then the remaining heavy panels.
   SECTION_LOAD_ORDER = %i[jobs health core pipeline growth states].freeze
-  BACKFILL_CACHE_KEY = "admin_dashboard/backfill_aggregates/v3".freeze
+  BACKFILL_CACHE_KEY = "admin_dashboard/backfill_aggregates/v4".freeze
   BACKFILL_TTL = 10.minutes
   BACKFILL_RACE_TTL = 30.seconds
   # Bump when a section payload shape changes so deploys do not serve stale
   # hashes that crash the matching partial (Turbo then shows "Content missing").
-  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v4".freeze
+  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v5".freeze
   SECTION_TTL = 2.minutes
   SECTION_RACE_TTL = 15.seconds
   REDIS_SCAN_MAX_ITERATIONS = 50
@@ -314,26 +314,44 @@ class AdminDashboardStats
       .distinct.pluck(:time_series_id).to_set
     has_continuous_anchor = ContinuousObservation.where(observed_at: ..continuous_anchor)
       .distinct.pluck(:time_series_id).to_set
-    has_daily_tip = DailyObservation.where(observed_on: daily_fresh_since..)
-      .distinct.pluck(:time_series_id).to_set
+    # Must include R2 shard tips — after DAILY_ARCHIVE_PRUNE, Postgres daily is empty.
+    has_daily_tip = DailyArchive.fresh_daily_tip_series_ids(daily_fresh_since)
 
     needing_history_by_state = {}
     needing_deep_by_state = {}
     missing_year_by_state = {}
+    missing_continuous_tip_by_state = {}
+    missing_continuous_anchor_by_state = {}
+    missing_daily_tip_by_state = {}
+    has_continuous_tip_by_state = {}
+    has_continuous_anchor_by_state = {}
+    has_year_by_state = {}
+    has_deep_by_state = {}
+    has_daily_tip_by_state = {}
+    selected_by_state = {}
 
     selected.group_by(&:last).each do |location_id, rows|
       state = location_state[location_id]
       series_ids = rows.map(&:first)
       missing_year = series_ids.any? { |id| !has_year.include?(id) }
       missing_deep = series_ids.any? { |id| !has_deep.include?(id) }
-      phase1 = series_ids.any? do |id|
-        !has_continuous_tip.include?(id) ||
-          !has_continuous_anchor.include?(id) ||
-          !has_year.include?(id) ||
-          !has_daily_tip.include?(id)
-      end
+      missing_cont_tip = series_ids.any? { |id| !has_continuous_tip.include?(id) }
+      missing_cont_anchor = series_ids.any? { |id| !has_continuous_anchor.include?(id) }
+      missing_tip = series_ids.any? { |id| !has_daily_tip.include?(id) }
+      phase1 = missing_cont_tip || missing_cont_anchor || missing_year || missing_tip
+
+      selected_by_state[state] = selected_by_state[state].to_i + 1
+      has_continuous_tip_by_state[state] = has_continuous_tip_by_state[state].to_i + 1 unless missing_cont_tip
+      has_continuous_anchor_by_state[state] = has_continuous_anchor_by_state[state].to_i + 1 unless missing_cont_anchor
+      has_year_by_state[state] = has_year_by_state[state].to_i + 1 unless missing_year
+      has_deep_by_state[state] = has_deep_by_state[state].to_i + 1 unless missing_deep
+      has_daily_tip_by_state[state] = has_daily_tip_by_state[state].to_i + 1 unless missing_tip
 
       missing_year_by_state[state] = missing_year_by_state[state].to_i + 1 if missing_year
+      missing_continuous_tip_by_state[state] = missing_continuous_tip_by_state[state].to_i + 1 if missing_cont_tip
+      missing_continuous_anchor_by_state[state] = missing_continuous_anchor_by_state[state].to_i + 1 if missing_cont_anchor
+      missing_daily_tip_by_state[state] = missing_daily_tip_by_state[state].to_i + 1 if missing_tip
+
       if phase1
         needing_history_by_state[state] = needing_history_by_state[state].to_i + 1
       elsif missing_deep
@@ -360,10 +378,19 @@ class AdminDashboardStats
         0
       ].max,
       per_state: per_state_rows(
-        stations_by_state,
-        needing_history_by_state,
-        needing_deep_by_state,
-        missing_year_by_state
+        stations_by_state: stations_by_state,
+        selected_by_state: selected_by_state,
+        needing_history_by_state: needing_history_by_state,
+        needing_deep_by_state: needing_deep_by_state,
+        missing_year_by_state: missing_year_by_state,
+        missing_continuous_tip_by_state: missing_continuous_tip_by_state,
+        missing_continuous_anchor_by_state: missing_continuous_anchor_by_state,
+        missing_daily_tip_by_state: missing_daily_tip_by_state,
+        has_continuous_tip_by_state: has_continuous_tip_by_state,
+        has_continuous_anchor_by_state: has_continuous_anchor_by_state,
+        has_year_by_state: has_year_by_state,
+        has_deep_by_state: has_deep_by_state,
+        has_daily_tip_by_state: has_daily_tip_by_state
       )
     }
   end
@@ -391,32 +418,54 @@ class AdminDashboardStats
   end
 
   def per_state_rows(
-    stations_by_state,
-    needing_history_by_state,
-    needing_deep_by_state,
-    missing_year_by_state
+    stations_by_state:,
+    selected_by_state:,
+    needing_history_by_state:,
+    needing_deep_by_state:,
+    missing_year_by_state:,
+    missing_continuous_tip_by_state:,
+    missing_continuous_anchor_by_state:,
+    missing_daily_tip_by_state:,
+    has_continuous_tip_by_state:,
+    has_continuous_anchor_by_state:,
+    has_year_by_state:,
+    has_deep_by_state:,
+    has_daily_tip_by_state:
   )
     codes = (
       stations_by_state.keys +
+      selected_by_state.keys +
       needing_history_by_state.keys +
       needing_deep_by_state.keys +
       missing_year_by_state.keys
     ).uniq.sort
     codes.map do |code|
       station_count = stations_by_state[code].to_i
+      selected_count = selected_by_state[code].to_i
       needing_history = needing_history_by_state[code].to_i
       needing_deep = needing_deep_by_state[code].to_i
       missing_year = missing_year_by_state[code].to_i
+      history_ready = [ station_count - needing_history - needing_deep, 0 ].max
       {
         state_code: code,
         state_name: state_name_for(code),
         station_count: station_count,
+        selected_count: selected_count,
+        # Inventory (not mutually exclusive) — how far selected series have filled.
+        has_continuous_tip: has_continuous_tip_by_state[code].to_i,
+        has_continuous_anchor: has_continuous_anchor_by_state[code].to_i,
+        has_year_history: has_year_by_state[code].to_i,
+        has_deep_history: has_deep_by_state[code].to_i,
+        has_daily_tip: has_daily_tip_by_state[code].to_i,
         needing_history: needing_history,
-        # Subset of phase-1: selected series lack daily near the ~1y anchor.
+        # Phase-1 reason counts (overlapping — a station can miss more than one).
+        missing_continuous_tip: missing_continuous_tip_by_state[code].to_i,
+        missing_continuous_anchor: missing_continuous_anchor_by_state[code].to_i,
         missing_year_history: missing_year,
+        missing_daily_tip: missing_daily_tip_by_state[code].to_i,
         needing_deep_history: needing_deep,
         # Mutually exclusive with the two backlog columns.
-        history_ready: [ station_count - needing_history - needing_deep, 0 ].max
+        history_ready: history_ready
       }
     end
   end

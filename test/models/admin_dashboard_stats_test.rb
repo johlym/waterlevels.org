@@ -103,6 +103,10 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
       assert_equal "Washington", wa[:state_name]
       assert wa.key?(:missing_year_history)
       assert wa.key?(:history_ready)
+      assert wa.key?(:has_year_history)
+      assert wa.key?(:has_deep_history)
+      assert wa.key?(:has_continuous_tip)
+      assert wa.key?(:missing_daily_tip)
       assert_equal(
         wa[:station_count],
         wa[:needing_history] + wa[:needing_deep_history] + wa[:history_ready]
@@ -287,10 +291,54 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
       ar = stats[:per_state].find { |row| row[:state_code] == "ar" }
 
       assert_equal 3, ar[:station_count]
+      assert_equal 3, ar[:selected_count]
+      assert_equal 3, ar[:has_continuous_tip]
+      assert_equal 2, ar[:has_continuous_anchor]
+      assert_equal 2, ar[:has_year_history]
+      assert_equal 1, ar[:has_deep_history]
       assert_equal 1, ar[:needing_history]
       assert_equal 1, ar[:missing_year_history]
       assert_equal 1, ar[:needing_deep_history]
       assert_equal 1, ar[:history_ready]
+    end
+  end
+
+  test "per_state counts archive-only daily tip as year-ready needing deep" do
+    travel_to Time.zone.local(2026, 8, 6, 12, 0, 0) do
+      location = create(:monitoring_location, state_code: "mt", latest_observed_at: 1.hour.ago)
+      series = create(:time_series, monitoring_location: location, parameter_code: "00060")
+      year_day = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
+
+      ContinuousObservation.create!(time_series: series, value: 1, observed_at: 1.hour.ago)
+      ContinuousObservation.create!(
+        time_series: series,
+        value: 1,
+        observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
+      )
+      # Fully drained Postgres daily tip — only R2 shard catalog remains.
+      DailyArchiveShard.create!(
+        time_series: series,
+        year: year_day.year,
+        object_key: "daily/v1/#{series.id}/#{year_day.year}.json.gz",
+        content_sha256: "archive-tip",
+        point_count: 40,
+        min_on: year_day,
+        max_on: Date.current,
+        source_mix: "usgs",
+        synced_at: Time.current
+      )
+
+      stats = AdminDashboardStats.snapshot
+      mt = stats[:per_state].find { |row| row[:state_code] == "mt" }
+
+      assert_equal 1, mt[:station_count]
+      assert_equal 1, mt[:has_year_history]
+      assert_equal 1, mt[:has_daily_tip]
+      assert_equal 0, mt[:needing_history]
+      assert_equal 0, mt[:missing_daily_tip]
+      assert_equal 1, mt[:needing_deep_history]
+      assert_equal 0, mt[:history_ready]
+      assert_equal 1, stats[:stations_needing_deep_history]
     end
   end
 

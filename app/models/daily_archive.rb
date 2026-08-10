@@ -101,6 +101,16 @@ module DailyArchive
     DailyArchiveShard.where(max_on: since_on..).select(:time_series_id)
   end
 
+  # Fresh daily tip in leftover Postgres rows and/or R2 shard max_on.
+  # Matches needing_history / needing_deep gates after DAILY_ARCHIVE_PRUNE.
+  def fresh_daily_tip_series_ids(since_on)
+    return Set.new if since_on.blank?
+
+    hot = DailyObservation.where(observed_on: since_on..).distinct.pluck(:time_series_id)
+    cold = DailyArchiveShard.where(max_on: since_on..).distinct.pluck(:time_series_id)
+    hot.to_set.merge(cold)
+  end
+
   def archive_point_count
     DailyArchiveShard.sum(:point_count).to_i
   end

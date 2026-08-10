@@ -2342,6 +2342,15 @@ body.dialog-open {
     .station-link {
       @apply text-zinc-100 no-underline transition-colors hover:text-cyan-300;
     }
+
+    &--coverage {
+      @apply min-w-[64rem];
+
+      th,
+      td {
+        @apply px-3;
+      }
+    }
   }
 
   .budget-panel {
