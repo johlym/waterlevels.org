@@ -38,6 +38,8 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.headers["Cache-Control"], "no-store"
     assert_includes response.body, "Dashboard"
+    assert_includes response.body, "Inspect station"
+    assert_includes response.body, admin_stations_path
     assert_includes response.body, "Sidekiq UI"
     assert_includes response.body, "/admin/sidekiq"
     assert_includes response.body, "Sign out"

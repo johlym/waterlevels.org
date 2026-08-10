@@ -35,6 +35,9 @@ Rails.application.routes.draw do
   get "/admin", to: "admin/dashboard#show", as: :admin
   get "/admin/sections/:section", to: "admin/dashboard#section", as: :admin_dashboard_section,
       constraints: { section: /core|pipeline|growth|jobs|states|health/ }
+  get "/admin/stations", to: "admin/stations#index", as: :admin_stations
+  get "/admin/stations/:site_number", to: "admin/stations#show", as: :admin_station,
+      constraints: { site_number: /\d+/ }
   get "/admin/login", to: "admin/sessions#new", as: :admin_login
   post "/admin/login", to: "admin/sessions#create"
   delete "/admin/logout", to: "admin/sessions#destroy", as: :admin_logout

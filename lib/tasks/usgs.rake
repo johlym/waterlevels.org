@@ -108,6 +108,15 @@ namespace :usgs do
     puts "Purged #{deleted} locations for STATE=#{state}"
   end
 
+  desc "Inspect a station's series coverage and history gaps (SITE=08405200)"
+  task inspect: :environment do
+    site = ENV.fetch("SITE") { raise "SITE is required, e.g. SITE=08405200 bin/rails usgs:inspect" }
+    location = StationInspector.find(site)
+    raise "No monitoring location found for SITE=#{site}" unless location
+
+    puts StationInspector.new(location).to_text
+  end
+
   desc "Audit catalog for errant stations (optional STATE=wa)"
   task audit_catalog: :environment do
     report = StationCatalogCleanup.audit(state: ENV["STATE"])
