@@ -2466,7 +2466,7 @@ body.dialog-open {
   }
 
   .admin-inspect-input {
-    @apply w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-white outline-none ring-cyan-500/40 placeholder:text-zinc-500 focus:border-cyan-500 focus:ring-2;
+    @apply w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-white outline-none ring-cyan-500/40 placeholder:text-zinc-400 focus:border-cyan-500 focus:ring-2;
   }
 
   .admin-inspect-submit {

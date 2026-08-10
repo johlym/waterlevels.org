@@ -32,4 +32,3 @@ class HistoryBackfillLockTest < ActiveSupport::TestCase
     refute HistoryBackfillLock.locked?(3)
   end
 end
-
