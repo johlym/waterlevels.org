@@ -50,14 +50,16 @@ class StationSnapshotCache
     end
   end
 
-  # Rebuild when empty, when selected series outnumber cached measurement cards
-  # (e.g. after reselect added gage height + elevation), or when a newer
-  # datapoint exists than the cached "last updated" timestamp.
+  # Rebuild when empty, when selected series and cached measurement cards diverge
+  # (reselect added/removed a kind, e.g. discontinued temperature), or when a
+  # newer datapoint exists than the cached "last updated" timestamp.
   def self.stale_snapshot?(cached, location)
     measurements = Array(cached[:measurements])
     selected = location.time_series.selected
     selected_count = selected.count
     return true if selected_count.positive? && measurements.size < selected_count
+    # Deselected params (discontinued tip) must drop off cards/table columns.
+    return true if measurements.size > selected_count
 
     newest_datapoint = newest_collected_at(location)
     if newest_datapoint.present?

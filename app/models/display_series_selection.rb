@@ -1,10 +1,11 @@
 class DisplaySeriesSelection
   def self.apply!(location)
     series = location.time_series.includes(:latest_observation).to_a
+    station_reporting = series.any?(&:reporting?)
 
-    water_levels = pick_water_levels(series)
-    discharge = pick_one(series, "discharge")
-    temperature = pick_one(series, "temperature")
+    water_levels = pick_water_levels(series, station_reporting: station_reporting)
+    discharge = pick_one(series, "discharge", station_reporting: station_reporting)
+    temperature = pick_one(series, "temperature", station_reporting: station_reporting)
     selected = water_levels + [ discharge, temperature ].compact
     selected_ids = selected.map(&:id)
 
@@ -77,18 +78,38 @@ class DisplaySeriesSelection
     location
   end
 
-  def self.pick_water_levels(series)
+  def self.pick_water_levels(series, station_reporting:)
     series
       .select { |s| s.measurement_kind == "water_level" }
       .group_by(&:parameter_code)
-      .map { |_code, group| group.find(&:primary_series?) || group.first }
+      .filter_map do |_code, group|
+        pool = filter_for_display(group, station_reporting: station_reporting)
+        pool.find(&:primary_series?) || pool.first
+      end
       .sort_by { |s| Usgs::ParameterCodes.preference_rank(s.parameter_code) }
   end
   private_class_method :pick_water_levels
 
-  def self.pick_one(series, kind)
-    series.find { |s| s.measurement_kind == kind && s.primary_series? } ||
-      series.find { |s| s.measurement_kind == kind }
+  def self.pick_one(series, kind, station_reporting:)
+    candidates = series.select { |s| s.measurement_kind == kind }
+    pool = filter_for_display(candidates, station_reporting: station_reporting)
+    pool.find(&:primary_series?) || pool.first
   end
   private_class_method :pick_one
+
+  # Prefer series with a fresh tip. When the station is still reporting other
+  # kinds, omit stale candidates entirely so discontinued parameters (e.g.
+  # temperature that USGS stopped publishing) no longer drive Partial rows,
+  # has_* flags, or history-backfill gates. If the whole station is quiet,
+  # keep the last-known series so stale gauge pages still show last values.
+  def self.filter_for_display(candidates, station_reporting:)
+    return [] if candidates.empty?
+
+    active = candidates.select(&:reporting?)
+    return active if active.any?
+    return [] if station_reporting
+
+    candidates
+  end
+  private_class_method :filter_for_display
 end

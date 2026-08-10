@@ -173,6 +173,7 @@ class StationInspector
       unit_of_measure: series.unit_of_measure,
       primary_series: series.primary_series?,
       selected: series.selected_for_display?,
+      reporting: series.reporting?,
       begins_at: series.begins_at,
       ends_at: series.ends_at,
       metadata_synced_at: series.metadata_synced_at,
@@ -294,6 +295,17 @@ class StationInspector
         :warn,
         :partial_table_risk,
         "Selected #{series_label(s)} has a stale/missing continuous tip — hourly table rows can show Partial when this parameter is expected but absent for an hour."
+      )
+    end
+
+    station_reporting = all_series.any? { |s| s[:reporting] }
+    selected.select { |s| !s[:reporting] }.each do |s|
+      next unless station_reporting
+
+      findings << finding(
+        :warn,
+        :discontinued_still_selected,
+        "Selected #{series_label(s)} tip is older than #{TimeSeries::REPORTING_TIP_WINDOW.inspect} while other series are still reporting — it should be dropped from display selection (Partial / year-history callout risk). Tip sync or `usgs:reselect` re-applies selection."
       )
     end
 

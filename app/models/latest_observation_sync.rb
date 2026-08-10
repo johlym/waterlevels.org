@@ -302,10 +302,10 @@ class LatestObservationSync
     count = 0
 
     scope.find_each do |location|
-      selected = location.time_series.select(&:selected_for_display?)
-      # Tip sync only needs map/listing columns. Station snapshots rebuild lazily
-      # via StationSnapshotCache.fetch (peaks/daily are too heavy for hourly tip).
-      DisplaySeriesSelection.denormalize!(location, selected: selected)
+      # Re-apply selection so discontinued series (stale tip while siblings are
+      # fresh) drop off has_* / Partial / history gates without waiting for the
+      # weekly catalog sync. Snapshots rebuild lazily via StationSnapshotCache.fetch.
+      DisplaySeriesSelection.apply!(location)
       count += 1
       progress&.increment
     end
