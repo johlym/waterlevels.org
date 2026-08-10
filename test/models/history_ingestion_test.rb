@@ -527,6 +527,61 @@ class HistoryIngestionTest < ActiveSupport::TestCase
     refute @location.needs_history_backfill?
   end
 
+  test "does not mark usgs_daily_absent for long-inactive series with empty recent DV" do
+    @series.update!(
+      parameter_code: "00060",
+      measurement_kind: "discharge",
+      usgs_time_series_id: "ts-dead-flow",
+      ends_at: Time.zone.parse("2008-06-01")
+    )
+    LatestObservation.create!(
+      time_series: @series,
+      observed_at: Time.zone.parse("2008-06-01"),
+      value: 3.0,
+      unit_of_measure: "ft3/s",
+      synced_at: Time.current
+    )
+
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/continuous/items})
+      .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/daily/items})
+      .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/peaks/items})
+      .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+
+    HistoryIngestion.new(monitoring_location: @location, range: "1y").perform
+
+    refute @series.reload.usgs_daily_absent?
+    refute @location.reload.needs_history_backfill?
+  end
+
+  test "clears stale usgs_daily_absent when series has no recent continuous evidence" do
+    @series.update!(
+      parameter_code: "00060",
+      measurement_kind: "discharge",
+      usgs_daily_absent: true,
+      ends_at: Time.zone.parse("2008-06-01")
+    )
+    LatestObservation.create!(
+      time_series: @series,
+      observed_at: Time.zone.parse("2008-06-01"),
+      value: 3.0,
+      unit_of_measure: "ft3/s",
+      synced_at: Time.current
+    )
+
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/continuous/items})
+      .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/daily/items})
+      .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/peaks/items})
+      .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+
+    HistoryIngestion.new(monitoring_location: @location, range: "1y").perform
+
+    refute @series.reload.usgs_daily_absent?
+  end
+
   test "coalesces multiple parameter codes into one continuous request per location" do
     discharge = create(
       :time_series,

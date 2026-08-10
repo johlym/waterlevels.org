@@ -51,12 +51,19 @@ class HistoryIngestion
       }
     ) do
       progress&.step("site=#{monitoring_location.site_number} range=#{range}")
-      series_list = monitoring_location.time_series.selected.to_a
+      series_list = monitoring_location.time_series.selected.includes(:latest_observation).to_a
       progress&.step("selected_series=#{series_list.size}")
+      clear_stale_usgs_daily_absent_flags!(series_list)
 
-      continuous_series = continuous_range? ? series_list.select { |s| needs_continuous?(s) } : []
-      daily_series = daily_range? ? series_list.select { |s| needs_daily?(s) } : []
-      peak_series = series_list.select { |s| needs_peaks?(s) }
+      active_series = series_list.select(&:eligible_for_recent_history_backfill?)
+      if active_series.size < series_list.size
+        skipped = series_list.size - active_series.size
+        progress&.step("skipping_inactive_series=#{skipped} (tip older than #{CONTINUOUS_RETENTION.inspect})")
+      end
+
+      continuous_series = continuous_range? ? active_series.select { |s| needs_continuous?(s) } : []
+      daily_series = daily_range? ? active_series.select { |s| needs_daily?(s) } : []
+      peak_series = active_series.select { |s| needs_peaks?(s) }
 
       continuous_count = ingest_continuous_for(continuous_series)
       daily_count = ingest_daily_for(daily_series)
@@ -491,10 +498,25 @@ class HistoryIngestion
     end
   end
 
-  # When a successful daily request returns rows for some parameters but none
-  # for others that still lack the history anchor, USGS is not publishing DV for
-  # that parameter (IV-only). Mark it so we stop the "still loading" callout and
-  # 6h cooldown loop instead of inventing year-long derived dailies from a 35d tip.
+  # Clear false "daily absent" marks on long-inactive series (empty recent-window
+  # fetch is not proof USGS never publishes DV — POR may have ended years ago).
+  def clear_stale_usgs_daily_absent_flags!(series_list)
+    series_list.each do |series|
+      next unless series.usgs_daily_absent?
+      next if series.recent_continuous_evidence?
+
+      series.update!(usgs_daily_absent: false)
+      progress&.step(
+        "cleared daily-absent parameter=#{series.parameter_code} " \
+        "(no recent IV; not treating as IV-only)"
+      )
+    end
+  end
+
+  # When a successful daily request returns no DV for a series that still lacks
+  # the year anchor *and* has recent continuous IV, USGS is not publishing DV for
+  # that parameter (IV-only). Do not mark long-dead POR series from an empty
+  # recent-window fetch (they may have DV outside the last 1y).
   def mark_usgs_daily_availability!(series_list, per_series_counts, rate_limited:)
     return if rate_limited
 
@@ -515,6 +537,7 @@ class HistoryIngestion
       year_anchor = DAILY_HISTORY_ANCHOR.ago.to_date
       next if series.has_daily_on_or_before?(year_anchor)
       next if series.usgs_daily_absent?
+      next unless series.recent_continuous_evidence?
 
       series.update!(usgs_daily_absent: true)
       progress&.step(

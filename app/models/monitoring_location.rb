@@ -64,16 +64,30 @@ class MonitoringLocation < ApplicationRecord
     continuous_anchor = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
     daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
+    recent_since = HistoryIngestion::CONTINUOUS_RETENTION.ago
 
-    missing_continuous_tip = TimeSeries.selected.where.not(
+    # Ignore long-inactive / POR-ended series (tip/ends_at older than the IV
+    # window). Keep series with no tip *and* no ends_at so brand-new catalog
+    # rows can still fill — do not treat "no latest_observation" alone as
+    # active when ends_at shows the POR ended years ago.
+    recent_continuous_ids = ContinuousObservation.where(observed_at: recent_since..).select(:time_series_id)
+    recently_active = TimeSeries.selected.left_joins(:latest_observation).where(
+      "(latest_observations.id IS NULL AND time_series.ends_at IS NULL) " \
+      "OR latest_observations.observed_at >= ? OR time_series.ends_at >= ? " \
+      "OR time_series.id IN (#{recent_continuous_ids.to_sql})",
+      recent_since,
+      recent_since
+    )
+
+    missing_continuous_tip = recently_active.where.not(
       id: ContinuousObservation.where(observed_at: continuous_since..).select(:time_series_id)
     )
-    missing_continuous_anchor = TimeSeries.selected.where.not(
+    missing_continuous_anchor = recently_active.where.not(
       id: ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id)
     )
     # Year anchor lives in R2 (legacy Postgres rows still count during drain).
     # Skip parameters USGS does not publish daily DV for (IV-only series).
-    expecting_daily = TimeSeries.selected.expecting_daily
+    expecting_daily = recently_active.merge(TimeSeries.expecting_daily)
     missing_daily_anchor = expecting_daily.where.not(
       id: DailyArchive.time_series_ids_with_daily_on_or_before(daily_anchor)
     )
@@ -117,7 +131,17 @@ class MonitoringLocation < ApplicationRecord
         )
       )
 
-    candidate_series = TimeSeries.selected.expecting_daily
+    recent_since = HistoryIngestion::CONTINUOUS_RETENTION.ago
+    recent_continuous_ids = ContinuousObservation.where(observed_at: recent_since..).select(:time_series_id)
+    recently_active = TimeSeries.selected.left_joins(:latest_observation).where(
+      "(latest_observations.id IS NULL AND time_series.ends_at IS NULL) " \
+      "OR latest_observations.observed_at >= ? OR time_series.ends_at >= ? " \
+      "OR time_series.id IN (#{recent_continuous_ids.to_sql})",
+      recent_since,
+      recent_since
+    )
+
+    candidate_series = recently_active.merge(TimeSeries.expecting_daily)
       .where(id: has_year)
       .where.not(id: has_deep)
       .where(id: has_continuous_tip)
@@ -149,7 +173,7 @@ class MonitoringLocation < ApplicationRecord
   end
 
   def needs_history_backfill?
-    series = time_series.selected
+    series = time_series.selected.select(&:eligible_for_recent_history_backfill?)
     return false if series.none?
 
     continuous_since = HistoryIngestion::CONTINUOUS_FRESHNESS.ago
@@ -171,9 +195,11 @@ class MonitoringLocation < ApplicationRecord
 
   # True when a selected series that expects USGS daily still lacks points near
   # the ~1-year anchor — i.e. the 1 Year chart is not fully loaded yet.
-  # IV-only parameters (usgs_daily_absent) do not keep this callout up.
+  # IV-only / long-inactive parameters do not keep this callout up.
   def missing_year_history?
-    series = time_series.selected.select(&:expects_daily_history?)
+    series = time_series.selected.select { |s|
+      s.expects_daily_history? && s.eligible_for_recent_history_backfill?
+    }
     return false if series.none?
 
     daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
@@ -183,7 +209,9 @@ class MonitoringLocation < ApplicationRecord
   # True when year history is present but a selected series still lacks daily
   # points near the ~3-year deep anchor (Postgres hot tip or cold archive).
   def missing_deep_history?
-    series = time_series.selected.select(&:expects_daily_history?)
+    series = time_series.selected.select { |s|
+      s.expects_daily_history? && s.eligible_for_recent_history_backfill?
+    }
     return false if series.none?
     return false if missing_year_history?
 
@@ -194,7 +222,9 @@ class MonitoringLocation < ApplicationRecord
   # True when every selected series that expects daily has points near the
   # ~3-year anchor — used to expose the 3 Years chart tab.
   def has_deep_history?
-    series = time_series.selected.select(&:expects_daily_history?)
+    series = time_series.selected.select { |s|
+      s.expects_daily_history? && s.eligible_for_recent_history_backfill?
+    }
     return false if series.none?
 
     deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
@@ -202,8 +232,10 @@ class MonitoringLocation < ApplicationRecord
   end
 
   # Selected series confirmed to have no USGS daily DV (IV-only parameters).
+  # Only surface when recent continuous exists — otherwise the flag may be a
+  # false positive from an empty recent-window fetch on a long-dead POR series.
   def daily_history_unavailable_series
-    time_series.selected.where(usgs_daily_absent: true)
+    time_series.selected.where(usgs_daily_absent: true).select(&:recent_continuous_evidence?)
   end
 
   def daily_history_unavailable_labels

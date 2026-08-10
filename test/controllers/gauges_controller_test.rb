@@ -143,7 +143,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "shows unavailable callout when USGS daily is absent for a parameter" do
-    create(
+    stage = create(
       :time_series,
       monitoring_location: @location,
       selected_for_display: true,
@@ -151,6 +151,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
       parameter_code: "00065",
       measurement_kind: "water_level"
     )
+    ContinuousObservation.create!(time_series: stage, observed_at: 1.hour.ago, value: 5.5)
     flow = create(
       :time_series,
       monitoring_location: @location,

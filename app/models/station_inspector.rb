@@ -175,6 +175,8 @@ class StationInspector
       selected: series.selected_for_display?,
       reporting: series.reporting?,
       usgs_daily_absent: series.usgs_daily_absent?,
+      recent_continuous_evidence: series.recent_continuous_evidence?,
+      eligible_for_recent_history_backfill: series.eligible_for_recent_history_backfill?,
       begins_at: series.begins_at,
       ends_at: series.ends_at,
       metadata_synced_at: series.metadata_synced_at,
@@ -303,22 +305,30 @@ class StationInspector
 
     selected.each do |s|
       if s[:usgs_daily_absent]
-        findings << finding(
-          :info,
-          :usgs_daily_absent,
-          "Selected #{series_label(s)} is marked usgs_daily_absent — USGS returned no daily DV after backfill. It no longer blocks the year-history callout or cooldown; 1y/3y charts for this parameter stay empty by design."
-        )
+        if s[:recent_continuous_evidence]
+          findings << finding(
+            :info,
+            :usgs_daily_absent,
+            "Selected #{series_label(s)} is marked usgs_daily_absent (IV-only) — recent continuous exists but USGS returned no daily DV. It no longer blocks the year-history callout or cooldown; 1y/3y charts for this parameter stay empty by design."
+          )
+        else
+          findings << finding(
+            :info,
+            :usgs_daily_absent_stale,
+            "Selected #{series_label(s)} still has usgs_daily_absent set but no recent IV — likely a false positive from an empty recent-window fetch on a long-dead POR. Next history ingest clears the flag; long-inactive series are skipped from the recent backfill/cooldown loop."
+          )
+        end
         next
       end
 
       next unless s[:gaps].include?("missing_year_daily")
-      next unless s[:continuous][:count].positive?
+      next unless s[:recent_continuous_evidence]
       next if s[:daily][:postgres_count].positive? || s[:daily][:shard_count].positive?
 
       findings << finding(
         :warn,
         :usgs_daily_likely_unavailable,
-        "Selected #{series_label(s)} has continuous IV but no daily archive rows yet — often USGS publishes IV without daily DV. After the next successful daily fetch with zero rows for this parameter, ingest will mark usgs_daily_absent and stop the “still loading” loop."
+        "Selected #{series_label(s)} has recent continuous IV but no daily archive rows yet — often USGS publishes IV without daily DV. After the next successful daily fetch with zero rows for this parameter, ingest will mark usgs_daily_absent and stop the “still loading” loop."
       )
     end
 
