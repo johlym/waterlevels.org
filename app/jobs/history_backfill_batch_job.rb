@@ -42,13 +42,18 @@ class HistoryBackfillBatchJob < ApplicationJob
       end
 
       phase1_budget = phase1_station_budget(limit)
+      deep_budget = deep_station_budget
+      Rails.logger.info(
+        "HistoryBackfillBatchJob scanning candidates phase1_budget=#{phase1_budget} " \
+        "deep_budget=#{deep_budget} range=#{range}"
+      )
+
       phase1_enqueued = enqueue_candidates(
         MonitoringLocation.needing_history_backfill,
         range: range,
         budget: phase1_budget
       )
 
-      deep_budget = deep_station_budget
       deep_enqueued = enqueue_candidates(
         MonitoringLocation.needing_deep_history_backfill,
         range: HistoryIngestion::DEEP_RANGE,

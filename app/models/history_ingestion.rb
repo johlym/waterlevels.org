@@ -30,6 +30,11 @@ class HistoryIngestion
   # Tip sync is ~hourly, so keep this above 1h to avoid endless densify of healthy
   # tip spacing — overnight outages (many hours) still qualify.
   CONTINUOUS_GAP_THRESHOLD = 2.hours
+  # Batch eligibility (needing_history_backfill) only LAG-scans this recent window
+  # for tip-sync hollow middles. Scanning full CONTINUOUS_RETENTION across the
+  # fleet hung HistoryBackfillBatchJob for many minutes with no logs. Per-station
+  # ingest still repairs the full retention window via continuous_interior_gap_ranges.
+  CONTINUOUS_INTERIOR_GAP_BATCH_WINDOW = 2.days
 
   def initialize(monitoring_location:, range: DEFAULT_RANGE, client: nil, progress: nil)
     @monitoring_location = monitoring_location
@@ -269,8 +274,10 @@ class HistoryIngestion
 
   # Selected time_series ids with a consecutive IV hole larger than threshold.
   # Used by needing_history_backfill so cron repairs hollow tip-sync archives.
+  # Callers should pass a short window_start (CONTINUOUS_INTERIOR_GAP_BATCH_WINDOW)
+  # and a tip+anchor-limited time_series_scope — not fleet-wide full retention.
   def self.time_series_ids_with_interior_continuous_gaps(
-    window_start: CONTINUOUS_RETENTION.ago,
+    window_start: CONTINUOUS_INTERIOR_GAP_BATCH_WINDOW.ago,
     threshold: CONTINUOUS_GAP_THRESHOLD,
     time_series_scope: TimeSeries.selected
   )
@@ -289,7 +296,16 @@ class HistoryIngestion
       ) continuous_gaps
       WHERE gap > INTERVAL '#{threshold_seconds} seconds'
     SQL
-    ContinuousObservation.connection.select_values(sql).map!(&:to_i)
+
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    ids = ContinuousObservation.connection.select_values(sql).map!(&:to_i)
+    elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+    Rails.logger.info(
+      "HistoryIngestion interior_gap_scan ids=#{ids.size} " \
+      "window_start=#{window_start.utc.iso8601} threshold_s=#{threshold_seconds} " \
+      "elapsed_ms=#{elapsed_ms}"
+    )
+    ids
   end
 
   # Cover every series gap with as few location-level requests as possible.
