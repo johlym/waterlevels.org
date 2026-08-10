@@ -60,7 +60,9 @@ class MonitoringLocation < ApplicationRecord
     )
   }
   scope :needing_history_backfill, lambda {
-    continuous_since = HistoryIngestion::CONTINUOUS_FRESHNESS.ago
+    # Tip lag uses the continuous gap threshold (not the legacy 7d freshness)
+    # so overnight tip-sync misses re-enter the batch within hours.
+    continuous_since = HistoryIngestion::CONTINUOUS_GAP_THRESHOLD.ago
     continuous_anchor = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
     daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
@@ -85,6 +87,11 @@ class MonitoringLocation < ApplicationRecord
     missing_continuous_anchor = recently_active.where.not(
       id: ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id)
     )
+    interior_gap_ids = HistoryIngestion.time_series_ids_with_interior_continuous_gaps(
+      window_start: recent_since,
+      time_series_scope: recently_active
+    )
+    missing_continuous_interior = recently_active.where(id: interior_gap_ids)
     # Year anchor lives in R2 (legacy Postgres rows still count during drain).
     # Skip parameters USGS does not publish daily DV for (IV-only series).
     expecting_daily = recently_active.merge(TimeSeries.expecting_daily)
@@ -102,6 +109,7 @@ class MonitoringLocation < ApplicationRecord
     stale_daily_tip = expecting_daily.where.not(id: fresh_daily_tip_ids)
     where(id: missing_continuous_tip.select(:monitoring_location_id))
       .or(where(id: missing_continuous_anchor.select(:monitoring_location_id)))
+      .or(where(id: missing_continuous_interior.select(:monitoring_location_id)))
       .or(where(id: missing_daily_anchor.select(:monitoring_location_id)))
       .or(where(id: stale_daily_tip.select(:monitoring_location_id)))
       .distinct
@@ -176,14 +184,12 @@ class MonitoringLocation < ApplicationRecord
     series = time_series.selected.select(&:eligible_for_recent_history_backfill?)
     return false if series.none?
 
-    continuous_since = HistoryIngestion::CONTINUOUS_FRESHNESS.ago
-    continuous_anchor = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
     daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
+    window_start = HistoryIngestion::CONTINUOUS_RETENTION.ago
 
     series.any? do |s|
-      s.continuous_observations.where(observed_at: continuous_since..).none? ||
-        s.continuous_observations.where(observed_at: ..continuous_anchor).none? ||
+      HistoryIngestion.series_has_continuous_coverage_gap?(s, window_start: window_start) ||
         (
           s.expects_daily_history? && (
             !s.has_daily_on_or_before?(daily_anchor) ||

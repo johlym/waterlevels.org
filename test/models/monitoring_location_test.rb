@@ -40,21 +40,19 @@ class MonitoringLocationTest < ActiveSupport::TestCase
 
     needs_daily = create(:monitoring_location, site_number: "20000002")
     daily_series = create(:time_series, monitoring_location: needs_daily, selected_for_display: true)
-    ContinuousObservation.create!(
-      time_series: daily_series,
-      observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
-      value: 11.0
+    seed_continuous_coverage!(
+      daily_series,
+      from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+      to: 1.day.ago
     )
-    ContinuousObservation.create!(time_series: daily_series, observed_at: 1.day.ago, value: 12.3)
 
     needs_daily_tip = create(:monitoring_location, site_number: "20000004")
     tip_series = create(:time_series, monitoring_location: needs_daily_tip, selected_for_display: true)
-    ContinuousObservation.create!(
-      time_series: tip_series,
-      observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
-      value: 11.0
+    seed_continuous_coverage!(
+      tip_series,
+      from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+      to: 1.day.ago
     )
-    ContinuousObservation.create!(time_series: tip_series, observed_at: 1.day.ago, value: 12.3)
     DailyObservation.create!(time_series: tip_series, observed_on: 11.months.ago.to_date, value: 10.0)
 
     # Tip-only continuous + year daily still needs the older IV archive.
@@ -66,22 +64,34 @@ class MonitoringLocationTest < ActiveSupport::TestCase
 
     complete = create(:monitoring_location, site_number: "20000003")
     series = create(:time_series, monitoring_location: complete, selected_for_display: true)
-    ContinuousObservation.create!(
-      time_series: series,
-      observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
-      value: 11.0
+    seed_continuous_coverage!(
+      series,
+      from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+      to: 1.hour.ago
     )
-    ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)
     DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 10.0)
     DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+
+    needs_interior_gap = create(:monitoring_location, site_number: "20000006")
+    gappy = create(:time_series, monitoring_location: needs_interior_gap, selected_for_display: true)
+    seed_continuous_coverage!(
+      gappy,
+      from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+      to: 12.hours.ago
+    )
+    ContinuousObservation.create!(time_series: gappy, observed_at: 30.minutes.ago, value: 12.5)
+    DailyObservation.create!(time_series: gappy, observed_on: 11.months.ago.to_date, value: 10.0)
+    DailyObservation.create!(time_series: gappy, observed_on: Date.current, value: 11.0)
 
     ids = MonitoringLocation.needing_history_backfill.pluck(:id)
     assert_includes ids, needs_continuous.id
     assert_includes ids, needs_daily.id
     assert_includes ids, needs_daily_tip.id
     assert_includes ids, needs_continuous_anchor.id
+    assert_includes ids, needs_interior_gap.id
     refute_includes ids, complete.id
     assert needs_continuous_anchor.needs_history_backfill?
+    assert needs_interior_gap.needs_history_backfill?
     refute complete.needs_history_backfill?
   end
 
@@ -188,12 +198,11 @@ class MonitoringLocationTest < ActiveSupport::TestCase
       selected_for_display: true,
       usgs_daily_absent: true
     )
-    ContinuousObservation.create!(
-      time_series: series,
-      observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago - 1.day,
-      value: 1.0
+    seed_continuous_coverage!(
+      series,
+      from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+      to: 1.hour.ago
     )
-    ContinuousObservation.create!(time_series: series, observed_at: 1.hour.ago, value: 1.1)
 
     refute location.needs_history_backfill?
   end

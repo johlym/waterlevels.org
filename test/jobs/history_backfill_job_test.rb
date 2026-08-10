@@ -158,35 +158,30 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
     series = create(:time_series, monitoring_location: location, selected_for_display: true)
 
     travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      # Dense IV response so interior-gap repair does not leave still_needs_backfill.
+      continuous_features = []
+      t = HistoryIngestion::CONTINUOUS_RETENTION.ago.utc.change(sec: 0)
+      ends = 1.hour.ago.utc.change(sec: 0)
+      i = 0
+      while t <= ends
+        continuous_features << {
+          id: i.to_s,
+          properties: {
+            time_series_id: series.usgs_time_series_id,
+            parameter_code: series.parameter_code,
+            time: t.iso8601,
+            value: 3.0 + (i * 0.001),
+            approval_status: "Provisional"
+          }
+        }
+        t += 1.hour
+        i += 1
+      end
       stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/continuous/items})
         .to_return(
           status: 200,
           headers: { "Content-Type" => "application/geo+json" },
-          body: {
-            features: [
-              {
-                id: "0",
-                properties: {
-                  time_series_id: series.usgs_time_series_id,
-                  parameter_code: series.parameter_code,
-                  time: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago.utc.iso8601,
-                  value: 3.0,
-                  approval_status: "Approved"
-                }
-              },
-              {
-                id: "1",
-                properties: {
-                  time_series_id: series.usgs_time_series_id,
-                  parameter_code: series.parameter_code,
-                  time: 1.hour.ago.utc.iso8601,
-                  value: 3.2,
-                  approval_status: "Provisional"
-                }
-              }
-            ],
-            links: []
-          }.to_json
+          body: { features: continuous_features, links: [] }.to_json
         )
       stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/daily/items})
         .to_return(
@@ -236,12 +231,11 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
     series = create(:time_series, monitoring_location: location, selected_for_display: true)
 
     travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
-      ContinuousObservation.create!(
-        time_series: series,
-        observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago,
-        value: 0.9
+      seed_continuous_coverage!(
+        series,
+        from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+        to: 1.hour.ago
       )
-      ContinuousObservation.create!(time_series: series, observed_at: 1.hour.ago, value: 1.0)
       DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 1.1)
       DailyObservation.create!(time_series: series, observed_on: Date.current, value: 1.2)
       PeakObservation.create!(time_series: series, water_year: 2025, value: 9.0, peak_kind: "high")
