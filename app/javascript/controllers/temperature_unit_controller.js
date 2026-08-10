@@ -1,4 +1,11 @@
 import { Controller } from "@hotwired/stimulus"
+import {
+  convertTemperatureC,
+  convertTemperatureDeltaC,
+  formatTemperature,
+  preferredTemperatureUnit,
+  temperatureUnitLabel
+} from "../lib/temperature_unit"
 
 export default class extends Controller {
   static targets = ["display", "button"]
@@ -27,25 +34,34 @@ export default class extends Controller {
 
   render() {
     const unit = this.unit()
+    const unitLabel = temperatureUnitLabel(unit)
+
     this.buttonTargets.forEach((button) => {
       const selected = button.dataset.temperatureUnitUnitParam === unit
       button.setAttribute("aria-pressed", selected ? "true" : "false")
     })
+
     this.displayTargets.forEach((el) => {
-      const c = parseFloat(el.dataset.tempC)
-      if (Number.isNaN(c)) return
-      const value = unit === "c" ? c : (c * 9) / 5 + 32
       const prefix = el.dataset.tempPrefix || ""
-      const formatted = value.toLocaleString("en-US", {
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1
-      })
-      el.textContent = `${prefix}${formatted} °${unit.toUpperCase()}`
+      const hideUnit = el.dataset.tempHideUnit === "true"
+      const deltaRaw = el.dataset.tempDeltaC
+      const isDelta = deltaRaw !== undefined && deltaRaw !== ""
+
+      const converted = isDelta
+        ? convertTemperatureDeltaC(deltaRaw, unit)
+        : convertTemperatureC(el.dataset.tempC, unit)
+      if (converted == null) return
+
+      const formatted = formatTemperature(converted, { signed: isDelta })
+      if (formatted == null) return
+
+      el.textContent = hideUnit
+        ? `${prefix}${formatted}`
+        : `${prefix}${formatted} ${unitLabel}`
     })
   }
 
   unit() {
-    const match = document.cookie.match(/(?:^|; )temperature_unit=([^;]*)/)
-    return match && match[1] === "c" ? "c" : "f"
+    return preferredTemperatureUnit(document.cookie)
   }
 }

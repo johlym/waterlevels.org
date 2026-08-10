@@ -4,6 +4,12 @@ import "leaflet.markercluster"
 import { firstPartyApiFetch } from "../lib/api"
 import { geolocationErrorMessage } from "../lib/geolocation_errors"
 import { formatGaugeValue } from "../lib/gauge_value"
+import {
+  convertTemperatureC,
+  formatTemperature,
+  preferredTemperatureUnit,
+  temperatureUnitLabel
+} from "../lib/temperature_unit"
 
 export default class extends Controller {
   static targets = [
@@ -675,8 +681,8 @@ export default class extends Controller {
     }
     if (station.temperature_c != null) {
       const unit = this.tempUnit()
-      const value = unit === "c" ? station.temperature_c : (station.temperature_c * 9) / 5 + 32
-      rows.push(`<div class="popup-meta">Temp: <strong>${value.toFixed(1)} °${unit.toUpperCase()}</strong></div>`)
+      const value = formatTemperature(convertTemperatureC(station.temperature_c, unit))
+      rows.push(`<div class="popup-meta">Temp: <strong>${value} ${temperatureUnitLabel(unit)}</strong></div>`)
     }
     if (station.observed_at) {
       rows.push(`<div class="popup-meta">Updated: ${this.formatTimestamp(station.observed_at, station)}</div>`)
@@ -708,8 +714,7 @@ export default class extends Controller {
   }
 
   tempUnit() {
-    const match = document.cookie.match(/(?:^|; )temperature_unit=([^;]*)/)
-    return match && match[1] === "c" ? "c" : "f"
+    return preferredTemperatureUnit(document.cookie)
   }
 
   formatUnit(unit) {
