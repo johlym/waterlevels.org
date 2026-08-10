@@ -3,8 +3,11 @@ class FloodStageSync
 
   # Re-check unmatched USGS sites periodically — most will keep 404ing.
   UNMATCHED_RETRY_AFTER = 7.days
-  # Detail GETs for thresholds / LID crosswalk; categories refresh via list.
-  MATCHED_DETAIL_REFRESH_AFTER = 24.hours
+  # Thresholds rarely change; list refresh already updates flood_category hourly.
+  MATCHED_DETAIL_REFRESH_AFTER = 7.days
+  # NWPS paces ~2 detail GETs/min (30s pause). Cap so a national hourly run
+  # finishes instead of walking the whole due set for days with no "done" log.
+  DEFAULT_DETAIL_REQUEST_BUDGET = 80
 
   attr_accessor :client, :state, :progress
 
@@ -22,6 +25,7 @@ class FloodStageSync
         "app.state" => postal_code || "national"
       }
     ) do
+      @detail_requests_remaining = detail_request_budget
       progress&.step(scope_label)
       gauges_by_lid = fetch_gauges_by_lid
       list_updated = refresh_categories_from_list(gauges_by_lid)
@@ -35,14 +39,17 @@ class FloodStageSync
         "app.matched_count" => matched,
         "app.unmatched_count" => unmatched,
         "app.skipped_count" => skipped,
-        "app.error_count" => errors
+        "app.error_count" => errors,
+        "app.detail_budget" => detail_request_budget,
+        "app.detail_budget_remaining" => @detail_requests_remaining
       )
 
       progress&.step("warming caches")
       warm_caches
       progress&.finish(
         "list_updated=#{list_updated} alert_matched=#{alert_matched} " \
-        "matched=#{matched} unmatched=#{unmatched} skipped=#{skipped} errors=#{errors}"
+        "matched=#{matched} unmatched=#{unmatched} skipped=#{skipped} errors=#{errors} " \
+        "detail_budget_remaining=#{@detail_requests_remaining}"
       )
       AdminDashboardStats.record_job_finish!(
         :flood_sync,
@@ -68,6 +75,17 @@ class FloodStageSync
   def sync_scope
     scope = MonitoringLocation.active
     postal_code ? scope.in_state(postal_code) : scope
+  end
+
+  def detail_request_budget
+    ENV.fetch("NWPS_DETAIL_REQUEST_BUDGET", DEFAULT_DETAIL_REQUEST_BUDGET.to_s).to_i
+  end
+
+  def consume_detail_request!
+    return false if @detail_requests_remaining <= 0
+
+    @detail_requests_remaining -= 1
+    true
   end
 
   def regions_to_fetch
@@ -149,21 +167,37 @@ class FloodStageSync
 
       gauge
     end
-    progress&.step("unlinked alert gauges=#{candidates.size}")
+    progress&.step(
+      "unlinked alert gauges=#{candidates.size} detail_budget=#{@detail_requests_remaining}"
+    )
 
     matched = 0
-    candidates.each do |summary|
+    candidates.each_with_index do |summary, index|
+      unless consume_detail_request!
+        progress&.step(
+          "alert match paused budget exhausted at #{index}/#{candidates.size} matched=#{matched}"
+        )
+        break
+      end
+
       lid = summary["lid"].to_s
       begin
         detail = client.gauge(lid)
-        next if detail.blank?
+        if detail.blank?
+          progress&.step("alert miss lid=#{lid} (#{index + 1}/#{candidates.size})")
+          next
+        end
 
         location = find_location_for_usgs_id(detail["usgsId"])
-        next unless location
+        unless location
+          progress&.step("alert unlinkable lid=#{lid} usgsId=#{detail["usgsId"]} (#{index + 1}/#{candidates.size})")
+          next
+        end
 
         apply_match!(location, detail)
         matched += 1
         progress&.increment
+        progress&.step("alert matched lid=#{lid} site=#{location.site_number} (#{index + 1}/#{candidates.size})")
       rescue Nwps::Client::Error => e
         progress&.step("error lid=#{lid} #{e.message}")
       end
@@ -176,11 +210,9 @@ class FloodStageSync
     return if raw.blank?
 
     candidates = site_number_candidates(raw)
-    candidates.each do |site_number|
-      location = location_by_site_number[site_number]
-      return location if location
-    end
-    nil
+    # Point lookup — avoid loading the whole active catalog into memory on the
+    # 512MB sync dyno (national index_by was a silent stall / GC thrash risk).
+    sync_scope.find_by(site_number: candidates)
   end
 
   def site_number_candidates(raw)
@@ -192,16 +224,13 @@ class FloodStageSync
     candidates.map(&:presence).compact.uniq
   end
 
-  def location_by_site_number
-    @location_by_site_number ||= sync_scope.index_by(&:site_number)
-  end
-
   # Phase 2: USGS site-number detail lookups for first-time matches and
   # periodic threshold refresh.
   #
   # Due filtering is in SQL so we don't load the whole active catalog every
   # hour, and a canceled run naturally resumes: finished rows get a fresh
-  # nwps_synced_at and drop out of the due set.
+  # nwps_synced_at and drop out of the due set. A hard request budget keeps
+  # each hourly national run finite under the NWPS 30s pause.
   def discover_and_refresh_details
     matched = 0
     unmatched = 0
@@ -209,9 +238,21 @@ class FloodStageSync
     errors = 0
 
     due = detail_scope
-    progress&.step("detail sync due=#{due.count}")
+    due_count = due.count
+    budget = @detail_requests_remaining
+    progress&.step("detail sync due=#{due_count} budget=#{budget}")
 
-    due.find_each do |location|
+    if budget <= 0
+      skipped = due_count
+      progress&.step("detail sync skipped budget exhausted due=#{due_count}")
+      return [ matched, unmatched, skipped, errors ]
+    end
+
+    # limit + each (not find_each): find_each ignores order/limit, and the
+    # budget is small enough to load in one pass.
+    due.limit(budget).each do |location|
+      break unless consume_detail_request!
+
       begin
         gauge = client.gauge(location.site_number)
         if gauge.present?
@@ -227,6 +268,15 @@ class FloodStageSync
       end
 
       progress&.increment
+      attempted = matched + unmatched + errors
+      if (attempted % 10).zero?
+        progress&.step("detail sync progress=#{attempted}/#{budget}")
+      end
+    end
+
+    skipped = [ due_count - matched - unmatched - errors, 0 ].max
+    if skipped.positive?
+      progress&.step("detail sync deferred=#{skipped} (budget); resumes next run")
     end
 
     [ matched, unmatched, skipped, errors ]
@@ -241,7 +291,7 @@ class FloodStageSync
       "(nwps_matched = FALSE AND nwps_synced_at < ?)",
       matched_cutoff,
       unmatched_cutoff
-    )
+    ).order(Arel.sql("nwps_synced_at ASC NULLS FIRST, site_number ASC"))
   end
 
   def apply_list_status!(location, gauge)
