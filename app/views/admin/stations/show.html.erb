@@ -214,6 +214,7 @@
               <tr>
                 <th scope="col">Series</th>
                 <th scope="col">Selected</th>
+                <th scope="col">Reporting</th>
                 <th scope="col">Latest tip</th>
                 <th scope="col">Continuous</th>
                 <th scope="col">Daily</th>
@@ -234,6 +235,13 @@
                       <span class="badge ok">yes</span>
                     <% else %>
                       <span class="badge">no</span>
+                    <% end %>
+                  </td>
+                  <td>
+                    <% if series[:reporting] %>
+                      <span class="badge ok">yes</span>
+                    <% else %>
+                      <span class="badge bad">no</span>
                     <% end %>
                   </td>
                   <td>
