@@ -3,13 +3,13 @@
   <div class="section-header">
     <div>
       <p class="eyebrow">States</p>
-      <h2 id="admin-states-heading">Station &amp; backfill backlog</h2>
+      <h2 id="admin-states-heading">Station data coverage</h2>
       <p class="section-lede">
-        Backfill columns are mutually exclusive and sum with Ready to Stations.
-        Need ≤1y is phase-1 (continuous ~35d, ~1y daily in R2, and/or stale tips);
-        the secondary count is how many of those still lack ~1y daily coverage.
-        Have ~1y → need 3y means year-ready and waiting on deep R2 fill only.
-        Ready counts deep daily coverage in R2.
+        Inventory columns count selected-series stations that already have each
+        layer (fresh IV tip, continuous ~35d depth, ~1y daily in R2, ~3y daily in R2).
+        Backlog columns are mutually exclusive queues: Need ≤1y is phase-1 work;
+        Have ~1y → need 3y is year-ready waiting only on deep R2 fill.
+        Ready = stations minus both backlog queues.
       </p>
     </div>
   </div>
@@ -18,34 +18,79 @@
     <p class="hint">No active stations yet.</p>
   <% else %>
     <div class="table-wrap">
-      <table class="admin-table">
+      <table class="admin-table admin-table--coverage">
         <thead>
           <tr>
             <th scope="col">State</th>
             <th scope="col">Stations</th>
-            <th scope="col" title="Phase-1 backlog: missing continuous ~35d, ~1y daily in R2, and/or stale tips">
+            <th scope="col" title="Selected series with a continuous observation in the last 7 days">
+              Fresh IV
+            </th>
+            <th scope="col" title="Selected series with continuous IV reaching the ~35-day anchor">
+              Cont. ~35d
+            </th>
+            <th scope="col" title="Selected series with daily history near the ~1y anchor (R2 or leftover Postgres)">
+              Have ~1y
+            </th>
+            <th scope="col" title="Selected series with daily history near the ~3y anchor (R2 or leftover Postgres)">
+              Have ~3y
+            </th>
+            <th scope="col" title="Phase-1 backlog: missing continuous ~35d, ~1y daily, and/or stale tips">
               Need ≤1y
             </th>
-            <th scope="col" title="Already have ~1y daily in R2; waiting on deep 3y backfill">
+            <th scope="col" title="Already have ~1y daily; waiting on deep 3y backfill only">
               Have ~1y → need 3y
             </th>
-            <th scope="col" title="Deep (~3y) daily history loaded in R2">
+            <th scope="col" title="Neither backlog column — deep daily present">
               Ready
             </th>
           </tr>
         </thead>
         <tbody>
           <% stats[:per_state].each do |row| %>
+            <% selected = row[:selected_count].to_i %>
             <tr>
               <td>
                 <%= link_to "#{row[:state_name]} (#{row[:state_code].upcase})", state_gauges_path(row[:state_code]), class: "station-link" %>
+                <% if selected.positive? && selected != row[:station_count] %>
+                  <span class="cell-hint"><%= number_with_delimiter(selected) %> with selected series</span>
+                <% end %>
               </td>
               <td><%= number_with_delimiter(row[:station_count]) %></td>
+              <td>
+                <%= number_with_delimiter(row[:has_continuous_tip]) %>
+                <% if selected.positive? %>
+                  <span class="cell-hint"><%= number_to_percentage(100.0 * row[:has_continuous_tip] / selected, precision: 0) %></span>
+                <% end %>
+              </td>
+              <td>
+                <%= number_with_delimiter(row[:has_continuous_anchor]) %>
+                <% if selected.positive? %>
+                  <span class="cell-hint"><%= number_to_percentage(100.0 * row[:has_continuous_anchor] / selected, precision: 0) %></span>
+                <% end %>
+              </td>
+              <td>
+                <%= number_with_delimiter(row[:has_year_history]) %>
+                <% if selected.positive? %>
+                  <span class="cell-hint"><%= number_to_percentage(100.0 * row[:has_year_history] / selected, precision: 0) %></span>
+                <% end %>
+              </td>
+              <td>
+                <%= number_with_delimiter(row[:has_deep_history]) %>
+                <% if selected.positive? %>
+                  <span class="cell-hint"><%= number_to_percentage(100.0 * row[:has_deep_history] / selected, precision: 0) %></span>
+                <% end %>
+              </td>
               <td>
                 <%= number_with_delimiter(row[:needing_history]) %>
                 <% if row[:needing_history].positive? %>
                   <span class="cell-hint">
-                    <%= number_with_delimiter(row[:missing_year_history]) %> missing ~1y daily
+                    <% reasons = [] %>
+                    <% reasons << "#{number_with_delimiter(row[:missing_continuous_tip])} IV tip" if row[:missing_continuous_tip].to_i.positive? %>
+                    <% reasons << "#{number_with_delimiter(row[:missing_continuous_anchor])} cont. depth" if row[:missing_continuous_anchor].to_i.positive? %>
+                    <% reasons << "#{number_with_delimiter(row[:missing_year_history])} ~1y daily" if row[:missing_year_history].to_i.positive? %>
+                    <% reasons << "#{number_with_delimiter(row[:missing_daily_tip])} daily tip" if row[:missing_daily_tip].to_i.positive? %>
+                    <%= reasons.join(" · ") %>
                   </span>
                 <% end %>
               </td>

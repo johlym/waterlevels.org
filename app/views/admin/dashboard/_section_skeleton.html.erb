@@ -51,10 +51,10 @@
 
   <% if local_assigns[:table] %>
     <div class="table-wrap admin-skeleton-table" aria-hidden="true">
-      <table class="admin-table">
+      <table class="admin-table admin-table--coverage">
         <thead>
           <tr>
-            <% 5.times do %>
+            <% 9.times do %>
               <th scope="col"><span class="admin-skeleton-line admin-skeleton-line--table-head"></span></th>
             <% end %>
           </tr>
@@ -62,7 +62,7 @@
         <tbody>
           <% 4.times do %>
             <tr>
-              <% 5.times do %>
+              <% 9.times do %>
                 <td><span class="admin-skeleton-line admin-skeleton-line--table-cell"></span></td>
               <% end %>
             </tr>

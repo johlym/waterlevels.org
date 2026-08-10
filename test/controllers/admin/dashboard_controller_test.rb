@@ -101,7 +101,9 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
 
     get admin_dashboard_section_path(section: :states)
     assert_response :success
-    assert_includes response.body, "Station &amp; backfill backlog"
+    assert_includes response.body, "Station data coverage"
+    assert_includes response.body, "Have ~1y"
+    assert_includes response.body, "Have ~3y"
     assert_includes response.body, "Have ~1y → need 3y"
 
     get admin_dashboard_section_path(section: :health)
