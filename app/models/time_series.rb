@@ -50,4 +50,28 @@ class TimeSeries < ApplicationRecord
   def expects_daily_history?
     !usgs_daily_absent?
   end
+
+  # Recent IV tip or continuous inside the retained window — required before we
+  # conclude USGS "doesn't publish daily" (empty recent DV for a series that
+  # ended years ago is not the same as IV-only).
+  def recent_continuous_evidence?(as_of: Time.current)
+    window_start = HistoryIngestion::CONTINUOUS_RETENTION.before(as_of)
+    return true if latest_observation&.observed_at&.>=(window_start)
+    return true if continuous_observations.where(observed_at: window_start..).exists?
+
+    false
+  end
+
+  # Long-inactive / POR-ended series should not stay in the recent history
+  # backfill / cooldown loop (e.g. discharge that stopped in 2008).
+  def eligible_for_recent_history_backfill?(as_of: Time.current)
+    tip_at = [
+      latest_observation&.observed_at,
+      continuous_observations.maximum(:observed_at),
+      ends_at
+    ].compact.max
+    return true if tip_at.blank?
+
+    tip_at >= HistoryIngestion::CONTINUOUS_RETENTION.before(as_of)
+  end
 end

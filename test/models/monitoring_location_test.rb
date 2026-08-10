@@ -117,7 +117,7 @@ class MonitoringLocationTest < ActiveSupport::TestCase
 
   test "missing_year_history? ignores usgs_daily_absent series" do
     location = create(:monitoring_location)
-    create(
+    stage = create(
       :time_series,
       monitoring_location: location,
       selected_for_display: true,
@@ -125,6 +125,7 @@ class MonitoringLocationTest < ActiveSupport::TestCase
       parameter_code: "00065",
       measurement_kind: "water_level"
     )
+    ContinuousObservation.create!(time_series: stage, observed_at: 1.hour.ago, value: 5.5)
     flow = create(
       :time_series,
       monitoring_location: location,
@@ -137,6 +138,46 @@ class MonitoringLocationTest < ActiveSupport::TestCase
 
     refute location.missing_year_history?
     assert_equal [ "Gage height" ], location.daily_history_unavailable_labels
+  end
+
+  test "long-inactive series does not keep needs_history_backfill? or year callout true" do
+    location = create(:monitoring_location)
+    series = create(
+      :time_series,
+      monitoring_location: location,
+      selected_for_display: true,
+      parameter_code: "00060",
+      measurement_kind: "discharge",
+      ends_at: Time.zone.parse("2008-06-01")
+    )
+    LatestObservation.create!(
+      time_series: series,
+      observed_at: Time.zone.parse("2008-06-01"),
+      value: 12.0,
+      unit_of_measure: "ft3/s",
+      synced_at: Time.current
+    )
+
+    refute series.eligible_for_recent_history_backfill?
+    refute location.needs_history_backfill?
+    refute location.missing_year_history?
+    refute_includes MonitoringLocation.needing_history_backfill.pluck(:id), location.id
+  end
+
+  test "stale usgs_daily_absent without recent IV is not surfaced as unavailable" do
+    location = create(:monitoring_location)
+    create(
+      :time_series,
+      monitoring_location: location,
+      selected_for_display: true,
+      usgs_daily_absent: true,
+      parameter_code: "00060",
+      measurement_kind: "discharge",
+      ends_at: Time.zone.parse("2008-06-01")
+    )
+
+    assert_empty location.daily_history_unavailable_labels
+    refute location.missing_year_history?
   end
 
   test "needs_history_backfill? ignores daily gaps for usgs_daily_absent series" do
