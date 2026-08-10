@@ -1,5 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
-import { FIRST_PARTY_API_HEADERS } from "../lib/api"
+import { firstPartyApiFetch } from "../lib/api"
 import { geolocationErrorMessage } from "../lib/geolocation_errors"
 
 export default class extends Controller {
@@ -108,15 +108,16 @@ export default class extends Controller {
         try {
           const { latitude, longitude } = pos.coords
           const url = `${this.nearestUrlValue}?lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`
-          const response = await fetch(url, { headers: FIRST_PARTY_API_HEADERS, cache: "no-store" })
+          const response = await firstPartyApiFetch(url)
           if (!response.ok) throw new Error("nearest lookup failed")
           const data = await response.json()
           if (data.station?.path) {
             window.location.href = data.station.path
             return
           }
+          this.showLocateError("No monitoring stations were found near your location.")
         } catch (_error) {
-          // fall through to clear busy state
+          this.showLocateError("Couldn't look up the nearest station. Please try again.")
         } finally {
           this.setLocateBusy(false)
         }
@@ -125,7 +126,7 @@ export default class extends Controller {
         this.setLocateBusy(false)
         this.showGeolocationError(error)
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: false, timeout: 20000, maximumAge: 60000 }
     )
   }
 
@@ -134,13 +135,18 @@ export default class extends Controller {
     this.dialogOutlet.show(geolocationErrorMessage(error))
   }
 
+  showLocateError(message) {
+    if (!this.hasDialogOutlet) return
+    this.dialogOutlet.show(message)
+  }
+
   async fetchResults() {
     if (!this.hasSearchUrlValue || !this.searchUrlValue) return
 
     const requestId = ++this.requestId
     const query = this.query
     const url = `${this.searchUrlValue}?q=${encodeURIComponent(query)}`
-    const response = await fetch(url, { headers: FIRST_PARTY_API_HEADERS, cache: "no-store" })
+    const response = await firstPartyApiFetch(url)
     if (!response.ok) return
     if (requestId !== this.requestId || query !== this.query) return
 

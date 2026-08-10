@@ -1,12 +1,13 @@
 # Gate for internal `/api/*` endpoints used by first-party Stimulus fetches.
-# Requires a dedicated client header plus a same-party browser context
-# (Sec-Fetch-Site, Origin, or Referer). Not a cryptographic secret — just enough
-# to block casual URL scraping. Payloads are Redis-cached via ApiResponseCache
-# and returned with private/no-store HTTP headers.
+# Requires a dedicated client header plus a same-party browser signal
+# (Sec-Fetch-Site/Mode, Origin, or Referer). Not a cryptographic secret — just
+# enough to block casual URL scraping. Payloads are Redis-cached via
+# ApiResponseCache and returned with private/no-store HTTP headers.
 class FirstPartyApiRequest
   CLIENT_HEADER = "X-WaterLevels-Client"
   CLIENT_VALUE = "web"
   ALLOWED_FETCH_SITES = %w[same-origin same-site].freeze
+  ALLOWED_FETCH_MODES = %w[cors same-origin].freeze
 
   def self.allowed?(request)
     new(request).allowed?
@@ -27,11 +28,16 @@ class FirstPartyApiRequest
   end
 
   def first_party_context?
-    sec_fetch_same_party? || origin_same_party? || referer_same_party?
+    sec_fetch_same_party? || sec_fetch_mode_browser? || origin_same_party? || referer_same_party?
   end
 
   def sec_fetch_same_party?
     ALLOWED_FETCH_SITES.include?(@request.get_header("HTTP_SEC_FETCH_SITE").to_s)
+  end
+
+  # Some browsers omit Sec-Fetch-Site on same-origin GET fetch but still send Mode.
+  def sec_fetch_mode_browser?
+    ALLOWED_FETCH_MODES.include?(@request.get_header("HTTP_SEC_FETCH_MODE").to_s)
   end
 
   def origin_same_party?

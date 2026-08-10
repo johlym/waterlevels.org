@@ -51,25 +51,24 @@ module Api
       def nearest
         lat = params.require(:lat)
         lon = params.require(:lon)
-        payload = ApiResponseCache.fetch_map_nearest(lat, lon) do
+        cached = ApiResponseCache.fetch_map_nearest(lat, lon) do
           location = NearbyStations.nearest_to(lat, lon)
-          if location
-            { station: search_payload(location), status: :ok }
-          else
-            { station: nil, status: :not_found }
-          end
+          location ? { station: search_payload(location) } : { station: nil }
         end
 
-        station = payload[:station] || payload["station"]
-        status = (payload[:status] || payload["status"] || (station ? :ok : :not_found)).to_sym
+        station = cached.is_a?(Hash) ? (cached[:station] || cached["station"]) : nil
         Telemetry.add_attributes(
           "app.operation" => "map.stations.nearest",
           "app.found" => station.present?,
-          "app.site_number" => station&.dig(:id) || station&.dig("id"),
-          "app.state" => station&.dig(:state) || station&.dig("state")
+          "app.site_number" => station.is_a?(Hash) ? (station[:id] || station["id"]) : nil,
+          "app.state" => station.is_a?(Hash) ? (station[:state] || station["state"]) : nil
         )
         cache_private!
-        render json: { station: station }, status: status
+        if station.present?
+          render json: { station: station }
+        else
+          render json: { station: nil }, status: :not_found
+        end
       end
 
       private
