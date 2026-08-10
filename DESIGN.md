@@ -1,6 +1,6 @@
 # DESIGN.md — WaterLevels.org
 
-How WaterLevels.org is designed and how it should continue to be designed. This is the architectural reference and the source of truth for the conventions new code should follow. For local setup/run commands see `README.md`; for cloud-agent environment caveats see `AGENTS.md`.
+How WaterLevels.org is designed and how it should continue to be designed. This is the architectural reference and the source of truth for the conventions new code should follow. For local setup/run commands see `README.md`; for cloud-agent environment caveats see `AGENTS.md`; for the accessibility keyboard/screen-reader matrix see [`doc/accessibility.md`](doc/accessibility.md) (and §15 below for CI-enforced UI contracts).
 
 ## 1. Product overview
 
@@ -24,6 +24,7 @@ These principles explain *why* the code is shaped the way it is. New work should
 5. **Idempotent ingestion.** All sync/upsert paths are safe to re-run; they upsert on natural unique keys and reconcile denormalized state.
 6. **Offline-capable local dev.** The demo seed (`db/seeds/demo_state.rb`) fully populates the app without any network access or API key. Live ingestion is optional locally.
 7. **SEO-friendly, canonical URLs.** Human- and search-friendly slugs with a permanent redirect to one canonical path per resource.
+8. **Accessible by default (WCAG 2.2 AA).** Public UI must stay keyboard-operable, landmark-correct, and contrast-safe. CI enforces the high-regression parts of this (contrast token bans + HTML smoke tests); do not weaken those guards. Details and keyboard/screen-reader matrices live in [`doc/accessibility.md`](doc/accessibility.md).
 
 ## 3. Technology stack
 
@@ -125,11 +126,12 @@ Caching is layered; keep all three layers consistent when adding a surface.
 ## 9. Frontend
 
 - **Build:** esbuild bundles `app/javascript/*.*` to an ESM bundle; Tailwind v4 CLI builds CSS. `Procfile.dev` runs both in `--watch` alongside Rails; production builds the assets ahead of Propshaft serving.
-- **Behavior:** progressive enhancement with Turbo + Stimulus. Notable controllers: `map` (Leaflet + clustering + bbox fetch + search/geolocation + layer filters), `hydrograph` (Chart.js dual-axis chart, range tabs, history table, CSV export), `parameter-toggle`, `temperature-unit` (cookie + `PUT /temperature_unit`), `state-directory`, `station-search`, `mobile-nav`.
+- **Behavior:** progressive enhancement with Turbo + Stimulus. Notable controllers: `map` (Leaflet + clustering + bbox fetch + search/geolocation + layer filters + stations-in-view list), `hydrograph` (Chart.js dual-axis chart, range tabs, history table, CSV export), `parameter-toggle`, `temperature-unit` (cookie + `PUT /temperature_unit`), `state-directory`, `station-search` (combobox), `mobile-nav`, `dialog`, `faq`.
 - **Chart data:** the gauge view passes an observations URL; `hydrograph_controller` fetches `/api/gauges/:id/observations` per measurement. `HydrographSeries` returns `{ kind, label, range, unit, parameter_code, points:[{t,v}], peaks:[…] }`, using continuous points for `24h/7d/30d` and daily points for `1y`.
 - **Units:** temperature converts to °F/°C client-side based on the `temperature_unit` cookie (default °F).
+- **Accessibility:** every public HTML surface keeps a skip link → `#main`, a `<main id="main">` landmark, visible `:focus-visible` outlines, and `prefers-reduced-motion` reductions. Interactive patterns (search combobox, measurement tabs, mobile nav, FAQ, dialogs, form errors) must preserve the ARIA wiring CI asserts. See §15 and [`doc/accessibility.md`](doc/accessibility.md).
 
-**Conventions:** one Stimulus controller per behavior, registered in `controllers/index.js`; keep server responses cache-friendly; UI chunks are ViewComponents (`component.rb` + `component.html.erb`).
+**Conventions:** one Stimulus controller per behavior, registered in `controllers/index.js`; keep server responses cache-friendly; UI chunks are ViewComponents (`component.rb` + `component.html.erb`); never ship under-contrast muted text tokens (see §15).
 
 ## 10. Contact form
 
@@ -145,8 +147,11 @@ Encapsulate domain knowledge in small, well-named objects rather than scattering
 - **FactoryBot only** (no fixtures) under `test/factories`.
 - **WebMock** with `disable_net_connect!(allow_localhost: true)`; all USGS/NWPS/Turnstile calls are stubbed. `TURNSTILE_SECRET` is stripped in setup so the form path is testable.
 - Controller tests assert `Cache-Tag` headers, HTML content, and JSON API shapes; mailer tests use `assert_enqueued_emails`.
+- **Accessibility CI (do not skip or weaken):**
+  - Rails: `test/integration/accessibility_smoke_test.rb` (included in `bin/rails test`) — skip link / `#main` / `<main>` on public pages, home + map combobox wiring, FAQ button semantics (not incomplete tabs), mobile nav `aria-expanded`, nav `aria-current="page"`, contact `aria-invalid` / `aria-describedby`, gauge measurement `role="tablist"`.
+  - JS: `yarn test:js` → `test/javascript/a11y_contrast_tokens.test.js` scans `app/assets/stylesheets/application.tailwind.css` and **fails CI** if `text-zinc-500`, `placeholder:text-zinc-500`, or `placeholder:text-zinc-600` appear, or if global `:focus-visible`, `.skip-link`, or `prefers-reduced-motion` rules disappear.
 
-**Conventions:** stub every external HTTP call; cover new cacheable surfaces with a `Cache-Tag` assertion; use factories for data. CI (`config/ci.rb` / `.github/workflows/ci.yml`) runs RuboCop (rails-omakase), Brakeman, bundler-audit, and the test suite against Postgres.
+**Conventions:** stub every external HTTP call; cover new cacheable surfaces with a `Cache-Tag` assertion; use factories for data; when changing public HTML/CSS/Stimulus UI, run the a11y smoke + JS contrast tests before pushing. CI (`.github/workflows/ci.yml`) runs RuboCop (rails-omakase), Brakeman, bundler-audit, `yarn test:js`, and the Rails suite against Postgres.
 
 ## 13. Configuration & deployment
 
@@ -163,6 +168,56 @@ When adding a feature, keep the design intact:
 2. New read surface → denormalize or snapshot for speed; add a `Cache-Tag` (and aggregate tag if per-entity); warm on the relevant sync, purge via `EdgeCacheInvalidation`, and rebuild lazily on `fetch`. Do not enable a Rails session on cacheable GETs.
 3. New external data → a namespaced Faraday client + a sync PORO + a Sidekiq job + a rake task, reusing pacing + `RateLimitCircuit`; never call it inline on a cached path.
 4. New URL → lowercase slug + canonical redirect + sitemap entry.
-5. New UI → a ViewComponent sidecar and, if interactive, a single registered Stimulus controller.
-6. Tests → FactoryBot data, WebMock-stubbed HTTP, and `Cache-Tag`/JSON-shape assertions.
+5. New UI → a ViewComponent sidecar and, if interactive, a single registered Stimulus controller. Follow §15 (contrast tokens, landmarks, keyboard/ARIA patterns); extend `accessibility_smoke_test.rb` when adding a new public interactive pattern.
+6. Tests → FactoryBot data, WebMock-stubbed HTTP, and `Cache-Tag`/JSON-shape assertions; run `bin/rails test test/integration/accessibility_smoke_test.rb` and `yarn test:js` after UI/CSS changes.
 7. Keep prune retention aligned with backfill ranges, and store canonical units (°C) with edge conversion.
+
+## 15. Accessibility (required for UI work)
+
+Baseline: **WCAG 2.2 Level AA**. Fuller keyboard/screen-reader matrices and map-access notes: [`doc/accessibility.md`](doc/accessibility.md). Agents changing views, components, Stimulus controllers, or `application.tailwind.css` **must** keep the contracts below — several are hard-fail in CI.
+
+### Contrast tokens (hard CI fail)
+
+On `bg-zinc-950` / `bg-zinc-900`, use only approved muted text:
+
+| Role | Use | Do not use |
+| --- | --- | --- |
+| Body / headings | `text-zinc-100` / white | — |
+| Secondary readable text | `text-zinc-400` (or brighter) | `text-zinc-500` (banned in CSS source) |
+| Placeholders | `placeholder:text-zinc-400` | `placeholder:text-zinc-500`, `placeholder:text-zinc-600` |
+| Focus indicator | global cyan-400 2px + offset `:focus-visible` | Removing or greying out the outline |
+
+`test/javascript/a11y_contrast_tokens.test.js` substring-scans `application.tailwind.css` and fails CI on the banned tokens (admin UI included — recent breaks were `text-zinc-500` cell hints and dim inspect placeholders). Prefer `text-zinc-400` even for “subtle” copy. Do **not** put the banned tokens in ERB/`class=` utilities either: they miss AA contrast on this dark shell even if the CSS scanner does not see them.
+
+### Landmarks & chrome (smoke-tested)
+
+- Layout keeps `<a class="skip-link" href="#main">` before page content.
+- Every public page wraps primary content in `<main id="main" …>`.
+- Site nav marks the active item with `aria-current="page"` (header and footer helpers).
+- Mobile nav toggle exposes `aria-controls` / `aria-expanded` and targets `#mobile-primary-nav`.
+- Decorative SVGs / marks use `aria-hidden="true"`; icon-only controls need an accessible name (`aria-label` or visually associated text).
+
+### Interactive patterns (preserve wiring)
+
+| Pattern | Required behavior |
+| --- | --- |
+| Station search (home/map) | `role="combobox"` + `aria-controls` listbox + polite live status region; arrow/Enter/Escape |
+| Map access | Markers are not keyboard targets — keep Search, **Stations in view** list, state directory, alerts, and gauge pages as equivalents; Escape closes popups/settings/search |
+| Flood / status color | Never color alone — shape/glyph + text (map legend: Normal circle, Action diamond, etc.) |
+| Gauge measurements | Real `role="tablist"` / `role="tab"` / `aria-controls="graph-panel"`; chart canvas has `aria-label`; range controls use `aria-pressed` |
+| FAQ | Category **buttons** with `aria-current` (not an incomplete `role="tablist"`); accordion uses `aria-expanded` |
+| Dialogs | Focus moves inside; Tab cycles; Escape restores focus to the opener (`dialog_controller`) |
+| Contact errors | `aria-invalid` + `aria-describedby` pointing at the field error id; Turnstile fallback email copy |
+
+### Agent checklist before pushing UI changes
+
+1. No `text-zinc-500` / `placeholder:text-zinc-500` / `placeholder:text-zinc-600` in `application.tailwind.css` (CI) or in ERB/`class=` utilities (contrast AA).
+2. New public pages include skip target `#main` inside `<main>`.
+3. New widgets reuse existing Stimulus a11y patterns instead of inventing unlabeled custom controls.
+4. Status that matters (flood stage, offline, errors) is available as text, not only color.
+5. Run:
+   ```bash
+   bin/rails test test/integration/accessibility_smoke_test.rb
+   yarn test:js
+   ```
+6. If you add a new public interactive surface, add assertions to `accessibility_smoke_test.rb` (and update [`doc/accessibility.md`](doc/accessibility.md) when the keyboard matrix changes).

@@ -2,6 +2,8 @@
 
 WaterLevels.org targets **WCAG 2.2 Level AA** as the claimable baseline. WCAG 3.0 remains a Working Draft; we use its outcome framing (especially for maps, charts, and status color) but do not claim WCAG 3 conformance.
 
+Architectural / agent-facing contracts (contrast token bans, smoke-tested landmarks and ARIA patterns, pre-push checklist) live in [`DESIGN.md` §15](../DESIGN.md#15-accessibility-required-for-ui-work). Keep this file and that section aligned when CI guards change.
+
 ## Contrast tokens
 
 Approved pairs on `bg-zinc-950` / `bg-zinc-900`:
