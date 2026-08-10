@@ -31,6 +31,10 @@ class HistoryBackfillLock
     Rails.cache.exist?("#{COOLDOWN_PREFIX}#{location_id}")
   end
 
+  def self.locked?(location_id)
+    Rails.cache.exist?("#{KEY_PREFIX}#{location_id}")
+  end
+
   def self.clear!(location_id)
     release!(location_id)
     Rails.cache.delete("#{COOLDOWN_PREFIX}#{location_id}")

@@ -23,4 +23,13 @@ class HistoryBackfillLockTest < ActiveSupport::TestCase
     HistoryBackfillLock.clear!(2)
     assert HistoryBackfillLock.claim!(2)
   end
+
+  test "locked? reflects an active claim" do
+    refute HistoryBackfillLock.locked?(3)
+    assert HistoryBackfillLock.claim!(3)
+    assert HistoryBackfillLock.locked?(3)
+    HistoryBackfillLock.release!(3)
+    refute HistoryBackfillLock.locked?(3)
+  end
 end
+

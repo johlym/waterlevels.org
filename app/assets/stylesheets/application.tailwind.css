@@ -2422,6 +2422,84 @@ body.dialog-open {
       }
     }
   }
+
+  .admin-inspector {
+    .section-lede {
+      @apply mt-3 max-w-3xl text-sm leading-relaxed text-zinc-400;
+
+      code {
+        @apply rounded bg-zinc-800/80 px-1.5 py-0.5 font-mono text-xs text-cyan-300;
+      }
+
+      em {
+        @apply not-italic text-zinc-300;
+      }
+    }
+
+    .badge {
+      @apply mr-1 inline-flex rounded-md px-2 py-0.5 text-xs font-medium tracking-wide uppercase;
+
+      &.ok {
+        @apply bg-emerald-500/10 text-emerald-400;
+      }
+
+      &.warn {
+        @apply bg-amber-500/10 text-amber-400;
+      }
+
+      &.bad {
+        @apply bg-rose-500/10 text-rose-400;
+      }
+    }
+  }
+
+  .admin-inspect-form {
+    @apply max-w-2xl;
+  }
+
+  .admin-inspect-label {
+    @apply mb-2 block text-sm font-medium text-zinc-300;
+  }
+
+  .admin-inspect-row {
+    @apply flex flex-col gap-3 sm:flex-row;
+  }
+
+  .admin-inspect-input {
+    @apply w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-white outline-none ring-cyan-500/40 placeholder:text-zinc-500 focus:border-cyan-500 focus:ring-2;
+  }
+
+  .admin-inspect-submit {
+    @apply cursor-pointer rounded-lg bg-cyan-500 px-5 py-3 text-sm font-semibold text-zinc-950 transition-colors hover:bg-cyan-400;
+  }
+
+  .admin-inspect-matches {
+    @apply mt-8;
+  }
+
+  .admin-inspect-empty {
+    @apply mt-6;
+  }
+
+  .admin-findings {
+    @apply space-y-3;
+  }
+
+  .admin-finding {
+    @apply flex items-start gap-3 rounded-2xl border border-zinc-800/50 bg-zinc-900/40 p-4;
+
+    p {
+      @apply m-0 text-sm leading-relaxed text-zinc-200;
+    }
+
+    &--error {
+      @apply border-rose-500/30;
+    }
+
+    &--warn {
+      @apply border-amber-500/30;
+    }
+  }
 }
 
 @keyframes admin-section-in {
