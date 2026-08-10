@@ -119,11 +119,10 @@
       <% group_anchor = group_dom_id(group_name) %>
       <section
         class="county-group"
-        id="<%= group_anchor %>"
         data-state-directory-target="county"
         data-county-name="<%= group_name %>"
       >
-        <div class="county-head">
+        <div class="county-head" id="<%= group_anchor %>">
           <h2>
             <a href="#<%= group_anchor %>"><%= group_name %></a>
           </h2>

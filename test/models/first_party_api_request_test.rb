@@ -10,6 +10,15 @@ class FirstPartyApiRequestTest < ActiveSupport::TestCase
     assert FirstPartyApiRequest.allowed?(request)
   end
 
+  test "allows browser fetch mode with the client header" do
+    request = ActionDispatch::TestRequest.create
+    request.host = "www.example.com"
+    request.headers["X-WaterLevels-Client"] = "web"
+    request.headers["Sec-Fetch-Mode"] = "cors"
+
+    assert FirstPartyApiRequest.allowed?(request)
+  end
+
   test "allows matching Origin when Sec-Fetch-Site is absent" do
     request = ActionDispatch::TestRequest.create
     request.host = "www.example.com"

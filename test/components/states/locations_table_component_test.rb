@@ -81,6 +81,7 @@ class States::LocationsTableComponentTest < ViewComponent::TestCase
     ).to_html
 
     assert_includes html, 'id="king"'
+    assert_includes html, 'class="county-head" id="king"'
     assert_includes html, 'href="#king">King</a>'
     assert_includes html, 'id="st-louis"'
     assert_includes html, 'href="#st-louis">St. Louis</a>'

@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import Chart from "chart.js/auto"
-import { FIRST_PARTY_API_HEADERS } from "../lib/api"
+import { firstPartyApiFetch } from "../lib/api"
 import { formatGaugeValue } from "../lib/gauge_value"
 import { coalesceHourlyReadings } from "../lib/coalesce_hourly_readings"
 
@@ -107,10 +107,7 @@ export default class extends Controller {
         const params = new URLSearchParams({ range: this.range })
         if (measurement.parameter_code) params.set("parameter_code", measurement.parameter_code)
         if (measurement.kind) params.set("kind", measurement.kind)
-        const response = await fetch(`${this.urlValue}?${params.toString()}`, {
-          headers: FIRST_PARTY_API_HEADERS,
-          cache: "no-store"
-        })
+        const response = await firstPartyApiFetch(`${this.urlValue}?${params.toString()}`)
         if (!response.ok) return null
         return response.json()
       })
