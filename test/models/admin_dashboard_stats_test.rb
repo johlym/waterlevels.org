@@ -70,6 +70,22 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
         series: 12,
         points: 340
       )
+      AdminDashboardStats.record_job_finish!(
+        :iv_repair_batch,
+        finished_at: 10.minutes.ago,
+        enqueued: 7,
+        candidates: 40,
+        workers: 1,
+        queue_depth_after: 7
+      )
+      AdminDashboardStats.record_job_finish!(
+        :iv_repair,
+        finished_at: 5.minutes.ago,
+        site_number: "12101000",
+        continuous_upserted: 48,
+        still_needs: false,
+        elapsed_s: 1.2
+      )
 
       stats = AdminDashboardStats.snapshot
 
@@ -97,6 +113,15 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
       assert stats[:last_daily_archive_export_at]
       assert_equal 12, stats[:last_daily_archive_export_series]
       assert_equal 340, stats[:last_daily_archive_export_points]
+      assert stats[:last_iv_repair_batch_at]
+      assert_equal 7, stats[:last_iv_repair_batch_enqueued]
+      assert_equal 40, stats[:last_iv_repair_batch_candidates]
+      assert_equal 1, stats[:last_iv_repair_batch_workers]
+      assert stats[:last_iv_repair_at]
+      assert_equal "12101000", stats[:last_iv_repair_site_number]
+      assert_equal 48, stats[:last_iv_repair_continuous_upserted]
+      assert_equal false, stats[:last_iv_repair_still_needs]
+      assert stats.key?(:stations_needing_iv_repair)
       assert_equal 2, stats[:per_state].size
       wa = stats[:per_state].find { |row| row[:state_code] == "wa" }
       assert_equal 1, wa[:station_count]

@@ -9,6 +9,18 @@
 
   <div class="stats-grid">
     <article>
+      <p class="value<%= " alert" if stats[:stations_needing_iv_repair].to_i.positive? %>">
+        <%= number_with_delimiter(stats[:stations_needing_iv_repair]) %>
+      </p>
+      <p class="label">Need IV repair</p>
+      <p class="hint">
+        Anchored tip/hollow gaps ·
+        <%= number_with_delimiter(stats[:iv_repair_locks].to_i) %> locked ·
+        <%= number_with_delimiter(stats[:iv_repair_cooldowns].to_i) %> cooling
+      </p>
+    </article>
+
+    <article>
       <p class="value"><%= number_with_delimiter(stats[:stations_needing_deep_history]) %></p>
       <p class="label">Have ~1y, need 3y</p>
       <p class="hint">Year-ready (incl. R2 daily tip); waiting on deep daily R2 backfill</p>

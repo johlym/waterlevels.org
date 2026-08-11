@@ -93,5 +93,46 @@
         <% end %>
       </p>
     </article>
+
+    <article>
+      <p class="value value-sm<%= " alert" if stats[:last_iv_repair_batch_workers].to_i.zero? && stats[:last_iv_repair_batch_enqueued].to_i.positive? %>">
+        <%= stats[:last_iv_repair_batch_at] ? "#{time_ago_in_words(stats[:last_iv_repair_batch_at])} ago" : "—" %>
+      </p>
+      <p class="label">IV repair batch</p>
+      <p class="hint">
+        <% if stats[:last_iv_repair_batch_skip_reason].present? %>
+          Skipped: <%= stats[:last_iv_repair_batch_skip_reason] %>
+          <% if stats[:last_iv_repair_batch_workers] %>
+            · <%= stats[:last_iv_repair_batch_workers] %> worker(s)
+          <% end %>
+        <% elsif stats[:last_iv_repair_batch_at] %>
+          <%= number_with_delimiter(stats[:last_iv_repair_batch_enqueued].to_i) %> enqueued ·
+          <%= number_with_delimiter(stats[:last_iv_repair_batch_candidates].to_i) %> candidates ·
+          queue <%= number_with_delimiter(stats[:last_iv_repair_batch_queue_depth_after].to_i) %> ·
+          <%= number_with_delimiter(stats[:last_iv_repair_batch_workers].to_i) %> worker(s)
+        <% else %>
+          Gap-fill lane on <code>iv_repair_worker</code>
+        <% end %>
+      </p>
+    </article>
+
+    <article>
+      <p class="value value-sm">
+        <%= stats[:last_iv_repair_at] ? "#{time_ago_in_words(stats[:last_iv_repair_at])} ago" : "—" %>
+      </p>
+      <p class="label">Last IV repair station</p>
+      <p class="hint">
+        <% if stats[:last_iv_repair_at] %>
+          <%= stats[:last_iv_repair_site_number] %> ·
+          <%= number_with_delimiter(stats[:last_iv_repair_continuous_upserted].to_i) %> points ·
+          <%= stats[:last_iv_repair_elapsed_s] %>s
+          <% if stats[:last_iv_repair_still_needs] %>
+            · still needs repair
+          <% end %>
+        <% else %>
+          Per-station continuous gap fetch
+        <% end %>
+      </p>
+    </article>
   </div>
 </section>
