@@ -17,8 +17,9 @@
       queue: sync
     flood_stage_sync:
       # Offset from latest USGS sync so category refresh trails observations.
+      # Enqueues one FloodStageSyncJob per state; each pads to a 31s min cycle.
       cron: "20 * * * *"
-      class: FloodStageSyncJob
+      class: FloodStageSyncBatchJob
       queue: sync
     history_backfill_batch:
       # Mon–Sat only; Sunday is reserved for StationCatalogSyncJob.
