@@ -1,11 +1,19 @@
 module Usgs
-  # Purpose-pinned history API keys so continuous / daily / peaks traffic (and
-  # their 429 circuits) stay isolated from each other and from tip/catalog sync.
+  # Purpose-pinned history API keys so continuous / daily / peaks / IV-repair
+  # traffic (and their 429 circuits) stay isolated from each other and from
+  # tip/catalog sync.
   #
   # Production: set USGS_API_HISTORY_CONTINUOUS_KEY, USGS_API_HISTORY_DAILY_KEY,
-  # and USGS_API_HISTORY_PEAKS_KEY.
+  # USGS_API_HISTORY_PEAKS_KEY, and USGS_API_HISTORY_IVREPAIR_KEY.
   # Local/test fallback: USGS_API_KEY (tip circuit) when a purpose key is unset.
   class HistoryKeyPool
+    PURPOSE_ROLES = {
+      continuous: "Cold continuous / IV archive",
+      daily: "Daily history",
+      peaks: "Peaks",
+      iv_repair: "IV gap repair"
+    }.freeze
+
     PURPOSES = {
       continuous: {
         env: "USGS_API_HISTORY_CONTINUOUS_KEY",
@@ -18,15 +26,20 @@ module Usgs
       peaks: {
         env: "USGS_API_HISTORY_PEAKS_KEY",
         circuit_key: "history_peaks"
+      },
+      iv_repair: {
+        env: "USGS_API_HISTORY_IVREPAIR_KEY",
+        circuit_key: "history_iv_repair"
       }
     }.freeze
 
     # USGS documented hourly request budget per API key (planning reference only;
     # we do not try to mirror USGS's remaining quota locally).
     HOURLY_REQUEST_LIMIT = 1000
-    # Rough planning costs for HistoryBackfillBatchJob station ceilings.
+    # Rough planning costs for batch station ceilings.
     PHASE1_REQUESTS_PER_STATION = 12 # cold 1y: continuous pages + daily + peaks
     DEEP_REQUESTS_PER_STATION = 2 # 1y→3y daily gap is usually 1–2 pages
+    IV_REPAIR_REQUESTS_PER_STATION = 2 # gap-sized continuous pulls
 
     def self.purposes
       PURPOSES.keys
@@ -75,6 +88,10 @@ module Usgs
       available?(:daily)
     end
 
+    def self.iv_repair_available?
+      available?(:iv_repair)
+    end
+
     def self.claim!(purpose)
       purpose = normalize_purpose!(purpose)
       circuit_key = circuit_key_for(purpose)
@@ -111,7 +128,7 @@ module Usgs
           configured: purpose_configured?(purpose),
           open: RateLimitCircuit.open?(effective),
           effective_circuit_key: effective,
-          role: purpose.to_s.capitalize,
+          role: PURPOSE_ROLES.fetch(purpose),
           fallback_to_tip: !purpose_configured?(purpose)
         }
       end

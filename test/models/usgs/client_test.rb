@@ -92,22 +92,26 @@ module Usgs
         "USGS_API_KEY" => ENV["USGS_API_KEY"],
         "USGS_API_HISTORY_CONTINUOUS_KEY" => ENV["USGS_API_HISTORY_CONTINUOUS_KEY"],
         "USGS_API_HISTORY_DAILY_KEY" => ENV["USGS_API_HISTORY_DAILY_KEY"],
-        "USGS_API_HISTORY_PEAKS_KEY" => ENV["USGS_API_HISTORY_PEAKS_KEY"]
+        "USGS_API_HISTORY_PEAKS_KEY" => ENV["USGS_API_HISTORY_PEAKS_KEY"],
+        "USGS_API_HISTORY_IVREPAIR_KEY" => ENV["USGS_API_HISTORY_IVREPAIR_KEY"]
       }
       ENV["USGS_API_KEY"] = "tip-key"
       ENV["USGS_API_HISTORY_CONTINUOUS_KEY"] = "hist-continuous"
       ENV["USGS_API_HISTORY_DAILY_KEY"] = "hist-daily"
       ENV["USGS_API_HISTORY_PEAKS_KEY"] = "hist-peaks"
+      ENV["USGS_API_HISTORY_IVREPAIR_KEY"] = "hist-iv-repair"
 
       tip = Client.for_tip
       continuous = Client.for_history(:continuous)
       daily = Client.for_history(:daily)
       peaks = Client.for_history(:peaks)
+      iv_repair = Client.for_history(:iv_repair)
 
       assert_equal RateLimitCircuit::TIP_KEY, tip.circuit_key
       assert_equal "history_continuous", continuous.circuit_key
       assert_equal "history_daily", daily.circuit_key
       assert_equal "history_peaks", peaks.circuit_key
+      assert_equal "history_iv_repair", iv_repair.circuit_key
     ensure
       previous.each do |key, value|
         value.nil? ? ENV.delete(key) : ENV[key] = value

@@ -57,6 +57,7 @@ class StationInspector
     lines << "Flags: water_level=#{loc[:has_water_level]} discharge=#{loc[:has_discharge]} temperature=#{loc[:has_temperature]}"
     lines << "Tip at=#{loc[:latest_observed_at] || '—'} stage=#{loc[:latest_water_level_value] || '—'} flow=#{loc[:latest_discharge_value] || '—'} temp_c=#{loc[:latest_temperature_c] || '—'}"
     lines << ""
+    lines << "IV repair: needs=#{r[:backfill][:needs_iv_repair]} locked=#{r[:backfill][:iv_repair_locked]} cooldown=#{r[:backfill][:iv_repair_cooling_down]}"
     lines << "Backfill: needs=#{r[:backfill][:needs_history_backfill]} locked=#{r[:backfill][:locked]} cooldown=#{r[:backfill][:cooling_down]} sunday_pause=#{r[:backfill][:sunday_catalog_pause]}"
     lines << "Gates: missing_year=#{r[:history_gates][:missing_year_history]} missing_deep=#{r[:history_gates][:missing_deep_history]} has_deep=#{r[:history_gates][:has_deep_history]}"
     lines << ""
@@ -121,6 +122,10 @@ class StationInspector
 
   def backfill_summary
     {
+      needs_iv_repair: location.needs_iv_repair?,
+      iv_repair_locked: IvRepairLock.locked?(location.id),
+      iv_repair_cooling_down: IvRepairLock.cooling_down?(location.id),
+      iv_repair_available: Usgs::HistoryKeyPool.iv_repair_available?,
       needs_history_backfill: location.needs_history_backfill?,
       missing_year_history: location.missing_year_history?,
       missing_deep_history: location.missing_deep_history?,
@@ -131,7 +136,9 @@ class StationInspector
       history_keys_exhausted: Usgs::HistoryKeyPool.exhausted?,
       db_read_only_circuit: DatabaseReadOnlyCircuit.open?,
       lock_ttl: HistoryBackfillLock::TTL,
-      cooldown_ttl: HistoryBackfillLock::COOLDOWN_TTL
+      cooldown_ttl: HistoryBackfillLock::COOLDOWN_TTL,
+      iv_repair_lock_ttl: IvRepairLock::TTL,
+      iv_repair_cooldown_ttl: IvRepairLock::COOLDOWN_TTL
     }
   end
 
@@ -266,6 +273,26 @@ class StationInspector
       )
     end
 
+    if bf[:needs_iv_repair] && bf[:iv_repair_cooling_down]
+      findings << finding(
+        :warn,
+        :iv_repair_cooldown,
+        "Station still needs IV repair but is on a #{IvRepairLock::COOLDOWN_TTL.inspect} cooldown after a prior attempt."
+      )
+    elsif bf[:needs_iv_repair] && bf[:iv_repair_locked]
+      findings << finding(
+        :info,
+        :iv_repair_locked,
+        "An IV repair lock is held (TTL #{IvRepairLock::TTL.inspect}) — a job is likely in progress."
+      )
+    elsif bf[:needs_iv_repair]
+      findings << finding(
+        :info,
+        :iv_repair_eligible,
+        "Station is eligible for IvRepairJob (needs_iv_repair?=true) — reserved continuous gap-fill lane."
+      )
+    end
+
     if bf[:needs_history_backfill] && bf[:cooling_down]
       findings << finding(
         :warn,
@@ -290,7 +317,7 @@ class StationInspector
       findings << finding(
         :info,
         :sunday_pause,
-        "HistoryBackfillJob is paused today for the Sunday catalog-sync window."
+        "History/IV repair jobs are paused today for the Sunday catalog-sync window."
       )
     end
 
@@ -299,6 +326,12 @@ class StationInspector
         :error,
         :history_keys_exhausted,
         "USGS history key pool circuits are open — backfill enqueue/perform will skip."
+      )
+    elsif bf[:needs_iv_repair] && !bf[:iv_repair_available]
+      findings << finding(
+        :error,
+        :iv_repair_unavailable,
+        "USGS IV repair key circuit is open — IvRepairJob enqueue/perform will skip."
       )
     end
 
@@ -318,7 +351,7 @@ class StationInspector
       findings << finding(
         :warn,
         :interior_continuous_gap,
-        "Selected #{series_label(s)} has an interior continuous hole larger than #{CONTINUOUS_GAP_THRESHOLD.inspect} (tip may still be fresh). History ingest will re-fetch that window — common after overnight tip-sync misses."
+        "Selected #{series_label(s)} has an interior continuous hole larger than #{CONTINUOUS_GAP_THRESHOLD.inspect} (tip may still be fresh). IvRepairJob / history ingest will re-fetch that window — common after overnight tip-sync misses."
       )
     end
 

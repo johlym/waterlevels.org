@@ -8,12 +8,20 @@ class HistoryBackfillJob < ApplicationJob
 
   def self.enqueue(monitoring_location_id, range = HistoryIngestion::DEFAULT_RANGE)
     return false if paused_for_catalog_sync?
-    return false if Usgs::HistoryKeyPool.exhausted?
+    return false unless history_keys_available_for?(range)
     return false if DatabaseReadOnlyCircuit.open?
     return false unless HistoryBackfillLock.claim!(monitoring_location_id)
 
     perform_later(monitoring_location_id, range)
     true
+  end
+
+  def self.history_keys_available_for?(range)
+    if range.to_s == HistoryIngestion::DEEP_RANGE
+      Usgs::HistoryKeyPool.deep_available?
+    else
+      Usgs::HistoryKeyPool.phase1_available?
+    end
   end
 
   def perform(monitoring_location_id, range = HistoryIngestion::DEFAULT_RANGE)
@@ -30,7 +38,7 @@ class HistoryBackfillJob < ApplicationJob
         Rails.logger.info("HistoryBackfillJob skipped: Sunday catalog sync window id=#{monitoring_location_id}")
         return
       end
-      if Usgs::HistoryKeyPool.exhausted?
+      unless self.class.history_keys_available_for?(range)
         Telemetry.add_attributes("app.skip_reason" => "history_keys_exhausted")
         Rails.logger.info("HistoryBackfillJob skipped: USGS history rate limit circuits open id=#{monitoring_location_id}")
         return

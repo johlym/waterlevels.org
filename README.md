@@ -49,7 +49,7 @@ STATE=wa RANGE=1y LIMIT=25 bin/rails usgs:backfill
 STATE=wa RANGE=3y LIMIT=25 bin/rails usgs:backfill
 ```
 
-Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_BACKFILL_BATCH` (default `50` stations per cron tick for cold `1y` work), `HISTORY_DEEP_BACKFILL_BATCH` (default `400` stations for `3y` deep fills; set `0` to pause). History backfill pins one USGS key per purpose (`USGS_API_HISTORY_CONTINUOUS_KEY` / `_DAILY_KEY` / `_PEAKS_KEY`) and opens that purpose’s circuit on a 429 for the rest of the UTC hour. The batch runs Mon–Sat every 10 minutes and no-ops when all purpose circuits are open or the backfill queue is still draining. Circuit state per key is on `/admin`.
+Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_IV_REPAIR_BATCH` (default `100` stations per tick for recent IV gap repair), `HISTORY_BACKFILL_BATCH` (default `50` stations per cron tick for cold `1y` work), `HISTORY_DEEP_BACKFILL_BATCH` (default `400` stations for `3y` deep fills; set `0` to pause). History pins one USGS key per purpose (`USGS_API_HISTORY_CONTINUOUS_KEY` / `_DAILY_KEY` / `_PEAKS_KEY` / `_IVREPAIR_KEY`) and opens that purpose’s circuit on a 429 for the rest of the UTC hour. IV repair (`IvRepairBatchJob`) runs Mon–Sat every 10 minutes on the `iv_repair` queue; cold/year backlog (`HistoryBackfillBatchJob`) runs five minutes later on `backfill` so IV completeness is not starved. Circuit state per key is on `/admin`.
 
 See `doc/postgres-r2-daily-archive.md` (current R2-first retention), `doc/plan-3y-daily-history.md` (historical 3y plan), and `doc/future.md` (hourly POR) for retention tiers and longer-history notes.
 
