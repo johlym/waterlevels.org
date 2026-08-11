@@ -84,4 +84,21 @@ class IvRepairBatchJobTest < ActiveSupport::TestCase
       end
     end
   end
+
+  test "skips when another batch already holds the lock" do
+    gappy = create(:monitoring_location, site_number: "30000205")
+    series = create(:time_series, monitoring_location: gappy, selected_for_display: true)
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      seed_continuous_coverage!(
+        series,
+        from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+        to: 6.hours.ago
+      )
+      assert IvRepairBatchLock.claim!
+      assert_no_enqueued_jobs only: IvRepairJob do
+        assert_equal 0, IvRepairBatchJob.perform_now(10)
+      end
+    end
+  end
 end
