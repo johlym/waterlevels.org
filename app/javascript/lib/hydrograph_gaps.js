@@ -67,9 +67,8 @@ export function chartPointsWithBreaks(points, maxGapMs = CONTINUOUS_GAP_MS) {
 
 // Fit the linear X scale to the plotted series. Chart.js defaults to
 // bounds: "ticks", which pads "nice" time past the first/last points and
-// leaves empty gutters on both ends. Extend max only when a trailing stale-tip
-// gap needs room for the hatch band.
-export function continuousXScaleBounds(chartPoints, gaps = []) {
+// leaves empty gutters on both ends of the data.
+export function continuousXScaleBounds(chartPoints) {
   const xs = (chartPoints || []).map((point) => point?.x).filter((x) => Number.isFinite(x))
   if (!xs.length) return {}
 
@@ -79,10 +78,6 @@ export function continuousXScaleBounds(chartPoints, gaps = []) {
     const x = xs[i]
     if (x < min) min = x
     if (x > max) max = x
-  }
-
-  for (const gap of gaps || []) {
-    if (Number.isFinite(gap?.end) && gap.end > max) max = gap.end
   }
 
   if (min === max) max = min + 1

@@ -68,14 +68,16 @@ describe("hydrograph_gaps", () => {
     })
   })
 
-  it("extends the X scale max for a trailing stale-tip gap hatch", () => {
+  it("does not stretch the X scale for a trailing stale-tip gap", () => {
     const points = [ { t: "2026-08-10T12:00:00.000Z", v: 1 } ]
     const throughMs = Date.parse("2026-08-10T16:00:00.000Z")
     const chartPoints = chartPointsWithBreaks(points)
-    const gaps = findGaps(points, CONTINUOUS_GAP_MS, { throughMs })
-    assert.deepEqual(continuousXScaleBounds(chartPoints, gaps), {
+    // Trailing gaps remain detectable for callers that want them, but the
+    // chart scale helper stays pinned to plotted points.
+    assert.equal(findGaps(points, CONTINUOUS_GAP_MS, { throughMs }).length, 1)
+    assert.deepEqual(continuousXScaleBounds(chartPoints), {
       min: Date.parse("2026-08-10T12:00:00.000Z"),
-      max: throughMs
+      max: Date.parse("2026-08-10T12:00:00.000Z") + 1
     })
   })
 })
