@@ -1,0 +1,6 @@
+# iv_repair_worker: recent IV tip / tip-sync hollow-middle gap fills
+# (queue: iv_repair). Own process so cold history backfill cannot starve
+# IV completeness. 512MB eco dyno — single thread.
+:concurrency: 1
+:queues:
+  - iv_repair
