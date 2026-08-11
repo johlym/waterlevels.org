@@ -7,6 +7,7 @@ class Admin::SettingsRegistryTest < ActiveSupport::TestCase
     assert_includes keys, :ingestion_throughput
     assert_includes keys, :daily_archive
     assert_includes keys, :history_retention
+    assert_includes keys, :admin_dashboard
     assert_includes keys, :maintenance
 
     Admin::SettingsRegistry.groups.each do |group|

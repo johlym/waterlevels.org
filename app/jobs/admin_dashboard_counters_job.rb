@@ -4,6 +4,10 @@ class AdminDashboardCountersJob < ApplicationJob
   queue_as :default
 
   def perform
+    unless AppConfig.boolean?(:admin_dashboard_counters_enabled)
+      Rails.logger.info("AdminDashboardCountersJob skipped: disabled by admin settings")
+      return
+    end
     if DatabaseReadOnlyCircuit.open?
       raise DatabaseReadOnlyError, "database read-only circuit open"
     end

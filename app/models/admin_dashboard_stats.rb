@@ -48,8 +48,9 @@ class AdminDashboardStats
   SECTION_TTL = 2.minutes
   SECTION_RACE_TTL = 15.seconds
   REDIS_SCAN_MAX_ITERATIONS = 50
-  # Keep well under Heroku's 30s H12 so a slow aggregate frees the Puma thread.
-  STATEMENT_TIMEOUT_MS = Integer(ENV.fetch("ADMIN_DASHBOARD_STATEMENT_TIMEOUT_MS", "12000"))
+  # Default only — prefer AppConfig.integer(:admin_dashboard_statement_timeout_ms)
+  # (ENV ADMIN_DASHBOARD_STATEMENT_TIMEOUT_MS or DB override).
+  STATEMENT_TIMEOUT_MS = 12_000
 
   class << self
     def snapshot
@@ -212,13 +213,24 @@ class AdminDashboardStats
     end
 
     def schedule_inventory_refresh!
+      unless AppConfig.boolean?(:admin_dashboard_counters_enabled)
+        return
+      end
+
       AdminDashboardCountersJob.perform_later
     rescue StandardError => e
       Rails.logger.warn("[AdminDashboardStats] schedule inventory refresh #{e.class}: #{e.message}")
       nil
     end
 
-    def with_statement_timeout(ms = STATEMENT_TIMEOUT_MS)
+    def statement_timeout_ms
+      AppConfig.integer(:admin_dashboard_statement_timeout_ms)
+    rescue AppConfig::UnknownKeyError
+      STATEMENT_TIMEOUT_MS
+    end
+
+    def with_statement_timeout(ms = nil)
+      ms = statement_timeout_ms if ms.nil?
       connection = ActiveRecord::Base.connection
       previous = connection.select_value("SHOW statement_timeout")
       # Quote the coerced integer so Brakeman does not flag string interpolation.

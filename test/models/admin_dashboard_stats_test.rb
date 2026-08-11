@@ -411,6 +411,13 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
     assert pipeline[:inventory_computed_at]
   end
 
+  test "statement_timeout_ms reads AppConfig override" do
+    AppConfig.write!(:admin_dashboard_statement_timeout_ms, 8_000)
+    assert_equal 8_000, AdminDashboardStats.statement_timeout_ms
+  ensure
+    AppConfig.reset!(:admin_dashboard_statement_timeout_ms)
+  end
+
   test "section snapshots compose into the full snapshot" do
     create(:monitoring_location, state_code: "wa", latest_observed_at: 30.minutes.ago)
 

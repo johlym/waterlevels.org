@@ -9,6 +9,7 @@ module Admin
         IngestionThroughput.register!
         ArchiveFlags.register!
         HistoryRetention.register!
+        AdminDashboard.register!
         MaintenanceActions.register!
       end
     end
