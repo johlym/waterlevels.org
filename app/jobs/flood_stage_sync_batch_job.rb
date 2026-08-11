@@ -2,8 +2,8 @@ class FloodStageSyncBatchJob < ApplicationJob
   queue_as :sync
 
   # Hourly cron entrypoint: enqueue one FloodStageSyncJob per state. Each state
-  # job enforces a 31s minimum cycle, and the sync worker is single-threaded, so
-  # starts stay ≥31s apart without a fixed Sidekiq schedule stagger.
+  # job enforces a 31s minimum cycle and takes FloodStageSyncLock so only one
+  # flood job runs at a time on the multi-thread sync worker.
   def perform
     Telemetry.in_root_span(
       "job.flood_sync_batch",

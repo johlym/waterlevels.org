@@ -1,5 +1,6 @@
 # sync_worker: catalog, latest tip, flood, bootstrap (queue: sync).
-# 512MB eco dyno — single thread.
+# Two threads so tip/catalog can proceed while a flood state job is pacing;
+# FloodStageSyncLock still serializes flood jobs onto one thread.
 :concurrency: 2
 :queues:
   - sync

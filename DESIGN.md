@@ -100,7 +100,7 @@ External data flows in through namespaced clients → sync objects → Sidekiq j
 - **Sync objects (`app/models/*_sync.rb`, `history_ingestion.rb`, `display_series_selection.rb`):**
   - `StationCatalogSync` (weekly / bootstrap) — discover active continuous water-body sites, filter via `Usgs::SiteTypes`, upsert series + latest, select display series, prune inactive, warm caches.
   - `LatestObservationSync` (hourly) — refresh `selected_for_display` series, denormalize location columns, warm caches.
-  - `FloodStageSyncBatchJob` / `FloodStageSyncJob` (hourly, offset) — enqueue one state job at a time (≥31s min cycle). Each state refreshes flood categories from covering NWPS list regions, prioritizes detail-matching for unlinked action+ gauges (LID → usgsId → site), then spends a small budget on threshold discovery. Also runs at the end of each `BootstrapStateJob`.
+  - `FloodStageSyncBatchJob` / `FloodStageSyncJob` (hourly, offset) — enqueue one state job at a time (≥31s min cycle; Redis `FloodStageSyncLock` serializes flood work on the 2-thread sync worker). Each state refreshes flood categories from covering NWPS list regions, prioritizes detail-matching for unlinked action+ gauges (LID → usgsId → site), then spends a small budget on threshold discovery. Also runs at the end of each `BootstrapStateJob`.
   - `HistoryIngestion` (on-demand/batch) — fetch continuous/daily/peaks for charts; gap-aware. Cold/lazy path uses `1y`; deep `3y` daily only for year-ready stations.
   - `DisplaySeriesSelection` — choose one discharge + one temperature + ranked water-level series; set `has_*` flags and denormalized columns.
 - **Jobs (`app/jobs`) + schedule (`config/sidekiq.yml` on `worker`):** catalog (Sun 03:00), latest (hourly), flood (hourly :20), history backfill batch (Mon–Sat every 10 minutes), prune (daily). Queues: `default` → `worker`, `sync` → `sync_worker`, `backfill` → `historical_worker`.
@@ -155,7 +155,7 @@ Encapsulate domain knowledge in small, well-named objects rather than scattering
 
 ## 13. Configuration & deployment
 
-- **Processes:** `Procfile` → `web` (Puma) + `worker` (Sidekiq default queue + scheduler) + `sync_worker` (`sync`) + `historical_worker` (`backfill`) + `release` (`db:migrate`); `Procfile.dev` → Rails + JS/CSS watchers. Each Sidekiq process is concurrency 1 for 512MB eco dynos.
+- **Processes:** `Procfile` → `web` (Puma) + `worker` (Sidekiq default queue + scheduler) + `sync_worker` (`sync`, concurrency 2) + `historical_worker` (`backfill`) + `release` (`db:migrate`); `Procfile.dev` → Rails + JS/CSS watchers. Default/historical Sidekiq processes stay concurrency 1 for 512MB eco dynos; flood sync is serialized via `FloodStageSyncLock`.
 - **Environments:** development uses memory cache + `:async` jobs + suppressed mail errors; production uses Redis cache + Sidekiq + Bento mail + `force_ssl`.
 - **Heroku target:** web + worker dynos, Postgres + Redis add-ons; env `USGS_API_KEY`, `REDIS_URL`, `DATABASE_URL`; post-deploy `bin/rails usgs:enqueue_bootstrap`. `lib/redis_config.rb` sets `ssl_params.verify_mode = VERIFY_NONE` for Heroku self-signed `rediss://`.
 - **Edge:** Cloudflare in front, honoring `Cache-Control`/`Cache-Tag` for targeted purges. Set `CLOUDFLARE_ZONE_ID` + `CLOUDFLARE_API_TOKEN` (Zone.Cache Purge permission) so syncs can call Instant Purge by tag.

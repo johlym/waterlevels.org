@@ -3,9 +3,30 @@ require "test_helper"
 class FloodStageSyncJobTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
+  setup do
+    @previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+  end
+
+  teardown do
+    Rails.cache = @previous_cache
+  end
+
   test "requires a state" do
     error = assert_raises(ArgumentError) { FloodStageSyncJob.perform_now(nil) }
     assert_match(/requires a state/, error.message)
+  end
+
+  test "requeues when another flood sync holds the lock" do
+    assert FloodStageSyncLock.claim!
+
+    assert_enqueued_with(
+      job: FloodStageSyncJob,
+      args: [ "wa" ],
+      at: (Time.current + FloodStageSyncJob::LOCK_BUSY_REQUEUE_SECONDS.seconds)
+    ) do
+      FloodStageSyncJob.perform_now("wa")
+    end
   end
 
   test "pads short runs to the 31s min cycle" do
