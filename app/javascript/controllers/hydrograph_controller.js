@@ -5,6 +5,7 @@ import { formatGaugeValue } from "../lib/gauge_value"
 import { coalesceHourlyReadings } from "../lib/coalesce_hourly_readings"
 import {
   chartPointsWithBreaks,
+  continuousXScaleBounds,
   findGaps,
   gapHatchPlugin,
   isContinuousChartRange
@@ -715,6 +716,8 @@ export default class extends Controller {
           scales: {
             x: continuousRange ? {
               type: "linear",
+              bounds: "data",
+              ...continuousXScaleBounds(chartPoints, gaps),
               display: true,
               border: { display: false },
               grid: { color: grid },

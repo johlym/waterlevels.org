@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 import {
   CONTINUOUS_GAP_MS,
   chartPointsWithBreaks,
+  continuousXScaleBounds,
   findGaps,
   isContinuousChartRange
 } from "../../app/javascript/lib/hydrograph_gaps.js"
@@ -53,5 +54,28 @@ describe("hydrograph_gaps", () => {
     assert.equal(chartPoints[1].gap, true)
     assert.equal(chartPoints[0].y, 1)
     assert.equal(chartPoints[2].y, 2)
+  })
+
+  it("fits the X scale to first/last chart points", () => {
+    const points = [
+      { t: "2026-08-10T03:30:00.000Z", v: 1 },
+      { t: "2026-08-10T13:30:00.000Z", v: 2 }
+    ]
+    const chartPoints = chartPointsWithBreaks(points)
+    assert.deepEqual(continuousXScaleBounds(chartPoints), {
+      min: Date.parse("2026-08-10T03:30:00.000Z"),
+      max: Date.parse("2026-08-10T13:30:00.000Z")
+    })
+  })
+
+  it("extends the X scale max for a trailing stale-tip gap hatch", () => {
+    const points = [ { t: "2026-08-10T12:00:00.000Z", v: 1 } ]
+    const throughMs = Date.parse("2026-08-10T16:00:00.000Z")
+    const chartPoints = chartPointsWithBreaks(points)
+    const gaps = findGaps(points, CONTINUOUS_GAP_MS, { throughMs })
+    assert.deepEqual(continuousXScaleBounds(chartPoints, gaps), {
+      min: Date.parse("2026-08-10T12:00:00.000Z"),
+      max: throughMs
+    })
   })
 })
