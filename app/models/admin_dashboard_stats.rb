@@ -17,6 +17,11 @@ class AdminDashboardStats
     iv_repair_batch: "admin:last_iv_repair_batch",
     iv_repair: "admin:last_iv_repair"
   }.freeze
+  # Last successful IV-repair eligibility scan size. Kept separate from
+  # iv_repair_batch job-finish so skipped runs (circuit/queue/Sunday) do not
+  # wipe the pipeline "Need IV repair" figure — and so /admin never re-runs
+  # MonitoringLocation.iv_repair_candidate_ids (tip_sync_gap + continuous scans).
+  IV_REPAIR_CANDIDATES_CACHE_KEY = "admin:iv_repair_candidates".freeze
   TIP_REFRESH_TTL = 7.days
   APPROX_COUNT_THRESHOLD = SiteStats::APPROX_COUNT_THRESHOLD
   SECTIONS = %i[core pipeline growth jobs states health].freeze
@@ -28,7 +33,7 @@ class AdminDashboardStats
   BACKFILL_RACE_TTL = 30.seconds
   # Bump when a section payload shape changes so deploys do not serve stale
   # hashes that crash the matching partial (Turbo then shows "Content missing").
-  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v6".freeze
+  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v7".freeze
   SECTION_TTL = 2.minutes
   SECTION_RACE_TTL = 15.seconds
   REDIS_SCAN_MAX_ITERATIONS = 50
@@ -77,7 +82,47 @@ class AdminDashboardStats
       key = cache_key_for!(name)
       payload = extra.merge(finished_at: finished_at.iso8601)
       write_job_payload(key, payload)
+      if name.to_sym == :iv_repair_batch && extra.key?(:candidates)
+        record_iv_repair_candidates!(extra[:candidates], scanned_at: finished_at)
+      end
       payload
+    end
+
+    def record_iv_repair_candidates!(count, scanned_at: Time.current)
+      write_job_payload(
+        IV_REPAIR_CANDIDATES_CACHE_KEY,
+        {
+          count: count.to_i,
+          scanned_at: scanned_at.iso8601
+        }
+      )
+    end
+
+    def last_iv_repair_candidates_payload
+      redis_read_job(IV_REPAIR_CANDIDATES_CACHE_KEY) || memory_jobs[IV_REPAIR_CANDIDATES_CACHE_KEY]
+    end
+
+    # Candidate station count from the last completed eligibility scan.
+    # Prefer the dedicated key (survives skipped batch finishes); fall back to
+    # the last iv_repair_batch job payload when present.
+    def last_iv_repair_candidates
+      payload = last_iv_repair_candidates_payload
+      return payload[:count].to_i if payload&.key?(:count)
+
+      batch = last_job(:iv_repair_batch) || {}
+      return batch[:candidates].to_i if batch.key?(:candidates)
+
+      nil
+    end
+
+    def last_iv_repair_candidates_scanned_at
+      payload = last_iv_repair_candidates_payload
+      return parse_cached_time(payload[:scanned_at]) if payload&.key?(:scanned_at)
+
+      batch = last_job(:iv_repair_batch) || {}
+      return parse_cached_time(batch[:finished_at]) if batch.key?(:candidates)
+
+      nil
     end
 
     def last_tip_refresh
@@ -95,7 +140,16 @@ class AdminDashboardStats
 
     def clear_jobs!
       self.memory_jobs = {}
-      redis_with_rescue { |r| r.del(*JOB_CACHE_KEYS.values) }
+      redis_with_rescue { |r| r.del(*JOB_CACHE_KEYS.values, IV_REPAIR_CANDIDATES_CACHE_KEY) }
+    end
+
+    def parse_cached_time(value)
+      return if value.blank?
+      return value if value.is_a?(Time) || value.is_a?(ActiveSupport::TimeWithZone)
+
+      Time.zone.parse(value.to_s)
+    rescue ArgumentError
+      nil
     end
 
     def bust_backfill_cache!
@@ -218,7 +272,9 @@ class AdminDashboardStats
     {
       stations_needing_deep_history: backfill[:stations_needing_deep_history],
       stations_history_ready: backfill[:stations_history_ready],
-      stations_needing_iv_repair: MonitoringLocation.needing_iv_repair.count,
+      # Last batch eligibility scan — never live needing_iv_repair / tip_sync_gap.
+      stations_needing_iv_repair: self.class.last_iv_repair_candidates.to_i,
+      iv_repair_candidates_scanned_at: self.class.last_iv_repair_candidates_scanned_at,
       stale_station_count: active_count - MonitoringLocation.active.not_stale.count,
       flood_alert_count: site[:flood_alert_count],
       nwps_matched_count: MonitoringLocation.active.where(nwps_matched: true).count,
