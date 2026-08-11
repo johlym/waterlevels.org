@@ -611,6 +611,9 @@ export default class extends Controller {
     const overlayAxes = {}
     overlays.forEach((overlay, index) => {
       const overlayColors = SERIES_COLORS[overlay.kind] || SERIES_COLORS.discharge
+      // Flow / temperature overlays stay at half opacity so the primary fill
+      // series remains the visual focus; gap bridges match that weight.
+      const overlayBorder = this.colorWithAlpha(overlayColors.border, 0.5)
       const yAxisID = `y${index + 1}`
       const overlayPoints = overlay.points || []
       let overlayData
@@ -623,9 +626,9 @@ export default class extends Controller {
           bridgeSeries.push({
             gaps: overlayGaps,
             yAxisID,
-            strokeColor: overlayColors.border,
+            strokeColor: overlayBorder,
             lineWidth: 2,
-            opacity: 0.5,
+            opacity: 1,
             hatch: false,
             borderDash: [4, 4]
           })
@@ -640,7 +643,7 @@ export default class extends Controller {
       datasets.push({
         label: overlay.label || overlay.kind,
         data: overlayData,
-        borderColor: overlayColors.border,
+        borderColor: overlayBorder,
         backgroundColor: "transparent",
         borderDash: [4, 4],
         fill: false,
@@ -847,6 +850,28 @@ export default class extends Controller {
     if (!values.length) return undefined
     const max = Math.max(...values)
     return max > 0 ? max * 1.05 : undefined
+  }
+
+  colorWithAlpha(color, alpha) {
+    const value = String(color || "").trim()
+    const hex = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+    if (hex) {
+      let body = hex[1]
+      if (body.length === 3) {
+        body = body.split("").map((ch) => `${ch}${ch}`).join("")
+      }
+      const r = Number.parseInt(body.slice(0, 2), 16)
+      const g = Number.parseInt(body.slice(2, 4), 16)
+      const b = Number.parseInt(body.slice(4, 6), 16)
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`
+    }
+
+    const rgb = value.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*[\d.]+\s*)?\)$/i)
+    if (rgb) {
+      return `rgba(${rgb[1]}, ${rgb[2]}, ${rgb[3]}, ${alpha})`
+    }
+
+    return value
   }
 
   destroyChart() {
