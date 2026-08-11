@@ -18,11 +18,13 @@ class FloodStageSync
   end
 
   def perform
+    raise ArgumentError, "FloodStageSync requires a state (national runs use FloodStageSyncJob)" if postal_code.blank?
+
     Telemetry.in_root_span(
       "flood.sync",
       attributes: {
         "app.operation" => "flood.sync",
-        "app.state" => postal_code || "national"
+        "app.state" => postal_code
       }
     ) do
       @detail_requests_remaining = detail_request_budget
@@ -93,7 +95,7 @@ class FloodStageSync
   private
 
   def scope_label
-    postal_code ? "state=#{postal_code}" : "national"
+    "state=#{postal_code}"
   end
 
   def postal_code
@@ -101,8 +103,7 @@ class FloodStageSync
   end
 
   def sync_scope
-    scope = MonitoringLocation.active
-    postal_code ? scope.in_state(postal_code) : scope
+    MonitoringLocation.active.in_state(postal_code)
   end
 
   def detail_request_budget
@@ -124,35 +125,24 @@ class FloodStageSync
     format("%.1f", monotonic_now - started_at)
   end
 
-  def regions_to_fetch
-    if postal_code
-      Nwps::ListRegions.ids_covering_state(postal_code)
-    else
-      Nwps::ListRegions.ids
-    end
-  end
-
+  # One padded state bbox list GET per state. FloodStageSyncJob paces states
+  # ≥30s apart so a full national pass is 53 list calls, not repeated multi-state
+  # region downloads.
   def fetch_gauges_by_lid
-    by_lid = {}
-    regions = regions_to_fetch
-    progress&.step("nwps list regions=#{regions.size} ids=#{regions.join(",")}")
-    regions.each_with_index do |region_id, index|
-      begin
-        progress&.step("nwps list fetch region=#{region_id} (#{index + 1}/#{regions.size})")
-        gauges = filter_gauges_for_scope(client.gauges(region: region_id))
-        gauges.each do |gauge|
-          lid = gauge["lid"].to_s.upcase.presence
-          next unless lid
+    progress&.step("nwps list state=#{postal_code}")
+    gauges = filter_gauges_for_state(client.gauges(state: postal_code))
 
-          by_lid[lid] = gauge
-        end
-        progress&.step("nwps list region=#{region_id} gauges=#{gauges.size}")
-      rescue Nwps::Client::Error => e
-        progress&.step("list fetch skipped region=#{region_id}: #{e.message}")
-      end
+    by_lid = gauges.each_with_object({}) do |gauge, memo|
+      lid = gauge["lid"].to_s.upcase.presence
+      next unless lid
+
+      memo[lid] = gauge
     end
-    progress&.step("nwps list gauges=#{by_lid.size}")
+    progress&.step("nwps list state=#{postal_code} gauges=#{by_lid.size}")
     by_lid
+  rescue Nwps::Client::Error => e
+    progress&.step("list fetch skipped state=#{postal_code}: #{e.message}")
+    {}
   end
 
   # Phase 1: list calls update flood_category for every site we already
@@ -180,14 +170,9 @@ class FloodStageSync
     updated
   end
 
-  def filter_gauges_for_scope(gauges)
-    if postal_code
-      abbrev = postal_code.to_s.upcase
-      return gauges.select { |gauge| gauge.dig("state", "abbreviation").to_s.upcase == abbrev }
-    end
-
-    known = Usgs::StateCodes::STATES.keys.map(&:upcase).to_set
-    gauges.select { |gauge| known.include?(gauge.dig("state", "abbreviation").to_s.upcase) }
+  def filter_gauges_for_state(gauges)
+    abbrev = postal_code.to_s.upcase
+    gauges.select { |gauge| gauge.dig("state", "abbreviation").to_s.upcase == abbrev }
   end
 
   # Phase 1b: for NWPS points currently at action+ that we have not linked yet,
@@ -414,13 +399,8 @@ class FloodStageSync
   end
 
   def warm_caches(changed:)
-    if postal_code
-      progress&.step("warming state listing cache state=#{postal_code}")
-      StateListingCache.warm(postal_code)
-    else
-      progress&.step("warming all state listing caches")
-      StateListingCache.warm_all
-    end
+    progress&.step("warming state listing cache state=#{postal_code}")
+    StateListingCache.warm(postal_code)
 
     if changed
       progress&.step("warming national site stats + alerts caches")

@@ -5,7 +5,7 @@ module Nwps
     BASE_URL = "https://api.water.noaa.gov/nwps/v1/".freeze
     LIST_TIMEOUT_SECONDS = 90
     # NWPS publishes ~10 requests / 5 minutes. Default to 30s between calls so
-    # a 10-slice list pass stays inside that budget.
+    # a paced 53-state list pass stays inside that budget.
     DEFAULT_REQUEST_PAUSE_MS = 30_000
 
     Error = Class.new(StandardError)
@@ -42,19 +42,20 @@ module Nwps
       end
     end
 
-    # Returns the NWPS gauge list for one geographic slice (status + LID; no
-    # usgsId / thresholds). +region+ is required so callers cannot request the
-    # unbounded national payload that NWPS often 504s on.
-    def gauges(region:)
-      region_id = region.to_s
-      bbox = ListRegions.bbox_for(region_id)
+    # Returns the NWPS gauge list for one state bbox (status + LID; no usgsId /
+    # thresholds). +state+ is required so callers cannot request the unbounded
+    # national payload that NWPS often 504s on. Callers still filter by state
+    # abbreviation — bboxes are padded and may include near-border points.
+    def gauges(state:)
+      postal = Usgs::StateCodes.normalize_postal(state)
+      bbox = Usgs::StateCodes.bbox_for(postal)
 
       Telemetry.in_span(
         "nwps.http.gauges",
         attributes: {
           "http.request.method" => "GET",
           "app.operation" => "nwps.http.gauges",
-          "app.nwps_region" => region_id
+          "app.state" => postal
         }
       ) do
         pause_between_requests!

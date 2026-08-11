@@ -173,7 +173,7 @@ class FloodStageSyncTest < ActiveSupport::TestCase
         }.to_json
       )
 
-    FloodStageSync.new.perform
+    FloodStageSync.new(state: "tx").perform
 
     flooding.reload
     assert flooding.nwps_matched?
@@ -273,7 +273,7 @@ class FloodStageSyncTest < ActiveSupport::TestCase
     assert_equal prior_updated_at.to_i, @location.reload.updated_at.to_i
   end
 
-  test "list fetch uses covering region bboxes instead of a national gauges list" do
+  test "list fetch uses the state's bbox instead of a national gauges list" do
     stub_nwps_gauges(gauges: [])
     stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges/01646500")
       .to_return(status: 404, body: "{}")
@@ -282,7 +282,7 @@ class FloodStageSyncTest < ActiveSupport::TestCase
 
     FloodStageSync.new(state: "wa").perform
 
-    bbox = Nwps::ListRegions.bbox_for("conus_pacific")
+    bbox = Usgs::StateCodes.bbox_for("wa")
     assert_requested :get, "https://api.water.noaa.gov/nwps/v1/gauges",
       query: {
         "bbox.xmin" => bbox.fetch(:xmin).to_s,
@@ -291,6 +291,10 @@ class FloodStageSyncTest < ActiveSupport::TestCase
         "bbox.ymax" => bbox.fetch(:ymax).to_s,
         "srid" => "EPSG_4326"
       }
+  end
+
+  test "requires a state" do
+    assert_raises(ArgumentError) { FloodStageSync.new.perform }
   end
 
   test "caps detail GETs per run so national sync stays finite" do
@@ -391,7 +395,7 @@ class FloodStageSyncTest < ActiveSupport::TestCase
     stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges/08210001")
       .to_return(status: 404, body: "{}")
 
-    FloodStageSync.new.perform
+    FloodStageSync.new(state: "tx").perform
 
     flooding.reload
     assert flooding.nwps_matched?
