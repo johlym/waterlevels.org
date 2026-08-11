@@ -12,7 +12,8 @@ module Admin
         return
       end
 
-      values = params.fetch(:settings, {}).permit!.to_h
+      allowed_keys = group.settings.map { |setting| setting.key.to_s }
+      values = params.fetch(:settings, {}).permit(*allowed_keys).to_h
       updated = []
       group.settings.each do |setting|
         key = setting.key.to_s
