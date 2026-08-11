@@ -36,5 +36,14 @@ module Usgs
       assert_includes names, "New Hampshire"
       assert_equal "New York", names.first
     end
+
+    test "bbox_for returns a valid padded WGS84 envelope per state" do
+      StateCodes::STATES.each_key do |postal|
+        bbox = StateCodes.bbox_for(postal)
+        %i[xmin ymin xmax ymax].each { |key| assert bbox.key?(key), "#{postal} missing #{key}" }
+        assert_operator bbox.fetch(:xmin), :<, bbox.fetch(:xmax), postal
+        assert_operator bbox.fetch(:ymin), :<, bbox.fetch(:ymax), postal
+      end
+    end
   end
 end

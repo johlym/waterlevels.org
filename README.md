@@ -32,7 +32,7 @@ bin/rails usgs:enqueue_bootstrap
 # optional: STATE=wa DELAY_SECONDS=120
 ```
 
-Hourly `LatestObservationSyncJob` keeps readings fresh near `:00`. `FloodStageSyncJob` runs at `:30` and loops every state in one job with ≥30s between states (refreshes NWPS flood categories, links unlinked action+ gauges, small detail-GET budget). `STATE=wa bin/rails nwps:sync_flood_stages` or `bin/rails nwps:enqueue_sync`. Bootstrap also runs flood sync per state. Hourly `HistoryBackfillBatchJob` fills gap-aware continuous history (up to ~35 days) and year daily history into R2 in batches (gauge page views also enqueue a station when charts are empty). Prefer this over a national one-off `usgs:bootstrap` on a small dyno.
+Hourly `LatestObservationSyncJob` keeps readings fresh near `:00`. `FloodStageSyncJob` runs at `:30` and loops every state in one job with ≥30s between states (one NWPS list GET per state bbox, category refresh, unlinked action+ linking, small detail-GET budget). `STATE=wa bin/rails nwps:sync_flood_stages` or `bin/rails nwps:enqueue_sync`. Bootstrap also runs flood sync per state. Hourly `HistoryBackfillBatchJob` fills gap-aware continuous history (up to ~35 days) and year daily history into R2 in batches (gauge page views also enqueue a station when charts are empty). Prefer this over a national one-off `usgs:bootstrap` on a small dyno.
 
 ### Local / single-state
 
