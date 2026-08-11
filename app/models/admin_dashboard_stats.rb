@@ -374,7 +374,6 @@ class AdminDashboardStats
     year_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
     continuous_since = HistoryIngestion::CONTINUOUS_FRESHNESS.ago
-    continuous_anchor = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
     daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
 
     stations_by_state = MonitoringLocation.active.group(:state_code).count
@@ -384,10 +383,16 @@ class AdminDashboardStats
 
     has_year = DailyArchive.daily_coverage_series_ids(year_anchor)
     has_deep = DailyArchive.daily_coverage_series_ids(deep_anchor)
-    has_continuous_tip = ContinuousObservation.where(observed_at: continuous_since..)
-      .distinct.pluck(:time_series_id).to_set
-    has_continuous_anchor = ContinuousObservation.where(observed_at: ..continuous_anchor)
-      .distinct.pluck(:time_series_id).to_set
+    # Denorm columns — avoid fleet plucks from continuous_observations.
+    coverage_rows = TimeSeries.selected.pluck(
+      :id, :continuous_newest_at, :has_continuous_anchor
+    )
+    has_continuous_tip = coverage_rows.each_with_object(Set.new) { |(id, newest, _), set|
+      set << id if newest.present? && newest >= continuous_since
+    }
+    has_continuous_anchor = coverage_rows.each_with_object(Set.new) { |(id, _, anchored), set|
+      set << id if anchored
+    }
     # Must include R2 shard tips — after DAILY_ARCHIVE_PRUNE, Postgres daily is empty.
     has_daily_tip = DailyArchive.fresh_daily_tip_series_ids(daily_fresh_since)
 
