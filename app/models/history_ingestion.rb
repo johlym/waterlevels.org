@@ -30,11 +30,6 @@ class HistoryIngestion
   # Tip sync is ~hourly, so keep this above 1h to avoid endless densify of healthy
   # tip spacing — overnight outages (many hours) still qualify.
   CONTINUOUS_GAP_THRESHOLD = 2.hours
-  # Batch eligibility (needing_history_backfill) only LAG-scans this recent window
-  # for tip-sync hollow middles. Scanning full CONTINUOUS_RETENTION across the
-  # fleet hung HistoryBackfillBatchJob for many minutes with no logs. Per-station
-  # ingest still repairs the full retention window via continuous_interior_gap_ranges.
-  CONTINUOUS_INTERIOR_GAP_BATCH_WINDOW = 2.days
 
   def initialize(monitoring_location:, range: DEFAULT_RANGE, client: nil, progress: nil)
     @monitoring_location = monitoring_location
@@ -272,38 +267,51 @@ class HistoryIngestion
     ).any?
   end
 
-  # Selected time_series ids with a consecutive IV hole larger than threshold.
-  # Used by needing_history_backfill so cron repairs hollow tip-sync archives.
-  # Callers should pass a short window_start (CONTINUOUS_INTERIOR_GAP_BATCH_WINDOW)
-  # and a tip+anchor-limited time_series_scope — not fleet-wide full retention.
-  def self.time_series_ids_with_interior_continuous_gaps(
-    window_start: CONTINUOUS_INTERIOR_GAP_BATCH_WINDOW.ago,
-    threshold: CONTINUOUS_GAP_THRESHOLD,
-    time_series_scope: TimeSeries.selected
-  )
+  # Selected series whose newest IV tip is fresh but the previous point is more
+  # than threshold older — the tip-sync hollow-middle case (overnight miss, then
+  # a new tip). Used by needing_history_backfill.
+  #
+  # Intentionally NOT a fleet-wide LAG over retention: that hung
+  # HistoryBackfillBatchJob for 10+ minutes. This uses DISTINCT ON + LATERAL
+  # against (time_series_id, observed_at) so cost is ~one index seek per series
+  # with a recent tip. Deeper interior holes are still repaired by per-station
+  # ingest / needs_history_backfill? when a job runs for other reasons.
+  def self.time_series_ids_with_tip_sync_gaps(threshold: CONTINUOUS_GAP_THRESHOLD)
     threshold_seconds = threshold.to_i
-    series_sql = time_series_scope.select(:id).to_sql
+    tip_since = ContinuousObservation.connection.quote(threshold.ago)
     sql = <<~SQL.squish
-      SELECT DISTINCT time_series_id
+      SELECT tips.time_series_id
       FROM (
-        SELECT time_series_id,
-               observed_at - LAG(observed_at) OVER (
-                 PARTITION BY time_series_id ORDER BY observed_at
-               ) AS gap
-        FROM continuous_observations
-        WHERE observed_at >= #{ContinuousObservation.connection.quote(window_start)}
-          AND time_series_id IN (#{series_sql})
-      ) continuous_gaps
-      WHERE gap > INTERVAL '#{threshold_seconds} seconds'
+        SELECT DISTINCT ON (co.time_series_id)
+               co.time_series_id,
+               co.observed_at AS tip_at
+        FROM continuous_observations co
+        INNER JOIN time_series ts
+          ON ts.id = co.time_series_id
+         AND ts.selected_for_display = TRUE
+        WHERE co.observed_at >= #{tip_since}
+        ORDER BY co.time_series_id, co.observed_at DESC
+      ) tips
+      INNER JOIN LATERAL (
+        SELECT co.observed_at AS prev_at
+        FROM continuous_observations co
+        WHERE co.time_series_id = tips.time_series_id
+          AND co.observed_at < tips.tip_at
+        ORDER BY co.observed_at DESC
+        LIMIT 1
+      ) prev ON TRUE
+      WHERE tips.tip_at - prev.prev_at > INTERVAL '#{threshold_seconds} seconds'
     SQL
 
+    Rails.logger.info(
+      "HistoryIngestion tip_sync_gap_scan starting threshold_s=#{threshold_seconds}"
+    )
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     ids = ContinuousObservation.connection.select_values(sql).map!(&:to_i)
     elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
     Rails.logger.info(
-      "HistoryIngestion interior_gap_scan ids=#{ids.size} " \
-      "window_start=#{window_start.utc.iso8601} threshold_s=#{threshold_seconds} " \
-      "elapsed_ms=#{elapsed_ms}"
+      "HistoryIngestion tip_sync_gap_scan ids=#{ids.size} " \
+      "threshold_s=#{threshold_seconds} elapsed_ms=#{elapsed_ms}"
     )
     ids
   end

@@ -95,23 +95,22 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     refute complete.needs_history_backfill?
   end
 
-  test "needing_history_backfill only LAG-scans recent tip-sync hollow middles" do
-    # Dense recent tip+anchor coverage, with an older hole outside the batch
-    # lookback. Batch scope must not re-scan full retention for these; the
-    # per-station predicate still sees the hole for lazy enqueue / ingest.
+  test "needing_history_backfill tip-sync gap check ignores older interior holes" do
+    # Dense tip adjacency with an older hole further back. Batch only compares
+    # tip vs previous point; per-station needs_history_backfill? still sees the
+    # older hole for lazy enqueue / ingest.
     location = create(:monitoring_location, site_number: "20000007")
     series = create(:time_series, monitoring_location: location, selected_for_display: true)
-    batch_window = HistoryIngestion::CONTINUOUS_INTERIOR_GAP_BATCH_WINDOW
 
     seed_continuous_coverage!(
       series,
       from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
-      to: (batch_window + 3.days).ago
+      to: 5.days.ago
     )
-    # Leave a multi-hour hole older than the batch window, then dense recent IV.
+    # Multi-hour hole, then dense recent IV so tip-vs-previous is healthy.
     seed_continuous_coverage!(
       series,
-      from: (batch_window + 1.day).ago,
+      from: 3.days.ago,
       to: 1.hour.ago
     )
     DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 10.0)

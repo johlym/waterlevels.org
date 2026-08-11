@@ -719,4 +719,18 @@ class HistoryIngestionTest < ActiveSupport::TestCase
     assert_equal 1, @series.continuous_observations.count
     assert_equal 1, discharge.continuous_observations.count
   end
+
+  test "time_series_ids_with_tip_sync_gaps finds fresh tip with stale previous point" do
+    @series.update!(selected_for_display: true)
+    ContinuousObservation.create!(time_series: @series, observed_at: 12.hours.ago, value: 1.0)
+    ContinuousObservation.create!(time_series: @series, observed_at: 30.minutes.ago, value: 1.1)
+
+    healthy = create(:time_series, monitoring_location: @location, selected_for_display: true)
+    ContinuousObservation.create!(time_series: healthy, observed_at: 90.minutes.ago, value: 2.0)
+    ContinuousObservation.create!(time_series: healthy, observed_at: 30.minutes.ago, value: 2.1)
+
+    ids = HistoryIngestion.time_series_ids_with_tip_sync_gaps
+    assert_includes ids, @series.id
+    refute_includes ids, healthy.id
+  end
 end
