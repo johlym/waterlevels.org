@@ -8,7 +8,8 @@
         Tip/catalog uses <code>USGS_API_KEY</code>. History pins one key per
         purpose (continuous / daily / peaks / IV repair). Circuits open on a
         USGS 429 for the rest of the UTC hour — we do not mirror remaining USGS
-        quota locally (that counter was unreliable).
+        quota locally (that counter was unreliable). Sidekiq figures and circuits
+        are live (not AdminCounters).
       </p>
     </div>
   </div>

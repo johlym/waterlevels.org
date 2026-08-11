@@ -394,6 +394,28 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
     assert_equal 3, tip[:stations_updated]
     assert_equal 5, tip[:series_upserted]
     assert_equal "wa", tip[:state]
+    row = AdminCounter.fetch(AdminDashboardStats::TIP_REFRESH_CACHE_KEY)
+    assert_equal 3, row.value
+    assert_equal "job", row.source
+  end
+
+  test "core and pipeline expose inventory_computed_at from Counters" do
+    create(:monitoring_location, state_code: "wa", latest_observed_at: 30.minutes.ago)
+    AdminDashboardStats.bust_backfill_cache!
+    AdminDashboardStats.warm_backfill!
+
+    core = AdminDashboardStats.new.core_section
+    pipeline = AdminDashboardStats.new.pipeline_section
+
+    assert core[:inventory_computed_at]
+    assert pipeline[:inventory_computed_at]
+  end
+
+  test "statement_timeout_ms reads AppConfig override" do
+    AppConfig.write!(:admin_dashboard_statement_timeout_ms, 8_000)
+    assert_equal 8_000, AdminDashboardStats.statement_timeout_ms
+  ensure
+    AppConfig.reset!(:admin_dashboard_statement_timeout_ms)
   end
 
   test "section snapshots compose into the full snapshot" do

@@ -2,13 +2,14 @@
 # observation coverage, history anchors, and backfill lock/cooldown state.
 # Used by /admin/stations/:site_number and `bin/rails usgs:inspect`.
 class StationInspector
-  CONTINUOUS_FRESHNESS = HistoryIngestion::CONTINUOUS_FRESHNESS
-  CONTINUOUS_GAP_THRESHOLD = HistoryIngestion::CONTINUOUS_GAP_THRESHOLD
   CONTINUOUS_HISTORY_ANCHOR = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR
-  CONTINUOUS_RETENTION = HistoryIngestion::CONTINUOUS_RETENTION
   DAILY_HISTORY_ANCHOR = HistoryIngestion::DAILY_HISTORY_ANCHOR
   DAILY_DEEP_HISTORY_ANCHOR = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR
   DAILY_FRESHNESS = HistoryIngestion::DAILY_FRESHNESS
+
+  def self.continuous_freshness = HistoryIngestion.continuous_freshness
+  def self.continuous_gap_threshold = HistoryIngestion.continuous_gap_threshold
+  def self.continuous_retention = HistoryIngestion.continuous_retention
 
   def self.find(site_number_or_slug)
     raw = site_number_or_slug.to_s.strip
@@ -38,7 +39,7 @@ class StationInspector
       series: series_reports,
       findings: findings,
       anchors: {
-        continuous_freshness: CONTINUOUS_FRESHNESS.ago.utc,
+        continuous_freshness: self.class.continuous_freshness.ago.utc,
         continuous_history_anchor: CONTINUOUS_HISTORY_ANCHOR.ago.utc,
         daily_history_anchor: DAILY_HISTORY_ANCHOR.ago.to_date,
         daily_deep_history_anchor: DAILY_DEEP_HISTORY_ANCHOR.ago.to_date,
@@ -218,7 +219,7 @@ class StationInspector
     return [] unless series.selected_for_display?
 
     gaps = []
-    continuous_since = CONTINUOUS_GAP_THRESHOLD.ago
+    continuous_since = self.class.continuous_gap_threshold.ago
     continuous_anchor = CONTINUOUS_HISTORY_ANCHOR.ago
     daily_anchor = DAILY_HISTORY_ANCHOR.ago.to_date
     deep_anchor = DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
@@ -232,7 +233,7 @@ class StationInspector
     end
     if HistoryIngestion.series_has_continuous_coverage_gap?(
       series,
-      window_start: CONTINUOUS_RETENTION.ago
+      window_start: self.class.continuous_retention.ago
     ) && continuous_newest.present? && continuous_newest >= continuous_since &&
         continuous_oldest.present? && continuous_oldest <= continuous_anchor
       gaps << "interior_continuous_gap"
@@ -351,7 +352,7 @@ class StationInspector
       findings << finding(
         :warn,
         :interior_continuous_gap,
-        "Selected #{series_label(s)} has an interior continuous hole larger than #{CONTINUOUS_GAP_THRESHOLD.inspect} (tip may still be fresh). IvRepairJob / history ingest will re-fetch that window — common after overnight tip-sync misses."
+        "Selected #{series_label(s)} has an interior continuous hole larger than #{self.class.continuous_gap_threshold.inspect} (tip may still be fresh). IvRepairJob / history ingest will re-fetch that window — common after overnight tip-sync misses."
       )
     end
 

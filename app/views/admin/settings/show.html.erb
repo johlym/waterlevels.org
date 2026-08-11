@@ -1,0 +1,115 @@
+<% content_for :title, "Settings | Admin | WaterLevels.org" %>
+
+<main id="main" class="page-main admin-dashboard admin-settings">
+  <div class="admin-dashboard-chrome">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Ops</p>
+        <h1 class="admin-title">Settings</h1>
+        <p class="section-lede">
+          Override pipeline levers, throughput knobs, and archive flags without redeploying.
+          Unset overrides fall back to ENV (when declared) then code defaults. Maintenance
+          actions clear caches and ops circuits.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <% if flash[:notice].present? %>
+    <p class="admin-settings-flash admin-settings-flash--notice" role="status"><%= flash[:notice] %></p>
+  <% end %>
+  <% if flash[:alert].present? %>
+    <p class="admin-settings-flash admin-settings-flash--alert" role="alert"><%= flash[:alert] %></p>
+  <% end %>
+
+  <% @groups.each do |group| %>
+    <section class="admin-stats admin-settings-group" id="<%= group.key %>" aria-labelledby="admin-settings-<%= group.key %>-heading">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Settings</p>
+          <h2 id="admin-settings-<%= group.key %>-heading"><%= group.title %></h2>
+          <p class="section-lede"><%= group.description %></p>
+        </div>
+      </div>
+
+      <% if group.settings.any? %>
+        <%= form_with url: admin_settings_path, method: :patch, class: "admin-settings-form", local: true do %>
+          <%= hidden_field_tag :group, group.key %>
+
+          <ul class="admin-settings-list">
+            <% group.settings.each do |setting| %>
+              <% effective = AppConfig.get(setting.key) %>
+              <% source = AppConfig.source(setting.key) %>
+              <li class="admin-settings-item">
+                <div class="admin-settings-item-copy">
+                  <div class="admin-settings-item-title-row">
+                    <label class="admin-settings-label" for="setting_<%= setting.key %>"><%= setting.label %></label>
+                    <span class="admin-settings-source admin-settings-source--<%= source %>"><%= source %></span>
+                  </div>
+                  <p class="admin-settings-help"><%= setting.description %></p>
+                  <% if setting.env_key.present? %>
+                    <p class="admin-settings-env">ENV fallback: <code><%= setting.env_key %></code></p>
+                  <% end %>
+                </div>
+
+                <div class="admin-settings-item-control">
+                  <% if setting.boolean? %>
+                    <%= hidden_field_tag "settings[#{setting.key}]", "0", id: nil %>
+                    <label class="admin-settings-toggle">
+                      <%= check_box_tag "settings[#{setting.key}]", "1", effective, id: "setting_#{setting.key}" %>
+                      <span><%= effective ? "On" : "Off" %></span>
+                    </label>
+                  <% else %>
+                    <%= number_field_tag "settings[#{setting.key}]",
+                          effective,
+                          id: "setting_#{setting.key}",
+                          class: "admin-settings-input",
+                          min: setting.min,
+                          max: setting.max,
+                          step: 1 %>
+                  <% end %>
+
+                  <% if source == :override %>
+                    <%= link_to "Reset",
+                          reset_admin_settings_path(key: setting.key),
+                          data: { turbo_method: :delete },
+                          class: "admin-settings-reset" %>
+                  <% end %>
+                </div>
+              </li>
+            <% end %>
+          </ul>
+
+          <div class="admin-settings-actions">
+            <%= submit_tag "Save #{group.title.downcase}", class: "admin-settings-save" %>
+          </div>
+        <% end %>
+      <% end %>
+
+      <% if group.actions.any? %>
+        <ul class="admin-settings-list admin-settings-list--actions">
+          <% group.actions.each do |action| %>
+            <li class="admin-settings-item <%= "admin-settings-item--danger" if action.danger? %>">
+              <div class="admin-settings-item-copy">
+                <div class="admin-settings-item-title-row">
+                  <p class="admin-settings-label"><%= action.label %></p>
+                  <% if action.danger? %>
+                    <span class="admin-settings-source admin-settings-source--danger">danger</span>
+                  <% end %>
+                </div>
+                <p class="admin-settings-help"><%= action.description %></p>
+              </div>
+              <div class="admin-settings-item-control">
+                <%= button_to action.label,
+                      admin_maintenance_path(key: action.key),
+                      method: :post,
+                      class: action.danger? ? "admin-settings-action admin-settings-action--danger" : "admin-settings-action",
+                      form: { data: { turbo_confirm: action.confirm } } %>
+              </div>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    </section>
+  <% end %>
+</main>

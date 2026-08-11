@@ -7,6 +7,10 @@ class StationSnapshotCache
     "#{PREFIX}:#{location.site_number}"
   end
 
+  def self.clear!
+    Rails.cache.delete_matched("#{PREFIX}:*") if Rails.cache.respond_to?(:delete_matched)
+  end
+
   def self.read(location)
     raw = Rails.cache.read(key_for(location))
     raw.is_a?(Hash) ? raw.with_indifferent_access : nil

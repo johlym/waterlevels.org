@@ -75,6 +75,7 @@ class StationCatalogSync
       state: postal_code,
       locations: location_count
     )
+    AdminDashboardStats.schedule_inventory_refresh!
     true
   end
   private :perform_body

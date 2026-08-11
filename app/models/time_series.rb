@@ -22,7 +22,7 @@ class TimeSeries < ApplicationRecord
   # Selected series that still look active for recent history / IV repair queues.
   # Uses denorm continuous_newest_at instead of scanning continuous_observations.
   scope :selected_recently_active, lambda { |as_of: Time.current|
-    recent_since = HistoryIngestion::CONTINUOUS_RETENTION.before(as_of)
+    recent_since = HistoryIngestion.continuous_retention.before(as_of)
     selected.left_joins(:latest_observation).where(
       "(latest_observations.id IS NULL AND time_series.ends_at IS NULL) " \
       "OR latest_observations.observed_at >= ? OR time_series.ends_at >= ? " \
@@ -69,7 +69,7 @@ class TimeSeries < ApplicationRecord
   # conclude USGS "doesn't publish daily" (empty recent DV for a series that
   # ended years ago is not the same as IV-only).
   def recent_continuous_evidence?(as_of: Time.current)
-    window_start = HistoryIngestion::CONTINUOUS_RETENTION.before(as_of)
+    window_start = HistoryIngestion.continuous_retention.before(as_of)
     return true if latest_observation&.observed_at&.>=(window_start)
     return true if continuous_newest_at.present? && continuous_newest_at >= window_start
 
@@ -86,7 +86,7 @@ class TimeSeries < ApplicationRecord
     ].compact.max
     return true if tip_at.blank?
 
-    tip_at >= HistoryIngestion::CONTINUOUS_RETENTION.before(as_of)
+    tip_at >= HistoryIngestion.continuous_retention.before(as_of)
   end
 
   # Recompute continuous tip/prev/anchor/max-gap denorm from continuous_observations.
@@ -98,7 +98,7 @@ class TimeSeries < ApplicationRecord
     return 0 if ids.empty?
 
     anchor = connection.quote(HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.before(as_of))
-    window_start = connection.quote(HistoryIngestion::CONTINUOUS_RETENTION.before(as_of))
+    window_start = connection.quote(HistoryIngestion.continuous_retention.before(as_of))
     id_list = ids.join(",")
     now = connection.quote(Time.current)
     sql = <<~SQL.squish

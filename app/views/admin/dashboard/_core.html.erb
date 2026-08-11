@@ -4,6 +4,11 @@
     <div>
       <p class="eyebrow">Network</p>
       <h2 id="admin-core-heading">Core stats</h2>
+      <% if stats[:inventory_computed_at] %>
+        <p class="hint">
+          Inventory Counters as of <%= time_ago_in_words(stats[:inventory_computed_at]) %> ago
+        </p>
+      <% end %>
     </div>
   </div>
 

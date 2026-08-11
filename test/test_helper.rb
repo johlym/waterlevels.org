@@ -29,6 +29,8 @@ module ActiveSupport
       else
         ENV.delete("TURNSTILE_SECRET")
       end
+      AppSetting.delete_all if ActiveRecord::Base.connection.data_source_exists?("app_settings")
+      AppConfig.bust!
     end
 
     # Seed IV points dense enough that interior-gap repair won't re-fetch.

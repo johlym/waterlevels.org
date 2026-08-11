@@ -6,6 +6,7 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     ENV.delete("DASHBOARD_PW")
     AdminDashboardStats.clear_tip_refresh!
     AdminDashboardStats.bust_backfill_cache!
+    Admin::SessionsController::RATE_LIMIT_STORE.clear
   end
 
   teardown do
@@ -16,6 +17,7 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     end
     AdminDashboardStats.clear_tip_refresh!
     AdminDashboardStats.bust_backfill_cache!
+    Admin::SessionsController::RATE_LIMIT_STORE.clear
   end
 
   test "returns not found when DASHBOARD_PW is unset" do
@@ -41,6 +43,8 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Admin"
     assert_includes response.body, "Inspect"
     assert_includes response.body, admin_stations_path
+    assert_includes response.body, "Settings"
+    assert_includes response.body, admin_settings_path
     assert_includes response.body, "Sidekiq"
     assert_includes response.body, "/admin/sidekiq"
     assert_includes response.body, "Sign out"

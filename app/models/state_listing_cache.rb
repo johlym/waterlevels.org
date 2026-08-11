@@ -6,6 +6,10 @@ class StateListingCache
     "#{PREFIX}:#{state_code.to_s.downcase}"
   end
 
+  def self.clear!
+    Rails.cache.delete_matched("#{PREFIX}:*") if Rails.cache.respond_to?(:delete_matched)
+  end
+
   def self.read(state_code)
     Rails.cache.read(key_for(state_code))
   end

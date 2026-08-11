@@ -64,6 +64,7 @@ class LatestObservationSync
         StateListingCache.warm_all
         AlertsListingCache.warm
         SiteStats.warm!
+        AdminDashboardStats.schedule_inventory_refresh!
       end
 
       progress&.step("purging edge cache tags")
@@ -314,7 +315,7 @@ class LatestObservationSync
         memo[id] = [ location_id, newest_at, anchored ]
       }
 
-    threshold = HistoryIngestion::CONTINUOUS_GAP_THRESHOLD
+    threshold = HistoryIngestion.continuous_gap_threshold
     location_ids = Set.new
     continuous_rows.each do |row|
       location_id, newest_at, anchored = previous_by_id[row[:time_series_id]]

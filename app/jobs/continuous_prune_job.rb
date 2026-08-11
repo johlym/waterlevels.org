@@ -2,6 +2,10 @@ class ContinuousPruneJob < ApplicationJob
   queue_as :default
 
   def perform
+    unless AppConfig.boolean?(:continuous_prune_enabled)
+      Rails.logger.info("ContinuousPruneJob skipped: disabled by admin settings")
+      return
+    end
     if DatabaseReadOnlyCircuit.open?
       raise DatabaseReadOnlyError, "database read-only circuit open"
     end
@@ -36,6 +40,7 @@ class ContinuousPruneJob < ApplicationJob
         rolled_up: stats[:rolled_up],
         rollup_skipped: stats[:rollup_skipped]
       )
+      AdminDashboardStats.schedule_inventory_refresh!
       progress.finish(
         "usgs_ensured=#{stats[:usgs_ensured]} derived=#{stats[:derived]} " \
         "retrying=#{stats[:retrying]} gaps_alerted=#{stats[:gaps_alerted]} " \
