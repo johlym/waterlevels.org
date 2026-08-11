@@ -3,8 +3,9 @@ module Usgs
   # the hourly request budget instead of retrying into a backlog.
   #
   # Circuits are per API-key identity (`tip`, `history_continuous`,
-  # `history_daily`, `history_peaks`, `history_iv_repair`) so a purpose-key 429
-  # does not darken the other history purposes or latest/catalog tip sync.
+  # `history_daily`, `history_peaks`, `history_iv_repair`, `history_iv_repair2`)
+  # so a purpose-key 429 does not darken the other history purposes or
+  # latest/catalog tip sync.
   class RateLimitCircuit
     KEY_PREFIX = "usgs:rate_limit_circuit"
     TIP_KEY = "tip"

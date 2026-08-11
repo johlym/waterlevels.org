@@ -10,7 +10,8 @@ module Usgs
         "USGS_API_HISTORY_CONTINUOUS_KEY" => ENV["USGS_API_HISTORY_CONTINUOUS_KEY"],
         "USGS_API_HISTORY_DAILY_KEY" => ENV["USGS_API_HISTORY_DAILY_KEY"],
         "USGS_API_HISTORY_PEAKS_KEY" => ENV["USGS_API_HISTORY_PEAKS_KEY"],
-        "USGS_API_HISTORY_IVREPAIR_KEY" => ENV["USGS_API_HISTORY_IVREPAIR_KEY"]
+        "USGS_API_HISTORY_IVREPAIR_KEY" => ENV["USGS_API_HISTORY_IVREPAIR_KEY"],
+        "USGS_API_HISTORY_IVREPAIR2_KEY" => ENV["USGS_API_HISTORY_IVREPAIR2_KEY"]
       }
     end
 
@@ -31,6 +32,7 @@ module Usgs
       ENV.delete("USGS_API_HISTORY_DAILY_KEY")
       ENV.delete("USGS_API_HISTORY_PEAKS_KEY")
       ENV.delete("USGS_API_HISTORY_IVREPAIR_KEY")
+      ENV.delete("USGS_API_HISTORY_IVREPAIR2_KEY")
 
       refute HistoryKeyPool.configured?
       entry = HistoryKeyPool.claim!(:continuous)
@@ -45,12 +47,14 @@ module Usgs
       ENV["USGS_API_HISTORY_DAILY_KEY"] = "hist-daily"
       ENV["USGS_API_HISTORY_PEAKS_KEY"] = "hist-peaks"
       ENV["USGS_API_HISTORY_IVREPAIR_KEY"] = "hist-iv-repair"
+      ENV["USGS_API_HISTORY_IVREPAIR2_KEY"] = "hist-iv-repair2"
 
       assert HistoryKeyPool.configured?
       continuous = HistoryKeyPool.claim!(:continuous)
       daily = HistoryKeyPool.claim!(:daily)
       peaks = HistoryKeyPool.claim!(:peaks)
       iv_repair = HistoryKeyPool.claim!(:iv_repair)
+      iv_repair2 = HistoryKeyPool.claim!(:iv_repair2)
 
       assert_equal "hist-continuous", continuous[:api_key]
       assert_equal "history_continuous", continuous[:circuit_key]
@@ -60,6 +64,8 @@ module Usgs
       assert_equal "history_peaks", peaks[:circuit_key]
       assert_equal "hist-iv-repair", iv_repair[:api_key]
       assert_equal "history_iv_repair", iv_repair[:circuit_key]
+      assert_equal "hist-iv-repair2", iv_repair2[:api_key]
+      assert_equal "history_iv_repair2", iv_repair2[:circuit_key]
     end
 
     test "claim! raises when that purpose circuit is open" do
@@ -78,15 +84,18 @@ module Usgs
       ENV["USGS_API_HISTORY_DAILY_KEY"] = "hist-daily"
       ENV["USGS_API_HISTORY_PEAKS_KEY"] = "hist-peaks"
       ENV["USGS_API_HISTORY_IVREPAIR_KEY"] = "hist-iv-repair"
+      ENV["USGS_API_HISTORY_IVREPAIR2_KEY"] = "hist-iv-repair2"
       RateLimitCircuit.open!(key_id: "history_continuous", ttl: 1.minute)
       RateLimitCircuit.open!(key_id: "history_daily", ttl: 1.minute)
       RateLimitCircuit.open!(key_id: "history_peaks", ttl: 1.minute)
       RateLimitCircuit.open!(key_id: "history_iv_repair", ttl: 1.minute)
+      RateLimitCircuit.open!(key_id: "history_iv_repair2", ttl: 1.minute)
 
       assert HistoryKeyPool.exhausted?
       refute HistoryKeyPool.phase1_available?
       refute HistoryKeyPool.deep_available?
       refute HistoryKeyPool.iv_repair_available?
+      refute HistoryKeyPool.iv_repair2_available?
     end
 
     test "iv_repair stays available when cold history circuits are open" do
@@ -94,6 +103,7 @@ module Usgs
       ENV["USGS_API_HISTORY_DAILY_KEY"] = "hist-daily"
       ENV["USGS_API_HISTORY_PEAKS_KEY"] = "hist-peaks"
       ENV["USGS_API_HISTORY_IVREPAIR_KEY"] = "hist-iv-repair"
+      ENV["USGS_API_HISTORY_IVREPAIR2_KEY"] = "hist-iv-repair2"
       RateLimitCircuit.open!(key_id: "history_continuous", ttl: 1.minute)
       RateLimitCircuit.open!(key_id: "history_daily", ttl: 1.minute)
       RateLimitCircuit.open!(key_id: "history_peaks", ttl: 1.minute)
@@ -101,7 +111,19 @@ module Usgs
       refute HistoryKeyPool.exhausted?
       refute HistoryKeyPool.phase1_available?
       assert HistoryKeyPool.iv_repair_available?
+      assert HistoryKeyPool.iv_repair2_available?
       assert_equal "hist-iv-repair", HistoryKeyPool.claim!(:iv_repair)[:api_key]
+      assert_equal "hist-iv-repair2", HistoryKeyPool.claim!(:iv_repair2)[:api_key]
+    end
+
+    test "iv_repair2 stays available when tip iv_repair circuit is open" do
+      ENV["USGS_API_HISTORY_IVREPAIR_KEY"] = "hist-iv-repair"
+      ENV["USGS_API_HISTORY_IVREPAIR2_KEY"] = "hist-iv-repair2"
+      RateLimitCircuit.open!(key_id: "history_iv_repair", ttl: 1.minute)
+
+      refute HistoryKeyPool.iv_repair_available?
+      assert HistoryKeyPool.iv_repair2_available?
+      assert_equal "hist-iv-repair2", HistoryKeyPool.claim!(:iv_repair2)[:api_key]
     end
 
     test "tip circuit open does not exhaust a configured history pool" do
@@ -109,12 +131,14 @@ module Usgs
       ENV["USGS_API_HISTORY_DAILY_KEY"] = "hist-daily"
       ENV["USGS_API_HISTORY_PEAKS_KEY"] = "hist-peaks"
       ENV["USGS_API_HISTORY_IVREPAIR_KEY"] = "hist-iv-repair"
+      ENV["USGS_API_HISTORY_IVREPAIR2_KEY"] = "hist-iv-repair2"
       RateLimitCircuit.open!(key_id: RateLimitCircuit::TIP_KEY, ttl: 1.minute)
 
       refute HistoryKeyPool.exhausted?
       assert HistoryKeyPool.phase1_available?
       assert HistoryKeyPool.deep_available?
       assert HistoryKeyPool.iv_repair_available?
+      assert HistoryKeyPool.iv_repair2_available?
       assert_equal "hist-continuous", HistoryKeyPool.claim!(:continuous)[:api_key]
     end
 
@@ -135,6 +159,7 @@ module Usgs
       ENV.delete("USGS_API_HISTORY_DAILY_KEY")
       ENV["USGS_API_HISTORY_PEAKS_KEY"] = "hist-peaks"
       ENV["USGS_API_HISTORY_IVREPAIR_KEY"] = "hist-iv-repair"
+      ENV["USGS_API_HISTORY_IVREPAIR2_KEY"] = "hist-iv-repair2"
       RateLimitCircuit.open!(key_id: "history_continuous", ttl: 1.minute)
 
       snap = HistoryKeyPool.dashboard_statuses
@@ -143,12 +168,15 @@ module Usgs
       continuous = snap[:history].find { |row| row[:purpose] == :continuous }
       daily = snap[:history].find { |row| row[:purpose] == :daily }
       iv_repair = snap[:history].find { |row| row[:purpose] == :iv_repair }
+      iv_repair2 = snap[:history].find { |row| row[:purpose] == :iv_repair2 }
       assert_equal true, continuous[:open]
       assert_equal true, continuous[:configured]
       assert_equal false, daily[:configured]
       assert_equal true, daily[:fallback_to_tip]
-      assert_equal "IV gap repair", iv_repair[:role]
+      assert_equal "IV tip / tip-adjacent gap repair", iv_repair[:role]
       assert_equal true, iv_repair[:configured]
+      assert_equal "IV interior scar gap repair", iv_repair2[:role]
+      assert_equal true, iv_repair2[:configured]
       refute snap[:exhausted]
     end
   end

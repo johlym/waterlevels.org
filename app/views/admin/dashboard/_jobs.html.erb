@@ -134,5 +134,46 @@
         <% end %>
       </p>
     </article>
+
+    <article>
+      <p class="value value-sm<%= " alert" if stats[:last_iv_scar_batch_workers].to_i.zero? && stats[:last_iv_scar_batch_enqueued].to_i.positive? %>">
+        <%= stats[:last_iv_scar_batch_at] ? "#{time_ago_in_words(stats[:last_iv_scar_batch_at])} ago" : "—" %>
+      </p>
+      <p class="label">IV scar batch</p>
+      <p class="hint">
+        <% if stats[:last_iv_scar_batch_skip_reason].present? %>
+          Skipped: <%= stats[:last_iv_scar_batch_skip_reason] %>
+          <% if stats[:last_iv_scar_batch_workers] %>
+            · <%= stats[:last_iv_scar_batch_workers] %> worker(s)
+          <% end %>
+        <% elsif stats[:last_iv_scar_batch_at] %>
+          <%= number_with_delimiter(stats[:last_iv_scar_batch_enqueued].to_i) %> enqueued ·
+          <%= number_with_delimiter(stats[:last_iv_scar_batch_candidates].to_i) %> candidates ·
+          queue <%= number_with_delimiter(stats[:last_iv_scar_batch_queue_depth_after].to_i) %> ·
+          <%= number_with_delimiter(stats[:last_iv_scar_batch_workers].to_i) %> worker(s)
+        <% else %>
+          Interior scar lane on <code>iv_repair_scar_worker</code>
+        <% end %>
+      </p>
+    </article>
+
+    <article>
+      <p class="value value-sm">
+        <%= stats[:last_iv_scar_at] ? "#{time_ago_in_words(stats[:last_iv_scar_at])} ago" : "—" %>
+      </p>
+      <p class="label">Last IV scar station</p>
+      <p class="hint">
+        <% if stats[:last_iv_scar_at] %>
+          <%= stats[:last_iv_scar_site_number] %> ·
+          <%= number_with_delimiter(stats[:last_iv_scar_continuous_upserted].to_i) %> points ·
+          <%= stats[:last_iv_scar_elapsed_s] %>s
+          <% if stats[:last_iv_scar_still_needs] %>
+            · still needs scar repair
+          <% end %>
+        <% else %>
+          Per-station interior gap fetch (key2)
+        <% end %>
+      </p>
+    </article>
   </div>
 </section>

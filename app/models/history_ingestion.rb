@@ -7,7 +7,10 @@ class HistoryIngestion
   DEFAULT_RANGE = "1y"
   DEEP_RANGE = "3y"
   MODE_FULL = "full"
+  # Tip / tip-adjacent hollow-middle repair on USGS_API_HISTORY_IVREPAIR_KEY.
   MODE_IV_REPAIR = "iv_repair"
+  # Deeper interior scars across CONTINUOUS_RETENTION on USGS_API_HISTORY_IVREPAIR2_KEY.
+  MODE_IV_REPAIR_SCAR = "iv_repair_scar"
   # Batch continuous upserts so tip/gap fills don't one-row round-trip Postgres.
   CONTINUOUS_UPSERT_BATCH = 500
   # High-resolution continuous tip; 1y/3y charts use daily values from R2.
@@ -45,8 +48,17 @@ class HistoryIngestion
     @mode = mode.presence || MODE_FULL
   end
 
-  def iv_repair?
+  def tip_iv_repair?
     mode.to_s == MODE_IV_REPAIR
+  end
+
+  def iv_repair_scar?
+    mode.to_s == MODE_IV_REPAIR_SCAR
+  end
+
+  # Either IV-repair lane (tip-adjacent or interior scar) — continuous-only ingest.
+  def iv_repair?
+    tip_iv_repair? || iv_repair_scar?
   end
 
   def perform
@@ -75,8 +87,10 @@ class HistoryIngestion
         progress&.step("skipping_inactive_series=#{skipped} (tip older than #{CONTINUOUS_RETENTION.inspect})")
       end
 
-      continuous_series = if iv_repair?
+      continuous_series = if tip_iv_repair?
         active_series.select { |s| self.class.series_needs_iv_repair?(s) }
+      elsif iv_repair_scar?
+        active_series.select { |s| self.class.series_needs_iv_scar_repair?(s) }
       elsif continuous_range?
         active_series.select { |s| needs_continuous?(s) }
       else
@@ -87,11 +101,11 @@ class HistoryIngestion
 
       if iv_repair?
         progress&.step(
-          "iv_repair series=#{continuous_series.size}/#{active_series.size} " \
+          "#{mode} series=#{continuous_series.size}/#{active_series.size} " \
           "parameters=#{continuous_series.map(&:parameter_code).uniq.join(",")}"
         )
         Rails.logger.info(
-          "HistoryIngestion iv_repair site=#{monitoring_location.site_number} " \
+          "HistoryIngestion #{mode} site=#{monitoring_location.site_number} " \
           "repair_series=#{continuous_series.size} active_series=#{active_series.size} " \
           "parameters=#{continuous_series.map(&:parameter_code).uniq.inspect}"
         )
@@ -143,7 +157,14 @@ class HistoryIngestion
   def client_for(purpose)
     return @client if @client
 
-    resolved = (purpose == :continuous && iv_repair?) ? :iv_repair : purpose
+    resolved =
+      if purpose == :continuous && iv_repair_scar?
+        :iv_repair2
+      elsif purpose == :continuous && tip_iv_repair?
+        :iv_repair
+      else
+        purpose
+      end
     @clients[resolved] ||= Usgs::Client.for_history(resolved)
   end
 
@@ -322,13 +343,25 @@ class HistoryIngestion
     (newest - previous) > CONTINUOUS_GAP_THRESHOLD
   end
 
+  # Anchored series with a healthy tip adjacency but a deeper interior hole in
+  # the retained IV window. Served by the scar lane (key2), not tip IV repair.
+  def self.series_needs_iv_scar_repair?(series, ends: Time.current.utc)
+    return false unless series.has_continuous_anchor?
+    return false if series_needs_iv_repair?(series, ends: ends)
+
+    max_gap = series.continuous_max_gap_seconds
+    return false if max_gap.blank?
+
+    max_gap > CONTINUOUS_GAP_THRESHOLD.to_i
+  end
+
   # Selected series whose newest IV tip is fresh but the previous point is more
   # than threshold older — the tip-sync hollow-middle case (overnight miss, then
   # a new tip). Used by needing_iv_repair.
   #
   # Reads denorm continuous_newest_at / continuous_prev_at on time_series (no
-  # fleet scan of continuous_observations). Deeper interior holes are still
-  # repaired by per-station ingest / needs_history_backfill? when a job runs.
+  # fleet scan of continuous_observations). Deeper interior holes use
+  # continuous_max_gap_seconds + the scar IV-repair lane.
   def self.time_series_ids_with_tip_sync_gaps(threshold: CONTINUOUS_GAP_THRESHOLD)
     threshold_seconds = threshold.to_i
     tip_since = threshold.ago

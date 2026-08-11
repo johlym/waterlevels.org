@@ -4,14 +4,16 @@ module Usgs
   # tip/catalog sync.
   #
   # Production: set USGS_API_HISTORY_CONTINUOUS_KEY, USGS_API_HISTORY_DAILY_KEY,
-  # USGS_API_HISTORY_PEAKS_KEY, and USGS_API_HISTORY_IVREPAIR_KEY.
+  # USGS_API_HISTORY_PEAKS_KEY, USGS_API_HISTORY_IVREPAIR_KEY, and
+  # USGS_API_HISTORY_IVREPAIR2_KEY.
   # Local/test fallback: USGS_API_KEY (tip circuit) when a purpose key is unset.
   class HistoryKeyPool
     PURPOSE_ROLES = {
       continuous: "Cold continuous / IV archive",
       daily: "Daily history",
       peaks: "Peaks",
-      iv_repair: "IV gap repair"
+      iv_repair: "IV tip / tip-adjacent gap repair",
+      iv_repair2: "IV interior scar gap repair"
     }.freeze
 
     PURPOSES = {
@@ -30,6 +32,10 @@ module Usgs
       iv_repair: {
         env: "USGS_API_HISTORY_IVREPAIR_KEY",
         circuit_key: "history_iv_repair"
+      },
+      iv_repair2: {
+        env: "USGS_API_HISTORY_IVREPAIR2_KEY",
+        circuit_key: "history_iv_repair2"
       }
     }.freeze
 
@@ -90,6 +96,10 @@ module Usgs
 
     def self.iv_repair_available?
       available?(:iv_repair)
+    end
+
+    def self.iv_repair2_available?
+      available?(:iv_repair2)
     end
 
     def self.claim!(purpose)

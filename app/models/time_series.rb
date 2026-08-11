@@ -89,13 +89,16 @@ class TimeSeries < ApplicationRecord
     tip_at >= HistoryIngestion::CONTINUOUS_RETENTION.before(as_of)
   end
 
-  # Recompute continuous tip/prev/anchor denorm from continuous_observations.
+  # Recompute continuous tip/prev/anchor/max-gap denorm from continuous_observations.
   # Used after history upserts, retention prune, and one-shot backfill.
+  # continuous_max_gap_seconds is the largest consecutive spacing inside the
+  # retained IV window — drives the scar IV-repair lane (key2).
   def self.refresh_continuous_coverage!(ids, as_of: Time.current)
     ids = Array(ids).map(&:to_i).uniq
     return 0 if ids.empty?
 
     anchor = connection.quote(HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.before(as_of))
+    window_start = connection.quote(HistoryIngestion::CONTINUOUS_RETENTION.before(as_of))
     id_list = ids.join(",")
     now = connection.quote(Time.current)
     sql = <<~SQL.squish
@@ -103,22 +106,39 @@ class TimeSeries < ApplicationRecord
       SET continuous_newest_at = s.newest,
           continuous_prev_at = s.prev_at,
           has_continuous_anchor = s.has_anchor,
+          continuous_max_gap_seconds = s.max_gap_seconds,
           updated_at = #{now}
       FROM (
         SELECT ts2.id AS time_series_id,
-               MAX(co.observed_at) AS newest,
-               (
-                 ARRAY_AGG(co.observed_at ORDER BY co.observed_at DESC)
-                   FILTER (WHERE co.id IS NOT NULL)
-               )[2] AS prev_at,
-               COALESCE(
-                 BOOL_OR(co.observed_at IS NOT NULL AND co.observed_at <= #{anchor}),
-                 FALSE
-               ) AS has_anchor
+               tips.newest,
+               tips.prev_at,
+               tips.has_anchor,
+               COALESCE(gap.max_gap_seconds, 0) AS max_gap_seconds
         FROM time_series ts2
-        LEFT JOIN continuous_observations co ON co.time_series_id = ts2.id
+        LEFT JOIN LATERAL (
+          SELECT MAX(co.observed_at) AS newest,
+                 (
+                   ARRAY_AGG(co.observed_at ORDER BY co.observed_at DESC)
+                 )[2] AS prev_at,
+                 COALESCE(
+                   BOOL_OR(co.observed_at <= #{anchor}),
+                   FALSE
+                 ) AS has_anchor
+          FROM continuous_observations co
+          WHERE co.time_series_id = ts2.id
+        ) tips ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT MAX(g.gap_seconds) AS max_gap_seconds
+          FROM (
+            SELECT EXTRACT(EPOCH FROM (
+                     co.observed_at - LAG(co.observed_at) OVER (ORDER BY co.observed_at)
+                   ))::integer AS gap_seconds
+            FROM continuous_observations co
+            WHERE co.time_series_id = ts2.id
+              AND co.observed_at >= #{window_start}
+          ) g
+        ) gap ON TRUE
         WHERE ts2.id IN (#{id_list})
-        GROUP BY ts2.id
       ) AS s
       WHERE ts.id = s.time_series_id
     SQL
@@ -127,6 +147,8 @@ class TimeSeries < ApplicationRecord
 
   # Cheap tip-path bump after LatestObservationSync / catalog discovery upserts.
   # Only moves newest forward (and shifts prev); never clears anchor.
+  # Also raises continuous_max_gap_seconds when the tip jump is larger than the
+  # stored max — tip lane still owns tip-adjacent repair; scar denorm stays honest.
   # tips: { time_series_id => observed_at }
   def self.advance_continuous_tips!(tips)
     tips = tips.to_h.reject { |id, at| id.blank? || at.blank? }
@@ -154,6 +176,15 @@ class TimeSeries < ApplicationRecord
             WHEN ts.continuous_newest_at IS NULL OR tips.observed_at > ts.continuous_newest_at
               THEN tips.observed_at
             ELSE ts.continuous_newest_at
+          END,
+          continuous_max_gap_seconds = CASE
+            WHEN ts.continuous_newest_at IS NOT NULL
+              AND tips.observed_at > ts.continuous_newest_at
+              THEN GREATEST(
+                COALESCE(ts.continuous_max_gap_seconds, 0),
+                EXTRACT(EPOCH FROM (tips.observed_at - ts.continuous_newest_at))::integer
+              )
+            ELSE ts.continuous_max_gap_seconds
           END,
           updated_at = #{now}
       FROM (VALUES #{values_sql}) AS tips(id, observed_at)

@@ -62,12 +62,19 @@ class MonitoringLocation < ApplicationRecord
   # Anchored stations with a stale continuous tip or tip-sync hollow middle.
   # Tip sync enqueues IvRepairJob on tip jumps; IvRepairBatchJob is the slower
   # catch-up sweeper on USGS_API_HISTORY_IVREPAIR_KEY — not the cold history
-  # backlog (missing ~32d archive / year daily).
+  # backlog (missing ~32d archive / year daily). Deeper interior scars use
+  # needing_iv_scar_repair / USGS_API_HISTORY_IVREPAIR2_KEY.
   #
   # Prefer MonitoringLocation.iv_repair_candidate_ids for batch work — that path
   # logs each step and avoids rebuilding the expensive tip-sync scan twice.
   scope :needing_iv_repair, lambda {
     where(id: iv_repair_candidate_ids)
+  }
+
+  # Anchored stations with a healthy tip but a deeper interior IV hole inside
+  # CONTINUOUS_RETENTION (denorm continuous_max_gap_seconds). Scar lane / key2.
+  scope :needing_iv_scar_repair, lambda {
+    where(id: iv_scar_candidate_ids)
   }
 
   # Materialize IV-repair location ids with staged logs. Continuous tip/anchor
@@ -126,6 +133,48 @@ class MonitoringLocation < ApplicationRecord
       "elapsed_ms=#{((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round}"
     )
     ids
+  end
+
+  # Warm null max-gap denorm, then return location ids with an interior scar
+  # and healthy tip adjacency (tip lane owns stale tip / tip-vs-prev hollow).
+  def self.iv_scar_candidate_ids
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    threshold = HistoryIngestion::CONTINUOUS_GAP_THRESHOLD
+    threshold_seconds = threshold.to_i
+    tip_since = threshold.ago
+    Rails.logger.info("IvScar candidates step=start threshold_s=#{threshold_seconds}")
+
+    step_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    null_denorm_ids = TimeSeries.selected
+      .with_continuous_anchor
+      .where(continuous_max_gap_seconds: nil)
+      .limit(2_000)
+      .pluck(:id)
+    if null_denorm_ids.any?
+      TimeSeries.refresh_continuous_coverage!(null_denorm_ids)
+    end
+    Rails.logger.info(
+      "IvScar candidates step=warm_null_max_gap ids=#{null_denorm_ids.size} " \
+      "elapsed_ms=#{((Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_started) * 1000).round}"
+    )
+
+    step_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    # Denorm-only: large interior max gap, tip fresh, tip-vs-prev healthy.
+    location_ids = TimeSeries.selected
+      .with_continuous_anchor
+      .where("continuous_max_gap_seconds > ?", threshold_seconds)
+      .where("continuous_newest_at >= ?", tip_since)
+      .where.not(continuous_prev_at: nil)
+      .where("continuous_newest_at - continuous_prev_at <= INTERVAL '#{threshold_seconds} seconds'")
+      .distinct
+      .order(:monitoring_location_id)
+      .pluck(:monitoring_location_id)
+    Rails.logger.info(
+      "IvScar candidates step=done count=#{location_ids.size} " \
+      "elapsed_ms=#{((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round} " \
+      "(gap_filter_ms=#{((Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_started) * 1000).round})"
+    )
+    location_ids
   end
 
   scope :needing_history_backfill, lambda {
@@ -214,13 +263,22 @@ class MonitoringLocation < ApplicationRecord
       flood_stage_moderate.present? || flood_stage_major.present?
   end
 
-  # Anchored series with a stale tip or tip-vs-previous hollow middle — IV repair
-  # lane (not cold year/daily backlog).
+  # Anchored series with a stale tip or tip-vs-previous hollow middle — tip IV
+  # repair lane (not cold year/daily backlog, not deeper scar lane).
   def needs_iv_repair?
     series = time_series.selected.select(&:eligible_for_recent_history_backfill?)
     return false if series.none?
 
     series.any? { |s| HistoryIngestion.series_needs_iv_repair?(s) }
+  end
+
+  # Anchored series with a healthy tip adjacency but a deeper interior IV hole
+  # inside CONTINUOUS_RETENTION — scar lane on USGS_API_HISTORY_IVREPAIR2_KEY.
+  def needs_iv_scar_repair?
+    series = time_series.selected.select(&:eligible_for_recent_history_backfill?)
+    return false if series.none?
+
+    series.any? { |s| HistoryIngestion.series_needs_iv_scar_repair?(s) }
   end
 
   def needs_history_backfill?

@@ -7,8 +7,11 @@ class GaugesController < ApplicationController
     @snapshot = StationSnapshotCache.fetch(@location)
     enqueued = false
     iv_repair_enqueued = false
+    iv_scar_enqueued = false
     if @location.needs_iv_repair?
       iv_repair_enqueued = IvRepairJob.enqueue(@location.id)
+    elsif @location.needs_iv_scar_repair?
+      iv_scar_enqueued = IvRepairScarJob.enqueue(@location.id)
     elsif @location.needs_history_backfill?
       enqueued = HistoryBackfillJob.enqueue(@location.id)
     end
@@ -19,7 +22,8 @@ class GaugesController < ApplicationController
       "app.state" => @location.state_code,
       "app.location_name" => @location.display_name,
       "app.backfill_enqueued" => enqueued,
-      "app.iv_repair_enqueued" => iv_repair_enqueued
+      "app.iv_repair_enqueued" => iv_repair_enqueued,
+      "app.iv_scar_enqueued" => iv_scar_enqueued
     )
     cache_public!(tags: [ "gauge:#{@location.site_number}" ])
   end
