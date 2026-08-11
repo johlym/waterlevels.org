@@ -163,9 +163,9 @@ class HistoryIngestion
   end
 
   def needs_continuous?(series)
-    return true if series.continuous_observations.where(observed_at: ..continuous_history_anchor).none?
+    return true unless series.has_continuous_anchor?
 
-    newest = series.continuous_observations.maximum(:observed_at)
+    newest = series.continuous_newest_at
     return true if newest.blank? || newest < CONTINUOUS_GAP_THRESHOLD.ago
 
     continuous_interior_gap_ranges(
@@ -247,21 +247,22 @@ class HistoryIngestion
   def continuous_datetime_ranges(series)
     window_start = continuous_window_start
     ends = Time.current.utc
-    oldest = series.continuous_observations.minimum(:observed_at)&.utc
-    newest = series.continuous_observations.maximum(:observed_at)&.utc
+    newest = series.continuous_newest_at&.utc
     ranges = []
 
-    if oldest.nil?
+    if newest.nil?
       return [ [ window_start, ends ] ]
     end
 
-    if oldest > window_start
+    # Leading hole: retention start → oldest local point (per-series MIN).
+    # Tip-only archives (no ~32d anchor) still use this rather than tip→now.
+    oldest = series.continuous_observations.minimum(:observed_at)&.utc
+    if oldest && oldest > window_start
       ranges << [ window_start, oldest ] if window_start < oldest
     end
 
-    if newest.nil? || newest < CONTINUOUS_GAP_THRESHOLD.before(ends)
-      tip_start = newest ? (newest - CONTINUOUS_OVERLAP) : window_start
-      tip_start = [ tip_start, window_start ].max
+    if newest < CONTINUOUS_GAP_THRESHOLD.before(ends)
+      tip_start = [ newest - CONTINUOUS_OVERLAP, window_start ].max
       ranges << [ tip_start, ends ] if tip_start < ends
     end
 
@@ -293,10 +294,10 @@ class HistoryIngestion
 
   # Class helper for backfill eligibility / batch scopes.
   def self.series_has_continuous_coverage_gap?(series, window_start: CONTINUOUS_RETENTION.ago, ends: Time.current.utc)
-    newest = series.continuous_observations.maximum(:observed_at)
+    newest = series.continuous_newest_at
     return true if newest.blank?
     return true if newest < CONTINUOUS_GAP_THRESHOLD.before(ends)
-    return true if series.continuous_observations.where(observed_at: ..CONTINUOUS_HISTORY_ANCHOR.ago).none?
+    return true unless series.has_continuous_anchor?
 
     ingestion = new(monitoring_location: series.monitoring_location, range: DEFAULT_RANGE)
     ingestion.send(
@@ -310,15 +311,12 @@ class HistoryIngestion
   # Anchored series with a stale tip or tip-vs-previous hollow middle. Matches
   # needing_iv_repair batch eligibility (not cold missing-anchor fills).
   def self.series_needs_iv_repair?(series, ends: Time.current.utc)
-    return false if series.continuous_observations.where(observed_at: ..CONTINUOUS_HISTORY_ANCHOR.ago).none?
+    return false unless series.has_continuous_anchor?
 
-    newest = series.continuous_observations.maximum(:observed_at)&.utc
+    newest = series.continuous_newest_at&.utc
     return true if newest.blank? || newest < CONTINUOUS_GAP_THRESHOLD.before(ends)
 
-    previous = series.continuous_observations
-      .where(observed_at: ...newest)
-      .maximum(:observed_at)
-      &.utc
+    previous = series.continuous_prev_at&.utc
     return false if previous.blank?
 
     (newest - previous) > CONTINUOUS_GAP_THRESHOLD
@@ -328,43 +326,22 @@ class HistoryIngestion
   # than threshold older — the tip-sync hollow-middle case (overnight miss, then
   # a new tip). Used by needing_iv_repair.
   #
-  # Intentionally NOT a fleet-wide LAG over retention: that hung batch jobs for
-  # 10+ minutes. This uses DISTINCT ON + LATERAL against (time_series_id,
-  # observed_at) so cost is ~one index seek per series with a recent tip. Deeper
-  # interior holes are still repaired by per-station ingest /
-  # needs_history_backfill? when a job runs for other reasons.
+  # Reads denorm continuous_newest_at / continuous_prev_at on time_series (no
+  # fleet scan of continuous_observations). Deeper interior holes are still
+  # repaired by per-station ingest / needs_history_backfill? when a job runs.
   def self.time_series_ids_with_tip_sync_gaps(threshold: CONTINUOUS_GAP_THRESHOLD)
     threshold_seconds = threshold.to_i
-    tip_since = ContinuousObservation.connection.quote(threshold.ago)
-    sql = <<~SQL.squish
-      SELECT tips.time_series_id
-      FROM (
-        SELECT DISTINCT ON (co.time_series_id)
-               co.time_series_id,
-               co.observed_at AS tip_at
-        FROM continuous_observations co
-        INNER JOIN time_series ts
-          ON ts.id = co.time_series_id
-         AND ts.selected_for_display = TRUE
-        WHERE co.observed_at >= #{tip_since}
-        ORDER BY co.time_series_id, co.observed_at DESC
-      ) tips
-      INNER JOIN LATERAL (
-        SELECT co.observed_at AS prev_at
-        FROM continuous_observations co
-        WHERE co.time_series_id = tips.time_series_id
-          AND co.observed_at < tips.tip_at
-        ORDER BY co.observed_at DESC
-        LIMIT 1
-      ) prev ON TRUE
-      WHERE tips.tip_at - prev.prev_at > INTERVAL '#{threshold_seconds} seconds'
-    SQL
-
+    tip_since = threshold.ago
     Rails.logger.info(
       "HistoryIngestion tip_sync_gap_scan starting threshold_s=#{threshold_seconds}"
     )
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    ids = ContinuousObservation.connection.select_values(sql).map!(&:to_i)
+    ids = TimeSeries.selected
+      .where.not(continuous_newest_at: nil)
+      .where.not(continuous_prev_at: nil)
+      .where("continuous_newest_at >= ?", tip_since)
+      .where("continuous_newest_at - continuous_prev_at > INTERVAL '#{threshold_seconds} seconds'")
+      .pluck(:id)
     elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
     Rails.logger.info(
       "HistoryIngestion tip_sync_gap_scan ids=#{ids.size} " \
@@ -448,7 +425,7 @@ class HistoryIngestion
 
   def advance_latest_tips!(series_list)
     series_list.each do |series|
-      tip_at = series.continuous_observations.maximum(:observed_at)
+      tip_at = series.continuous_newest_at || series.continuous_observations.maximum(:observed_at)
       next if tip_at.blank?
 
       latest = series.latest_observation

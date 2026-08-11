@@ -18,6 +18,20 @@ class TimeSeries < ApplicationRecord
   scope :for_kind, ->(kind) { where(measurement_kind: kind) }
   # Series USGS publishes daily DV for (or unknown). Excludes confirmed IV-only params.
   scope :expecting_daily, -> { where(usgs_daily_absent: false) }
+  scope :with_continuous_anchor, -> { where(has_continuous_anchor: true) }
+  # Selected series that still look active for recent history / IV repair queues.
+  # Uses denorm continuous_newest_at instead of scanning continuous_observations.
+  scope :selected_recently_active, lambda { |as_of: Time.current|
+    recent_since = HistoryIngestion::CONTINUOUS_RETENTION.before(as_of)
+    selected.left_joins(:latest_observation).where(
+      "(latest_observations.id IS NULL AND time_series.ends_at IS NULL) " \
+      "OR latest_observations.observed_at >= ? OR time_series.ends_at >= ? " \
+      "OR time_series.continuous_newest_at >= ?",
+      recent_since,
+      recent_since,
+      recent_since
+    )
+  }
 
   # Leftover Postgres rows and/or R2 shard catalog.
   def has_daily_on_or_before?(anchor)
@@ -57,7 +71,7 @@ class TimeSeries < ApplicationRecord
   def recent_continuous_evidence?(as_of: Time.current)
     window_start = HistoryIngestion::CONTINUOUS_RETENTION.before(as_of)
     return true if latest_observation&.observed_at&.>=(window_start)
-    return true if continuous_observations.where(observed_at: window_start..).exists?
+    return true if continuous_newest_at.present? && continuous_newest_at >= window_start
 
     false
   end
@@ -67,7 +81,7 @@ class TimeSeries < ApplicationRecord
   def eligible_for_recent_history_backfill?(as_of: Time.current)
     tip_at = [
       latest_observation&.observed_at,
-      continuous_newest_at || continuous_observations.maximum(:observed_at),
+      continuous_newest_at,
       ends_at
     ].compact.max
     return true if tip_at.blank?
@@ -77,7 +91,6 @@ class TimeSeries < ApplicationRecord
 
   # Recompute continuous tip/prev/anchor denorm from continuous_observations.
   # Used after history upserts, retention prune, and one-shot backfill.
-  # Eligibility scopes still read continuous_observations until Phase B flips.
   def self.refresh_continuous_coverage!(ids, as_of: Time.current)
     ids = Array(ids).map(&:to_i).uniq
     return 0 if ids.empty?
