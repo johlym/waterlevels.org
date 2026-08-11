@@ -6,6 +6,7 @@ class Admin::SettingsControllerTest < ActionDispatch::IntegrationTest
     ENV.delete("DASHBOARD_PW")
     AppSetting.delete_all
     AppConfig.bust!
+    Admin::SessionsController::RATE_LIMIT_STORE.clear
   end
 
   teardown do
@@ -14,6 +15,7 @@ class Admin::SettingsControllerTest < ActionDispatch::IntegrationTest
     else
       ENV["DASHBOARD_PW"] = @previous_pw
     end
+    Admin::SessionsController::RATE_LIMIT_STORE.clear
   end
 
   test "returns not found when DASHBOARD_PW is unset" do
@@ -60,6 +62,10 @@ class Admin::SettingsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "resets an override" do
+    previous_batch = ENV["HISTORY_BACKFILL_BATCH"]
+    ENV.delete("HISTORY_BACKFILL_BATCH")
+    AppConfig.bust!(:history_backfill_batch)
+
     ENV["DASHBOARD_PW"] = "secret-dashboard"
     post admin_login_path, params: { password: "secret-dashboard" }
     AppConfig.write!(:history_backfill_batch, 3)
@@ -67,5 +73,12 @@ class Admin::SettingsControllerTest < ActionDispatch::IntegrationTest
     delete reset_admin_settings_path(key: "history_backfill_batch")
     assert_redirected_to admin_settings_path(anchor: "ingestion_throughput")
     assert_equal :default, AppConfig.source(:history_backfill_batch)
+  ensure
+    if previous_batch.nil?
+      ENV.delete("HISTORY_BACKFILL_BATCH")
+    else
+      ENV["HISTORY_BACKFILL_BATCH"] = previous_batch
+    end
+    AppConfig.bust!(:history_backfill_batch)
   end
 end

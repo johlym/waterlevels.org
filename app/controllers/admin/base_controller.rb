@@ -1,5 +1,7 @@
 module Admin
   class BaseController < ApplicationController
+    layout "admin"
+
     before_action :ensure_dashboard_configured
     before_action :require_admin_session
     before_action :set_no_store_headers

@@ -4,6 +4,7 @@ class Admin::StationsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @previous_pw = ENV["DASHBOARD_PW"]
     ENV.delete("DASHBOARD_PW")
+    Admin::SessionsController::RATE_LIMIT_STORE.clear
     @location = create(
       :monitoring_location,
       site_number: "08405200",
@@ -35,6 +36,7 @@ class Admin::StationsControllerTest < ActionDispatch::IntegrationTest
     else
       ENV["DASHBOARD_PW"] = @previous_pw
     end
+    Admin::SessionsController::RATE_LIMIT_STORE.clear
   end
 
   test "returns not found when DASHBOARD_PW is unset" do

@@ -4,6 +4,7 @@ class Admin::MaintenanceControllerTest < ActionDispatch::IntegrationTest
   setup do
     @previous_pw = ENV["DASHBOARD_PW"]
     ENV["DASHBOARD_PW"] = "secret-dashboard"
+    Admin::SessionsController::RATE_LIMIT_STORE.clear
     post admin_login_path, params: { password: "secret-dashboard" }
   end
 
@@ -13,6 +14,7 @@ class Admin::MaintenanceControllerTest < ActionDispatch::IntegrationTest
     else
       ENV["DASHBOARD_PW"] = @previous_pw
     end
+    Admin::SessionsController::RATE_LIMIT_STORE.clear
   end
 
   test "runs a safe maintenance action" do

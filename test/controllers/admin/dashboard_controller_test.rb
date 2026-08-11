@@ -6,6 +6,7 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     ENV.delete("DASHBOARD_PW")
     AdminDashboardStats.clear_tip_refresh!
     AdminDashboardStats.bust_backfill_cache!
+    Admin::SessionsController::RATE_LIMIT_STORE.clear
   end
 
   teardown do
@@ -16,6 +17,7 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     end
     AdminDashboardStats.clear_tip_refresh!
     AdminDashboardStats.bust_backfill_cache!
+    Admin::SessionsController::RATE_LIMIT_STORE.clear
   end
 
   test "returns not found when DASHBOARD_PW is unset" do
@@ -38,13 +40,18 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.headers["Cache-Control"], "no-store"
     assert_includes response.body, "Dashboard"
-    assert_includes response.body, "Inspect station"
+    assert_includes response.body, "Admin"
+    assert_includes response.body, "Inspect"
     assert_includes response.body, admin_stations_path
-    assert_includes response.body, "Sidekiq UI"
+    assert_includes response.body, "Settings"
+    assert_includes response.body, admin_settings_path
+    assert_includes response.body, "Sidekiq"
     assert_includes response.body, "/admin/sidekiq"
     assert_includes response.body, "Sign out"
+    assert_includes response.body, "Return to site"
     assert_includes response.body, 'name="robots"'
     assert_includes response.body, "noindex, nofollow"
+    refute_includes response.body, "cdn.usefathom.com"
     assert_includes response.body, "Loading…"
     assert_includes response.body, 'data-controller="admin-sections"'
 
@@ -114,7 +121,7 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "history_continuous"
     assert_includes response.body, "history_daily"
     assert_includes response.body, "history_peaks"
-    assert_includes response.body, "Sidekiq UI"
+    assert_includes response.body, "Sidekiq"
   end
 
   test "health section renders when cached stats omit usgs_keys" do

@@ -31,8 +31,11 @@ class Admin::SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.headers["Cache-Control"], "no-store"
     assert_includes response.headers["Set-Cookie"].to_s, "_waterlevels_session"
     assert_includes response.body, "Admin sign in"
+    assert_includes response.body, "Admin"
+    assert_includes response.body, "Return to site"
     assert_includes response.body, 'name="password"'
     assert_includes response.body, 'name="csrf-token"'
+    refute_includes response.body, "cdn.usefathom.com"
   ensure
     ActionController::Base.allow_forgery_protection = previous
   end
