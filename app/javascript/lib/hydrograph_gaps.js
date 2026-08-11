@@ -14,11 +14,18 @@ export function findGaps(points, maxGapMs = CONTINUOUS_GAP_MS, options = {}) {
   }
 
   for (let i = 1; i < points.length; i += 1) {
-    const prev = Date.parse(points[i - 1].t)
-    const next = Date.parse(points[i].t)
+    const prevPoint = points[i - 1]
+    const nextPoint = points[i]
+    const prev = Date.parse(prevPoint.t)
+    const next = Date.parse(nextPoint.t)
     if (!Number.isFinite(prev) || !Number.isFinite(next)) continue
     if (next - prev > maxGapMs) {
-      gaps.push({ start: prev, end: next })
+      gaps.push({
+        start: prev,
+        end: next,
+        startValue: prevPoint.v,
+        endValue: nextPoint.v
+      })
     }
   }
 
@@ -28,15 +35,22 @@ export function findGaps(points, maxGapMs = CONTINUOUS_GAP_MS, options = {}) {
 
 function maybePushTrailingGap(gaps, points, options, maxGapMs) {
   if (!options.throughMs || !points?.length) return
-  const last = Date.parse(points[points.length - 1].t)
+  const lastPoint = points[points.length - 1]
+  const last = Date.parse(lastPoint.t)
   if (!Number.isFinite(last)) return
   if (options.throughMs - last > maxGapMs) {
-    gaps.push({ start: last, end: options.throughMs })
+    gaps.push({
+      start: last,
+      end: options.throughMs,
+      startValue: lastPoint.v,
+      endValue: null
+    })
   }
 }
 
-// Build Chart.js linear-time points, inserting a null midpoint so the stroke
-// and fill break across each gap instead of bridging the hole.
+// Build Chart.js linear-time points, inserting a null midpoint so Chart.js
+// does not bezier-curve across the hole. gapHatchPlugin redraws a straight
+// bridge (stroke + hashed fill) between the flanking points.
 export function chartPointsWithBreaks(points, maxGapMs = CONTINUOUS_GAP_MS) {
   const out = []
   if (!Array.isArray(points)) return out
@@ -101,34 +115,134 @@ function hatchPattern(ctx, color) {
   return ctx.createPattern(canvas, "repeat")
 }
 
-// Draws diagonal hatch bands in gap intervals (linear x scale, ms timestamps).
+function fillBaselinePixel(yScale, chartArea) {
+  const zero = yScale.getPixelForValue(0)
+  if (!Number.isFinite(zero)) return chartArea.bottom
+  return Math.min(chartArea.bottom, Math.max(chartArea.top, zero))
+}
+
+function gapBridgeGeometry(xScale, yScale, gap) {
+  if (!Number.isFinite(gap.startValue) || !Number.isFinite(gap.endValue)) return null
+
+  const left = xScale.getPixelForValue(gap.start)
+  const right = xScale.getPixelForValue(gap.end)
+  const topLeft = yScale.getPixelForValue(gap.startValue)
+  const topRight = yScale.getPixelForValue(gap.endValue)
+  if (![left, right, topLeft, topRight].every(Number.isFinite)) return null
+  if (Math.abs(right - left) < 0.5) return null
+
+  return { left, right, topLeft, topRight }
+}
+
+function normalizeBridgeSeries(pluginOptions) {
+  if (Array.isArray(pluginOptions?.series) && pluginOptions.series.length) {
+    return pluginOptions.series.filter((entry) => entry?.gaps?.length)
+  }
+
+  // Back-compat: top-level gaps config describes the primary (hatched) bridge.
+  if (pluginOptions?.gaps?.length) {
+    return [{
+      gaps: pluginOptions.gaps,
+      yAxisID: pluginOptions.yAxisID || "y",
+      strokeColor: pluginOptions.strokeColor || pluginOptions.fillColor,
+      fillColor: pluginOptions.fillColor,
+      fillTint: pluginOptions.fillTint,
+      lineWidth: pluginOptions.lineWidth,
+      opacity: pluginOptions.opacity ?? 1,
+      hatch: pluginOptions.hatch !== false,
+      borderDash: pluginOptions.borderDash
+    }]
+  }
+
+  return []
+}
+
+function drawBridgeStroke(ctx, geometry, {
+  strokeColor,
+  lineWidth = 2,
+  opacity = 1,
+  borderDash = null
+}) {
+  ctx.save()
+  ctx.globalAlpha = opacity
+  ctx.strokeStyle = strokeColor
+  ctx.lineWidth = lineWidth
+  ctx.lineJoin = "round"
+  ctx.lineCap = "round"
+  if (Array.isArray(borderDash) && borderDash.length) {
+    ctx.setLineDash(borderDash)
+  } else {
+    ctx.setLineDash([])
+  }
+  ctx.beginPath()
+  ctx.moveTo(geometry.left, geometry.topLeft)
+  ctx.lineTo(geometry.right, geometry.topRight)
+  ctx.stroke()
+  ctx.restore()
+}
+
+function drawHatchedFill(ctx, geometry, baseline, { fillTint, hatchColor, pattern }) {
+  ctx.beginPath()
+  ctx.moveTo(geometry.left, geometry.topLeft)
+  ctx.lineTo(geometry.right, geometry.topRight)
+  ctx.lineTo(geometry.right, baseline)
+  ctx.lineTo(geometry.left, baseline)
+  ctx.closePath()
+  ctx.globalAlpha = 1
+  ctx.fillStyle = fillTint
+  ctx.fill()
+  ctx.fillStyle = pattern || hatchColor
+  ctx.globalAlpha = 0.9
+  ctx.fill()
+  ctx.globalAlpha = 1
+}
+
+// Bridges each gap with a straight stroke between the flanking points.
+// Primary series can also hash the fill under that segment; overlay series
+// (flow / temperature) typically stroke-only at reduced opacity.
 export const gapHatchPlugin = {
   id: "gapHatch",
-  beforeDatasetsDraw(chart, _args, pluginOptions) {
-    const gaps = pluginOptions?.gaps
-    if (!gaps?.length) return
+  afterDatasetsDraw(chart, _args, pluginOptions) {
+    const seriesList = normalizeBridgeSeries(pluginOptions)
+    if (!seriesList.length) return
 
     const { ctx, chartArea, scales } = chart
     const x = scales.x
-    const y = scales.y
-    if (!ctx || !chartArea || !x || !y) return
-
-    const fill = pluginOptions.fillColor || "rgba(161, 161, 170, 0.35)"
-    const pattern = hatchPattern(ctx, fill)
+    if (!ctx || !chartArea || !x) return
 
     ctx.save()
     ctx.beginPath()
     ctx.rect(chartArea.left, chartArea.top, chartArea.right - chartArea.left, chartArea.bottom - chartArea.top)
     ctx.clip()
 
-    gaps.forEach((gap) => {
-      const left = x.getPixelForValue(gap.start)
-      const right = x.getPixelForValue(gap.end)
-      if (!Number.isFinite(left) || !Number.isFinite(right)) return
-      const width = Math.max(right - left, 1)
-      ctx.fillStyle = pattern || fill
-      ctx.globalAlpha = 0.55
-      ctx.fillRect(left, chartArea.top, width, chartArea.bottom - chartArea.top)
+    seriesList.forEach((entry) => {
+      const y = scales[entry.yAxisID || "y"]
+      if (!y) return
+
+      const hatch = entry.hatch !== false
+      const strokeColor = entry.strokeColor || entry.fillColor || "rgba(161, 161, 170, 0.85)"
+      const hatchColor = entry.fillColor || strokeColor
+      const fillTint = entry.fillTint || "rgba(161, 161, 170, 0.18)"
+      const pattern = hatch ? hatchPattern(ctx, hatchColor) : null
+      const baseline = hatch ? fillBaselinePixel(y, chartArea) : null
+      const opacity = Number.isFinite(entry.opacity) ? entry.opacity : 1
+      const lineWidth = entry.lineWidth || 2
+
+      entry.gaps.forEach((gap) => {
+        const geometry = gapBridgeGeometry(x, y, gap)
+        if (!geometry) return
+
+        if (hatch) {
+          drawHatchedFill(ctx, geometry, baseline, { fillTint, hatchColor, pattern })
+        }
+
+        drawBridgeStroke(ctx, geometry, {
+          strokeColor,
+          lineWidth,
+          opacity,
+          borderDash: entry.borderDash
+        })
+      })
     })
 
     ctx.restore()

@@ -201,11 +201,32 @@ export default class extends Controller {
     return null
   }
 
+  // Secondary overlays drawn with the primary: stage/flow companion, plus
+  // temperature when present and not already selected as the primary series.
+  overlaySeries(primary) {
+    if (!primary) return []
+
+    const overlays = []
+    const companion = this.companionSeries(primary)
+    if (companion && (companion.points || []).length) overlays.push(companion)
+
+    const temperature = Object.values(this.seriesByKey).find((series) => series.kind === "temperature")
+    if (
+      temperature
+      && temperature !== primary
+      && temperature.kind !== primary.kind
+      && (temperature.points || []).length
+    ) {
+      overlays.push(temperature)
+    }
+
+    return overlays
+  }
+
   renderLegend() {
     if (!this.hasLegendTarget) return
     const primary = this.primarySeries()
-    const companion = this.companionSeries(primary)
-    const items = [primary, companion].filter(Boolean)
+    const items = [primary, ...this.overlaySeries(primary)].filter(Boolean)
     const pointValues = (primary?.points || []).map((point) => point.v)
     const floodStages = primary?.kind === "water_level"
       ? this.visibleFloodStages(pointValues, this.floodStageEntries())
@@ -530,7 +551,7 @@ export default class extends Controller {
     this.destroyChart()
 
     const primary = this.primarySeries()
-    const companion = this.companionSeries(primary)
+    const overlays = this.overlaySeries(primary)
     if (!primary) return
 
     const primaryPoints = primary.points || []
@@ -550,7 +571,22 @@ export default class extends Controller {
       : primaryPoints.map((point) => point.s === "derived")
     // Interior gaps only — do not stretch the X scale out to "now" for a
     // trailing stale tip; that reintroduces empty time after the last point.
+    // gapHatchPlugin bridges each hole with a straight stroke and hashes only
+    // the fill under that bridge (not the full plot height). Overlay series
+    // (flow / temperature) get stroke-only bridges at 50% opacity.
     const gaps = continuousRange ? findGaps(primaryPoints) : []
+    const bridgeSeries = continuousRange
+      ? [{
+          gaps,
+          yAxisID: "y",
+          strokeColor: colors.border,
+          fillColor: colors.border,
+          fillTint: colors.fill,
+          lineWidth: 2,
+          opacity: 1,
+          hatch: true
+        }]
+      : []
 
     const datasets = [{
       label: primary.label || primary.kind,
@@ -572,42 +608,66 @@ export default class extends Controller {
       parsing: continuousRange ? false : undefined
     }]
 
-    if (companion && (companion.points || []).length) {
-      const companionColors = SERIES_COLORS[companion.kind] || SERIES_COLORS.water_level
-      let companionData
+    const overlayAxes = {}
+    overlays.forEach((overlay, index) => {
+      const overlayColors = SERIES_COLORS[overlay.kind] || SERIES_COLORS.discharge
+      // Flow / temperature overlays stay at half opacity so the primary fill
+      // series remains the visual focus; gap bridges match that weight.
+      const overlayBorder = this.colorWithAlpha(overlayColors.border, 0.5)
+      const yAxisID = `y${index + 1}`
+      const overlayPoints = overlay.points || []
+      let overlayData
       if (continuousRange) {
-        const companionByMinute = new Map(
-          (companion.points || []).map((point) => [String(point.t).slice(0, 16), point.v])
-        )
-        companionData = chartPoints.map((point) => {
-          if (point?.gap || point?.y == null || point?.t == null) return { x: point.x, y: null }
-          return {
-            x: point.x,
-            y: companionByMinute.get(String(point.t).slice(0, 16)) ?? null
-          }
-        })
+        // Own timeline + breaks so primary gap midpoints do not carve holes in
+        // overlays that still have readings; plugin bridges overlay gaps at 50%.
+        overlayData = chartPointsWithBreaks(overlayPoints)
+        const overlayGaps = findGaps(overlayPoints)
+        if (overlayGaps.length) {
+          bridgeSeries.push({
+            gaps: overlayGaps,
+            yAxisID,
+            strokeColor: overlayBorder,
+            lineWidth: 2,
+            opacity: 1,
+            hatch: false,
+            borderDash: [4, 4]
+          })
+        }
       } else {
-        const companionByMinute = new Map(
-          (companion.points || []).map((point) => [String(point.t).slice(0, 16), point.v])
+        const overlayByMinute = new Map(
+          overlayPoints.map((point) => [String(point.t).slice(0, 16), point.v])
         )
-        companionData = primaryPoints.map((point) => companionByMinute.get(String(point.t).slice(0, 16)) ?? null)
+        overlayData = primaryPoints.map((point) => overlayByMinute.get(String(point.t).slice(0, 16)) ?? null)
       }
+
       datasets.push({
-        label: companion.label || companion.kind,
-        data: companionData,
-        borderColor: companionColors.border,
+        label: overlay.label || overlay.kind,
+        data: overlayData,
+        borderColor: overlayBorder,
         backgroundColor: "transparent",
         borderDash: [4, 4],
         fill: false,
         tension: 0.25,
         pointRadius: 0,
         borderWidth: 2,
-        yAxisID: "y1",
+        yAxisID,
         spanGaps: !continuousRange,
-        seriesKind: companion.kind,
+        seriesKind: overlay.kind,
         parsing: continuousRange ? false : undefined
       })
-    }
+
+      overlayAxes[yAxisID] = {
+        display: true,
+        position: "right",
+        offset: index > 0,
+        border: { display: false },
+        grid: { drawOnChartArea: false },
+        ticks: {
+          color: tick,
+          callback: (value) => this.displayValue(value, overlay.kind)
+        }
+      }
+    })
 
     const pointValues = primaryPoints.map((point) => point.v)
     const floodStages = primary.kind === "water_level"
@@ -665,6 +725,11 @@ export default class extends Controller {
         })
       : null
 
+    const seriesByKind = {
+      [primary.kind]: primary,
+      ...Object.fromEntries(overlays.map((series) => [series.kind, series]))
+    }
+
     try {
       this.chart = new Chart(this.canvasTarget.getContext("2d"), {
         type: "line",
@@ -675,7 +740,9 @@ export default class extends Controller {
           interaction: { mode: "index", intersect: false },
           plugins: {
             legend: { display: false },
-            gapHatch: continuousRange ? { gaps, fillColor: "rgba(161, 161, 170, 0.55)" } : false,
+            gapHatch: continuousRange && bridgeSeries.some((entry) => entry.gaps?.length)
+              ? { series: bridgeSeries }
+              : false,
             tooltip: {
               backgroundColor: "#18181b",
               titleColor: "#fafafa",
@@ -704,7 +771,7 @@ export default class extends Controller {
                   if (context.dataset.isFloodStage) {
                     return `${context.dataset.label}: ${this.displayValue(raw, "water_level")} ft`
                   }
-                  const series = context.dataset.seriesKind === companion?.kind ? companion : primary
+                  const series = seriesByKind[context.dataset.seriesKind] || primary
                   const estimated = Array.isArray(context.dataset.estimatedFlags)
                     && context.dataset.estimatedFlags[context.dataIndex]
                   const suffix = estimated ? " (Estimated)" : ""
@@ -768,18 +835,7 @@ export default class extends Controller {
                 callback: (value) => this.displayValue(value, primary.kind)
               }
             },
-            ...(companion ? {
-              y1: {
-                display: true,
-                position: "right",
-                border: { display: false },
-                grid: { drawOnChartArea: false },
-                ticks: {
-                  color: tick,
-                  callback: (value) => this.displayValue(value, companion.kind)
-                }
-              }
-            } : {})
+            ...overlayAxes
           }
         },
         plugins: continuousRange ? [ gapHatchPlugin ] : []
@@ -794,6 +850,28 @@ export default class extends Controller {
     if (!values.length) return undefined
     const max = Math.max(...values)
     return max > 0 ? max * 1.05 : undefined
+  }
+
+  colorWithAlpha(color, alpha) {
+    const value = String(color || "").trim()
+    const hex = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+    if (hex) {
+      let body = hex[1]
+      if (body.length === 3) {
+        body = body.split("").map((ch) => `${ch}${ch}`).join("")
+      }
+      const r = Number.parseInt(body.slice(0, 2), 16)
+      const g = Number.parseInt(body.slice(2, 4), 16)
+      const b = Number.parseInt(body.slice(4, 6), 16)
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`
+    }
+
+    const rgb = value.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*[\d.]+\s*)?\)$/i)
+    if (rgb) {
+      return `rgba(${rgb[1]}, ${rgb[2]}, ${rgb[3]}, ${alpha})`
+    }
+
+    return value
   }
 
   destroyChart() {

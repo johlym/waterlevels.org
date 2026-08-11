@@ -24,6 +24,8 @@ describe("hydrograph_gaps", () => {
     const gaps = findGaps(points)
     assert.equal(gaps.length, 1)
     assert.equal(gaps[0].end - gaps[0].start, 10 * 60 * 60 * 1000)
+    assert.equal(gaps[0].startValue, 1)
+    assert.equal(gaps[0].endValue, 2)
   })
 
   it("ignores healthy tip-sync spacing under the threshold", () => {
@@ -41,9 +43,11 @@ describe("hydrograph_gaps", () => {
     assert.equal(gaps.length, 1)
     assert.equal(gaps[0].start, Date.parse("2026-08-10T12:00:00.000Z"))
     assert.equal(gaps[0].end, throughMs)
+    assert.equal(gaps[0].startValue, 1)
+    assert.equal(gaps[0].endValue, null)
   })
 
-  it("inserts null midpoints so the chart stroke breaks across gaps", () => {
+  it("inserts null midpoints so Chart.js leaves a hole the bridge plugin fills", () => {
     const points = [
       { t: "2026-08-10T03:30:00.000Z", v: 1 },
       { t: "2026-08-10T13:30:00.000Z", v: 2 }
