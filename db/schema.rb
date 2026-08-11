@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_11_040000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_11_050100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -23,8 +23,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_11_040000) do
     t.datetime "updated_at", null: false
     t.decimal "value", precision: 16, scale: 6, null: false
     t.index ["observed_at"], name: "index_continuous_observations_on_observed_at"
-    t.index ["time_series_id", "observed_at"], name: "idx_on_time_series_id_observed_at_6d681681d4", unique: true
-    t.index ["time_series_id"], name: "index_continuous_observations_on_time_series_id"
+    t.index ["time_series_id", "observed_at"], name: "index_continuous_observations_on_ts_observed_at_incl_value", unique: true, include: ["value"]
   end
 
   create_table "daily_archive_shards", force: :cascade do |t|
@@ -43,7 +42,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_11_040000) do
     t.index ["min_on"], name: "index_daily_archive_shards_on_min_on"
     t.index ["object_key"], name: "index_daily_archive_shards_on_object_key", unique: true
     t.index ["time_series_id", "year"], name: "index_daily_archive_shards_on_time_series_id_and_year", unique: true
-    t.index ["time_series_id"], name: "index_daily_archive_shards_on_time_series_id"
   end
 
   create_table "daily_observations", force: :cascade do |t|
@@ -56,7 +54,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_11_040000) do
     t.decimal "value", precision: 16, scale: 6, null: false
     t.index ["observed_on"], name: "index_daily_observations_on_observed_on"
     t.index ["time_series_id", "observed_on"], name: "index_daily_observations_on_time_series_id_and_observed_on", unique: true
-    t.index ["time_series_id"], name: "index_daily_observations_on_time_series_id"
   end
 
   create_table "latest_observations", force: :cascade do |t|
@@ -118,6 +115,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_11_040000) do
     t.string "time_zone"
     t.datetime "updated_at", null: false
     t.string "usgs_monitoring_location_id", null: false
+    t.index ["active", "latest_observed_at"], name: "index_monitoring_locations_on_active_and_latest_observed_at"
     t.index ["flood_category"], name: "index_monitoring_locations_on_flood_category"
     t.index ["has_discharge"], name: "index_monitoring_locations_on_has_discharge", where: "(has_discharge = true)"
     t.index ["has_water_level"], name: "index_monitoring_locations_on_has_water_level", where: "(has_water_level = true)"
@@ -140,7 +138,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_11_040000) do
     t.decimal "value", precision: 16, scale: 6, null: false
     t.integer "water_year", null: false
     t.index ["time_series_id", "water_year", "peak_kind"], name: "index_peak_observations_unique", unique: true
-    t.index ["time_series_id"], name: "index_peak_observations_on_time_series_id"
   end
 
   create_table "time_series", force: :cascade do |t|
@@ -165,7 +162,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_11_040000) do
     t.boolean "usgs_daily_absent", default: false, null: false
     t.string "usgs_time_series_id", null: false
     t.index ["monitoring_location_id", "measurement_kind", "selected_for_display"], name: "index_time_series_on_location_kind_selected"
-    t.index ["monitoring_location_id"], name: "index_time_series_on_monitoring_location_id"
+    t.index ["monitoring_location_id"], name: "index_time_series_selected_on_location", where: "(selected_for_display = true)"
     t.index ["usgs_time_series_id"], name: "index_time_series_on_usgs_time_series_id", unique: true
   end
 
