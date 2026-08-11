@@ -49,3 +49,9 @@
       cron: "15 9 * * *"
       class: ContinuousPruneJob
       queue: default
+    admin_dashboard_counters:
+      # Materialize /admin inventory Counters off the web dyno. Sync jobs also
+      # enqueue this opportunistically after tip/catalog/archive/prune.
+      cron: "8-58/10 * * * *"
+      class: AdminDashboardCountersJob
+      queue: default

@@ -17,6 +17,7 @@ class DailyArchiveExportJob < ApplicationJob
       series: result[:series],
       points: result[:points]
     )
+    AdminDashboardStats.schedule_inventory_refresh!
     progress.finish("series=#{result[:series]} points=#{result[:points]}")
   end
 end

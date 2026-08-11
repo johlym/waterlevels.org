@@ -40,6 +40,7 @@ class ContinuousPruneJob < ApplicationJob
         rolled_up: stats[:rolled_up],
         rollup_skipped: stats[:rollup_skipped]
       )
+      AdminDashboardStats.schedule_inventory_refresh!
       progress.finish(
         "usgs_ensured=#{stats[:usgs_ensured]} derived=#{stats[:derived]} " \
         "retrying=#{stats[:retrying]} gaps_alerted=#{stats[:gaps_alerted]} " \

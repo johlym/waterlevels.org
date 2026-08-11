@@ -21,7 +21,7 @@ module Admin
 
           action :bust_admin_dashboard_caches,
             label: "Bust admin dashboard caches",
-            description: "Clear cached admin dashboard section payloads and backfill aggregates." do
+            description: "Clear cached admin section payloads and the inventory AdminCounter so the next read recomputes." do
             AdminDashboardStats.bust_backfill_cache!
             :ok
           end
@@ -106,7 +106,7 @@ module Admin
 
           action :clear_admin_job_finish_keys,
             label: "Clear admin job-finish records",
-            description: "Wipe Redis/memory records that power the dashboard Jobs panel timestamps.",
+            description: "Wipe AdminCounter rows that power the dashboard Jobs panel and IV candidate counts.",
             danger: true,
             confirm: "Clear admin last-job finish records?" do
             AdminDashboardStats.clear_jobs!

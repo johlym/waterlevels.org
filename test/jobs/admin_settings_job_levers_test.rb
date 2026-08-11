@@ -1,6 +1,8 @@
 require "test_helper"
 
 class AdminSettingsJobLeversTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     AppSetting.delete_all
     AppConfig.bust!
@@ -29,5 +31,21 @@ class AdminSettingsJobLeversTest < ActiveSupport::TestCase
     AppConfig.write!(:iv_repair_enabled, false)
     location = create(:monitoring_location)
     assert_equal :disabled_by_settings, IvRepairJob.enqueue_block_reason(location.id)
+  end
+
+  test "AdminDashboardCountersJob skips when disabled" do
+    AppConfig.write!(:admin_dashboard_counters_enabled, false)
+    AdminDashboardStats.bust_backfill_cache!
+
+    assert_nil AdminDashboardCountersJob.perform_now
+    assert_nil AdminCounter.fetch(AdminDashboardStats::INVENTORY_KEY)
+  end
+
+  test "schedule_inventory_refresh! no-ops when counters disabled" do
+    AppConfig.write!(:admin_dashboard_counters_enabled, false)
+
+    assert_no_enqueued_jobs only: AdminDashboardCountersJob do
+      AdminDashboardStats.schedule_inventory_refresh!
+    end
   end
 end
