@@ -100,7 +100,7 @@ External data flows in through namespaced clients → sync objects → Sidekiq j
 - **Sync objects (`app/models/*_sync.rb`, `history_ingestion.rb`, `display_series_selection.rb`):**
   - `StationCatalogSync` (weekly / bootstrap) — discover active continuous water-body sites, filter via `Usgs::SiteTypes`, upsert series + latest, select display series, prune inactive, warm caches.
   - `LatestObservationSync` (hourly) — refresh `selected_for_display` series, denormalize location columns, warm caches.
-  - `FloodStageSync` (hourly, offset) — refresh flood categories from the NWPS gauge list by LID, prioritize detail-matching for any unlinked action+ gauges (LID → usgsId → site), then discover/refresh remaining thresholds via USGS site-number lookups. Also runs at the end of each `BootstrapStateJob`.
+  - `FloodStageSyncBatchJob` / `FloodStageSyncJob` (hourly, offset) — enqueue one state job at a time (≥31s min cycle). Each state refreshes flood categories from covering NWPS list regions, prioritizes detail-matching for unlinked action+ gauges (LID → usgsId → site), then spends a small budget on threshold discovery. Also runs at the end of each `BootstrapStateJob`.
   - `HistoryIngestion` (on-demand/batch) — fetch continuous/daily/peaks for charts; gap-aware. Cold/lazy path uses `1y`; deep `3y` daily only for year-ready stations.
   - `DisplaySeriesSelection` — choose one discharge + one temperature + ranked water-level series; set `has_*` flags and denormalized columns.
 - **Jobs (`app/jobs`) + schedule (`config/sidekiq.yml` on `worker`):** catalog (Sun 03:00), latest (hourly), flood (hourly :20), history backfill batch (Mon–Sat every 10 minutes), prune (daily). Queues: `default` → `worker`, `sync` → `sync_worker`, `backfill` → `historical_worker`.

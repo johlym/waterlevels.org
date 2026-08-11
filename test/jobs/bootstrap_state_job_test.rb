@@ -22,21 +22,19 @@ class BootstrapStateJobTest < ActiveSupport::TestCase
     end
   end
 
-  test "enqueue_sync rake task enqueues staggered flood stage jobs" do
+  test "enqueue_sync rake task enqueues a flood stage job for STATE" do
     Rails.application.load_tasks
 
     task = Rake::Task["nwps:enqueue_sync"]
     task.reenable
 
     ENV["STATE"] = "tx"
-    ENV["DELAY_SECONDS"] = "0"
     begin
       assert_enqueued_with(job: FloodStageSyncJob, args: [ "tx" ]) do
         task.invoke
       end
     ensure
       ENV.delete("STATE")
-      ENV.delete("DELAY_SECONDS")
       task.reenable
     end
   end

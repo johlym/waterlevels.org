@@ -5,9 +5,9 @@ class FloodStageSync
   UNMATCHED_RETRY_AFTER = 7.days
   # Thresholds rarely change; list refresh already updates flood_category hourly.
   MATCHED_DETAIL_REFRESH_AFTER = 7.days
-  # NWPS paces ~2 detail GETs/min (30s pause). Cap so a national hourly run
-  # finishes instead of walking the whole due set for days with no "done" log.
-  DEFAULT_DETAIL_REQUEST_BUDGET = 80
+  # Per-state detail GET cap (alert LID + site discovery). Keep small so each
+  # state job usually finishes near the 31s min cycle under NWPS's 30s pause.
+  DEFAULT_DETAIL_REQUEST_BUDGET = 3
 
   attr_accessor :client, :state, :progress
 
@@ -26,11 +26,38 @@ class FloodStageSync
       }
     ) do
       @detail_requests_remaining = detail_request_budget
-      progress&.step(scope_label)
+      progress&.step("#{scope_label} detail_budget=#{@detail_requests_remaining}")
+
+      phase_start = monotonic_now
       gauges_by_lid = fetch_gauges_by_lid
+      progress&.step(
+        "phase=list_fetch done gauges=#{gauges_by_lid.size} " \
+        "elapsed=#{elapsed_s(phase_start)}s"
+      )
+
+      phase_start = monotonic_now
       list_updated = refresh_categories_from_list(gauges_by_lid)
+      progress&.step(
+        "phase=list_refresh done updated=#{list_updated} " \
+        "elapsed=#{elapsed_s(phase_start)}s"
+      )
+
+      phase_start = monotonic_now
       alert_matched = match_unlinked_alert_gauges(gauges_by_lid)
+      progress&.step(
+        "phase=alert_match done matched=#{alert_matched} " \
+        "budget_remaining=#{@detail_requests_remaining} " \
+        "elapsed=#{elapsed_s(phase_start)}s"
+      )
+
+      phase_start = monotonic_now
       matched, unmatched, skipped, errors = discover_and_refresh_details
+      progress&.step(
+        "phase=detail_sync done matched=#{matched} unmatched=#{unmatched} " \
+        "skipped=#{skipped} errors=#{errors} " \
+        "budget_remaining=#{@detail_requests_remaining} " \
+        "elapsed=#{elapsed_s(phase_start)}s"
+      )
 
       Telemetry.add_attributes(
         "app.batch_size" => gauges_by_lid.size,
@@ -44,8 +71,9 @@ class FloodStageSync
         "app.detail_budget_remaining" => @detail_requests_remaining
       )
 
-      progress&.step("warming caches")
-      warm_caches
+      changed = list_updated.positive? || alert_matched.positive? ||
+        matched.positive? || unmatched.positive?
+      warm_caches(changed: changed)
       progress&.finish(
         "list_updated=#{list_updated} alert_matched=#{alert_matched} " \
         "matched=#{matched} unmatched=#{unmatched} skipped=#{skipped} errors=#{errors} " \
@@ -88,6 +116,14 @@ class FloodStageSync
     true
   end
 
+  def monotonic_now
+    Process.clock_gettime(Process::CLOCK_MONOTONIC)
+  end
+
+  def elapsed_s(started_at)
+    format("%.1f", monotonic_now - started_at)
+  end
+
   def regions_to_fetch
     if postal_code
       Nwps::ListRegions.ids_covering_state(postal_code)
@@ -98,8 +134,11 @@ class FloodStageSync
 
   def fetch_gauges_by_lid
     by_lid = {}
-    regions_to_fetch.each do |region_id|
+    regions = regions_to_fetch
+    progress&.step("nwps list regions=#{regions.size} ids=#{regions.join(",")}")
+    regions.each_with_index do |region_id, index|
       begin
+        progress&.step("nwps list fetch region=#{region_id} (#{index + 1}/#{regions.size})")
         gauges = filter_gauges_for_scope(client.gauges(region: region_id))
         gauges.each do |gauge|
           lid = gauge["lid"].to_s.upcase.presence
@@ -124,7 +163,9 @@ class FloodStageSync
 
     updated = 0
     unchanged = 0
-    sync_scope.where.not(nwps_lid: [ nil, "" ]).find_each do |location|
+    scoped = sync_scope.where.not(nwps_lid: [ nil, "" ])
+    progress&.step("list refresh candidates=#{scoped.count}")
+    scoped.find_each do |location|
       gauge = by_lid[location.nwps_lid.to_s.upcase]
       next unless gauge
 
@@ -181,6 +222,7 @@ class FloodStageSync
       end
 
       lid = summary["lid"].to_s
+      progress&.step("alert match fetch lid=#{lid} (#{index + 1}/#{candidates.size})")
       begin
         detail = client.gauge(lid)
         if detail.blank?
@@ -190,14 +232,20 @@ class FloodStageSync
 
         location = find_location_for_usgs_id(detail["usgsId"])
         unless location
-          progress&.step("alert unlinkable lid=#{lid} usgsId=#{detail["usgsId"]} (#{index + 1}/#{candidates.size})")
+          progress&.step(
+            "alert unlinkable lid=#{lid} usgsId=#{detail["usgsId"]} " \
+            "(#{index + 1}/#{candidates.size})"
+          )
           next
         end
 
         apply_match!(location, detail)
         matched += 1
         progress&.increment
-        progress&.step("alert matched lid=#{lid} site=#{location.site_number} (#{index + 1}/#{candidates.size})")
+        progress&.step(
+          "alert matched lid=#{lid} site=#{location.site_number} " \
+          "(#{index + 1}/#{candidates.size})"
+        )
       rescue Nwps::Client::Error => e
         progress&.step("error lid=#{lid} #{e.message}")
       end
@@ -230,7 +278,7 @@ class FloodStageSync
   # Due filtering is in SQL so we don't load the whole active catalog every
   # hour, and a canceled run naturally resumes: finished rows get a fresh
   # nwps_synced_at and drop out of the due set. A hard request budget keeps
-  # each hourly national run finite under the NWPS 30s pause.
+  # each state job finite under the NWPS 30s pause.
   def discover_and_refresh_details
     matched = 0
     unmatched = 0
@@ -253,6 +301,10 @@ class FloodStageSync
     due.limit(budget).each do |location|
       break unless consume_detail_request!
 
+      progress&.step(
+        "detail fetch site=#{location.site_number} " \
+        "(#{matched + unmatched + errors + 1}/#{budget})"
+      )
       begin
         gauge = client.gauge(location.site_number)
         if gauge.present?
@@ -268,10 +320,6 @@ class FloodStageSync
       end
 
       progress&.increment
-      attempted = matched + unmatched + errors
-      if (attempted % 10).zero?
-        progress&.step("detail sync progress=#{attempted}/#{budget}")
-      end
     end
 
     skipped = [ due_count - matched - unmatched - errors, 0 ].max
@@ -365,18 +413,26 @@ class FloodStageSync
     [ category, category_at ]
   end
 
-  def warm_caches
-    # Recompute in-process so the next home origin hit is not a cold COUNT(*) miss.
-    SiteStats.warm!
-    AlertsListingCache.warm
+  def warm_caches(changed:)
     if postal_code
+      progress&.step("warming state listing cache state=#{postal_code}")
       StateListingCache.warm(postal_code)
     else
+      progress&.step("warming all state listing caches")
       StateListingCache.warm_all
     end
+
+    if changed
+      progress&.step("warming national site stats + alerts caches")
+      SiteStats.warm!
+      AlertsListingCache.warm
+    else
+      progress&.step("skipping national cache warm (no flood changes)")
+    end
+
+    progress&.step("invalidating edge cache")
     EdgeCacheInvalidation.after_flood_sync!(state: state)
   end
-
 
   def parse_time(value)
     return if value.blank?
