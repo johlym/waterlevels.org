@@ -14,7 +14,11 @@
       </p>
       <p class="label">Need IV repair</p>
       <p class="hint">
-        Anchored tip/hollow gaps ·
+        <% if stats[:iv_repair_candidates_scanned_at] %>
+          Last batch scan <%= time_ago_in_words(stats[:iv_repair_candidates_scanned_at]) %> ago ·
+        <% else %>
+          From last IV repair batch scan ·
+        <% end %>
         <%= number_with_delimiter(stats[:iv_repair_locks].to_i) %> locked ·
         <%= number_with_delimiter(stats[:iv_repair_cooldowns].to_i) %> cooling
       </p>
