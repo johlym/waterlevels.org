@@ -317,7 +317,7 @@ module DailyArchive
         }
       end
 
-      cutoff = HistoryIngestion::CONTINUOUS_RETENTION.ago(@as_of)
+      cutoff = HistoryIngestion.continuous_retention.ago(@as_of)
       blocked = @checkpoint.stats["iv_blocked"]
       deleted = @checkpoint.stats["iv_deleted"]
 
@@ -396,7 +396,7 @@ module DailyArchive
 
     def past_retry_window?(day)
       # Local calendar day whose end is older than continuous retention.
-      day < HistoryIngestion::CONTINUOUS_RETENTION.ago(@as_of).to_date
+      day < HistoryIngestion.continuous_retention.ago(@as_of).to_date
     end
 
     def alert_gap!(series, day)

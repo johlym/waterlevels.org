@@ -3,10 +3,13 @@ class HistoryBackfillJob < ApplicationJob
 
   # Sunday national catalog sync competes for the USGS hourly request budget.
   def self.paused_for_catalog_sync?(time = Time.current)
+    return false unless AppConfig.boolean?(:sunday_catalog_pause_enabled)
+
     time.in_time_zone.sunday?
   end
 
   def self.enqueue(monitoring_location_id, range = HistoryIngestion::DEFAULT_RANGE)
+    return false unless AppConfig.boolean?(:history_backfill_enabled)
     return false if paused_for_catalog_sync?
     return false unless history_keys_available_for?(range)
     return false if DatabaseReadOnlyCircuit.open?
@@ -33,6 +36,11 @@ class HistoryBackfillJob < ApplicationJob
         "app.range" => range.to_s
       }
     ) do
+      unless AppConfig.boolean?(:history_backfill_enabled)
+        Telemetry.add_attributes("app.skip_reason" => "disabled_by_settings")
+        Rails.logger.info("HistoryBackfillJob skipped: disabled by admin settings id=#{monitoring_location_id}")
+        return
+      end
       if self.class.paused_for_catalog_sync?
         Telemetry.add_attributes("app.skip_reason" => "sunday_catalog_sync")
         Rails.logger.info("HistoryBackfillJob skipped: Sunday catalog sync window id=#{monitoring_location_id}")

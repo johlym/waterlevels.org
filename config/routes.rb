@@ -38,6 +38,10 @@ Rails.application.routes.draw do
   get "/admin/stations", to: "admin/stations#index", as: :admin_stations
   get "/admin/stations/:site_number", to: "admin/stations#show", as: :admin_station,
       constraints: { site_number: /\d+/ }
+  get "/admin/settings", to: "admin/settings#show", as: :admin_settings
+  patch "/admin/settings", to: "admin/settings#update"
+  delete "/admin/settings/:key", to: "admin/settings#reset", as: :reset_admin_settings
+  post "/admin/maintenance/:key", to: "admin/maintenance#create", as: :admin_maintenance
   get "/admin/login", to: "admin/sessions#new", as: :admin_login
   post "/admin/login", to: "admin/sessions#create"
   delete "/admin/logout", to: "admin/sessions#destroy", as: :admin_logout

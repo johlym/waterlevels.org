@@ -21,6 +21,11 @@ class HistoryBackfillBatchJob < ApplicationJob
         "app.range" => range.to_s
       }
     ) do
+      unless AppConfig.boolean?(:history_backfill_enabled)
+        Telemetry.add_attributes("app.skip_reason" => "disabled_by_settings")
+        Rails.logger.info("HistoryBackfillBatchJob skipped: disabled by admin settings")
+        return 0
+      end
       if HistoryBackfillJob.paused_for_catalog_sync?
         Telemetry.add_attributes("app.skip_reason" => "sunday_catalog_sync")
         Rails.logger.info("HistoryBackfillBatchJob skipped: Sunday catalog sync window")
@@ -93,15 +98,16 @@ class HistoryBackfillBatchJob < ApplicationJob
     return limit.to_i if !limit.nil?
     return 0 unless Usgs::HistoryKeyPool.phase1_available?
 
-    per_tick = ENV.fetch("HISTORY_BACKFILL_BATCH", DEFAULT_PHASE1_BATCH.to_s).to_i
+    per_tick = AppConfig.integer(:history_backfill_batch)
     per_tick = DEFAULT_PHASE1_BATCH if per_tick <= 0
     [ per_tick, theoretical_phase1_ceiling ].min
   end
 
   def deep_station_budget
+    return 0 unless AppConfig.boolean?(:deep_backfill_enabled)
     return 0 unless Usgs::HistoryKeyPool.deep_available?
 
-    per_tick = ENV.fetch("HISTORY_DEEP_BACKFILL_BATCH", DEFAULT_DEEP_BATCH.to_s).to_i
+    per_tick = AppConfig.integer(:history_deep_backfill_batch)
     return 0 if per_tick <= 0
 
     [ per_tick, theoretical_deep_ceiling ].min
@@ -120,10 +126,7 @@ class HistoryBackfillBatchJob < ApplicationJob
   end
 
   def backfill_queue_busy?
-    threshold = ENV.fetch(
-      "HISTORY_BACKFILL_QUEUE_BUSY",
-      DEFAULT_QUEUE_BUSY_THRESHOLD.to_s
-    ).to_i
+    threshold = AppConfig.integer(:history_backfill_queue_busy)
     return false if threshold <= 0
 
     require "sidekiq/api"

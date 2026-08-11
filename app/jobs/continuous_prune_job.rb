@@ -2,6 +2,10 @@ class ContinuousPruneJob < ApplicationJob
   queue_as :default
 
   def perform
+    unless AppConfig.boolean?(:continuous_prune_enabled)
+      Rails.logger.info("ContinuousPruneJob skipped: disabled by admin settings")
+      return
+    end
     if DatabaseReadOnlyCircuit.open?
       raise DatabaseReadOnlyError, "database read-only circuit open"
     end

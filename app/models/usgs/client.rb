@@ -129,7 +129,7 @@ module Usgs
     def default_request_pause_ms
       return 0 if Rails.env.test?
 
-      ENV.fetch("USGS_REQUEST_PAUSE_MS", "100").to_i
+      AppConfig.integer(:usgs_request_pause_ms)
     end
 
     def pause_between_requests!

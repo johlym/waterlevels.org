@@ -12,6 +12,11 @@ class LatestObservationSyncJob < ApplicationJob
         "app.state" => state.presence || "national"
       }
     ) do
+      unless AppConfig.boolean?(:latest_observation_sync_enabled)
+        Telemetry.add_attributes("app.skip_reason" => "disabled_by_settings")
+        Rails.logger.info("LatestObservationSyncJob skipped: disabled by admin settings")
+        return
+      end
       if Usgs::RateLimitCircuit.open?(Usgs::RateLimitCircuit::TIP_KEY)
         Telemetry.add_attributes("app.skip_reason" => "usgs_circuit_open")
         Rails.logger.warn("LatestObservationSyncJob skipped: USGS tip rate limit circuit open")

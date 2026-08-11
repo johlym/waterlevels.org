@@ -11,6 +11,10 @@ class FloodStageSyncJob < ApplicationJob
   # Also accepts blank/omitted args so old Sidekiq retries of the former
   # national cron (`arguments: []`) run the loop instead of failing.
   def perform(state = nil)
+    unless AppConfig.boolean?(:flood_stage_sync_enabled)
+      Rails.logger.info("FloodStageSyncJob skipped: disabled by admin settings")
+      return
+    end
     if DatabaseReadOnlyCircuit.open?
       raise DatabaseReadOnlyError, "database read-only circuit open"
     end
