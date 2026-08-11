@@ -134,63 +134,115 @@ function gapBridgeGeometry(xScale, yScale, gap) {
   return { left, right, topLeft, topRight }
 }
 
-// Bridges each gap with a straight stroke between the flanking points and
-// hashes only the area under that segment (the data-line fill), not the
-// full plot height.
+function normalizeBridgeSeries(pluginOptions) {
+  if (Array.isArray(pluginOptions?.series) && pluginOptions.series.length) {
+    return pluginOptions.series.filter((entry) => entry?.gaps?.length)
+  }
+
+  // Back-compat: top-level gaps config describes the primary (hatched) bridge.
+  if (pluginOptions?.gaps?.length) {
+    return [{
+      gaps: pluginOptions.gaps,
+      yAxisID: pluginOptions.yAxisID || "y",
+      strokeColor: pluginOptions.strokeColor || pluginOptions.fillColor,
+      fillColor: pluginOptions.fillColor,
+      fillTint: pluginOptions.fillTint,
+      lineWidth: pluginOptions.lineWidth,
+      opacity: pluginOptions.opacity ?? 1,
+      hatch: pluginOptions.hatch !== false,
+      borderDash: pluginOptions.borderDash
+    }]
+  }
+
+  return []
+}
+
+function drawBridgeStroke(ctx, geometry, {
+  strokeColor,
+  lineWidth = 2,
+  opacity = 1,
+  borderDash = null
+}) {
+  ctx.save()
+  ctx.globalAlpha = opacity
+  ctx.strokeStyle = strokeColor
+  ctx.lineWidth = lineWidth
+  ctx.lineJoin = "round"
+  ctx.lineCap = "round"
+  if (Array.isArray(borderDash) && borderDash.length) {
+    ctx.setLineDash(borderDash)
+  } else {
+    ctx.setLineDash([])
+  }
+  ctx.beginPath()
+  ctx.moveTo(geometry.left, geometry.topLeft)
+  ctx.lineTo(geometry.right, geometry.topRight)
+  ctx.stroke()
+  ctx.restore()
+}
+
+function drawHatchedFill(ctx, geometry, baseline, { fillTint, hatchColor, pattern }) {
+  ctx.beginPath()
+  ctx.moveTo(geometry.left, geometry.topLeft)
+  ctx.lineTo(geometry.right, geometry.topRight)
+  ctx.lineTo(geometry.right, baseline)
+  ctx.lineTo(geometry.left, baseline)
+  ctx.closePath()
+  ctx.globalAlpha = 1
+  ctx.fillStyle = fillTint
+  ctx.fill()
+  ctx.fillStyle = pattern || hatchColor
+  ctx.globalAlpha = 0.9
+  ctx.fill()
+  ctx.globalAlpha = 1
+}
+
+// Bridges each gap with a straight stroke between the flanking points.
+// Primary series can also hash the fill under that segment; overlay series
+// (flow / temperature) typically stroke-only at reduced opacity.
 export const gapHatchPlugin = {
   id: "gapHatch",
   afterDatasetsDraw(chart, _args, pluginOptions) {
-    const gaps = pluginOptions?.gaps
-    if (!gaps?.length) return
+    const seriesList = normalizeBridgeSeries(pluginOptions)
+    if (!seriesList.length) return
 
     const { ctx, chartArea, scales } = chart
     const x = scales.x
-    const y = scales.y
-    if (!ctx || !chartArea || !x || !y) return
-
-    const hatchColor = pluginOptions.fillColor || "rgba(161, 161, 170, 0.85)"
-    const strokeColor = pluginOptions.strokeColor || hatchColor
-    const fillTint = pluginOptions.fillTint || "rgba(161, 161, 170, 0.18)"
-    const pattern = hatchPattern(ctx, hatchColor)
-    const baseline = fillBaselinePixel(y, chartArea)
-    const lineWidth = pluginOptions.lineWidth || 2
+    if (!ctx || !chartArea || !x) return
 
     ctx.save()
     ctx.beginPath()
     ctx.rect(chartArea.left, chartArea.top, chartArea.right - chartArea.left, chartArea.bottom - chartArea.top)
     ctx.clip()
 
-    gaps.forEach((gap) => {
-      const geometry = gapBridgeGeometry(x, y, gap)
-      if (!geometry) return
+    seriesList.forEach((entry) => {
+      const y = scales[entry.yAxisID || "y"]
+      if (!y) return
 
-      const { left, right, topLeft, topRight } = geometry
+      const hatch = entry.hatch !== false
+      const strokeColor = entry.strokeColor || entry.fillColor || "rgba(161, 161, 170, 0.85)"
+      const hatchColor = entry.fillColor || strokeColor
+      const fillTint = entry.fillTint || "rgba(161, 161, 170, 0.18)"
+      const pattern = hatch ? hatchPattern(ctx, hatchColor) : null
+      const baseline = hatch ? fillBaselinePixel(y, chartArea) : null
+      const opacity = Number.isFinite(entry.opacity) ? entry.opacity : 1
+      const lineWidth = entry.lineWidth || 2
 
-      // Soft fill tint under the bridge, then diagonal hatch — scoped to the
-      // series fill region between the connecting line and the origin baseline.
-      ctx.beginPath()
-      ctx.moveTo(left, topLeft)
-      ctx.lineTo(right, topRight)
-      ctx.lineTo(right, baseline)
-      ctx.lineTo(left, baseline)
-      ctx.closePath()
-      ctx.globalAlpha = 1
-      ctx.fillStyle = fillTint
-      ctx.fill()
-      ctx.fillStyle = pattern || hatchColor
-      ctx.globalAlpha = 0.9
-      ctx.fill()
+      entry.gaps.forEach((gap) => {
+        const geometry = gapBridgeGeometry(x, y, gap)
+        if (!geometry) return
 
-      // Straight stroke connecting the two flanking observations.
-      ctx.globalAlpha = 1
-      ctx.strokeStyle = strokeColor
-      ctx.lineWidth = lineWidth
-      ctx.lineJoin = "round"
-      ctx.lineCap = "round"
-      ctx.beginPath()
-      ctx.moveTo(left, topLeft)
-      ctx.lineTo(right, topRight)
-      ctx.stroke()
+        if (hatch) {
+          drawHatchedFill(ctx, geometry, baseline, { fillTint, hatchColor, pattern })
+        }
+
+        drawBridgeStroke(ctx, geometry, {
+          strokeColor,
+          lineWidth,
+          opacity,
+          borderDash: entry.borderDash
+        })
+      })
     })
 
     ctx.restore()
