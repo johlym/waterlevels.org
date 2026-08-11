@@ -19,8 +19,7 @@ class Admin::MaintenanceControllerTest < ActionDispatch::IntegrationTest
     SiteStats.warm!
     post admin_maintenance_path(key: "bust_site_stats")
     assert_redirected_to admin_settings_path(anchor: "maintenance")
-    follow_redirect!
-    assert_includes response.body, "Bust site stats completed"
+    assert_equal "Bust site stats completed.", flash[:notice]
   end
 
   test "rejects unknown actions" do
