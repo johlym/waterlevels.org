@@ -1,7 +1,10 @@
 class IvRepairBatchJob < ApplicationJob
   queue_as :iv_repair
 
-  DEFAULT_BATCH = 100
+  # Catch-up sweeper only — tip sync enqueues IvRepairJob on tip jumps.
+  # Keep this small so the reserved IV repair key stays available for
+  # immediate gap fills after hourly tip sync.
+  DEFAULT_BATCH = 50
   DEFAULT_QUEUE_BUSY_THRESHOLD = 25
 
   def perform(limit = nil)
