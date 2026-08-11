@@ -62,11 +62,47 @@ class MonitoringLocation < ApplicationRecord
   # Anchored stations with a stale continuous tip or tip-sync hollow middle.
   # Served by IvRepairBatchJob on USGS_API_HISTORY_IVREPAIR_KEY — not the cold
   # history backlog (missing ~32d archive / year daily).
+  #
+  # Prefer MonitoringLocation.iv_repair_candidate_ids for batch work — that path
+  # logs each step and avoids rebuilding the expensive tip-sync scan twice.
   scope :needing_iv_repair, lambda {
+    where(id: iv_repair_candidate_ids)
+  }
+
+  # Materialize IV-repair location ids with staged logs. The tip-sync gap SQL is
+  # only the first step; resolving locations used to continue silently inside a
+  # large OR/COUNT and looked like a hang after tip_sync_gap_scan.
+  def self.iv_repair_candidate_ids
     continuous_since = HistoryIngestion::CONTINUOUS_GAP_THRESHOLD.ago
     continuous_anchor = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
     recent_since = HistoryIngestion::CONTINUOUS_RETENTION.ago
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
+    Rails.logger.info("IvRepair candidates step=start")
+
+    step_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    tip_sync_gap_ids = HistoryIngestion.time_series_ids_with_tip_sync_gaps
+    Rails.logger.info(
+      "IvRepair candidates step=tip_sync_gaps ids=#{tip_sync_gap_ids.size} " \
+      "elapsed_ms=#{((Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_started) * 1000).round}"
+    )
+
+    step_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    hollow_location_ids = if tip_sync_gap_ids.empty?
+      []
+    else
+      TimeSeries.selected
+        .where(id: tip_sync_gap_ids)
+        .where(id: ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id))
+        .distinct
+        .pluck(:monitoring_location_id)
+    end
+    Rails.logger.info(
+      "IvRepair candidates step=hollow_middle_locations ids=#{hollow_location_ids.size} " \
+      "elapsed_ms=#{((Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_started) * 1000).round}"
+    )
+
+    step_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     recent_continuous_ids = ContinuousObservation.where(observed_at: recent_since..).select(:time_series_id)
     recently_active = TimeSeries.selected.left_joins(:latest_observation).where(
       "(latest_observations.id IS NULL AND time_series.ends_at IS NULL) " \
@@ -75,18 +111,26 @@ class MonitoringLocation < ApplicationRecord
       recent_since,
       recent_since
     )
-
     has_continuous_tip_ids = ContinuousObservation.where(observed_at: continuous_since..).select(:time_series_id)
     has_continuous_anchor_ids = ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id)
-    anchored = recently_active.where(id: has_continuous_anchor_ids)
-    missing_tip = anchored.where.not(id: has_continuous_tip_ids)
-    tip_sync_gap_ids = HistoryIngestion.time_series_ids_with_tip_sync_gaps
-    hollow_middle = anchored.where(id: tip_sync_gap_ids)
-
-    where(id: missing_tip.select(:monitoring_location_id))
-      .or(where(id: hollow_middle.select(:monitoring_location_id)))
+    missing_tip_location_ids = recently_active
+      .where(id: has_continuous_anchor_ids)
+      .where.not(id: has_continuous_tip_ids)
       .distinct
-  }
+      .pluck(:monitoring_location_id)
+    Rails.logger.info(
+      "IvRepair candidates step=missing_tip_locations ids=#{missing_tip_location_ids.size} " \
+      "elapsed_ms=#{((Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_started) * 1000).round}"
+    )
+
+    ids = (hollow_location_ids + missing_tip_location_ids).uniq.sort
+    Rails.logger.info(
+      "IvRepair candidates step=done count=#{ids.size} " \
+      "hollow=#{hollow_location_ids.size} missing_tip=#{missing_tip_location_ids.size} " \
+      "elapsed_ms=#{((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round}"
+    )
+    ids
+  end
 
   scope :needing_history_backfill, lambda {
     # Cold / year-daily backlog only. Recent IV tip/hollow-middle repair for

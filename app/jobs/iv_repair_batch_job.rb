@@ -1,7 +1,6 @@
 class IvRepairBatchJob < ApplicationJob
   queue_as :iv_repair
 
-  CANDIDATE_PAGE = 200
   DEFAULT_BATCH = 100
   DEFAULT_QUEUE_BUSY_THRESHOLD = 25
 
@@ -61,17 +60,21 @@ class IvRepairBatchJob < ApplicationJob
       end
 
       budget = station_budget(limit)
-      Rails.logger.info("IvRepairBatchJob scanning needing_iv_repair budget=#{budget}")
-
-      scope_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      # Materialize candidate count for ops visibility; page enqueue still uses the scope.
-      candidate_count = MonitoringLocation.needing_iv_repair.count
-      scope_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - scope_started) * 1000).round
       Rails.logger.info(
-        "IvRepairBatchJob candidates=#{candidate_count} scope_elapsed_ms=#{scope_ms} budget=#{budget}"
+        "IvRepairBatchJob scanning candidates budget=#{budget} " \
+        "(after tip_sync_gap_scan comes hollow/missing-tip location resolve — watch for those steps)"
       )
 
-      result = enqueue_candidates(budget)
+      scope_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      candidate_ids = MonitoringLocation.iv_repair_candidate_ids
+      scope_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - scope_started) * 1000).round
+      candidate_count = candidate_ids.size
+      Rails.logger.info(
+        "IvRepairBatchJob candidates ready count=#{candidate_count} " \
+        "scope_elapsed_ms=#{scope_ms} budget=#{budget} — beginning enqueue"
+      )
+
+      result = enqueue_candidate_ids(candidate_ids, budget)
       elapsed_s = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(2)
       depth_after = iv_repair_queue_depth
 
@@ -184,42 +187,33 @@ class IvRepairBatchJob < ApplicationJob
     -1
   end
 
-  def enqueue_candidates(budget)
+  def enqueue_candidate_ids(candidate_ids, budget)
     empty = { enqueued: 0, skipped: 0, scanned: 0, skip_reasons: {} }
-    return empty if budget <= 0
+    return empty if budget <= 0 || candidate_ids.empty?
 
-    scope = MonitoringLocation.needing_iv_repair
     enqueued = 0
     skipped = 0
     scanned = 0
     skip_reasons = Hash.new(0)
-    last_id = 0
 
-    loop do
+    candidate_ids.each do |id|
       break if enqueued >= budget
 
-      ids = scope
-        .where("monitoring_locations.id > ?", last_id)
-        .order(:id)
-        .limit(CANDIDATE_PAGE)
-        .pluck(:id)
-      break if ids.empty?
+      scanned += 1
+      reason = IvRepairJob.enqueue_block_reason(id)
+      if reason
+        skipped += 1
+        skip_reasons[reason] += 1
+        next
+      end
 
-      ids.each do |id|
-        last_id = id
-        scanned += 1
-        break if enqueued >= budget
-
-        reason = IvRepairJob.enqueue_block_reason(id)
-        if reason
-          skipped += 1
-          skip_reasons[reason] += 1
-          next
-        end
-
-        IvRepairJob.perform_later(id)
-        Rails.logger.debug { "IvRepairJob enqueued id=#{id}" }
-        enqueued += 1
+      IvRepairJob.perform_later(id)
+      enqueued += 1
+      if (enqueued % 10).zero? || enqueued == budget
+        Rails.logger.info(
+          "IvRepairBatchJob enqueue progress enqueued=#{enqueued}/#{budget} " \
+          "scanned=#{scanned}/#{candidate_ids.size} skipped=#{skipped}"
+        )
       end
     end
 
