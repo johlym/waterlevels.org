@@ -293,6 +293,116 @@ class FloodStageSyncTest < ActiveSupport::TestCase
       }
   end
 
+  test "caps detail GETs per run so national sync stays finite" do
+    previous = ENV["NWPS_DETAIL_REQUEST_BUDGET"]
+    ENV["NWPS_DETAIL_REQUEST_BUDGET"] = "1"
+
+    third = create(
+      :monitoring_location,
+      site_number: "01646501",
+      usgs_monitoring_location_id: "USGS-01646501",
+      state_code: "wa",
+      nwps_synced_at: nil
+    )
+    @location.update!(nwps_synced_at: nil)
+    @unmatched.update!(nwps_synced_at: nil)
+
+    detail_gets = 0
+    stub_nwps_gauges(gauges: [])
+    stub_request(:get, %r{\Ahttps://api\.water\.noaa\.gov/nwps/v1/gauges/})
+      .to_return do |_request|
+        detail_gets += 1
+        { status: 404, body: "{}", headers: { "Content-Type" => "application/json" } }
+      end
+
+    FloodStageSync.new(state: "wa").perform
+
+    synced = [ @location, @unmatched, third ].count { |loc| loc.reload.nwps_synced_at.present? }
+    assert_equal 1, synced
+    assert_equal 1, detail_gets
+  ensure
+    previous.nil? ? ENV.delete("NWPS_DETAIL_REQUEST_BUDGET") : ENV["NWPS_DETAIL_REQUEST_BUDGET"] = previous
+  end
+
+  test "alert matching consumes shared detail budget before discovery" do
+    previous = ENV["NWPS_DETAIL_REQUEST_BUDGET"]
+    ENV["NWPS_DETAIL_REQUEST_BUDGET"] = "1"
+
+    flooding = create(
+      :monitoring_location,
+      site_number: "08210000",
+      usgs_monitoring_location_id: "USGS-08210000",
+      state_code: "tx",
+      state_name: "Texas",
+      has_water_level: true,
+      nwps_synced_at: nil
+    )
+    never_synced = create(
+      :monitoring_location,
+      site_number: "08210001",
+      usgs_monitoring_location_id: "USGS-08210001",
+      state_code: "tx",
+      state_name: "Texas",
+      nwps_synced_at: nil
+    )
+    @location.update!(nwps_matched: true, nwps_lid: "KEEP", nwps_synced_at: 1.hour.ago)
+    @unmatched.update!(nwps_matched: false, nwps_synced_at: 1.hour.ago)
+
+    stub_nwps_gauges(
+      gauges: [
+        {
+          lid: "THET2",
+          state: { abbreviation: "TX" },
+          status: {
+            observed: { floodCategory: "major", validTime: "2026-08-03T04:15:00Z" }
+          }
+        },
+        {
+          lid: "TILT2",
+          state: { abbreviation: "TX" },
+          status: {
+            observed: { floodCategory: "moderate", validTime: "2026-08-03T04:00:00Z" }
+          }
+        }
+      ]
+    )
+    stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges/THET2")
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: {
+          lid: "THET2",
+          usgsId: "08210000",
+          flood: {
+            categories: {
+              action: { stage: 20 },
+              minor: { stage: 25 },
+              moderate: { stage: 27 },
+              major: { stage: 35 }
+            }
+          },
+          status: {
+            observed: { floodCategory: "major", validTime: "2026-08-03T04:15:00Z" }
+          }
+        }.to_json
+      )
+    stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges/TILT2")
+      .to_return(status: 404, body: "{}")
+    stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges/08210001")
+      .to_return(status: 404, body: "{}")
+
+    FloodStageSync.new.perform
+
+    flooding.reload
+    assert flooding.nwps_matched?
+    assert_equal "THET2", flooding.nwps_lid
+    assert_nil never_synced.reload.nwps_synced_at
+    assert_not_requested :get, "https://api.water.noaa.gov/nwps/v1/gauges/TILT2"
+    assert_not_requested :get, "https://api.water.noaa.gov/nwps/v1/gauges/08210001"
+  ensure
+    previous.nil? ? ENV.delete("NWPS_DETAIL_REQUEST_BUDGET") : ENV["NWPS_DETAIL_REQUEST_BUDGET"] = previous
+  end
+
   private
 
   def stub_nwps_gauges(gauges:)

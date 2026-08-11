@@ -259,8 +259,12 @@ class LatestObservationSync
 
   def flush_tip_buffers!(latest_buffer, continuous_buffer)
     if latest_buffer.any?
+      # One tip per series — USGS can repeat a time_series_id in a page.
+      latest_rows = latest_buffer.each_with_object({}) { |row, uniq|
+        uniq[row[:time_series_id]] = row
+      }.values
       LatestObservation.upsert_all(
-        latest_buffer,
+        latest_rows,
         unique_by: :time_series_id,
         update_only: %i[
           observed_at
@@ -276,8 +280,13 @@ class LatestObservationSync
     end
 
     if continuous_buffer.any?
+      # Same cardinality guard as HistoryIngestion (WATER-K): ON CONFLICT DO UPDATE
+      # cannot touch a constrained key twice in one statement.
+      continuous_rows = continuous_buffer.each_with_object({}) { |row, uniq|
+        uniq[[ row[:time_series_id], row[:observed_at].to_i ]] = row
+      }.values
       ContinuousObservation.upsert_all(
-        continuous_buffer,
+        continuous_rows,
         unique_by: %i[time_series_id observed_at],
         update_only: %i[value approval_status qualifier]
       )
