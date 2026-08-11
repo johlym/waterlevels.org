@@ -550,6 +550,8 @@ export default class extends Controller {
       : primaryPoints.map((point) => point.s === "derived")
     // Interior gaps only — do not stretch the X scale out to "now" for a
     // trailing stale tip; that reintroduces empty time after the last point.
+    // gapHatchPlugin bridges each hole with a straight stroke and hashes only
+    // the fill under that bridge (not the full plot height).
     const gaps = continuousRange ? findGaps(primaryPoints) : []
 
     const datasets = [{
@@ -675,7 +677,13 @@ export default class extends Controller {
           interaction: { mode: "index", intersect: false },
           plugins: {
             legend: { display: false },
-            gapHatch: continuousRange ? { gaps, fillColor: "rgba(161, 161, 170, 0.55)" } : false,
+            gapHatch: continuousRange ? {
+              gaps,
+              fillColor: colors.border,
+              strokeColor: colors.border,
+              fillTint: colors.fill,
+              lineWidth: 2
+            } : false,
             tooltip: {
               backgroundColor: "#18181b",
               titleColor: "#fafafa",
