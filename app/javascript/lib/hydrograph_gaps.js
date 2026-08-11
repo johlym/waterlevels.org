@@ -148,9 +148,9 @@ export const gapHatchPlugin = {
     const y = scales.y
     if (!ctx || !chartArea || !x || !y) return
 
-    const hatchColor = pluginOptions.fillColor || "rgba(161, 161, 170, 0.55)"
+    const hatchColor = pluginOptions.fillColor || "rgba(161, 161, 170, 0.85)"
     const strokeColor = pluginOptions.strokeColor || hatchColor
-    const fillTint = pluginOptions.fillTint || "rgba(161, 161, 170, 0.12)"
+    const fillTint = pluginOptions.fillTint || "rgba(161, 161, 170, 0.18)"
     const pattern = hatchPattern(ctx, hatchColor)
     const baseline = fillBaselinePixel(y, chartArea)
     const lineWidth = pluginOptions.lineWidth || 2
@@ -178,7 +178,7 @@ export const gapHatchPlugin = {
       ctx.fillStyle = fillTint
       ctx.fill()
       ctx.fillStyle = pattern || hatchColor
-      ctx.globalAlpha = 0.65
+      ctx.globalAlpha = 0.9
       ctx.fill()
 
       // Straight stroke connecting the two flanking observations.
