@@ -2,6 +2,7 @@ class HistoryIngestion
   include ActiveModel::Model
 
   attr_accessor :client, :monitoring_location, :range, :progress, :mode
+  attr_reader :last_stats
 
   DEFAULT_RANGE = "1y"
   DEEP_RANGE = "3y"
@@ -84,10 +85,33 @@ class HistoryIngestion
       daily_series = iv_repair? ? [] : (daily_range? ? active_series.select { |s| needs_daily?(s) } : [])
       peak_series = iv_repair? ? [] : active_series.select { |s| needs_peaks?(s) }
 
+      if iv_repair?
+        progress&.step(
+          "iv_repair series=#{continuous_series.size}/#{active_series.size} " \
+          "parameters=#{continuous_series.map(&:parameter_code).uniq.join(",")}"
+        )
+        Rails.logger.info(
+          "HistoryIngestion iv_repair site=#{monitoring_location.site_number} " \
+          "repair_series=#{continuous_series.size} active_series=#{active_series.size} " \
+          "parameters=#{continuous_series.map(&:parameter_code).uniq.inspect}"
+        )
+      end
+
       continuous_count = ingest_continuous_for(continuous_series)
       daily_count = ingest_daily_for(daily_series)
       peak_count = ingest_peaks_for(peak_series)
       observation_count = continuous_count + daily_count + peak_count
+
+      @last_stats = {
+        continuous_observation_count: continuous_count,
+        daily_observation_count: daily_count,
+        peak_observation_count: peak_count,
+        observation_count: observation_count,
+        continuous_series_count: continuous_series.size,
+        daily_series_count: daily_series.size,
+        peak_series_count: peak_series.size,
+        range_count: @last_continuous_range_count.to_i
+      }
 
       Telemetry.add_attributes(
         "app.series_count" => series_list.size,
@@ -98,7 +122,8 @@ class HistoryIngestion
         "app.continuous_observation_count" => continuous_count,
         "app.daily_observation_count" => daily_count,
         "app.peak_observation_count" => peak_count,
-        "app.observation_count" => observation_count
+        "app.observation_count" => observation_count,
+        "app.range_count" => @last_continuous_range_count.to_i
       )
 
       # History may write fresher continuous points while hourly tip sync lagged.
@@ -451,14 +476,24 @@ class HistoryIngestion
   end
 
   def ingest_continuous_for(series_list)
+    @last_continuous_range_count = 0
     if series_list.empty?
       progress&.step("continuous skipped (already covered)")
+      Rails.logger.info(
+        "HistoryIngestion continuous skipped site=#{monitoring_location.site_number} " \
+        "mode=#{mode} reason=no_series_needing_continuous"
+      ) if iv_repair?
       return 0
     end
 
     ranges = coalesced_continuous_ranges(series_list)
+    @last_continuous_range_count = ranges.size
     if ranges.empty?
       progress&.step("continuous skipped (already covered)")
+      Rails.logger.info(
+        "HistoryIngestion continuous skipped site=#{monitoring_location.site_number} " \
+        "mode=#{mode} reason=no_datetime_ranges series=#{series_list.size}"
+      ) if iv_repair?
       return 0
     end
 
@@ -470,6 +505,7 @@ class HistoryIngestion
         "app.site_number" => monitoring_location.site_number,
         "app.state" => monitoring_location.state_code,
         "app.range" => range.to_s,
+        "app.ingest_mode" => mode.to_s,
         "app.series_count" => series_list.size,
         "app.batch_size" => series_list.size,
         "app.range_count" => ranges.size,
@@ -477,17 +513,34 @@ class HistoryIngestion
       }
     ) do
       client = with_purpose_client(:continuous)
-      return 0 unless client
+      unless client
+        Rails.logger.warn(
+          "HistoryIngestion continuous aborted site=#{monitoring_location.site_number} " \
+          "mode=#{mode} reason=client_unavailable"
+        )
+        return 0
+      end
 
       progress&.step(
         "continuous location batch parameters=#{codes} ranges=#{ranges.size} " \
         "circuit=#{client.circuit_key}"
       )
+      range_summary = ranges.map { |starts, ends|
+        hours = ((ends - starts) / 1.hour).round(1)
+        "#{starts.iso8601}/#{ends.iso8601}(~#{hours}h)"
+      }.join(" ")
+      Rails.logger.info(
+        "HistoryIngestion continuous fetch site=#{monitoring_location.site_number} " \
+        "mode=#{mode} circuit=#{client.circuit_key} parameters=#{codes} " \
+        "ranges=#{ranges.size} #{range_summary}"
+      )
       count = 0
       buffer = []
       begin
-        ranges.each do |starts, ends|
+        ranges.each_with_index do |(starts, ends), index|
           datetime = "#{starts.iso8601}/#{ends.iso8601}"
+          range_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          before = count
           client.each_collection_item(
             "continuous",
             monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
@@ -518,9 +571,19 @@ class HistoryIngestion
             count += 1
             progress&.increment
           end
+          range_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - range_started) * 1000).round
+          Rails.logger.info(
+            "HistoryIngestion continuous range site=#{monitoring_location.site_number} " \
+            "mode=#{mode} index=#{index + 1}/#{ranges.size} datetime=#{datetime} " \
+            "features=#{count - before} elapsed_ms=#{range_ms}"
+          )
         end
       rescue Usgs::Client::RateLimitError => e
         progress&.step("continuous stopped (#{e.message})")
+        Rails.logger.warn(
+          "HistoryIngestion continuous rate-limited site=#{monitoring_location.site_number} " \
+          "mode=#{mode} upserted_so_far=#{count} error=#{e.message}"
+        )
       end
       flush_continuous_buffer!(buffer)
       Telemetry.add_attributes(
@@ -528,6 +591,10 @@ class HistoryIngestion
         "app.circuit_key" => client.circuit_key
       )
       progress&.step("continuous upserted=#{count}")
+      Rails.logger.info(
+        "HistoryIngestion continuous done site=#{monitoring_location.site_number} " \
+        "mode=#{mode} upserted=#{count} ranges=#{ranges.size} circuit=#{client.circuit_key}"
+      )
       count
     end
   end

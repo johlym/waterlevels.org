@@ -30,6 +30,7 @@ class IvRepairJobTest < ActiveSupport::TestCase
       assert IvRepairJob.enqueue(99)
       assert_enqueued_with(job: IvRepairJob, args: [ 99 ])
       refute IvRepairJob.enqueue(99)
+      assert_equal :locked_or_cooling, IvRepairJob.enqueue_block_reason(99)
     end
   end
 

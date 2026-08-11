@@ -13,7 +13,9 @@ class AdminDashboardStats
     catalog_sync: "admin:last_catalog_sync",
     flood_sync: "admin:last_flood_sync",
     prune: "admin:last_prune",
-    daily_archive_export: "admin:last_daily_archive_export"
+    daily_archive_export: "admin:last_daily_archive_export",
+    iv_repair_batch: "admin:last_iv_repair_batch",
+    iv_repair: "admin:last_iv_repair"
   }.freeze
   TIP_REFRESH_TTL = 7.days
   APPROX_COUNT_THRESHOLD = SiteStats::APPROX_COUNT_THRESHOLD
@@ -26,7 +28,7 @@ class AdminDashboardStats
   BACKFILL_RACE_TTL = 30.seconds
   # Bump when a section payload shape changes so deploys do not serve stale
   # hashes that crash the matching partial (Turbo then shows "Content missing").
-  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v5".freeze
+  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v6".freeze
   SECTION_TTL = 2.minutes
   SECTION_RACE_TTL = 15.seconds
   REDIS_SCAN_MAX_ITERATIONS = 50
@@ -216,12 +218,15 @@ class AdminDashboardStats
     {
       stations_needing_deep_history: backfill[:stations_needing_deep_history],
       stations_history_ready: backfill[:stations_history_ready],
+      stations_needing_iv_repair: MonitoringLocation.needing_iv_repair.count,
       stale_station_count: active_count - MonitoringLocation.active.not_stale.count,
       flood_alert_count: site[:flood_alert_count],
       nwps_matched_count: MonitoringLocation.active.where(nwps_matched: true).count,
       updates_today: site[:updates_today],
       history_backfill_locks: count_prefixed_redis_keys(HistoryBackfillLock::KEY_PREFIX),
-      history_backfill_cooldowns: count_prefixed_redis_keys(HistoryBackfillLock::COOLDOWN_PREFIX)
+      history_backfill_cooldowns: count_prefixed_redis_keys(HistoryBackfillLock::COOLDOWN_PREFIX),
+      iv_repair_locks: count_prefixed_redis_keys(IvRepairLock::KEY_PREFIX),
+      iv_repair_cooldowns: count_prefixed_redis_keys(IvRepairLock::COOLDOWN_PREFIX)
     }
   end
 
@@ -239,6 +244,8 @@ class AdminDashboardStats
     flood = self.class.last_job(:flood_sync) || {}
     prune = self.class.last_job(:prune) || {}
     archive_export = self.class.last_job(:daily_archive_export) || {}
+    iv_repair_batch = self.class.last_job(:iv_repair_batch) || {}
+    iv_repair = self.class.last_job(:iv_repair) || {}
 
     {
       last_tip_refresh_finished_at: parse_time(tip[:finished_at]),
@@ -258,7 +265,18 @@ class AdminDashboardStats
       last_prune_daily_blocked: prune[:daily_prune_blocked].to_i,
       last_daily_archive_export_at: parse_time(archive_export[:finished_at]),
       last_daily_archive_export_series: archive_export[:series],
-      last_daily_archive_export_points: archive_export[:points]
+      last_daily_archive_export_points: archive_export[:points],
+      last_iv_repair_batch_at: parse_time(iv_repair_batch[:finished_at]),
+      last_iv_repair_batch_enqueued: iv_repair_batch[:enqueued].to_i,
+      last_iv_repair_batch_candidates: iv_repair_batch[:candidates].to_i,
+      last_iv_repair_batch_skip_reason: iv_repair_batch[:skip_reason],
+      last_iv_repair_batch_workers: iv_repair_batch[:workers],
+      last_iv_repair_batch_queue_depth_after: iv_repair_batch[:queue_depth_after],
+      last_iv_repair_at: parse_time(iv_repair[:finished_at]),
+      last_iv_repair_site_number: iv_repair[:site_number],
+      last_iv_repair_continuous_upserted: iv_repair[:continuous_upserted].to_i,
+      last_iv_repair_still_needs: iv_repair[:still_needs],
+      last_iv_repair_elapsed_s: iv_repair[:elapsed_s]
     }
   end
 
@@ -495,13 +513,21 @@ class AdminDashboardStats
   def sidekiq_stats
     require "sidekiq/api"
     stats = Sidekiq::Stats.new
+    queues = Sidekiq::Queue.all.map { |q| [ q.name, q.size ] }.to_h
+    workers_by_queue = Hash.new(0)
+    Sidekiq::ProcessSet.new.each do |process|
+      Array(process["queues"]).each { |queue| workers_by_queue[queue.to_s] += 1 }
+    end
     {
       enqueued: stats.enqueued,
       retry_size: stats.retry_size,
       dead_size: stats.dead_size,
       processed: stats.processed,
       failed: stats.failed,
-      queues: Sidekiq::Queue.all.map { |q| [ q.name, q.size ] }.to_h
+      queues: queues,
+      workers_by_queue: workers_by_queue,
+      iv_repair_queue_depth: queues["iv_repair"].to_i,
+      iv_repair_workers: workers_by_queue["iv_repair"].to_i
     }
   rescue StandardError => e
     { error: e.message }

@@ -5,17 +5,37 @@ class IvRepairJob < ApplicationJob
     HistoryBackfillJob.paused_for_catalog_sync?(time)
   end
 
+  # Returns nil when enqueued, or a symbol reason when skipped.
+  def self.enqueue_block_reason(monitoring_location_id)
+    return :sunday_catalog_sync if paused_for_catalog_sync?
+    return :iv_repair_circuit_open unless Usgs::HistoryKeyPool.iv_repair_available?
+    return :db_read_only if DatabaseReadOnlyCircuit.open?
+    return :locked_or_cooling unless IvRepairLock.claim!(monitoring_location_id)
+
+    nil
+  end
+
   def self.enqueue(monitoring_location_id)
-    return false if paused_for_catalog_sync?
-    return false unless Usgs::HistoryKeyPool.iv_repair_available?
-    return false if DatabaseReadOnlyCircuit.open?
-    return false unless IvRepairLock.claim!(monitoring_location_id)
+    reason = enqueue_block_reason(monitoring_location_id)
+    if reason
+      # locked_or_cooling is common on gauge-page retries — keep it quiet.
+      if reason == :locked_or_cooling
+        Rails.logger.debug { "IvRepairJob enqueue skipped id=#{monitoring_location_id} reason=#{reason}" }
+      else
+        Rails.logger.info(
+          "IvRepairJob enqueue skipped id=#{monitoring_location_id} reason=#{reason}"
+        )
+      end
+      return false
+    end
 
     perform_later(monitoring_location_id)
+    Rails.logger.info("IvRepairJob enqueued id=#{monitoring_location_id}")
     true
   end
 
   def perform(monitoring_location_id)
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     Telemetry.in_span(
       "job.iv_repair",
       attributes: {
@@ -30,7 +50,10 @@ class IvRepairJob < ApplicationJob
       end
       unless Usgs::HistoryKeyPool.iv_repair_available?
         Telemetry.add_attributes("app.skip_reason" => "iv_repair_key_unavailable")
-        Rails.logger.info("IvRepairJob skipped: IV repair rate limit circuit open id=#{monitoring_location_id}")
+        Rails.logger.info(
+          "IvRepairJob skipped: IV repair rate limit circuit open id=#{monitoring_location_id} " \
+          "circuit=#{Usgs::HistoryKeyPool.circuit_key_for(:iv_repair)}"
+        )
         return
       end
       if DatabaseReadOnlyCircuit.open?
@@ -44,22 +67,60 @@ class IvRepairJob < ApplicationJob
         "app.state" => location.state_code,
         "app.location_name" => location.display_name
       )
+      Rails.logger.info(
+        "IvRepairJob start id=#{location.id} site=#{location.site_number} " \
+        "state=#{location.state_code} name=#{location.display_name.inspect} " \
+        "circuit=#{Usgs::HistoryKeyPool.circuit_key_for(:iv_repair)} " \
+        "key_configured=#{Usgs::HistoryKeyPool.configured?(:iv_repair)}"
+      )
+
       progress = SyncProgress.new("IvRepairJob##{location.site_number}", io: nil)
-      HistoryIngestion.new(
+      ingestion = HistoryIngestion.new(
         monitoring_location: location,
         range: HistoryIngestion::DEFAULT_RANGE,
         mode: HistoryIngestion::MODE_IV_REPAIR,
         progress: progress
-      ).perform
+      )
+      ingestion.perform
+      stats = ingestion.last_stats || {}
 
       still_needs = location.needs_iv_repair?
-      Telemetry.add_attributes("app.still_needs_iv_repair" => still_needs)
+      elapsed_s = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(2)
+      Telemetry.add_attributes(
+        "app.still_needs_iv_repair" => still_needs,
+        "app.continuous_observation_count" => stats[:continuous_observation_count].to_i,
+        "app.continuous_series_count" => stats[:continuous_series_count].to_i,
+        "app.range_count" => stats[:range_count].to_i,
+        "app.elapsed_s" => elapsed_s
+      )
+
       if still_needs
         IvRepairLock.cooldown!(monitoring_location_id)
         Rails.logger.info(
-          "IvRepairJob cooldown site=#{location.site_number} still_needs_iv_repair=true"
+          "IvRepairJob finished site=#{location.site_number} elapsed_s=#{elapsed_s} " \
+          "continuous_upserted=#{stats[:continuous_observation_count].to_i} " \
+          "series=#{stats[:continuous_series_count].to_i} ranges=#{stats[:range_count].to_i} " \
+          "still_needs_iv_repair=true cooldown=#{IvRepairLock::COOLDOWN_TTL.inspect}"
+        )
+      else
+        Rails.logger.info(
+          "IvRepairJob finished site=#{location.site_number} elapsed_s=#{elapsed_s} " \
+          "continuous_upserted=#{stats[:continuous_observation_count].to_i} " \
+          "series=#{stats[:continuous_series_count].to_i} ranges=#{stats[:range_count].to_i} " \
+          "still_needs_iv_repair=false"
         )
       end
+
+      AdminDashboardStats.record_job_finish!(
+        :iv_repair,
+        site_number: location.site_number,
+        state: location.state_code,
+        continuous_upserted: stats[:continuous_observation_count].to_i,
+        series_count: stats[:continuous_series_count].to_i,
+        range_count: stats[:range_count].to_i,
+        still_needs: still_needs,
+        elapsed_s: elapsed_s
+      )
     end
   ensure
     IvRepairLock.release!(monitoring_location_id)
