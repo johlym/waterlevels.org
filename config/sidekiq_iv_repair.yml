@@ -4,3 +4,4 @@
 :concurrency: 4
 :queues:
   - iv_repair
+  - iv_repair_scar
