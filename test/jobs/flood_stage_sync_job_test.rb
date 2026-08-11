@@ -12,9 +12,16 @@ class FloodStageSyncJobTest < ActiveSupport::TestCase
     Rails.cache = @previous_cache
   end
 
-  test "requires a state" do
-    error = assert_raises(ArgumentError) { FloodStageSyncJob.perform_now(nil) }
-    assert_match(/requires a state/, error.message)
+  test "legacy no-arg national calls hand off to the batch job" do
+    assert_enqueued_with(job: FloodStageSyncBatchJob) do
+      FloodStageSyncJob.perform_now
+    end
+  end
+
+  test "blank state also hands off to the batch job" do
+    assert_enqueued_with(job: FloodStageSyncBatchJob) do
+      FloodStageSyncJob.perform_now(nil)
+    end
   end
 
   test "requeues when another flood sync holds the lock" do

@@ -10,9 +10,16 @@ class FloodStageSyncJob < ApplicationJob
 
   # One USPS state (or territory) per call. National coverage is
   # FloodStageSyncBatchJob → one of these per state.
-  def perform(state)
+  #
+  # +state+ is optional only so Sidekiq retries of the old national cron
+  # (`arguments: []`) hand off cleanly instead of ArgumentError-looping.
+  def perform(state = nil)
     if state.blank?
-      raise ArgumentError, "FloodStageSyncJob requires a state (use FloodStageSyncBatchJob for national)"
+      Rails.logger.info(
+        "FloodStageSyncJob called without state; handing off to FloodStageSyncBatchJob"
+      )
+      FloodStageSyncBatchJob.perform_later
+      return
     end
 
     if DatabaseReadOnlyCircuit.open?
