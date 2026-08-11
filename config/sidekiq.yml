@@ -23,15 +23,16 @@
       class: FloodStageSyncJob
       queue: sync
     iv_repair_batch:
-      # Mon–Sat; reserved IV completeness lane on USGS_API_HISTORY_IVREPAIR_KEY.
-      # Drained by iv_repair_worker (not historical_worker).
-      cron: "*/10 * * * 1-6"
+      # Mon–Sat hourly catch-up on USGS_API_HISTORY_IVREPAIR_KEY.
+      # Tip sync enqueues IvRepairJob on tip jumps; this sweeper covers stale
+      # tips and stations that missed enqueue (circuit/cooldown). Offset past
+      # tip sync (:03) and flood (:30). Drained by iv_repair_worker.
+      cron: "35 * * * 1-6"
       class: IvRepairBatchJob
       queue: iv_repair
     history_backfill_batch:
       # Mon–Sat only; Sunday is reserved for StationCatalogSyncJob.
       # HistoryBackfillJob also no-ops on Sunday as a safety net.
-      # Offset from iv_repair_batch so the two lanes do not spike USGS at once.
       # Cold/year backlog uses continuous/daily/peaks keys on historical_worker.
       cron: "5-59/10 * * * 1-6"
       class: HistoryBackfillBatchJob

@@ -285,6 +285,9 @@ class LatestObservationSync
       continuous_rows = continuous_buffer.each_with_object({}) { |row, uniq|
         uniq[[ row[:time_series_id], row[:observed_at].to_i ]] = row
       }.values
+      # Detect tip jumps against denorm tips *before* upsert/advance — after
+      # advance, continuous_newest_at is already the new tip.
+      enqueue_iv_repair_for_tip_jumps!(continuous_rows)
       ContinuousObservation.upsert_all(
         continuous_rows,
         unique_by: %i[time_series_id observed_at],
@@ -296,6 +299,48 @@ class LatestObservationSync
       TimeSeries.advance_continuous_tips!(tips)
       continuous_buffer.clear
     end
+  end
+
+  # When tip sync lands a new tip more than CONTINUOUS_GAP_THRESHOLD past the
+  # previous continuous tip on an anchored series, the middle is hollow —
+  # enqueue IV repair immediately instead of waiting for the catch-up batch.
+  def enqueue_iv_repair_for_tip_jumps!(continuous_rows)
+    series_ids = continuous_rows.map { |row| row[:time_series_id] }.uniq
+    return if series_ids.empty?
+
+    previous_by_id = TimeSeries.where(id: series_ids)
+      .pluck(:id, :monitoring_location_id, :continuous_newest_at, :has_continuous_anchor)
+      .each_with_object({}) { |(id, location_id, newest_at, anchored), memo|
+        memo[id] = [ location_id, newest_at, anchored ]
+      }
+
+    threshold = HistoryIngestion::CONTINUOUS_GAP_THRESHOLD
+    location_ids = Set.new
+    continuous_rows.each do |row|
+      location_id, newest_at, anchored = previous_by_id[row[:time_series_id]]
+      next unless anchored
+      next if newest_at.blank?
+
+      observed_at = row[:observed_at]
+      next if observed_at.blank?
+      next unless (observed_at - newest_at) > threshold
+
+      location_ids << location_id
+    end
+    return if location_ids.empty?
+
+    enqueued = 0
+    location_ids.each do |location_id|
+      enqueued += 1 if IvRepairJob.enqueue(location_id)
+    end
+    Rails.logger.info(
+      "LatestObservationSync tip_jump_iv_repair candidates=#{location_ids.size} " \
+      "enqueued=#{enqueued} threshold=#{threshold.inspect}"
+    )
+    Telemetry.add_attributes(
+      "app.tip_jump_iv_repair_candidates" => location_ids.size,
+      "app.tip_jump_iv_repair_enqueued" => enqueued
+    )
   end
 
   def find_series(usgs_time_series_id)

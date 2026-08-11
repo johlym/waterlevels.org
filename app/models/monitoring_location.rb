@@ -60,8 +60,9 @@ class MonitoringLocation < ApplicationRecord
     )
   }
   # Anchored stations with a stale continuous tip or tip-sync hollow middle.
-  # Served by IvRepairBatchJob on USGS_API_HISTORY_IVREPAIR_KEY — not the cold
-  # history backlog (missing ~32d archive / year daily).
+  # Tip sync enqueues IvRepairJob on tip jumps; IvRepairBatchJob is the slower
+  # catch-up sweeper on USGS_API_HISTORY_IVREPAIR_KEY — not the cold history
+  # backlog (missing ~32d archive / year daily).
   #
   # Prefer MonitoringLocation.iv_repair_candidate_ids for batch work — that path
   # logs each step and avoids rebuilding the expensive tip-sync scan twice.

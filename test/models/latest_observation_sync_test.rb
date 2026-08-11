@@ -1,6 +1,8 @@
 require "test_helper"
 
 class LatestObservationSyncTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     AdminDashboardStats.clear_tip_refresh!
     @location = create(:monitoring_location, site_number: "12101000", state_code: "wa")
@@ -358,5 +360,96 @@ class LatestObservationSyncTest < ActiveSupport::TestCase
     assert_equal 2, tip[:stations_updated]
     assert_equal 2, tip[:series_upserted]
     assert_nil tip[:state]
+  end
+
+  test "enqueues IvRepairJob when tip jumps past continuous gap threshold" do
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    previous_key = ENV["USGS_API_HISTORY_IVREPAIR_KEY"]
+    ENV["USGS_API_HISTORY_IVREPAIR_KEY"] = "hist-iv-repair"
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      seed_continuous_coverage!(
+        @series,
+        from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+        to: 5.hours.ago
+      )
+      assert @series.reload.has_continuous_anchor?
+
+      stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/latest-continuous/items})
+        .to_return do |request|
+          features =
+            if request.uri.query.to_s.include?("parameter_code=00065")
+              [ {
+                id: "ts-latest-sync",
+                properties: {
+                  time_series_id: "ts-latest-sync",
+                  time: "2026-08-03T12:00:00Z",
+                  value: 12.5,
+                  unit_of_measure: "ft"
+                }
+              } ]
+            else
+              []
+            end
+          {
+            status: 200,
+            headers: { "Content-Type" => "application/geo+json" },
+            body: { features: features, links: [] }.to_json
+          }
+        end
+
+      assert_enqueued_with(job: IvRepairJob, args: [ @location.id ]) do
+        LatestObservationSync.new(state: "wa").perform
+      end
+    end
+  ensure
+    Rails.cache = previous_cache
+    previous_key ? ENV["USGS_API_HISTORY_IVREPAIR_KEY"] = previous_key : ENV.delete("USGS_API_HISTORY_IVREPAIR_KEY")
+  end
+
+  test "does not enqueue IvRepairJob when tip advances within gap threshold" do
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    previous_key = ENV["USGS_API_HISTORY_IVREPAIR_KEY"]
+    ENV["USGS_API_HISTORY_IVREPAIR_KEY"] = "hist-iv-repair"
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      seed_continuous_coverage!(
+        @series,
+        from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+        to: 30.minutes.ago
+      )
+
+      stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/latest-continuous/items})
+        .to_return do |request|
+          features =
+            if request.uri.query.to_s.include?("parameter_code=00065")
+              [ {
+                id: "ts-latest-sync",
+                properties: {
+                  time_series_id: "ts-latest-sync",
+                  time: "2026-08-03T12:00:00Z",
+                  value: 12.5,
+                  unit_of_measure: "ft"
+                }
+              } ]
+            else
+              []
+            end
+          {
+            status: 200,
+            headers: { "Content-Type" => "application/geo+json" },
+            body: { features: features, links: [] }.to_json
+          }
+        end
+
+      assert_no_enqueued_jobs only: IvRepairJob do
+        LatestObservationSync.new(state: "wa").perform
+      end
+    end
+  ensure
+    Rails.cache = previous_cache
+    previous_key ? ENV["USGS_API_HISTORY_IVREPAIR_KEY"] = previous_key : ENV.delete("USGS_API_HISTORY_IVREPAIR_KEY")
   end
 end
