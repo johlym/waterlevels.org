@@ -446,17 +446,21 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
       candidates: 22,
       workers: 1
     )
-    AdminDashboardStats.record_job_finish!(
-      :iv_repair_batch,
-      finished_at: Time.current,
-      skipped_run: true,
-      skip_reason: "iv_repair_queue_busy",
-      elapsed_s: 0.1,
-      workers: 1
-    )
 
-    assert_equal 22, AdminDashboardStats.last_iv_repair_candidates
-    assert_nil AdminDashboardStats.last_job(:iv_repair_batch)[:candidates]
+    # Skips (queue busy, circuit, Sunday, batch_lock_held) must not wipe the
+    # dedicated candidate count used by the pipeline panel.
+    %w[iv_repair_queue_busy batch_lock_held].each do |reason|
+      AdminDashboardStats.record_job_finish!(
+        :iv_repair_batch,
+        finished_at: Time.current,
+        skipped_run: true,
+        skip_reason: reason,
+        elapsed_s: 0.1,
+        workers: 1
+      )
+      assert_equal 22, AdminDashboardStats.last_iv_repair_candidates, reason
+      assert_nil AdminDashboardStats.last_job(:iv_repair_batch)[:candidates], reason
+    end
 
     with_iv_repair_scan_forbidden do
       stats = AdminDashboardStats.new.pipeline_section

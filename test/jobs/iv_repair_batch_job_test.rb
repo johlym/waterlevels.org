@@ -20,6 +20,7 @@ class IvRepairBatchJobTest < ActiveSupport::TestCase
   end
 
   teardown do
+    IvRepairBatchLock.release!
     Rails.cache = @previous_cache
     AdminDashboardStats.clear_jobs!
     @previous_env.each do |key, value|
