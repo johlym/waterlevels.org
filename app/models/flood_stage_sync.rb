@@ -6,7 +6,7 @@ class FloodStageSync
   # Thresholds rarely change; list refresh already updates flood_category hourly.
   MATCHED_DETAIL_REFRESH_AFTER = 7.days
   # Per-state detail GET cap (alert LID + site discovery). Keep small so each
-  # state job usually finishes near the 31s min cycle under NWPS's 30s pause.
+  # state usually finishes near the job's 30s inter-state timer under NWPS pacing.
   DEFAULT_DETAIL_REQUEST_BUDGET = 3
 
   attr_accessor :client, :state, :progress

@@ -39,6 +39,21 @@ class BootstrapStateJobTest < ActiveSupport::TestCase
     end
   end
 
+  test "enqueue_sync without STATE enqueues the national paced flood job" do
+    Rails.application.load_tasks
+
+    task = Rake::Task["nwps:enqueue_sync"]
+    task.reenable
+
+    begin
+      assert_enqueued_with(job: FloodStageSyncJob) do
+        task.invoke
+      end
+    ensure
+      task.reenable
+    end
+  end
+
   test "bootstrap source wires flood stage sync after catalog and latest" do
     source = File.read(Rails.root.join("app/jobs/bootstrap_state_job.rb"))
     catalog_at = source.index("StationCatalogSync")

@@ -1,37 +1,70 @@
 class FloodStageSyncJob < ApplicationJob
   queue_as :sync
 
-  # Minimum wall-clock per state job. Combined with FloodStageSyncLock (one flood
-  # job at a time) this keeps state starts ≥31s apart even when sync_worker has
-  # multiple threads. Work that already exceeds 31s is not padded.
-  MIN_CYCLE_SECONDS = 31
-  # How long to wait before retrying when another flood job holds the lock.
-  LOCK_BUSY_REQUEUE_SECONDS = 5
+  # Minimum wall-clock between state syncs inside one national run. If a state
+  # already took longer, start the next immediately (no extra pause).
+  MIN_STATE_SECONDS = 30
 
-  # One USPS state (or territory) per call. National coverage is
-  # FloodStageSyncBatchJob → one of these per state.
-  def perform(state)
-    if state.blank?
-      raise ArgumentError, "FloodStageSyncJob requires a state (use FloodStageSyncBatchJob for national)"
-    end
-
+  # National run (state omitted): loop every USPS state/territory with the
+  # in-process timer. Optional +state+ keeps bootstrap/rake single-state calls.
+  #
+  # Also accepts blank/omitted args so old Sidekiq retries of the former
+  # national cron (`arguments: []`) run the loop instead of failing.
+  def perform(state = nil)
     if DatabaseReadOnlyCircuit.open?
       raise DatabaseReadOnlyError, "database read-only circuit open"
     end
 
-    postal = Usgs::StateCodes.normalize_postal(state)
-    progress = SyncProgress.new("FloodStageSyncJob[#{postal}]", io: nil)
+    postal = state.present? ? Usgs::StateCodes.normalize_postal(state) : nil
+    if postal
+      sync_one_state!(postal)
+    else
+      sync_all_states!
+    end
+  end
 
-    unless FloodStageSyncLock.claim!
-      progress.step(
-        "lock busy; requeue in #{LOCK_BUSY_REQUEUE_SECONDS}s " \
-        "(only one flood sync thread at a time)"
-      )
-      self.class.set(wait: LOCK_BUSY_REQUEUE_SECONDS.seconds).perform_later(postal)
+  private
+
+  def sync_all_states!
+    states = states_to_sync
+    progress = SyncProgress.new("FloodStageSyncJob", io: nil)
+    progress.step("national states=#{states.size} min_state_seconds=#{MIN_STATE_SECONDS}")
+
+    unless FloodStageSyncLock.claim!(ttl: 2.hours)
+      progress.step("skip already running (lock held)")
       return
     end
 
-    started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    begin
+      Telemetry.in_root_span(
+        "job.flood_sync_national",
+        attributes: {
+          "app.operation" => "job.flood_sync_national",
+          "app.batch_size" => states.size
+        }
+      ) do
+        states.each_with_index do |code, index|
+          started_at = monotonic_now
+          progress.step("state=#{code} (#{index + 1}/#{states.size})")
+          run_state_sync(code, progress)
+          pad_to_min_cycle!(started_at, progress, label: code)
+        end
+        progress.finish("states=#{states.size}")
+      end
+    ensure
+      FloodStageSyncLock.release!
+    end
+  end
+
+  def sync_one_state!(postal)
+    progress = SyncProgress.new("FloodStageSyncJob[#{postal}]", io: nil)
+
+    unless FloodStageSyncLock.claim!
+      progress.step("lock busy; skip state=#{postal}")
+      return
+    end
+
+    started_at = monotonic_now
     begin
       Telemetry.in_span(
         "job.flood_sync",
@@ -40,31 +73,41 @@ class FloodStageSyncJob < ApplicationJob
           "app.state" => postal
         }
       ) do
-        FloodStageSync.new(state: postal, progress: progress).perform
+        run_state_sync(postal, progress)
       end
     ensure
-      pad_to_min_cycle!(started_at, progress)
+      pad_to_min_cycle!(started_at, progress, label: postal)
       FloodStageSyncLock.release!
     end
   end
 
-  private
+  def states_to_sync
+    Usgs::StateCodes::STATES.keys.sort
+  end
 
-  def pad_to_min_cycle!(started_at, progress)
-    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
-    remaining = MIN_CYCLE_SECONDS - elapsed
+  def run_state_sync(postal, progress)
+    FloodStageSync.new(state: postal, progress: progress).perform
+  end
+
+  def pad_to_min_cycle!(started_at, progress, label:)
+    elapsed = monotonic_now - started_at
+    remaining = MIN_STATE_SECONDS - elapsed
     if remaining.positive?
       progress&.step(
-        "pacing sleep=#{format("%.1f", remaining)}s " \
-        "(elapsed=#{format("%.1f", elapsed)}s min_cycle=#{MIN_CYCLE_SECONDS}s)"
+        "state=#{label} pacing sleep=#{format("%.1f", remaining)}s " \
+        "(elapsed=#{format("%.1f", elapsed)}s min=#{MIN_STATE_SECONDS}s)"
       )
       sleep_for_pacing(remaining)
     else
       progress&.step(
-        "pacing skip elapsed=#{format("%.1f", elapsed)}s " \
-        "(min_cycle=#{MIN_CYCLE_SECONDS}s)"
+        "state=#{label} pacing skip elapsed=#{format("%.1f", elapsed)}s " \
+        "(min=#{MIN_STATE_SECONDS}s)"
       )
     end
+  end
+
+  def monotonic_now
+    Process.clock_gettime(Process::CLOCK_MONOTONIC)
   end
 
   # Isolated for tests — do not stub Kernel#sleep globally.
