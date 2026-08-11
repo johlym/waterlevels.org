@@ -8,6 +8,7 @@ class IvRepairScarJob < ApplicationJob
   # Returns nil when enqueued, or a symbol reason when skipped.
   # Shares IvRepairLock with the tip lane so both never fetch the same station.
   def self.enqueue_block_reason(monitoring_location_id)
+    return :disabled_by_settings unless AppConfig.boolean?(:iv_scar_enabled)
     return :sunday_catalog_sync if paused_for_catalog_sync?
     return :iv_repair2_key_unconfigured unless Usgs::HistoryKeyPool.configured?(:iv_repair2)
     return :iv_repair2_circuit_open unless Usgs::HistoryKeyPool.iv_repair2_available?
@@ -44,6 +45,11 @@ class IvRepairScarJob < ApplicationJob
         "app.monitoring_location_id" => monitoring_location_id
       }
     ) do
+      unless AppConfig.boolean?(:iv_scar_enabled)
+        Telemetry.add_attributes("app.skip_reason" => "disabled_by_settings")
+        Rails.logger.info("IvRepairScarJob skipped: disabled by admin settings id=#{monitoring_location_id}")
+        return
+      end
       if self.class.paused_for_catalog_sync?
         Telemetry.add_attributes("app.skip_reason" => "sunday_catalog_sync")
         Rails.logger.info("IvRepairScarJob skipped: Sunday catalog sync window id=#{monitoring_location_id}")

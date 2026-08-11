@@ -430,7 +430,7 @@ class AdminDashboardStats
   def compute_backfill_aggregates
     year_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
-    continuous_since = HistoryIngestion::CONTINUOUS_FRESHNESS.ago
+    continuous_since = HistoryIngestion.continuous_freshness.ago
     daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
 
     stations_by_state = MonitoringLocation.active.group(:state_code).count

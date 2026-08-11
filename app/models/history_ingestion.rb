@@ -12,8 +12,10 @@ class HistoryIngestion
   # Deeper interior scars across CONTINUOUS_RETENTION on USGS_API_HISTORY_IVREPAIR2_KEY.
   MODE_IV_REPAIR_SCAR = "iv_repair_scar"
   # Batch continuous upserts so tip/gap fills don't one-row round-trip Postgres.
+  # Prefer continuous_upsert_batch — constant is the AppConfig default.
   CONTINUOUS_UPSERT_BATCH = 500
   # High-resolution continuous tip; 1y/3y charts use daily values from R2.
+  # Prefer continuous_retention — constant is the AppConfig default.
   CONTINUOUS_RETENTION = 35.days
   DAILY_RETENTION = 3.years
   # Phase-1 window for cold/lazy backfill (DEFAULT_RANGE). Daily history lives in R2.
@@ -26,7 +28,7 @@ class HistoryIngestion
   # Tip-only stations from LatestObservationSync must still pull the older IV window.
   CONTINUOUS_HISTORY_ANCHOR = 32.days
   # Legacy "tip looks fresh enough" gate for batch scopes that predate interior
-  # gap repair. Prefer CONTINUOUS_GAP_THRESHOLD for tip→now coverage checks.
+  # gap repair. Prefer continuous_gap_threshold for tip→now coverage checks.
   CONTINUOUS_FRESHNESS = 7.days
   # Refresh daily tips when the newest local day is older than this.
   DAILY_FRESHNESS = 2.days
@@ -36,6 +38,27 @@ class HistoryIngestion
   # Tip sync is ~hourly, so keep this above 1h to avoid endless densify of healthy
   # tip spacing — overnight outages (many hours) still qualify.
   CONTINUOUS_GAP_THRESHOLD = 2.hours
+
+  def self.continuous_retention
+    AppConfig.integer(:continuous_retention_days).days
+  end
+
+  def self.continuous_gap_threshold
+    AppConfig.integer(:continuous_gap_threshold_seconds).seconds
+  end
+
+  def self.continuous_freshness
+    AppConfig.integer(:continuous_freshness_days).days
+  end
+
+  def self.continuous_upsert_batch
+    AppConfig.integer(:continuous_upsert_batch)
+  end
+
+  def continuous_retention = self.class.continuous_retention
+  def continuous_gap_threshold = self.class.continuous_gap_threshold
+  def continuous_freshness = self.class.continuous_freshness
+  def continuous_upsert_batch = self.class.continuous_upsert_batch
 
   def initialize(monitoring_location:, range: DEFAULT_RANGE, client: nil, progress: nil, mode: MODE_FULL)
     @monitoring_location = monitoring_location
@@ -84,7 +107,7 @@ class HistoryIngestion
       active_series = series_list.select(&:eligible_for_recent_history_backfill?)
       if active_series.size < series_list.size
         skipped = series_list.size - active_series.size
-        progress&.step("skipping_inactive_series=#{skipped} (tip older than #{CONTINUOUS_RETENTION.inspect})")
+        progress&.step("skipping_inactive_series=#{skipped} (tip older than #{continuous_retention.inspect})")
       end
 
       continuous_series = if tip_iv_repair?
@@ -187,7 +210,7 @@ class HistoryIngestion
     return true unless series.has_continuous_anchor?
 
     newest = series.continuous_newest_at
-    return true if newest.blank? || newest < CONTINUOUS_GAP_THRESHOLD.ago
+    return true if newest.blank? || newest < continuous_gap_threshold.ago
 
     continuous_interior_gap_ranges(
       series,
@@ -235,9 +258,9 @@ class HistoryIngestion
     when "24h" then 24.hours.ago.utc
     when "7d" then 7.days.ago.utc
     when "30d" then 30.days.ago.utc
-    when "1y", "3y" then CONTINUOUS_RETENTION.ago.utc
+    when "1y", "3y" then continuous_retention.ago.utc
     else
-      CONTINUOUS_RETENTION.ago.utc
+      continuous_retention.ago.utc
     end
   end
 
@@ -260,7 +283,7 @@ class HistoryIngestion
   # Coverage model (not just oldest-hole + stale tip):
   # 1. empty → full window
   # 2. oldest > window_start → fill leading archive hole
-  # 3. newest lagged past CONTINUOUS_GAP_THRESHOLD → extend tip→now
+  # 3. newest lagged past continuous_gap_threshold → extend tip→now
   # 4. interior consecutive gaps > threshold → re-fetch each hole
   #
   # Tip sync only upserts the latest IV point, so overnight misses leave a fresh
@@ -282,7 +305,7 @@ class HistoryIngestion
       ranges << [ window_start, oldest ] if window_start < oldest
     end
 
-    if newest < CONTINUOUS_GAP_THRESHOLD.before(ends)
+    if newest < continuous_gap_threshold.before(ends)
       tip_start = [ newest - CONTINUOUS_OVERLAP, window_start ].max
       ranges << [ tip_start, ends ] if tip_start < ends
     end
@@ -292,7 +315,7 @@ class HistoryIngestion
   end
 
   # [prev - overlap, next + overlap] for each consecutive pair spaced further
-  # apart than CONTINUOUS_GAP_THRESHOLD inside the retention window.
+  # apart than continuous_gap_threshold inside the retention window.
   def continuous_interior_gap_ranges(series, window_start:, ends:)
     times = series.continuous_observations
       .where(observed_at: window_start..ends)
@@ -300,7 +323,7 @@ class HistoryIngestion
       .pluck(:observed_at)
     return [] if times.size < 2
 
-    threshold = CONTINUOUS_GAP_THRESHOLD
+    threshold = continuous_gap_threshold
     overlap = CONTINUOUS_OVERLAP
     gaps = []
     times.each_cons(2) do |prev_at, next_at|
@@ -314,10 +337,10 @@ class HistoryIngestion
   end
 
   # Class helper for backfill eligibility / batch scopes.
-  def self.series_has_continuous_coverage_gap?(series, window_start: CONTINUOUS_RETENTION.ago, ends: Time.current.utc)
+  def self.series_has_continuous_coverage_gap?(series, window_start: continuous_retention.ago, ends: Time.current.utc)
     newest = series.continuous_newest_at
     return true if newest.blank?
-    return true if newest < CONTINUOUS_GAP_THRESHOLD.before(ends)
+    return true if newest < continuous_gap_threshold.before(ends)
     return true unless series.has_continuous_anchor?
 
     ingestion = new(monitoring_location: series.monitoring_location, range: DEFAULT_RANGE)
@@ -335,12 +358,12 @@ class HistoryIngestion
     return false unless series.has_continuous_anchor?
 
     newest = series.continuous_newest_at&.utc
-    return true if newest.blank? || newest < CONTINUOUS_GAP_THRESHOLD.before(ends)
+    return true if newest.blank? || newest < continuous_gap_threshold.before(ends)
 
     previous = series.continuous_prev_at&.utc
     return false if previous.blank?
 
-    (newest - previous) > CONTINUOUS_GAP_THRESHOLD
+    (newest - previous) > continuous_gap_threshold
   end
 
   # Anchored series with a healthy tip adjacency but a deeper interior hole in
@@ -352,7 +375,7 @@ class HistoryIngestion
     max_gap = series.continuous_max_gap_seconds
     return false if max_gap.blank?
 
-    max_gap > CONTINUOUS_GAP_THRESHOLD.to_i
+    max_gap > continuous_gap_threshold.to_i
   end
 
   # Selected series whose newest IV tip is fresh but the previous point is more
@@ -362,7 +385,7 @@ class HistoryIngestion
   # Reads denorm continuous_newest_at / continuous_prev_at on time_series (no
   # fleet scan of continuous_observations). Deeper interior holes use
   # continuous_max_gap_seconds + the scar IV-repair lane.
-  def self.time_series_ids_with_tip_sync_gaps(threshold: CONTINUOUS_GAP_THRESHOLD)
+  def self.time_series_ids_with_tip_sync_gaps(threshold: continuous_gap_threshold)
     threshold_seconds = threshold.to_i
     tip_since = threshold.ago
     Rails.logger.info(
@@ -575,7 +598,7 @@ class HistoryIngestion
               created_at: now,
               updated_at: now
             }
-            if buffer.size >= CONTINUOUS_UPSERT_BATCH
+            if buffer.size >= continuous_upsert_batch
               flush_continuous_buffer!(buffer)
             end
             count += 1

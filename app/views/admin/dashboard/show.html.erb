@@ -16,6 +16,8 @@
           <h1 class="admin-title">Dashboard</h1>
         </div>
         <div class="lede-link">
+          <%= link_to "Settings →", admin_settings_path, class: "tool-link" %>
+          <span class="sep" aria-hidden="true">·</span>
           <%= link_to "Inspect station →", admin_stations_path, class: "tool-link" %>
           <span class="sep" aria-hidden="true">·</span>
           <%= link_to "Sidekiq UI →", "/admin/sidekiq", class: "tool-link" %>

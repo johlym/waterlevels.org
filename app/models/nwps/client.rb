@@ -84,7 +84,7 @@ module Nwps
     def default_request_pause_ms
       return 0 if Rails.env.test?
 
-      ENV.fetch("NWPS_REQUEST_PAUSE_MS", DEFAULT_REQUEST_PAUSE_MS.to_s).to_i
+      AppConfig.integer(:nwps_request_pause_ms)
     end
 
     def pause_between_requests!

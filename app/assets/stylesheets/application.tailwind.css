@@ -2500,6 +2500,120 @@ body.dialog-open {
       @apply border-amber-500/30;
     }
   }
+
+  .admin-settings-flash {
+    @apply rounded-xl border px-4 py-3 text-sm;
+
+    &--notice {
+      @apply border-cyan-500/30 bg-cyan-500/10 text-cyan-100;
+    }
+
+    &--alert {
+      @apply border-rose-500/30 bg-rose-500/10 text-rose-100;
+    }
+  }
+
+  .admin-settings-group {
+    .admin-settings-form {
+      @apply mt-2;
+    }
+  }
+
+  .admin-settings-list {
+    @apply m-0 flex list-none flex-col gap-4 p-0;
+
+    &--actions {
+      @apply mt-2;
+    }
+  }
+
+  .admin-settings-item {
+    @apply flex flex-col gap-4 rounded-2xl border border-zinc-800/60 bg-zinc-900/35 p-4 sm:flex-row sm:items-start sm:justify-between;
+
+    &--danger {
+      @apply border-rose-500/25;
+    }
+  }
+
+  .admin-settings-item-copy {
+    @apply min-w-0 flex-1;
+  }
+
+  .admin-settings-item-title-row {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .admin-settings-label {
+    @apply m-0 text-sm font-semibold text-zinc-100;
+  }
+
+  .admin-settings-help {
+    @apply mt-2 mb-0 max-w-2xl text-sm leading-relaxed text-zinc-400;
+  }
+
+  .admin-settings-env {
+    @apply mt-2 mb-0 text-xs text-zinc-500;
+
+    code {
+      @apply text-zinc-400;
+    }
+  }
+
+  .admin-settings-source {
+    @apply rounded-md border px-1.5 py-0.5 text-[0.65rem] font-semibold tracking-wide uppercase;
+
+    &--default {
+      @apply border-zinc-700 text-zinc-500;
+    }
+
+    &--env {
+      @apply border-amber-500/40 text-amber-300;
+    }
+
+    &--override {
+      @apply border-cyan-500/40 text-cyan-300;
+    }
+
+    &--danger {
+      @apply border-rose-500/40 text-rose-300;
+    }
+  }
+
+  .admin-settings-item-control {
+    @apply flex shrink-0 flex-col items-stretch gap-2 sm:items-end;
+  }
+
+  .admin-settings-toggle {
+    @apply inline-flex cursor-pointer items-center gap-2 text-sm text-zinc-200;
+
+    input {
+      @apply size-4 accent-cyan-400;
+    }
+  }
+
+  .admin-settings-input {
+    @apply w-36 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100;
+  }
+
+  .admin-settings-reset {
+    @apply text-xs font-medium text-zinc-500 no-underline transition-colors hover:text-zinc-300;
+  }
+
+  .admin-settings-actions {
+    @apply mt-6;
+  }
+
+  .admin-settings-save {
+    @apply cursor-pointer rounded-lg border-0 bg-linear-to-r from-cyan-500 to-blue-500 px-5 py-2.5 text-sm font-semibold text-zinc-950 transition-all hover:brightness-110;
+  }
+
+  .admin-settings-action {
+    @apply cursor-pointer rounded-lg border border-zinc-600 bg-zinc-950 px-4 py-2 text-sm font-medium text-zinc-100 transition-colors hover:border-cyan-500/50 hover:text-cyan-200;
+
+    &--danger {
+      @apply border-rose-500/40 text-rose-100 hover:border-rose-400 hover:text-rose-50;
+    }
+  }
 }
 
 @keyframes admin-section-in {

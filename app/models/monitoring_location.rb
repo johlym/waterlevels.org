@@ -80,7 +80,7 @@ class MonitoringLocation < ApplicationRecord
   # Materialize IV-repair location ids with staged logs. Continuous tip/anchor
   # gates read denorm columns on time_series — no fleet scan of continuous_observations.
   def self.iv_repair_candidate_ids
-    continuous_since = HistoryIngestion::CONTINUOUS_GAP_THRESHOLD.ago
+    continuous_since = HistoryIngestion.continuous_gap_threshold.ago
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
     Rails.logger.info("IvRepair candidates step=start")
@@ -112,7 +112,7 @@ class MonitoringLocation < ApplicationRecord
 
     Rails.logger.info(
       "IvRepair candidates step=missing_tip_locations starting " \
-      "(anchored selected series with no IV tip in #{HistoryIngestion::CONTINUOUS_GAP_THRESHOLD.inspect})"
+      "(anchored selected series with no IV tip in #{HistoryIngestion.continuous_gap_threshold.inspect})"
     )
     step_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     missing_tip_location_ids = TimeSeries.selected_recently_active
@@ -139,7 +139,7 @@ class MonitoringLocation < ApplicationRecord
   # and healthy tip adjacency (tip lane owns stale tip / tip-vs-prev hollow).
   def self.iv_scar_candidate_ids
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    threshold = HistoryIngestion::CONTINUOUS_GAP_THRESHOLD
+    threshold = HistoryIngestion.continuous_gap_threshold
     threshold_seconds = threshold.to_i
     tip_since = threshold.ago
     Rails.logger.info("IvScar candidates step=start threshold_s=#{threshold_seconds}")
@@ -217,7 +217,7 @@ class MonitoringLocation < ApplicationRecord
   scope :needing_deep_history_backfill, lambda {
     year_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
-    continuous_since = HistoryIngestion::CONTINUOUS_FRESHNESS.ago
+    continuous_since = HistoryIngestion.continuous_freshness.ago
     daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
 
     has_year = DailyArchive.time_series_ids_with_daily_on_or_before(year_anchor)
@@ -287,7 +287,7 @@ class MonitoringLocation < ApplicationRecord
 
     daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
-    window_start = HistoryIngestion::CONTINUOUS_RETENTION.ago
+    window_start = HistoryIngestion.continuous_retention.ago
 
     series.any? do |s|
       HistoryIngestion.series_has_continuous_coverage_gap?(s, window_start: window_start) ||

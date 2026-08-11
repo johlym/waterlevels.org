@@ -24,6 +24,10 @@ class Sitemap
       "#{PREFIX}:#{suffix}"
     end
 
+    def clear!
+      Rails.cache.delete_matched("#{PREFIX}:*") if Rails.cache.respond_to?(:delete_matched)
+    end
+
     private
 
     def fetch(suffix)

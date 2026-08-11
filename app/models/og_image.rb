@@ -22,6 +22,11 @@ class OgImage
     "major" => "#ef4444"
   }.freeze
 
+  def self.clear!
+    Rails.cache.delete(DEFAULT_CACHE_KEY)
+    Rails.cache.delete_matched("#{STATION_CACHE_PREFIX}:*") if Rails.cache.respond_to?(:delete_matched)
+  end
+
   def self.default_png
     Rails.cache.fetch(DEFAULT_CACHE_KEY, expires_in: CACHE_TTL) do
       new(:default).png
