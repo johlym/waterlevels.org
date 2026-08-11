@@ -2,6 +2,7 @@ class HistoryIngestion
   include ActiveModel::Model
 
   attr_accessor :client, :monitoring_location, :range, :progress, :mode
+  attr_reader :last_stats
 
   DEFAULT_RANGE = "1y"
   DEEP_RANGE = "3y"
@@ -84,10 +85,33 @@ class HistoryIngestion
       daily_series = iv_repair? ? [] : (daily_range? ? active_series.select { |s| needs_daily?(s) } : [])
       peak_series = iv_repair? ? [] : active_series.select { |s| needs_peaks?(s) }
 
+      if iv_repair?
+        progress&.step(
+          "iv_repair series=#{continuous_series.size}/#{active_series.size} " \
+          "parameters=#{continuous_series.map(&:parameter_code).uniq.join(",")}"
+        )
+        Rails.logger.info(
+          "HistoryIngestion iv_repair site=#{monitoring_location.site_number} " \
+          "repair_series=#{continuous_series.size} active_series=#{active_series.size} " \
+          "parameters=#{continuous_series.map(&:parameter_code).uniq.inspect}"
+        )
+      end
+
       continuous_count = ingest_continuous_for(continuous_series)
       daily_count = ingest_daily_for(daily_series)
       peak_count = ingest_peaks_for(peak_series)
       observation_count = continuous_count + daily_count + peak_count
+
+      @last_stats = {
+        continuous_observation_count: continuous_count,
+        daily_observation_count: daily_count,
+        peak_observation_count: peak_count,
+        observation_count: observation_count,
+        continuous_series_count: continuous_series.size,
+        daily_series_count: daily_series.size,
+        peak_series_count: peak_series.size,
+        range_count: @last_continuous_range_count.to_i
+      }
 
       Telemetry.add_attributes(
         "app.series_count" => series_list.size,
@@ -98,7 +122,8 @@ class HistoryIngestion
         "app.continuous_observation_count" => continuous_count,
         "app.daily_observation_count" => daily_count,
         "app.peak_observation_count" => peak_count,
-        "app.observation_count" => observation_count
+        "app.observation_count" => observation_count,
+        "app.range_count" => @last_continuous_range_count.to_i
       )
 
       # History may write fresher continuous points while hourly tip sync lagged.
@@ -138,9 +163,9 @@ class HistoryIngestion
   end
 
   def needs_continuous?(series)
-    return true if series.continuous_observations.where(observed_at: ..continuous_history_anchor).none?
+    return true unless series.has_continuous_anchor?
 
-    newest = series.continuous_observations.maximum(:observed_at)
+    newest = series.continuous_newest_at
     return true if newest.blank? || newest < CONTINUOUS_GAP_THRESHOLD.ago
 
     continuous_interior_gap_ranges(
@@ -222,21 +247,22 @@ class HistoryIngestion
   def continuous_datetime_ranges(series)
     window_start = continuous_window_start
     ends = Time.current.utc
-    oldest = series.continuous_observations.minimum(:observed_at)&.utc
-    newest = series.continuous_observations.maximum(:observed_at)&.utc
+    newest = series.continuous_newest_at&.utc
     ranges = []
 
-    if oldest.nil?
+    if newest.nil?
       return [ [ window_start, ends ] ]
     end
 
-    if oldest > window_start
+    # Leading hole: retention start → oldest local point (per-series MIN).
+    # Tip-only archives (no ~32d anchor) still use this rather than tip→now.
+    oldest = series.continuous_observations.minimum(:observed_at)&.utc
+    if oldest && oldest > window_start
       ranges << [ window_start, oldest ] if window_start < oldest
     end
 
-    if newest.nil? || newest < CONTINUOUS_GAP_THRESHOLD.before(ends)
-      tip_start = newest ? (newest - CONTINUOUS_OVERLAP) : window_start
-      tip_start = [ tip_start, window_start ].max
+    if newest < CONTINUOUS_GAP_THRESHOLD.before(ends)
+      tip_start = [ newest - CONTINUOUS_OVERLAP, window_start ].max
       ranges << [ tip_start, ends ] if tip_start < ends
     end
 
@@ -268,10 +294,10 @@ class HistoryIngestion
 
   # Class helper for backfill eligibility / batch scopes.
   def self.series_has_continuous_coverage_gap?(series, window_start: CONTINUOUS_RETENTION.ago, ends: Time.current.utc)
-    newest = series.continuous_observations.maximum(:observed_at)
+    newest = series.continuous_newest_at
     return true if newest.blank?
     return true if newest < CONTINUOUS_GAP_THRESHOLD.before(ends)
-    return true if series.continuous_observations.where(observed_at: ..CONTINUOUS_HISTORY_ANCHOR.ago).none?
+    return true unless series.has_continuous_anchor?
 
     ingestion = new(monitoring_location: series.monitoring_location, range: DEFAULT_RANGE)
     ingestion.send(
@@ -285,15 +311,12 @@ class HistoryIngestion
   # Anchored series with a stale tip or tip-vs-previous hollow middle. Matches
   # needing_iv_repair batch eligibility (not cold missing-anchor fills).
   def self.series_needs_iv_repair?(series, ends: Time.current.utc)
-    return false if series.continuous_observations.where(observed_at: ..CONTINUOUS_HISTORY_ANCHOR.ago).none?
+    return false unless series.has_continuous_anchor?
 
-    newest = series.continuous_observations.maximum(:observed_at)&.utc
+    newest = series.continuous_newest_at&.utc
     return true if newest.blank? || newest < CONTINUOUS_GAP_THRESHOLD.before(ends)
 
-    previous = series.continuous_observations
-      .where(observed_at: ...newest)
-      .maximum(:observed_at)
-      &.utc
+    previous = series.continuous_prev_at&.utc
     return false if previous.blank?
 
     (newest - previous) > CONTINUOUS_GAP_THRESHOLD
@@ -303,43 +326,22 @@ class HistoryIngestion
   # than threshold older — the tip-sync hollow-middle case (overnight miss, then
   # a new tip). Used by needing_iv_repair.
   #
-  # Intentionally NOT a fleet-wide LAG over retention: that hung batch jobs for
-  # 10+ minutes. This uses DISTINCT ON + LATERAL against (time_series_id,
-  # observed_at) so cost is ~one index seek per series with a recent tip. Deeper
-  # interior holes are still repaired by per-station ingest /
-  # needs_history_backfill? when a job runs for other reasons.
+  # Reads denorm continuous_newest_at / continuous_prev_at on time_series (no
+  # fleet scan of continuous_observations). Deeper interior holes are still
+  # repaired by per-station ingest / needs_history_backfill? when a job runs.
   def self.time_series_ids_with_tip_sync_gaps(threshold: CONTINUOUS_GAP_THRESHOLD)
     threshold_seconds = threshold.to_i
-    tip_since = ContinuousObservation.connection.quote(threshold.ago)
-    sql = <<~SQL.squish
-      SELECT tips.time_series_id
-      FROM (
-        SELECT DISTINCT ON (co.time_series_id)
-               co.time_series_id,
-               co.observed_at AS tip_at
-        FROM continuous_observations co
-        INNER JOIN time_series ts
-          ON ts.id = co.time_series_id
-         AND ts.selected_for_display = TRUE
-        WHERE co.observed_at >= #{tip_since}
-        ORDER BY co.time_series_id, co.observed_at DESC
-      ) tips
-      INNER JOIN LATERAL (
-        SELECT co.observed_at AS prev_at
-        FROM continuous_observations co
-        WHERE co.time_series_id = tips.time_series_id
-          AND co.observed_at < tips.tip_at
-        ORDER BY co.observed_at DESC
-        LIMIT 1
-      ) prev ON TRUE
-      WHERE tips.tip_at - prev.prev_at > INTERVAL '#{threshold_seconds} seconds'
-    SQL
-
+    tip_since = threshold.ago
     Rails.logger.info(
       "HistoryIngestion tip_sync_gap_scan starting threshold_s=#{threshold_seconds}"
     )
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    ids = ContinuousObservation.connection.select_values(sql).map!(&:to_i)
+    ids = TimeSeries.selected
+      .where.not(continuous_newest_at: nil)
+      .where.not(continuous_prev_at: nil)
+      .where("continuous_newest_at >= ?", tip_since)
+      .where("continuous_newest_at - continuous_prev_at > INTERVAL '#{threshold_seconds} seconds'")
+      .pluck(:id)
     elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
     Rails.logger.info(
       "HistoryIngestion tip_sync_gap_scan ids=#{ids.size} " \
@@ -423,7 +425,7 @@ class HistoryIngestion
 
   def advance_latest_tips!(series_list)
     series_list.each do |series|
-      tip_at = series.continuous_observations.maximum(:observed_at)
+      tip_at = series.continuous_newest_at || series.continuous_observations.maximum(:observed_at)
       next if tip_at.blank?
 
       latest = series.latest_observation
@@ -451,14 +453,24 @@ class HistoryIngestion
   end
 
   def ingest_continuous_for(series_list)
+    @last_continuous_range_count = 0
     if series_list.empty?
       progress&.step("continuous skipped (already covered)")
+      Rails.logger.info(
+        "HistoryIngestion continuous skipped site=#{monitoring_location.site_number} " \
+        "mode=#{mode} reason=no_series_needing_continuous"
+      ) if iv_repair?
       return 0
     end
 
     ranges = coalesced_continuous_ranges(series_list)
+    @last_continuous_range_count = ranges.size
     if ranges.empty?
       progress&.step("continuous skipped (already covered)")
+      Rails.logger.info(
+        "HistoryIngestion continuous skipped site=#{monitoring_location.site_number} " \
+        "mode=#{mode} reason=no_datetime_ranges series=#{series_list.size}"
+      ) if iv_repair?
       return 0
     end
 
@@ -470,6 +482,7 @@ class HistoryIngestion
         "app.site_number" => monitoring_location.site_number,
         "app.state" => monitoring_location.state_code,
         "app.range" => range.to_s,
+        "app.ingest_mode" => mode.to_s,
         "app.series_count" => series_list.size,
         "app.batch_size" => series_list.size,
         "app.range_count" => ranges.size,
@@ -477,17 +490,34 @@ class HistoryIngestion
       }
     ) do
       client = with_purpose_client(:continuous)
-      return 0 unless client
+      unless client
+        Rails.logger.warn(
+          "HistoryIngestion continuous aborted site=#{monitoring_location.site_number} " \
+          "mode=#{mode} reason=client_unavailable"
+        )
+        return 0
+      end
 
       progress&.step(
         "continuous location batch parameters=#{codes} ranges=#{ranges.size} " \
         "circuit=#{client.circuit_key}"
       )
+      range_summary = ranges.map { |starts, ends|
+        hours = ((ends - starts) / 1.hour).round(1)
+        "#{starts.iso8601}/#{ends.iso8601}(~#{hours}h)"
+      }.join(" ")
+      Rails.logger.info(
+        "HistoryIngestion continuous fetch site=#{monitoring_location.site_number} " \
+        "mode=#{mode} circuit=#{client.circuit_key} parameters=#{codes} " \
+        "ranges=#{ranges.size} #{range_summary}"
+      )
       count = 0
       buffer = []
       begin
-        ranges.each do |starts, ends|
+        ranges.each_with_index do |(starts, ends), index|
           datetime = "#{starts.iso8601}/#{ends.iso8601}"
+          range_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          before = count
           client.each_collection_item(
             "continuous",
             monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
@@ -518,9 +548,19 @@ class HistoryIngestion
             count += 1
             progress&.increment
           end
+          range_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - range_started) * 1000).round
+          Rails.logger.info(
+            "HistoryIngestion continuous range site=#{monitoring_location.site_number} " \
+            "mode=#{mode} index=#{index + 1}/#{ranges.size} datetime=#{datetime} " \
+            "features=#{count - before} elapsed_ms=#{range_ms}"
+          )
         end
       rescue Usgs::Client::RateLimitError => e
         progress&.step("continuous stopped (#{e.message})")
+        Rails.logger.warn(
+          "HistoryIngestion continuous rate-limited site=#{monitoring_location.site_number} " \
+          "mode=#{mode} upserted_so_far=#{count} error=#{e.message}"
+        )
       end
       flush_continuous_buffer!(buffer)
       Telemetry.add_attributes(
@@ -528,6 +568,10 @@ class HistoryIngestion
         "app.circuit_key" => client.circuit_key
       )
       progress&.step("continuous upserted=#{count}")
+      Rails.logger.info(
+        "HistoryIngestion continuous done site=#{monitoring_location.site_number} " \
+        "mode=#{mode} upserted=#{count} ranges=#{ranges.size} circuit=#{client.circuit_key}"
+      )
       count
     end
   end
@@ -539,12 +583,14 @@ class HistoryIngestion
     # same (time_series_id, observed_at) in one batch. Postgres rejects
     # ON CONFLICT DO UPDATE when a constrained row is proposed twice (WATER-K).
     rows = dedupe_continuous_upsert_rows(buffer)
+    series_ids = rows.map { |row| row[:time_series_id] }.uniq
 
     ContinuousObservation.upsert_all(
       rows,
       unique_by: %i[time_series_id observed_at],
       update_only: %i[value approval_status qualifier]
     )
+    TimeSeries.refresh_continuous_coverage!(series_ids)
     buffer.clear
   end
 

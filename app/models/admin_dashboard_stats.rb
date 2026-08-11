@@ -13,8 +13,15 @@ class AdminDashboardStats
     catalog_sync: "admin:last_catalog_sync",
     flood_sync: "admin:last_flood_sync",
     prune: "admin:last_prune",
-    daily_archive_export: "admin:last_daily_archive_export"
+    daily_archive_export: "admin:last_daily_archive_export",
+    iv_repair_batch: "admin:last_iv_repair_batch",
+    iv_repair: "admin:last_iv_repair"
   }.freeze
+  # Last successful IV-repair eligibility scan size. Kept separate from
+  # iv_repair_batch job-finish so skipped runs (circuit/queue/Sunday) do not
+  # wipe the pipeline "Need IV repair" figure — and so /admin never re-runs
+  # MonitoringLocation.iv_repair_candidate_ids (tip_sync_gap + continuous scans).
+  IV_REPAIR_CANDIDATES_CACHE_KEY = "admin:iv_repair_candidates".freeze
   TIP_REFRESH_TTL = 7.days
   APPROX_COUNT_THRESHOLD = SiteStats::APPROX_COUNT_THRESHOLD
   SECTIONS = %i[core pipeline growth jobs states health].freeze
@@ -26,7 +33,7 @@ class AdminDashboardStats
   BACKFILL_RACE_TTL = 30.seconds
   # Bump when a section payload shape changes so deploys do not serve stale
   # hashes that crash the matching partial (Turbo then shows "Content missing").
-  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v5".freeze
+  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v7".freeze
   SECTION_TTL = 2.minutes
   SECTION_RACE_TTL = 15.seconds
   REDIS_SCAN_MAX_ITERATIONS = 50
@@ -75,7 +82,47 @@ class AdminDashboardStats
       key = cache_key_for!(name)
       payload = extra.merge(finished_at: finished_at.iso8601)
       write_job_payload(key, payload)
+      if name.to_sym == :iv_repair_batch && extra.key?(:candidates)
+        record_iv_repair_candidates!(extra[:candidates], scanned_at: finished_at)
+      end
       payload
+    end
+
+    def record_iv_repair_candidates!(count, scanned_at: Time.current)
+      write_job_payload(
+        IV_REPAIR_CANDIDATES_CACHE_KEY,
+        {
+          count: count.to_i,
+          scanned_at: scanned_at.iso8601
+        }
+      )
+    end
+
+    def last_iv_repair_candidates_payload
+      redis_read_job(IV_REPAIR_CANDIDATES_CACHE_KEY) || memory_jobs[IV_REPAIR_CANDIDATES_CACHE_KEY]
+    end
+
+    # Candidate station count from the last completed eligibility scan.
+    # Prefer the dedicated key (survives skipped batch finishes); fall back to
+    # the last iv_repair_batch job payload when present.
+    def last_iv_repair_candidates
+      payload = last_iv_repair_candidates_payload
+      return payload[:count].to_i if payload&.key?(:count)
+
+      batch = last_job(:iv_repair_batch) || {}
+      return batch[:candidates].to_i if batch.key?(:candidates)
+
+      nil
+    end
+
+    def last_iv_repair_candidates_scanned_at
+      payload = last_iv_repair_candidates_payload
+      return parse_cached_time(payload[:scanned_at]) if payload&.key?(:scanned_at)
+
+      batch = last_job(:iv_repair_batch) || {}
+      return parse_cached_time(batch[:finished_at]) if batch.key?(:candidates)
+
+      nil
     end
 
     def last_tip_refresh
@@ -93,7 +140,16 @@ class AdminDashboardStats
 
     def clear_jobs!
       self.memory_jobs = {}
-      redis_with_rescue { |r| r.del(*JOB_CACHE_KEYS.values) }
+      redis_with_rescue { |r| r.del(*JOB_CACHE_KEYS.values, IV_REPAIR_CANDIDATES_CACHE_KEY) }
+    end
+
+    def parse_cached_time(value)
+      return if value.blank?
+      return value if value.is_a?(Time) || value.is_a?(ActiveSupport::TimeWithZone)
+
+      Time.zone.parse(value.to_s)
+    rescue ArgumentError
+      nil
     end
 
     def bust_backfill_cache!
@@ -216,12 +272,17 @@ class AdminDashboardStats
     {
       stations_needing_deep_history: backfill[:stations_needing_deep_history],
       stations_history_ready: backfill[:stations_history_ready],
+      # Last batch eligibility scan — never live needing_iv_repair / tip_sync_gap.
+      stations_needing_iv_repair: self.class.last_iv_repair_candidates.to_i,
+      iv_repair_candidates_scanned_at: self.class.last_iv_repair_candidates_scanned_at,
       stale_station_count: active_count - MonitoringLocation.active.not_stale.count,
       flood_alert_count: site[:flood_alert_count],
       nwps_matched_count: MonitoringLocation.active.where(nwps_matched: true).count,
       updates_today: site[:updates_today],
       history_backfill_locks: count_prefixed_redis_keys(HistoryBackfillLock::KEY_PREFIX),
-      history_backfill_cooldowns: count_prefixed_redis_keys(HistoryBackfillLock::COOLDOWN_PREFIX)
+      history_backfill_cooldowns: count_prefixed_redis_keys(HistoryBackfillLock::COOLDOWN_PREFIX),
+      iv_repair_locks: count_prefixed_redis_keys(IvRepairLock::KEY_PREFIX),
+      iv_repair_cooldowns: count_prefixed_redis_keys(IvRepairLock::COOLDOWN_PREFIX)
     }
   end
 
@@ -239,6 +300,8 @@ class AdminDashboardStats
     flood = self.class.last_job(:flood_sync) || {}
     prune = self.class.last_job(:prune) || {}
     archive_export = self.class.last_job(:daily_archive_export) || {}
+    iv_repair_batch = self.class.last_job(:iv_repair_batch) || {}
+    iv_repair = self.class.last_job(:iv_repair) || {}
 
     {
       last_tip_refresh_finished_at: parse_time(tip[:finished_at]),
@@ -258,7 +321,18 @@ class AdminDashboardStats
       last_prune_daily_blocked: prune[:daily_prune_blocked].to_i,
       last_daily_archive_export_at: parse_time(archive_export[:finished_at]),
       last_daily_archive_export_series: archive_export[:series],
-      last_daily_archive_export_points: archive_export[:points]
+      last_daily_archive_export_points: archive_export[:points],
+      last_iv_repair_batch_at: parse_time(iv_repair_batch[:finished_at]),
+      last_iv_repair_batch_enqueued: iv_repair_batch[:enqueued].to_i,
+      last_iv_repair_batch_candidates: iv_repair_batch[:candidates].to_i,
+      last_iv_repair_batch_skip_reason: iv_repair_batch[:skip_reason],
+      last_iv_repair_batch_workers: iv_repair_batch[:workers],
+      last_iv_repair_batch_queue_depth_after: iv_repair_batch[:queue_depth_after],
+      last_iv_repair_at: parse_time(iv_repair[:finished_at]),
+      last_iv_repair_site_number: iv_repair[:site_number],
+      last_iv_repair_continuous_upserted: iv_repair[:continuous_upserted].to_i,
+      last_iv_repair_still_needs: iv_repair[:still_needs],
+      last_iv_repair_elapsed_s: iv_repair[:elapsed_s]
     }
   end
 
@@ -300,7 +374,6 @@ class AdminDashboardStats
     year_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
     continuous_since = HistoryIngestion::CONTINUOUS_FRESHNESS.ago
-    continuous_anchor = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
     daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
 
     stations_by_state = MonitoringLocation.active.group(:state_code).count
@@ -310,10 +383,16 @@ class AdminDashboardStats
 
     has_year = DailyArchive.daily_coverage_series_ids(year_anchor)
     has_deep = DailyArchive.daily_coverage_series_ids(deep_anchor)
-    has_continuous_tip = ContinuousObservation.where(observed_at: continuous_since..)
-      .distinct.pluck(:time_series_id).to_set
-    has_continuous_anchor = ContinuousObservation.where(observed_at: ..continuous_anchor)
-      .distinct.pluck(:time_series_id).to_set
+    # Denorm columns — avoid fleet plucks from continuous_observations.
+    coverage_rows = TimeSeries.selected.pluck(
+      :id, :continuous_newest_at, :has_continuous_anchor
+    )
+    has_continuous_tip = coverage_rows.each_with_object(Set.new) { |(id, newest, _), set|
+      set << id if newest.present? && newest >= continuous_since
+    }
+    has_continuous_anchor = coverage_rows.each_with_object(Set.new) { |(id, _, anchored), set|
+      set << id if anchored
+    }
     # Must include R2 shard tips — after DAILY_ARCHIVE_PRUNE, Postgres daily is empty.
     has_daily_tip = DailyArchive.fresh_daily_tip_series_ids(daily_fresh_since)
 
@@ -495,13 +574,21 @@ class AdminDashboardStats
   def sidekiq_stats
     require "sidekiq/api"
     stats = Sidekiq::Stats.new
+    queues = Sidekiq::Queue.all.map { |q| [ q.name, q.size ] }.to_h
+    workers_by_queue = Hash.new(0)
+    Sidekiq::ProcessSet.new.each do |process|
+      Array(process["queues"]).each { |queue| workers_by_queue[queue.to_s] += 1 }
+    end
     {
       enqueued: stats.enqueued,
       retry_size: stats.retry_size,
       dead_size: stats.dead_size,
       processed: stats.processed,
       failed: stats.failed,
-      queues: Sidekiq::Queue.all.map { |q| [ q.name, q.size ] }.to_h
+      queues: queues,
+      workers_by_queue: workers_by_queue,
+      iv_repair_queue_depth: queues["iv_repair"].to_i,
+      iv_repair_workers: workers_by_queue["iv_repair"].to_i
     }
   rescue StandardError => e
     { error: e.message }

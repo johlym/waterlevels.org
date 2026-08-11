@@ -6,6 +6,7 @@ class IvRepairBatchJobTest < ActiveSupport::TestCase
   setup do
     @previous_cache = Rails.cache
     Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    AdminDashboardStats.clear_jobs!
     @previous_env = {
       "USGS_API_HISTORY_IVREPAIR_KEY" => ENV["USGS_API_HISTORY_IVREPAIR_KEY"],
       "USGS_API_HISTORY_CONTINUOUS_KEY" => ENV["USGS_API_HISTORY_CONTINUOUS_KEY"],
@@ -19,7 +20,9 @@ class IvRepairBatchJobTest < ActiveSupport::TestCase
   end
 
   teardown do
+    IvRepairBatchLock.release!
     Rails.cache = @previous_cache
+    AdminDashboardStats.clear_jobs!
     @previous_env.each do |key, value|
       value.nil? ? ENV.delete(key) : ENV[key] = value
     end
@@ -45,6 +48,8 @@ class IvRepairBatchJobTest < ActiveSupport::TestCase
         assert_equal 1, IvRepairBatchJob.perform_now(10)
       end
       assert_no_enqueued_jobs only: HistoryBackfillJob
+      assert_equal 1, AdminDashboardStats.last_iv_repair_candidates
+      assert AdminDashboardStats.last_iv_repair_candidates_scanned_at
     end
   end
 
@@ -75,6 +80,23 @@ class IvRepairBatchJobTest < ActiveSupport::TestCase
         from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
         to: 6.hours.ago
       )
+      assert_no_enqueued_jobs only: IvRepairJob do
+        assert_equal 0, IvRepairBatchJob.perform_now(10)
+      end
+    end
+  end
+
+  test "skips when another batch already holds the lock" do
+    gappy = create(:monitoring_location, site_number: "30000205")
+    series = create(:time_series, monitoring_location: gappy, selected_for_display: true)
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      seed_continuous_coverage!(
+        series,
+        from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+        to: 6.hours.ago
+      )
+      assert IvRepairBatchLock.claim!
       assert_no_enqueued_jobs only: IvRepairJob do
         assert_equal 0, IvRepairBatchJob.perform_now(10)
       end

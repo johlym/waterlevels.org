@@ -5,6 +5,7 @@ import { formatGaugeValue } from "../lib/gauge_value"
 import { coalesceHourlyReadings } from "../lib/coalesce_hourly_readings"
 import {
   chartPointsWithBreaks,
+  continuousXScaleBounds,
   findGaps,
   gapHatchPlugin,
   isContinuousChartRange
@@ -547,9 +548,9 @@ export default class extends Controller {
     const estimatedFlags = continuousRange
       ? chartPoints.map((point) => Boolean(point?.estimated))
       : primaryPoints.map((point) => point.s === "derived")
-    const gaps = continuousRange
-      ? findGaps(primaryPoints, undefined, { throughMs: Date.now() })
-      : []
+    // Interior gaps only — do not stretch the X scale out to "now" for a
+    // trailing stale tip; that reintroduces empty time after the last point.
+    const gaps = continuousRange ? findGaps(primaryPoints) : []
 
     const datasets = [{
       label: primary.label || primary.kind,
@@ -715,6 +716,8 @@ export default class extends Controller {
           scales: {
             x: continuousRange ? {
               type: "linear",
+              bounds: "data",
+              ...continuousXScaleBounds(chartPoints),
               display: true,
               border: { display: false },
               grid: { color: grid },

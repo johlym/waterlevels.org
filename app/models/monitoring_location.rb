@@ -62,56 +62,84 @@ class MonitoringLocation < ApplicationRecord
   # Anchored stations with a stale continuous tip or tip-sync hollow middle.
   # Served by IvRepairBatchJob on USGS_API_HISTORY_IVREPAIR_KEY — not the cold
   # history backlog (missing ~32d archive / year daily).
+  #
+  # Prefer MonitoringLocation.iv_repair_candidate_ids for batch work — that path
+  # logs each step and avoids rebuilding the expensive tip-sync scan twice.
   scope :needing_iv_repair, lambda {
-    continuous_since = HistoryIngestion::CONTINUOUS_GAP_THRESHOLD.ago
-    continuous_anchor = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
-    recent_since = HistoryIngestion::CONTINUOUS_RETENTION.ago
+    where(id: iv_repair_candidate_ids)
+  }
 
-    recent_continuous_ids = ContinuousObservation.where(observed_at: recent_since..).select(:time_series_id)
-    recently_active = TimeSeries.selected.left_joins(:latest_observation).where(
-      "(latest_observations.id IS NULL AND time_series.ends_at IS NULL) " \
-      "OR latest_observations.observed_at >= ? OR time_series.ends_at >= ? " \
-      "OR time_series.id IN (#{recent_continuous_ids.to_sql})",
-      recent_since,
-      recent_since
+  # Materialize IV-repair location ids with staged logs. Continuous tip/anchor
+  # gates read denorm columns on time_series — no fleet scan of continuous_observations.
+  def self.iv_repair_candidate_ids
+    continuous_since = HistoryIngestion::CONTINUOUS_GAP_THRESHOLD.ago
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+    Rails.logger.info("IvRepair candidates step=start")
+
+    step_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    tip_sync_gap_ids = HistoryIngestion.time_series_ids_with_tip_sync_gaps
+    Rails.logger.info(
+      "IvRepair candidates step=tip_sync_gaps ids=#{tip_sync_gap_ids.size} " \
+      "elapsed_ms=#{((Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_started) * 1000).round}"
     )
 
-    has_continuous_tip_ids = ContinuousObservation.where(observed_at: continuous_since..).select(:time_series_id)
-    has_continuous_anchor_ids = ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id)
-    anchored = recently_active.where(id: has_continuous_anchor_ids)
-    missing_tip = anchored.where.not(id: has_continuous_tip_ids)
-    tip_sync_gap_ids = HistoryIngestion.time_series_ids_with_tip_sync_gaps
-    hollow_middle = anchored.where(id: tip_sync_gap_ids)
+    step_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    hollow_location_ids = []
+    tip_sync_without_anchor = 0
+    if tip_sync_gap_ids.any?
+      gap_series = TimeSeries.selected.where(id: tip_sync_gap_ids)
+      anchored_gap_ids = gap_series.with_continuous_anchor.pluck(:id)
+      tip_sync_without_anchor = tip_sync_gap_ids.size - anchored_gap_ids.size
+      hollow_location_ids = TimeSeries.where(id: anchored_gap_ids)
+        .distinct
+        .pluck(:monitoring_location_id)
+    end
+    Rails.logger.info(
+      "IvRepair candidates step=hollow_middle_locations ids=#{hollow_location_ids.size} " \
+      "tip_sync_without_anchor=#{tip_sync_without_anchor} " \
+      "(those stay on history cold-fill) " \
+      "elapsed_ms=#{((Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_started) * 1000).round}"
+    )
 
-    where(id: missing_tip.select(:monitoring_location_id))
-      .or(where(id: hollow_middle.select(:monitoring_location_id)))
+    Rails.logger.info(
+      "IvRepair candidates step=missing_tip_locations starting " \
+      "(anchored selected series with no IV tip in #{HistoryIngestion::CONTINUOUS_GAP_THRESHOLD.inspect})"
+    )
+    step_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    missing_tip_location_ids = TimeSeries.selected_recently_active
+      .with_continuous_anchor
+      .where("continuous_newest_at IS NULL OR continuous_newest_at < ?", continuous_since)
       .distinct
-  }
+      .pluck(:monitoring_location_id)
+    Rails.logger.info(
+      "IvRepair candidates step=missing_tip_locations ids=#{missing_tip_location_ids.size} " \
+      "elapsed_ms=#{((Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_started) * 1000).round}"
+    )
+
+    ids = (hollow_location_ids + missing_tip_location_ids).uniq.sort
+    Rails.logger.info(
+      "IvRepair candidates step=done count=#{ids.size} " \
+      "hollow=#{hollow_location_ids.size} missing_tip=#{missing_tip_location_ids.size} " \
+      "tip_sync_without_anchor=#{tip_sync_without_anchor} " \
+      "elapsed_ms=#{((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round}"
+    )
+    ids
+  end
 
   scope :needing_history_backfill, lambda {
     # Cold / year-daily backlog only. Recent IV tip/hollow-middle repair for
     # already-anchored stations lives in needing_iv_repair so the long history
     # queue cannot starve IV completeness.
-    continuous_anchor = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
     daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
-    recent_since = HistoryIngestion::CONTINUOUS_RETENTION.ago
 
-    # Ignore long-inactive / POR-ended series (tip/ends_at older than the IV
-    # window). Keep series with no tip *and* no ends_at so brand-new catalog
-    # rows can still fill — do not treat "no latest_observation" alone as
-    # active when ends_at shows the POR ended years ago.
-    recent_continuous_ids = ContinuousObservation.where(observed_at: recent_since..).select(:time_series_id)
-    recently_active = TimeSeries.selected.left_joins(:latest_observation).where(
-      "(latest_observations.id IS NULL AND time_series.ends_at IS NULL) " \
-      "OR latest_observations.observed_at >= ? OR time_series.ends_at >= ? " \
-      "OR time_series.id IN (#{recent_continuous_ids.to_sql})",
-      recent_since,
-      recent_since
-    )
+    # Ignore long-inactive / POR-ended series via denorm continuous_newest_at
+    # (and latest tip / ends_at). Brand-new catalog rows with no tip and no
+    # ends_at still qualify.
+    recently_active = TimeSeries.selected_recently_active
 
-    has_continuous_anchor_ids = ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id)
-    missing_continuous_anchor = recently_active.where.not(id: has_continuous_anchor_ids)
+    missing_continuous_anchor = recently_active.where(has_continuous_anchor: false)
     # Year anchor lives in R2 (legacy Postgres rows still count during drain).
     # Skip parameters USGS does not publish daily DV for (IV-only series).
     expecting_daily = recently_active.merge(TimeSeries.expecting_daily)
@@ -135,19 +163,15 @@ class MonitoringLocation < ApplicationRecord
   # Year-ready stations that still lack ~3-year daily history. Excludes phase-1
   # candidates so the deep batch never competes with cold/lazy 1y fills.
   # Deep anchors are expected in R2. Intentionally does NOT nest
-  # needing_history_backfill (that OR tree re-scans observation tables);
-  # phase-1 continuous/tip gates are inlined instead.
+  # needing_history_backfill; phase-1 continuous/tip gates use denorm columns.
   scope :needing_deep_history_backfill, lambda {
     year_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
     continuous_since = HistoryIngestion::CONTINUOUS_FRESHNESS.ago
-    continuous_anchor = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
     daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
 
     has_year = DailyArchive.time_series_ids_with_daily_on_or_before(year_anchor)
     has_deep = DailyArchive.time_series_ids_with_daily_on_or_before(deep_anchor)
-    has_continuous_tip = ContinuousObservation.where(observed_at: continuous_since..).select(:time_series_id)
-    has_continuous_anchor = ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id)
     has_daily_tip = DailyArchive.time_series_ids_with_fresh_daily_tip(daily_fresh_since)
     has_daily_tip = DailyObservation
       .select(:time_series_id)
@@ -157,21 +181,12 @@ class MonitoringLocation < ApplicationRecord
         )
       )
 
-    recent_since = HistoryIngestion::CONTINUOUS_RETENTION.ago
-    recent_continuous_ids = ContinuousObservation.where(observed_at: recent_since..).select(:time_series_id)
-    recently_active = TimeSeries.selected.left_joins(:latest_observation).where(
-      "(latest_observations.id IS NULL AND time_series.ends_at IS NULL) " \
-      "OR latest_observations.observed_at >= ? OR time_series.ends_at >= ? " \
-      "OR time_series.id IN (#{recent_continuous_ids.to_sql})",
-      recent_since,
-      recent_since
-    )
-
-    candidate_series = recently_active.merge(TimeSeries.expecting_daily)
+    candidate_series = TimeSeries.selected_recently_active
+      .merge(TimeSeries.expecting_daily)
+      .with_continuous_anchor
+      .where("continuous_newest_at >= ?", continuous_since)
       .where(id: has_year)
       .where.not(id: has_deep)
-      .where(id: has_continuous_tip)
-      .where(id: has_continuous_anchor)
       .where(id: has_daily_tip)
 
     where(id: candidate_series.select(:monitoring_location_id)).distinct

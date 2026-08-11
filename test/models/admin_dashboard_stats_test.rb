@@ -70,6 +70,22 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
         series: 12,
         points: 340
       )
+      AdminDashboardStats.record_job_finish!(
+        :iv_repair_batch,
+        finished_at: 10.minutes.ago,
+        enqueued: 7,
+        candidates: 40,
+        workers: 1,
+        queue_depth_after: 7
+      )
+      AdminDashboardStats.record_job_finish!(
+        :iv_repair,
+        finished_at: 5.minutes.ago,
+        site_number: "12101000",
+        continuous_upserted: 48,
+        still_needs: false,
+        elapsed_s: 1.2
+      )
 
       stats = AdminDashboardStats.snapshot
 
@@ -97,6 +113,16 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
       assert stats[:last_daily_archive_export_at]
       assert_equal 12, stats[:last_daily_archive_export_series]
       assert_equal 340, stats[:last_daily_archive_export_points]
+      assert stats[:last_iv_repair_batch_at]
+      assert_equal 7, stats[:last_iv_repair_batch_enqueued]
+      assert_equal 40, stats[:last_iv_repair_batch_candidates]
+      assert_equal 1, stats[:last_iv_repair_batch_workers]
+      assert stats[:last_iv_repair_at]
+      assert_equal "12101000", stats[:last_iv_repair_site_number]
+      assert_equal 48, stats[:last_iv_repair_continuous_upserted]
+      assert_equal false, stats[:last_iv_repair_still_needs]
+      assert_equal 40, stats[:stations_needing_iv_repair]
+      assert stats[:iv_repair_candidates_scanned_at]
       assert_equal 2, stats[:per_state].size
       wa = stats[:per_state].find { |row| row[:state_code] == "wa" }
       assert_equal 1, wa[:station_count]
@@ -393,6 +419,65 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
     assert_equal 1, warmed[:station_count]
     assert warmed.key?(:per_state)
     assert_equal warmed[:station_count], AdminDashboardStats.snapshot[:station_count]
+  end
+
+  test "pipeline iv repair count uses last scanned candidates without live eligibility scan" do
+    scanned_at = 12.minutes.ago
+    AdminDashboardStats.record_job_finish!(
+      :iv_repair_batch,
+      finished_at: scanned_at,
+      enqueued: 3,
+      candidates: 17,
+      workers: 1
+    )
+
+    with_iv_repair_scan_forbidden do
+      stats = AdminDashboardStats.new.pipeline_section
+      assert_equal 17, stats[:stations_needing_iv_repair]
+      assert_in_delta scanned_at.to_i, stats[:iv_repair_candidates_scanned_at].to_i, 1
+    end
+  end
+
+  test "skipped iv repair batch finish preserves last candidate count" do
+    AdminDashboardStats.record_job_finish!(
+      :iv_repair_batch,
+      finished_at: 20.minutes.ago,
+      enqueued: 5,
+      candidates: 22,
+      workers: 1
+    )
+
+    # Skips (queue busy, circuit, Sunday, batch_lock_held) must not wipe the
+    # dedicated candidate count used by the pipeline panel.
+    %w[iv_repair_queue_busy batch_lock_held].each do |reason|
+      AdminDashboardStats.record_job_finish!(
+        :iv_repair_batch,
+        finished_at: Time.current,
+        skipped_run: true,
+        skip_reason: reason,
+        elapsed_s: 0.1,
+        workers: 1
+      )
+      assert_equal 22, AdminDashboardStats.last_iv_repair_candidates, reason
+      assert_nil AdminDashboardStats.last_job(:iv_repair_batch)[:candidates], reason
+    end
+
+    with_iv_repair_scan_forbidden do
+      stats = AdminDashboardStats.new.pipeline_section
+      assert_equal 22, stats[:stations_needing_iv_repair]
+    end
+  end
+
+  def with_iv_repair_scan_forbidden
+    eigen = MonitoringLocation.singleton_class
+    eigen.alias_method :__orig_iv_repair_candidate_ids, :iv_repair_candidate_ids
+    eigen.define_method(:iv_repair_candidate_ids) do
+      raise "live IV repair eligibility scan"
+    end
+    yield
+  ensure
+    eigen.alias_method :iv_repair_candidate_ids, :__orig_iv_repair_candidate_ids
+    eigen.remove_method :__orig_iv_repair_candidate_ids
   end
 
   test "unknown section raises" do
