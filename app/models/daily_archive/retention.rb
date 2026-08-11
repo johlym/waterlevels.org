@@ -365,6 +365,8 @@ module DailyArchive
         end
         deleted += series_deleted
         blocked += series_blocked
+        # Prune removes aged IV (near the 32d anchor) — refresh tip/prev/anchor denorm.
+        TimeSeries.refresh_continuous_coverage!([ series.id ], as_of: @as_of) if series_deleted.positive?
         @checkpoint.mark_series!(
           series.id,
           iv_deleted: series_deleted,

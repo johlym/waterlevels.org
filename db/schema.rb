@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_10_163000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_11_040000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -145,8 +145,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_10_163000) do
 
   create_table "time_series", force: :cascade do |t|
     t.datetime "begins_at"
+    t.datetime "continuous_newest_at"
+    t.datetime "continuous_prev_at"
     t.datetime "created_at", null: false
     t.datetime "ends_at"
+    t.boolean "has_continuous_anchor", default: false, null: false
     t.string "measurement_kind", null: false
     t.datetime "metadata_synced_at"
     t.bigint "monitoring_location_id", null: false

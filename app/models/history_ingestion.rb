@@ -606,12 +606,14 @@ class HistoryIngestion
     # same (time_series_id, observed_at) in one batch. Postgres rejects
     # ON CONFLICT DO UPDATE when a constrained row is proposed twice (WATER-K).
     rows = dedupe_continuous_upsert_rows(buffer)
+    series_ids = rows.map { |row| row[:time_series_id] }.uniq
 
     ContinuousObservation.upsert_all(
       rows,
       unique_by: %i[time_series_id observed_at],
       update_only: %i[value approval_status qualifier]
     )
+    TimeSeries.refresh_continuous_coverage!(series_ids)
     buffer.clear
   end
 

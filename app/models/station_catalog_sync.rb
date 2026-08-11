@@ -267,6 +267,7 @@ class StationCatalogSync
       .to_h { |usgs_id, id, unit| [ usgs_id, [ id, unit ] ] }
 
     count = 0
+    continuous_tips = {}
     active_rows.each do |row|
       series_id, unit = series_ids[row[:time_series_id]]
       next unless series_id
@@ -304,9 +305,11 @@ class StationCatalogSync
         },
         unique_by: %i[time_series_id observed_at]
       )
+      continuous_tips[series_id] = observed_at
       count += 1
       progress&.increment
     end
+    TimeSeries.advance_continuous_tips!(continuous_tips)
     progress&.step("latest observations upserted=#{count}")
   end
 

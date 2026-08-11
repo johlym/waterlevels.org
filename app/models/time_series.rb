@@ -67,11 +67,85 @@ class TimeSeries < ApplicationRecord
   def eligible_for_recent_history_backfill?(as_of: Time.current)
     tip_at = [
       latest_observation&.observed_at,
-      continuous_observations.maximum(:observed_at),
+      continuous_newest_at || continuous_observations.maximum(:observed_at),
       ends_at
     ].compact.max
     return true if tip_at.blank?
 
     tip_at >= HistoryIngestion::CONTINUOUS_RETENTION.before(as_of)
+  end
+
+  # Recompute continuous tip/prev/anchor denorm from continuous_observations.
+  # Used after history upserts, retention prune, and one-shot backfill.
+  # Eligibility scopes still read continuous_observations until Phase B flips.
+  def self.refresh_continuous_coverage!(ids, as_of: Time.current)
+    ids = Array(ids).map(&:to_i).uniq
+    return 0 if ids.empty?
+
+    anchor = connection.quote(HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.before(as_of))
+    id_list = ids.join(",")
+    now = connection.quote(Time.current)
+    sql = <<~SQL.squish
+      UPDATE time_series AS ts
+      SET continuous_newest_at = s.newest,
+          continuous_prev_at = s.prev_at,
+          has_continuous_anchor = s.has_anchor,
+          updated_at = #{now}
+      FROM (
+        SELECT ts2.id AS time_series_id,
+               MAX(co.observed_at) AS newest,
+               (
+                 ARRAY_AGG(co.observed_at ORDER BY co.observed_at DESC)
+                   FILTER (WHERE co.id IS NOT NULL)
+               )[2] AS prev_at,
+               COALESCE(
+                 BOOL_OR(co.observed_at IS NOT NULL AND co.observed_at <= #{anchor}),
+                 FALSE
+               ) AS has_anchor
+        FROM time_series ts2
+        LEFT JOIN continuous_observations co ON co.time_series_id = ts2.id
+        WHERE ts2.id IN (#{id_list})
+        GROUP BY ts2.id
+      ) AS s
+      WHERE ts.id = s.time_series_id
+    SQL
+    connection.update(sql)
+  end
+
+  # Cheap tip-path bump after LatestObservationSync / catalog discovery upserts.
+  # Only moves newest forward (and shifts prev); never clears anchor.
+  # tips: { time_series_id => observed_at }
+  def self.advance_continuous_tips!(tips)
+    tips = tips.to_h.reject { |id, at| id.blank? || at.blank? }
+    return 0 if tips.empty?
+
+    # One tip per series — keep the newest observed_at when the buffer repeats.
+    merged = tips.each_with_object({}) do |(id, at), hash|
+      id = id.to_i
+      at = at.utc
+      hash[id] = at if hash[id].nil? || at > hash[id]
+    end
+
+    values_sql = merged.map { |id, at|
+      "(#{id}::bigint, #{connection.quote(at)}::timestamptz)"
+    }.join(", ")
+    now = connection.quote(Time.current)
+    sql = <<~SQL.squish
+      UPDATE time_series AS ts
+      SET continuous_prev_at = CASE
+            WHEN ts.continuous_newest_at IS NULL THEN NULL
+            WHEN tips.observed_at > ts.continuous_newest_at THEN ts.continuous_newest_at
+            ELSE ts.continuous_prev_at
+          END,
+          continuous_newest_at = CASE
+            WHEN ts.continuous_newest_at IS NULL OR tips.observed_at > ts.continuous_newest_at
+              THEN tips.observed_at
+            ELSE ts.continuous_newest_at
+          END,
+          updated_at = #{now}
+      FROM (VALUES #{values_sql}) AS tips(id, observed_at)
+      WHERE ts.id = tips.id
+    SQL
+    connection.update(sql)
   end
 end
