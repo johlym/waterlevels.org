@@ -48,17 +48,21 @@ class HistoryBackfillBatchJob < ApplicationJob
         "deep_budget=#{deep_budget} range=#{range}"
       )
 
-      phase1_enqueued = enqueue_candidates(
-        MonitoringLocation.needing_history_backfill,
-        range: range,
-        budget: phase1_budget
-      )
+      phase1_enqueued = timed_phase("phase1_scope_and_enqueue") do
+        enqueue_candidates(
+          build_phase1_scope,
+          range: range,
+          budget: phase1_budget
+        )
+      end
 
-      deep_enqueued = enqueue_candidates(
-        MonitoringLocation.needing_deep_history_backfill,
-        range: HistoryIngestion::DEEP_RANGE,
-        budget: deep_budget
-      )
+      deep_enqueued = timed_phase("deep_scope_and_enqueue") do
+        enqueue_candidates(
+          build_deep_scope,
+          range: HistoryIngestion::DEEP_RANGE,
+          budget: deep_budget
+        )
+      end
 
       total = phase1_enqueued + deep_enqueued
       Telemetry.add_attributes(
@@ -144,6 +148,32 @@ class HistoryBackfillBatchJob < ApplicationJob
     raw.positive? ? raw : Usgs::HistoryKeyPool::DEEP_REQUESTS_PER_STATION
   end
 
+  def build_phase1_scope
+    Rails.logger.info("HistoryBackfillBatchJob building needing_history_backfill scope")
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    scope = MonitoringLocation.needing_history_backfill
+    elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+    Rails.logger.info("HistoryBackfillBatchJob needing_history_backfill scope ready elapsed_ms=#{elapsed_ms}")
+    scope
+  end
+
+  def build_deep_scope
+    Rails.logger.info("HistoryBackfillBatchJob building needing_deep_history_backfill scope")
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    scope = MonitoringLocation.needing_deep_history_backfill
+    elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+    Rails.logger.info("HistoryBackfillBatchJob needing_deep_history_backfill scope ready elapsed_ms=#{elapsed_ms}")
+    scope
+  end
+
+  def timed_phase(label)
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    result = yield
+    elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+    Rails.logger.info("HistoryBackfillBatchJob #{label} elapsed_ms=#{elapsed_ms} result=#{result}")
+    result
+  end
+
   def enqueue_candidates(scope, range:, budget:)
     return 0 if budget <= 0
 
@@ -151,15 +181,27 @@ class HistoryBackfillBatchJob < ApplicationJob
     skipped = 0
     scanned = 0
     last_id = 0
+    page = 0
 
     loop do
       break if enqueued >= budget
 
+      page += 1
+      Rails.logger.info(
+        "HistoryBackfillBatchJob phase range=#{range} fetching page=#{page} " \
+        "last_id=#{last_id} enqueued=#{enqueued}/#{budget}"
+      )
+      page_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       ids = scope
         .where("monitoring_locations.id > ?", last_id)
         .order(:id)
         .limit(CANDIDATE_PAGE)
         .pluck(:id)
+      page_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - page_started) * 1000).round
+      Rails.logger.info(
+        "HistoryBackfillBatchJob phase range=#{range} page=#{page} " \
+        "rows=#{ids.size} elapsed_ms=#{page_ms}"
+      )
       break if ids.empty?
 
       ids.each do |id|

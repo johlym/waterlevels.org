@@ -85,17 +85,10 @@ class MonitoringLocation < ApplicationRecord
     has_continuous_anchor_ids = ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id)
     missing_continuous_tip = recently_active.where.not(id: has_continuous_tip_ids)
     missing_continuous_anchor = recently_active.where.not(id: has_continuous_anchor_ids)
-    # Hollow-middle repair only: tip-sync leaves a fresh tip + older archive with a
-    # recent hole. Restrict LAG to tip+anchor series over a short lookback — a
-    # fleet-wide CONTINUOUS_RETENTION window hung the hourly batch job.
-    tip_and_anchor = recently_active
-      .where(id: has_continuous_tip_ids)
-      .where(id: has_continuous_anchor_ids)
-    interior_gap_ids = HistoryIngestion.time_series_ids_with_interior_continuous_gaps(
-      window_start: HistoryIngestion::CONTINUOUS_INTERIOR_GAP_BATCH_WINDOW.ago,
-      time_series_scope: tip_and_anchor
-    )
-    missing_continuous_interior = recently_active.where(id: interior_gap_ids)
+    # Tip-sync hollow middle: fresh tip whose previous IV point is too old.
+    # Indexed tip-vs-previous lookup — not a fleet LAG over retention.
+    tip_sync_gap_ids = HistoryIngestion.time_series_ids_with_tip_sync_gaps
+    missing_continuous_interior = recently_active.where(id: tip_sync_gap_ids)
     # Year anchor lives in R2 (legacy Postgres rows still count during drain).
     # Skip parameters USGS does not publish daily DV for (IV-only series).
     expecting_daily = recently_active.merge(TimeSeries.expecting_daily)
