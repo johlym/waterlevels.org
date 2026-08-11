@@ -1,7 +1,4 @@
 <% content_for :title, "#{@location.site_number} | Inspect | Admin | WaterLevels.org" %>
-<% content_for :head do %>
-  <meta name="robots" content="noindex, nofollow">
-<% end %>
 
 <%
   loc = @report[:location]
@@ -10,299 +7,291 @@
   findings = @report[:findings]
 %>
 
-<div class="app-shell">
-  <%= render Navigation::BarComponent.new %>
+<main id="main" class="page-main admin-dashboard">
+  <div class="admin-dashboard-chrome">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Ops · Station inspector</p>
+        <h1 class="admin-title"><%= loc[:site_number] %></h1>
+        <p class="section-lede">
+          <%= loc[:display_name] %>
+          · <%= loc[:state_code].upcase %><% if loc[:county_name].present? %>, <%= loc[:county_name] %><% end %>
+        </p>
+      </div>
+      <div class="lede-link">
+        <%= link_to "← Inspect another", admin_stations_path, class: "tool-link" %>
+        <span class="sep" aria-hidden="true">·</span>
+        <%= link_to "Public gauge →", gauge_path(state: loc[:state_code], site_number_slug: loc[:to_param]), class: "tool-link" %>
+      </div>
+    </div>
+  </div>
 
-  <main id="main" class="page-main admin-dashboard">
-    <div class="admin-dashboard-chrome">
-      <div class="section-header">
-        <div>
-          <p class="eyebrow">Ops · Station inspector</p>
-          <h1 class="admin-title"><%= loc[:site_number] %></h1>
-          <p class="section-lede">
-            <%= loc[:display_name] %>
-            · <%= loc[:state_code].upcase %><% if loc[:county_name].present? %>, <%= loc[:county_name] %><% end %>
-          </p>
-        </div>
-        <div class="lede-link">
-          <%= link_to "← Inspect another", admin_stations_path, class: "tool-link" %>
-          <span class="sep" aria-hidden="true">·</span>
-          <%= link_to "Public gauge →", gauge_path(state: loc[:state_code], site_number_slug: loc[:to_param]), class: "tool-link" %>
-          <span class="sep" aria-hidden="true">·</span>
-          <%= link_to "Dashboard", admin_path, class: "tool-link" %>
-        </div>
+  <section class="admin-stats admin-inspector" aria-labelledby="admin-findings-heading">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Diagnosis</p>
+        <h2 id="admin-findings-heading">Findings</h2>
       </div>
     </div>
 
-    <section class="admin-stats admin-inspector" aria-labelledby="admin-findings-heading">
-      <div class="section-header">
-        <div>
-          <p class="eyebrow">Diagnosis</p>
-          <h2 id="admin-findings-heading">Findings</h2>
-        </div>
-      </div>
+    <% if findings.empty? %>
+      <p class="hint">No gaps against current history anchors — selected series look complete.</p>
+    <% else %>
+      <ul class="admin-findings">
+        <% findings.each do |finding| %>
+          <li class="admin-finding admin-finding--<%= finding[:severity] %>">
+            <span class="badge <%= finding[:severity] == :error || finding[:severity] == "error" ? "bad" : (finding[:severity] == :warn || finding[:severity] == "warn" ? "warn" : "ok") %>">
+              <%= finding[:severity] %>
+            </span>
+            <p><%= finding[:summary] %></p>
+          </li>
+        <% end %>
+      </ul>
+    <% end %>
+  </section>
 
-      <% if findings.empty? %>
-        <p class="hint">No gaps against current history anchors — selected series look complete.</p>
-      <% else %>
-        <ul class="admin-findings">
-          <% findings.each do |finding| %>
-            <li class="admin-finding admin-finding--<%= finding[:severity] %>">
-              <span class="badge <%= finding[:severity] == :error || finding[:severity] == "error" ? "bad" : (finding[:severity] == :warn || finding[:severity] == "warn" ? "warn" : "ok") %>">
-                <%= finding[:severity] %>
-              </span>
-              <p><%= finding[:summary] %></p>
+  <section class="admin-stats admin-inspector" aria-labelledby="admin-station-summary-heading">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Station</p>
+        <h2 id="admin-station-summary-heading">Summary</h2>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <article>
+        <p class="value value-sm"><%= loc[:active] ? "Active" : "Inactive" %><% if loc[:stale] %> · Stale<% end %></p>
+        <p class="label">Status</p>
+        <p class="hint">Kinds: <%= loc[:measurement_kinds].join(", ").presence || "none" %></p>
+      </article>
+      <article>
+        <p class="value value-sm">
+          WL <%= loc[:has_water_level] ? "✓" : "—" %>
+          · Q <%= loc[:has_discharge] ? "✓" : "—" %>
+          · T <%= loc[:has_temperature] ? "✓" : "—" %>
+        </p>
+        <p class="label">has_* flags</p>
+        <p class="hint">Denormalized from selected display series</p>
+      </article>
+      <article>
+        <p class="value value-sm"><%= loc[:latest_observed_at] ? time_ago_in_words(loc[:latest_observed_at]) + " ago" : "—" %></p>
+        <p class="label">Latest tip</p>
+        <p class="hint">
+          <% if loc[:latest_observed_at] %><%= loc[:latest_observed_at].utc.iso8601 %><% else %>No tip<% end %>
+        </p>
+      </article>
+      <article>
+        <p class="value value-sm"><%= loc[:latest_water_level_value] || "—" %></p>
+        <p class="label">Stage tip<%= " (#{loc[:latest_water_level_parameter_code]})" if loc[:latest_water_level_parameter_code].present? %></p>
+      </article>
+      <article>
+        <p class="value value-sm"><%= loc[:latest_discharge_value] || "—" %></p>
+        <p class="label">Flow tip</p>
+      </article>
+      <article>
+        <p class="value value-sm"><%= loc[:latest_temperature_c] || "—" %></p>
+        <p class="label">Temp tip (°C)</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="admin-stats admin-inspector" aria-labelledby="admin-backfill-heading">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Pipeline</p>
+        <h2 id="admin-backfill-heading">Backfill &amp; gates</h2>
+        <p class="section-lede">
+          <code>missing_year_history?</code> drives the public “Full-year history is still loading…”
+          callout. It is true when <em>any</em> selected series lacks daily near the ~1y anchor —
+          so a selected temperature series without year daily keeps the banner up even after
+          stage/flow history fills.
+        </p>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <article>
+        <p class="value value-sm"><%= backfill[:needs_history_backfill] ? "Yes" : "No" %></p>
+        <p class="label">needs_history_backfill?</p>
+      </article>
+      <article>
+        <p class="value value-sm"><%= backfill[:missing_year_history] ? "Yes" : "No" %></p>
+        <p class="label">missing_year_history?</p>
+        <p class="hint">Public 1y callout</p>
+      </article>
+      <article>
+        <p class="value value-sm"><%= backfill[:missing_deep_history] ? "Yes" : "No" %></p>
+        <p class="label">missing_deep_history?</p>
+      </article>
+      <article>
+        <p class="value value-sm"><%= backfill[:has_deep_history] ? "Yes" : "No" %></p>
+        <p class="label">has_deep_history?</p>
+        <p class="hint">Unlocks 3y chart tab</p>
+      </article>
+      <article>
+        <p class="value value-sm"><%= backfill[:locked] ? "Locked" : (backfill[:cooling_down] ? "Cooldown" : "Idle") %></p>
+        <p class="label">Backfill lock</p>
+        <p class="hint">Lock <%= distance_of_time_in_words(backfill[:lock_ttl]) %> · cooldown <%= distance_of_time_in_words(backfill[:cooldown_ttl]) %></p>
+      </article>
+      <article>
+        <p class="value value-sm">
+          <% blockers = [] %>
+          <% blockers << "Sunday pause" if backfill[:sunday_catalog_pause] %>
+          <% blockers << "Keys exhausted" if backfill[:history_keys_exhausted] %>
+          <% blockers << "DB read-only" if backfill[:db_read_only_circuit] %>
+          <%= blockers.presence&.join(" · ") || "Clear" %>
+        </p>
+        <p class="label">Enqueue blockers</p>
+      </article>
+    </div>
+
+    <% if gates[:blocking_year_series].any? || gates[:blocking_continuous_tip].any? || gates[:blocking_continuous_anchor].any? || gates[:blocking_daily_tip].any? %>
+      <div class="freshness-panel">
+        <h3>Selected series blocking readiness</h3>
+        <ul class="status-list">
+          <% if gates[:blocking_year_series].any? %>
+            <li>
+              <span class="name">Missing ~1y daily</span>
+              <span class="meta"><%= gates[:blocking_year_series].join(", ") %></span>
+            </li>
+          <% end %>
+          <% if gates[:blocking_deep_series].any? %>
+            <li>
+              <span class="name">Missing ~3y daily</span>
+              <span class="meta"><%= gates[:blocking_deep_series].join(", ") %></span>
+            </li>
+          <% end %>
+          <% if gates[:blocking_continuous_tip].any? %>
+            <li>
+              <span class="name">Stale/missing continuous tip</span>
+              <span class="meta"><%= gates[:blocking_continuous_tip].join(", ") %></span>
+            </li>
+          <% end %>
+          <% if gates[:blocking_continuous_anchor].any? %>
+            <li>
+              <span class="name">Missing continuous ~35d anchor</span>
+              <span class="meta"><%= gates[:blocking_continuous_anchor].join(", ") %></span>
+            </li>
+          <% end %>
+          <% if gates[:blocking_daily_tip].any? %>
+            <li>
+              <span class="name">Stale/missing daily tip</span>
+              <span class="meta"><%= gates[:blocking_daily_tip].join(", ") %></span>
             </li>
           <% end %>
         </ul>
-      <% end %>
-    </section>
-
-    <section class="admin-stats admin-inspector" aria-labelledby="admin-station-summary-heading">
-      <div class="section-header">
-        <div>
-          <p class="eyebrow">Station</p>
-          <h2 id="admin-station-summary-heading">Summary</h2>
-        </div>
       </div>
+    <% end %>
+  </section>
 
-      <div class="stats-grid">
-        <article>
-          <p class="value value-sm"><%= loc[:active] ? "Active" : "Inactive" %><% if loc[:stale] %> · Stale<% end %></p>
-          <p class="label">Status</p>
-          <p class="hint">Kinds: <%= loc[:measurement_kinds].join(", ").presence || "none" %></p>
-        </article>
-        <article>
-          <p class="value value-sm">
-            WL <%= loc[:has_water_level] ? "✓" : "—" %>
-            · Q <%= loc[:has_discharge] ? "✓" : "—" %>
-            · T <%= loc[:has_temperature] ? "✓" : "—" %>
-          </p>
-          <p class="label">has_* flags</p>
-          <p class="hint">Denormalized from selected display series</p>
-        </article>
-        <article>
-          <p class="value value-sm"><%= loc[:latest_observed_at] ? time_ago_in_words(loc[:latest_observed_at]) + " ago" : "—" %></p>
-          <p class="label">Latest tip</p>
-          <p class="hint">
-            <% if loc[:latest_observed_at] %><%= loc[:latest_observed_at].utc.iso8601 %><% else %>No tip<% end %>
-          </p>
-        </article>
-        <article>
-          <p class="value value-sm"><%= loc[:latest_water_level_value] || "—" %></p>
-          <p class="label">Stage tip<%= " (#{loc[:latest_water_level_parameter_code]})" if loc[:latest_water_level_parameter_code].present? %></p>
-        </article>
-        <article>
-          <p class="value value-sm"><%= loc[:latest_discharge_value] || "—" %></p>
-          <p class="label">Flow tip</p>
-        </article>
-        <article>
-          <p class="value value-sm"><%= loc[:latest_temperature_c] || "—" %></p>
-          <p class="label">Temp tip (°C)</p>
-        </article>
+  <section class="admin-stats admin-inspector" aria-labelledby="admin-series-heading">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Time series</p>
+        <h2 id="admin-series-heading">Coverage by series</h2>
+        <p class="section-lede">
+          Hourly table “Partial” means a coalesced hour is missing one of the measurement
+          columns from the snapshot (typically a selected kind with no IV sample in that hour).
+          Unselected series with leftover observations often explain “we used to have temperature.”
+        </p>
       </div>
-    </section>
+    </div>
 
-    <section class="admin-stats admin-inspector" aria-labelledby="admin-backfill-heading">
-      <div class="section-header">
-        <div>
-          <p class="eyebrow">Pipeline</p>
-          <h2 id="admin-backfill-heading">Backfill &amp; gates</h2>
-          <p class="section-lede">
-            <code>missing_year_history?</code> drives the public “Full-year history is still loading…”
-            callout. It is true when <em>any</em> selected series lacks daily near the ~1y anchor —
-            so a selected temperature series without year daily keeps the banner up even after
-            stage/flow history fills.
-          </p>
-        </div>
-      </div>
-
-      <div class="stats-grid">
-        <article>
-          <p class="value value-sm"><%= backfill[:needs_history_backfill] ? "Yes" : "No" %></p>
-          <p class="label">needs_history_backfill?</p>
-        </article>
-        <article>
-          <p class="value value-sm"><%= backfill[:missing_year_history] ? "Yes" : "No" %></p>
-          <p class="label">missing_year_history?</p>
-          <p class="hint">Public 1y callout</p>
-        </article>
-        <article>
-          <p class="value value-sm"><%= backfill[:missing_deep_history] ? "Yes" : "No" %></p>
-          <p class="label">missing_deep_history?</p>
-        </article>
-        <article>
-          <p class="value value-sm"><%= backfill[:has_deep_history] ? "Yes" : "No" %></p>
-          <p class="label">has_deep_history?</p>
-          <p class="hint">Unlocks 3y chart tab</p>
-        </article>
-        <article>
-          <p class="value value-sm"><%= backfill[:locked] ? "Locked" : (backfill[:cooling_down] ? "Cooldown" : "Idle") %></p>
-          <p class="label">Backfill lock</p>
-          <p class="hint">Lock <%= distance_of_time_in_words(backfill[:lock_ttl]) %> · cooldown <%= distance_of_time_in_words(backfill[:cooldown_ttl]) %></p>
-        </article>
-        <article>
-          <p class="value value-sm">
-            <% blockers = [] %>
-            <% blockers << "Sunday pause" if backfill[:sunday_catalog_pause] %>
-            <% blockers << "Keys exhausted" if backfill[:history_keys_exhausted] %>
-            <% blockers << "DB read-only" if backfill[:db_read_only_circuit] %>
-            <%= blockers.presence&.join(" · ") || "Clear" %>
-          </p>
-          <p class="label">Enqueue blockers</p>
-        </article>
-      </div>
-
-      <% if gates[:blocking_year_series].any? || gates[:blocking_continuous_tip].any? || gates[:blocking_continuous_anchor].any? || gates[:blocking_daily_tip].any? %>
-        <div class="freshness-panel">
-          <h3>Selected series blocking readiness</h3>
-          <ul class="status-list">
-            <% if gates[:blocking_year_series].any? %>
-              <li>
-                <span class="name">Missing ~1y daily</span>
-                <span class="meta"><%= gates[:blocking_year_series].join(", ") %></span>
-              </li>
-            <% end %>
-            <% if gates[:blocking_deep_series].any? %>
-              <li>
-                <span class="name">Missing ~3y daily</span>
-                <span class="meta"><%= gates[:blocking_deep_series].join(", ") %></span>
-              </li>
-            <% end %>
-            <% if gates[:blocking_continuous_tip].any? %>
-              <li>
-                <span class="name">Stale/missing continuous tip</span>
-                <span class="meta"><%= gates[:blocking_continuous_tip].join(", ") %></span>
-              </li>
-            <% end %>
-            <% if gates[:blocking_continuous_anchor].any? %>
-              <li>
-                <span class="name">Missing continuous ~35d anchor</span>
-                <span class="meta"><%= gates[:blocking_continuous_anchor].join(", ") %></span>
-              </li>
-            <% end %>
-            <% if gates[:blocking_daily_tip].any? %>
-              <li>
-                <span class="name">Stale/missing daily tip</span>
-                <span class="meta"><%= gates[:blocking_daily_tip].join(", ") %></span>
-              </li>
-            <% end %>
-          </ul>
-        </div>
-      <% end %>
-    </section>
-
-    <section class="admin-stats admin-inspector" aria-labelledby="admin-series-heading">
-      <div class="section-header">
-        <div>
-          <p class="eyebrow">Time series</p>
-          <h2 id="admin-series-heading">Coverage by series</h2>
-          <p class="section-lede">
-            Hourly table “Partial” means a coalesced hour is missing one of the measurement
-            columns from the snapshot (typically a selected kind with no IV sample in that hour).
-            Unselected series with leftover observations often explain “we used to have temperature.”
-          </p>
-        </div>
-      </div>
-
-      <% if @report[:series].blank? %>
-        <p class="hint">No time series rows for this station.</p>
-      <% else %>
-        <div class="table-wrap">
-          <table class="admin-table admin-table--coverage">
-            <thead>
+    <% if @report[:series].blank? %>
+      <p class="hint">No time series rows for this station.</p>
+    <% else %>
+      <div class="table-wrap">
+        <table class="admin-table admin-table--coverage">
+          <thead>
+            <tr>
+              <th scope="col">Series</th>
+              <th scope="col">Selected</th>
+              <th scope="col">Reporting</th>
+              <th scope="col">USGS daily</th>
+              <th scope="col">Latest tip</th>
+              <th scope="col">Continuous</th>
+              <th scope="col">Daily</th>
+              <th scope="col">Peaks</th>
+              <th scope="col">Gaps</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @report[:series].each do |series| %>
               <tr>
-                <th scope="col">Series</th>
-                <th scope="col">Selected</th>
-                <th scope="col">Reporting</th>
-                <th scope="col">USGS daily</th>
-                <th scope="col">Latest tip</th>
-                <th scope="col">Continuous</th>
-                <th scope="col">Daily</th>
-                <th scope="col">Peaks</th>
-                <th scope="col">Gaps</th>
+                <td>
+                  <strong><%= series[:label] %></strong>
+                  <span class="cell-hint"><%= series[:measurement_kind] %> · <%= series[:parameter_code] %><% if series[:primary_series] %> · primary<% end %></span>
+                  <span class="cell-hint">id=<%= series[:id] %> · <%= series[:usgs_time_series_id] %></span>
+                </td>
+                <td>
+                  <% if series[:selected] %>
+                    <span class="badge ok">yes</span>
+                  <% else %>
+                    <span class="badge">no</span>
+                  <% end %>
+                </td>
+                <td>
+                  <% if series[:reporting] %>
+                    <span class="badge ok">yes</span>
+                  <% else %>
+                    <span class="badge bad">no</span>
+                  <% end %>
+                </td>
+                <td>
+                  <% if series[:usgs_daily_absent] %>
+                    <span class="badge bad">absent</span>
+                  <% else %>
+                    <span class="badge ok">expected</span>
+                  <% end %>
+                </td>
+                <td>
+                  <% if series[:latest] %>
+                    <%= series[:latest][:value] %> <%= series[:latest][:unit_of_measure] %>
+                    <span class="cell-hint"><%= series[:latest][:observed_at]&.utc&.iso8601 %></span>
+                  <% else %>
+                    —
+                  <% end %>
+                </td>
+                <td>
+                  <%= number_with_delimiter(series[:continuous][:count]) %>
+                  <span class="cell-hint">
+                    <% if series[:continuous][:oldest_at] || series[:continuous][:newest_at] %>
+                      <%= series[:continuous][:oldest_at]&.utc&.to_date %> → <%= series[:continuous][:newest_at]&.utc&.to_date %>
+                    <% else %>
+                      none
+                    <% end %>
+                  </span>
+                </td>
+                <td>
+                  pg <%= number_with_delimiter(series[:daily][:postgres_count]) %>
+                  · shards <%= number_with_delimiter(series[:daily][:shard_count]) %>
+                  <span class="cell-hint">
+                    <% if series[:daily][:oldest_on] || series[:daily][:newest_on] %>
+                      <%= series[:daily][:oldest_on] %> → <%= series[:daily][:newest_on] %>
+                    <% else %>
+                      none
+                    <% end %>
+                  </span>
+                  <span class="cell-hint">
+                    ~1y <%= series[:daily][:has_year_anchor] ? "✓" : "✗" %>
+                    · ~3y <%= series[:daily][:has_deep_anchor] ? "✓" : "✗" %>
+                  </span>
+                </td>
+                <td><%= number_with_delimiter(series[:peaks_count]) %></td>
+                <td>
+                  <% if series[:gaps].empty? %>
+                    <span class="badge ok">none</span>
+                  <% else %>
+                    <% series[:gaps].each do |gap| %>
+                      <span class="badge bad"><%= gap %></span>
+                    <% end %>
+                  <% end %>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              <% @report[:series].each do |series| %>
-                <tr>
-                  <td>
-                    <strong><%= series[:label] %></strong>
-                    <span class="cell-hint"><%= series[:measurement_kind] %> · <%= series[:parameter_code] %><% if series[:primary_series] %> · primary<% end %></span>
-                    <span class="cell-hint">id=<%= series[:id] %> · <%= series[:usgs_time_series_id] %></span>
-                  </td>
-                  <td>
-                    <% if series[:selected] %>
-                      <span class="badge ok">yes</span>
-                    <% else %>
-                      <span class="badge">no</span>
-                    <% end %>
-                  </td>
-                  <td>
-                    <% if series[:reporting] %>
-                      <span class="badge ok">yes</span>
-                    <% else %>
-                      <span class="badge bad">no</span>
-                    <% end %>
-                  </td>
-                  <td>
-                    <% if series[:usgs_daily_absent] %>
-                      <span class="badge bad">absent</span>
-                    <% else %>
-                      <span class="badge ok">expected</span>
-                    <% end %>
-                  </td>
-                  <td>
-                    <% if series[:latest] %>
-                      <%= series[:latest][:value] %> <%= series[:latest][:unit_of_measure] %>
-                      <span class="cell-hint"><%= series[:latest][:observed_at]&.utc&.iso8601 %></span>
-                    <% else %>
-                      —
-                    <% end %>
-                  </td>
-                  <td>
-                    <%= number_with_delimiter(series[:continuous][:count]) %>
-                    <span class="cell-hint">
-                      <% if series[:continuous][:oldest_at] || series[:continuous][:newest_at] %>
-                        <%= series[:continuous][:oldest_at]&.utc&.to_date %> → <%= series[:continuous][:newest_at]&.utc&.to_date %>
-                      <% else %>
-                        none
-                      <% end %>
-                    </span>
-                  </td>
-                  <td>
-                    pg <%= number_with_delimiter(series[:daily][:postgres_count]) %>
-                    · shards <%= number_with_delimiter(series[:daily][:shard_count]) %>
-                    <span class="cell-hint">
-                      <% if series[:daily][:oldest_on] || series[:daily][:newest_on] %>
-                        <%= series[:daily][:oldest_on] %> → <%= series[:daily][:newest_on] %>
-                      <% else %>
-                        none
-                      <% end %>
-                    </span>
-                    <span class="cell-hint">
-                      ~1y <%= series[:daily][:has_year_anchor] ? "✓" : "✗" %>
-                      · ~3y <%= series[:daily][:has_deep_anchor] ? "✓" : "✗" %>
-                    </span>
-                  </td>
-                  <td><%= number_with_delimiter(series[:peaks_count]) %></td>
-                  <td>
-                    <% if series[:gaps].empty? %>
-                      <span class="badge ok">none</span>
-                    <% else %>
-                      <% series[:gaps].each do |gap| %>
-                        <span class="badge bad"><%= gap %></span>
-                      <% end %>
-                    <% end %>
-                  </td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
-      <% end %>
-    </section>
-  </main>
-
-  <%= render Footer::ThinComponent.new %>
-</div>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  </section>
+</main>

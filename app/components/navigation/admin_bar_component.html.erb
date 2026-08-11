@@ -1,0 +1,73 @@
+<header class="site-header admin-header" data-controller="mobile-nav">
+  <div class="inner">
+    <a href="<%= signed_in? ? admin_path : admin_login_path %>" aria-label="Admin home" class="brand">
+      <span class="mark" aria-hidden="true">
+        <svg fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zm0 18c-3.35 0-6-2.57-6-6.2 0-2.34 1.95-5.44 6-9.14 4.05 3.7 6 6.79 6 9.14 0 3.63-2.65 6.2-6 6.2z"></path>
+        </svg>
+      </span>
+      <span class="brand-text">
+        <span class="name">WaterLevels.org</span>
+        <span class="flavor">Admin</span>
+      </span>
+    </a>
+
+    <div class="admin-header-end">
+      <% if signed_in? %>
+        <nav class="desktop-nav" aria-label="Admin">
+          <% nav_items.each do |item| %>
+            <%= link_to item[:label], item[:path], class: "nav-link", **nav_link_attrs(item[:path]) %>
+          <% end %>
+        </nav>
+      <% end %>
+
+      <div class="header-actions">
+        <div class="admin-action-buttons<%= " is-always-visible" unless signed_in? %>">
+          <% if signed_in? %>
+            <%= button_to "Sign out",
+                  admin_logout_path,
+                  method: :delete,
+                  class: "admin-action-button admin-action-button--ghost",
+                  form: { data: { turbo: false }, class: "admin-action-form" } %>
+          <% end %>
+          <%= link_to "Return to site", root_path, class: "admin-action-button" %>
+        </div>
+
+        <% if signed_in? %>
+          <button
+            type="button"
+            class="menu-toggle"
+            data-mobile-nav-target="toggle"
+            data-action="mobile-nav#toggle"
+            aria-label="Open admin menu"
+            aria-expanded="false"
+            aria-controls="mobile-admin-nav"
+          >
+            <svg data-mobile-nav-target="openIcon" class="open-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+            </svg>
+            <svg data-mobile-nav-target="closeIcon" class="close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <% if signed_in? %>
+    <div class="mobile-panel" id="mobile-admin-nav" data-mobile-nav-target="panel">
+      <nav aria-label="Mobile admin">
+        <% nav_items.each do |item| %>
+          <%= link_to item[:label], item[:path], class: "nav-link", data: { action: "mobile-nav#close" }, **nav_link_attrs(item[:path]) %>
+        <% end %>
+        <%= button_to "Sign out",
+              admin_logout_path,
+              method: :delete,
+              class: "nav-link admin-mobile-sign-out",
+              form: { data: { turbo: false }, class: "admin-mobile-sign-out-form" } %>
+        <%= link_to "Return to site", root_path, class: "nav-link", data: { action: "mobile-nav#close" } %>
+      </nav>
+    </div>
+  <% end %>
+</header>

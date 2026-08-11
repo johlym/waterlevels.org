@@ -1,33 +1,24 @@
 <% content_for :title, "Admin sign in | WaterLevels.org" %>
-<% content_for :head do %>
-  <meta name="robots" content="noindex, nofollow">
-<% end %>
 
-<div class="app-shell">
-  <%= render Navigation::BarComponent.new %>
+<main id="main" class="page-main admin-login">
+  <div class="login-panel">
+    <p class="eyebrow">Operations</p>
+    <h1>Admin sign in</h1>
+    <p class="lede">Enter the dashboard password to view live ingestion health.</p>
 
-  <main id="main" class="page-main admin-login">
-    <div class="login-panel">
-      <p class="eyebrow">Operations</p>
-      <h1>Admin sign in</h1>
-      <p class="lede">Enter the dashboard password to view live ingestion health.</p>
+    <% if flash[:notice].present? %>
+      <div class="flash notice" role="status"><%= flash[:notice] %></div>
+    <% end %>
+    <% if flash[:alert].present? %>
+      <div class="flash alert" role="alert"><%= flash[:alert] %></div>
+    <% end %>
 
-      <% if flash[:notice].present? %>
-        <div class="flash notice" role="status"><%= flash[:notice] %></div>
-      <% end %>
-      <% if flash[:alert].present? %>
-        <div class="flash alert" role="alert"><%= flash[:alert] %></div>
-      <% end %>
-
-      <%= form_with url: admin_login_path, method: :post, class: "admin-login-form", data: { turbo: false } do |f| %>
-        <div class="field">
-          <%= label_tag :password, "Password" %>
-          <%= password_field_tag :password, nil, required: true, autofocus: true, autocomplete: "current-password", placeholder: "Dashboard password" %>
-        </div>
-        <%= f.submit "Sign in", class: "submit" %>
-      <% end %>
-    </div>
-  </main>
-
-  <%= render Footer::ThinComponent.new %>
-</div>
+    <%= form_with url: admin_login_path, method: :post, class: "admin-login-form", data: { turbo: false } do |f| %>
+      <div class="field">
+        <%= label_tag :password, "Password" %>
+        <%= password_field_tag :password, nil, required: true, autofocus: true, autocomplete: "current-password", placeholder: "Dashboard password" %>
+      </div>
+      <%= f.submit "Sign in", class: "submit" %>
+    <% end %>
+  </div>
+</main>

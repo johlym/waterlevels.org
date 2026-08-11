@@ -1,80 +1,66 @@
 <% content_for :title, "Inspect station | Admin | WaterLevels.org" %>
-<% content_for :head do %>
-  <meta name="robots" content="noindex, nofollow">
-<% end %>
 
-<div class="app-shell">
-  <%= render Navigation::BarComponent.new %>
-
-  <main id="main" class="page-main admin-dashboard">
-    <div class="admin-dashboard-chrome">
-      <div class="section-header">
-        <div>
-          <p class="eyebrow">Ops</p>
-          <h1 class="admin-title">Inspect station</h1>
-          <p class="section-lede">
-            Look up a site by USGS number or slug to see selected series, observation
-            coverage, history anchors, and why the gauge may still show Partial rows
-            or the full-year loading callout after backfill jobs run.
-          </p>
-        </div>
-        <div class="lede-link">
-          <%= link_to "← Dashboard", admin_path, class: "tool-link" %>
-          <span class="sep" aria-hidden="true">·</span>
-          <%= link_to "Sidekiq UI →", "/admin/sidekiq", class: "tool-link" %>
-        </div>
+<main id="main" class="page-main admin-dashboard">
+  <div class="admin-dashboard-chrome">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Ops</p>
+        <h1 class="admin-title">Inspect station</h1>
+        <p class="section-lede">
+          Look up a site by USGS number or slug to see selected series, observation
+          coverage, history anchors, and why the gauge may still show Partial rows
+          or the full-year loading callout after backfill jobs run.
+        </p>
       </div>
     </div>
+  </div>
 
-    <section class="admin-stats admin-inspector" aria-labelledby="admin-inspect-heading">
-      <h2 id="admin-inspect-heading" class="sr-only">Station lookup</h2>
+  <section class="admin-stats admin-inspector" aria-labelledby="admin-inspect-heading">
+    <h2 id="admin-inspect-heading" class="sr-only">Station lookup</h2>
 
-      <%= form_with url: admin_stations_path, method: :get, local: true, class: "admin-inspect-form" do %>
-        <label class="admin-inspect-label" for="admin-station-q">Site number or slug</label>
-        <div class="admin-inspect-row">
-          <input
-            id="admin-station-q"
-            name="q"
-            type="search"
-            value="<%= @query %>"
-            placeholder="08405200 or 08405200-pecos-river-…"
-            autocomplete="off"
-            class="admin-inspect-input"
-          >
-          <button type="submit" class="admin-inspect-submit">Inspect</button>
-        </div>
-      <% end %>
+    <%= form_with url: admin_stations_path, method: :get, local: true, class: "admin-inspect-form" do %>
+      <label class="admin-inspect-label" for="admin-station-q">Site number or slug</label>
+      <div class="admin-inspect-row">
+        <input
+          id="admin-station-q"
+          name="q"
+          type="search"
+          value="<%= @query %>"
+          placeholder="08405200 or 08405200-pecos-river-…"
+          autocomplete="off"
+          class="admin-inspect-input"
+        >
+        <button type="submit" class="admin-inspect-submit">Inspect</button>
+      </div>
+    <% end %>
 
-      <% if @query.present? && @matches&.any? %>
-        <div class="table-wrap admin-inspect-matches">
-          <table class="admin-table">
-            <thead>
+    <% if @query.present? && @matches&.any? %>
+      <div class="table-wrap admin-inspect-matches">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th scope="col">Site</th>
+              <th scope="col">Name</th>
+              <th scope="col">State</th>
+              <th scope="col">Kinds</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @matches.each do |loc| %>
               <tr>
-                <th scope="col">Site</th>
-                <th scope="col">Name</th>
-                <th scope="col">State</th>
-                <th scope="col">Kinds</th>
+                <td>
+                  <%= link_to loc.site_number, admin_station_path(loc.site_number), class: "station-link" %>
+                </td>
+                <td><%= loc.display_name %></td>
+                <td><%= loc.state_code.upcase %></td>
+                <td><%= loc.measurement_kinds.join(", ").presence || "—" %></td>
               </tr>
-            </thead>
-            <tbody>
-              <% @matches.each do |loc| %>
-                <tr>
-                  <td>
-                    <%= link_to loc.site_number, admin_station_path(loc.site_number), class: "station-link" %>
-                  </td>
-                  <td><%= loc.display_name %></td>
-                  <td><%= loc.state_code.upcase %></td>
-                  <td><%= loc.measurement_kinds.join(", ").presence || "—" %></td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
-      <% elsif @query.present? %>
-        <p class="hint admin-inspect-empty">No stations matched “<%= @query %>”.</p>
-      <% end %>
-    </section>
-  </main>
-
-  <%= render Footer::ThinComponent.new %>
-</div>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% elsif @query.present? %>
+      <p class="hint admin-inspect-empty">No stations matched “<%= @query %>”.</p>
+    <% end %>
+  </section>
+</main>

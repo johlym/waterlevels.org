@@ -7,6 +7,8 @@ module Admin
     RATE_LIMIT_TO = 10
     RATE_LIMIT_WITHIN = 3.minutes
 
+    layout "admin"
+
     before_action :ensure_dashboard_configured
     before_action :set_no_store_headers
     rate_limit to: RATE_LIMIT_TO,

@@ -2017,6 +2017,77 @@ body.dialog-open {
   }
 }
 
+/* —— Admin header —— */
+.admin-header {
+  @apply border-red-950/60 bg-zinc-950/95;
+
+  .brand {
+    .mark {
+      @apply bg-linear-to-br from-red-500 to-rose-700;
+    }
+
+    .brand-text {
+      @apply flex flex-col leading-none sm:flex-row sm:items-baseline sm:gap-2;
+    }
+
+    .name {
+      @apply text-white;
+    }
+
+    .flavor {
+      @apply font-display text-xs font-semibold tracking-[0.18em] text-red-400 uppercase sm:text-sm sm:tracking-[0.14em];
+    }
+  }
+
+  .admin-header-end {
+    @apply flex items-center gap-4 md:gap-8;
+  }
+
+  .desktop-nav {
+    @apply hidden items-center gap-6 md:flex;
+  }
+
+  .header-actions {
+    @apply flex items-center gap-2 md:flex;
+  }
+
+  .admin-action-buttons {
+    @apply hidden items-center gap-2 md:flex;
+
+    &.is-always-visible {
+      @apply flex;
+    }
+  }
+
+  .admin-action-form {
+    @apply m-0 inline;
+  }
+
+  .admin-action-button {
+    @apply inline-flex items-center justify-center rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white no-underline transition-colors hover:bg-red-500;
+
+    &--ghost {
+      @apply border border-zinc-700 bg-transparent text-zinc-200 hover:border-zinc-500 hover:bg-zinc-900 hover:text-white;
+    }
+  }
+
+  .menu-toggle {
+    @apply md:hidden;
+  }
+
+  .admin-mobile-sign-out-form {
+    @apply m-0;
+  }
+
+  .admin-mobile-sign-out {
+    @apply w-full cursor-pointer border-0 bg-transparent text-left font-sans;
+  }
+}
+
+.admin-header .nav-link[aria-current="page"] {
+  @apply text-red-300;
+}
+
 /* —— Admin login —— */
 .admin-login {
   @apply flex items-start justify-center py-16 md:py-24;
@@ -2026,7 +2097,7 @@ body.dialog-open {
   }
 
   .eyebrow {
-    @apply mb-2 text-sm font-semibold tracking-wider text-cyan-400 uppercase;
+    @apply mb-2 text-sm font-semibold tracking-wider text-red-400 uppercase;
   }
 
   h1 {
@@ -2054,17 +2125,17 @@ body.dialog-open {
   }
 
   input {
-    @apply w-full rounded-lg border border-zinc-800 bg-zinc-950/80 px-4 py-3 text-base text-white outline-none transition-all placeholder:text-zinc-400 focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 sm:text-sm;
+    @apply w-full rounded-lg border border-zinc-800 bg-zinc-950/80 px-4 py-3 text-base text-white outline-none transition-all placeholder:text-zinc-400 focus:border-red-500/50 focus:ring-2 focus:ring-red-500/10 sm:text-sm;
   }
 
   .submit {
-    @apply flex w-full cursor-pointer items-center justify-center rounded-lg bg-linear-to-r from-cyan-500 to-blue-500 px-6 py-3.5 text-sm font-semibold text-zinc-950 transition-all hover:brightness-110 active:scale-[0.99];
+    @apply flex w-full cursor-pointer items-center justify-center rounded-lg bg-linear-to-r from-red-500 to-rose-600 px-6 py-3.5 text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.99];
   }
 }
 
 /* —— Admin dashboard —— */
 .admin-dashboard .tool-link {
-  @apply text-sm font-medium text-cyan-400 no-underline transition-colors hover:text-cyan-300;
+  @apply text-sm font-medium text-red-400 no-underline transition-colors hover:text-red-300;
 }
 
 .admin-dashboard .tool-button {
@@ -2094,11 +2165,15 @@ body.dialog-open {
     }
 
     .eyebrow {
-      @apply mb-2 text-sm font-semibold tracking-wider text-cyan-400 uppercase;
+      @apply mb-2 text-sm font-semibold tracking-wider text-red-400 uppercase;
     }
 
     .admin-title {
       @apply font-display text-3xl font-semibold text-white;
+    }
+
+    .section-lede {
+      @apply mt-3 max-w-3xl text-sm leading-relaxed text-zinc-400;
     }
   }
 
@@ -2112,7 +2187,7 @@ body.dialog-open {
     }
 
     .eyebrow {
-      @apply mb-2 text-sm font-semibold tracking-wider text-cyan-400 uppercase;
+      @apply mb-2 text-sm font-semibold tracking-wider text-red-400 uppercase;
     }
 
     .section-lede {
@@ -2208,7 +2283,7 @@ body.dialog-open {
     }
 
     .station-link {
-      @apply text-white no-underline transition-colors hover:text-cyan-300;
+      @apply text-white no-underline transition-colors hover:text-red-300;
     }
 
     .label {
@@ -2340,7 +2415,7 @@ body.dialog-open {
     }
 
     .station-link {
-      @apply text-zinc-100 no-underline transition-colors hover:text-cyan-300;
+      @apply text-zinc-100 no-underline transition-colors hover:text-red-300;
     }
 
     &--coverage {
@@ -2428,7 +2503,7 @@ body.dialog-open {
       @apply mt-3 max-w-3xl text-sm leading-relaxed text-zinc-400;
 
       code {
-        @apply rounded bg-zinc-800/80 px-1.5 py-0.5 font-mono text-xs text-cyan-300;
+        @apply rounded bg-zinc-800/80 px-1.5 py-0.5 font-mono text-xs text-red-300;
       }
 
       em {
@@ -2466,11 +2541,11 @@ body.dialog-open {
   }
 
   .admin-inspect-input {
-    @apply w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-white outline-none ring-cyan-500/40 placeholder:text-zinc-400 focus:border-cyan-500 focus:ring-2;
+    @apply w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-white outline-none ring-red-500/40 placeholder:text-zinc-400 focus:border-red-500 focus:ring-2;
   }
 
   .admin-inspect-submit {
-    @apply cursor-pointer rounded-lg bg-cyan-500 px-5 py-3 text-sm font-semibold text-zinc-950 transition-colors hover:bg-cyan-400;
+    @apply cursor-pointer rounded-lg bg-red-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-500;
   }
 
   .admin-inspect-matches {

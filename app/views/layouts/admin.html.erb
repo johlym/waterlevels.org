@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title><%= content_for?(:title) ? yield(:title) : "Admin | WaterLevels.org" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <% if content_for?(:meta_description) %>
+      <meta name="description" content="<%= yield(:meta_description) %>">
+    <% end %>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <%= csrf_meta_tags if csrf_meta_tags_enabled? %>
+    <%= csp_meta_tag %>
+    <meta name="turbo-cache-control" content="no-cache">
+    <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
+    <%= javascript_include_tag "application", "data-turbo-track": "reload", type: "module" %>
+    <script src="https://kit.fontawesome.com/6f9cca9c2b.js" crossorigin="anonymous"></script>
+    <%= yield :head %>
+  </head>
+  <body class="admin-body">
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <div class="app-shell">
+      <%= render Navigation::AdminBarComponent.new(signed_in: Admin::Auth.signed_in?(session)) %>
+      <%= yield %>
+      <%= render Footer::ThinComponent.new %>
+    </div>
+  </body>
+</html>

@@ -38,13 +38,16 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.headers["Cache-Control"], "no-store"
     assert_includes response.body, "Dashboard"
-    assert_includes response.body, "Inspect station"
+    assert_includes response.body, "Admin"
+    assert_includes response.body, "Inspect"
     assert_includes response.body, admin_stations_path
-    assert_includes response.body, "Sidekiq UI"
+    assert_includes response.body, "Sidekiq"
     assert_includes response.body, "/admin/sidekiq"
     assert_includes response.body, "Sign out"
+    assert_includes response.body, "Return to site"
     assert_includes response.body, 'name="robots"'
     assert_includes response.body, "noindex, nofollow"
+    refute_includes response.body, "cdn.usefathom.com"
     assert_includes response.body, "Loading…"
     assert_includes response.body, 'data-controller="admin-sections"'
 
@@ -114,7 +117,7 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "history_continuous"
     assert_includes response.body, "history_daily"
     assert_includes response.body, "history_peaks"
-    assert_includes response.body, "Sidekiq UI"
+    assert_includes response.body, "Sidekiq"
   end
 
   test "health section renders when cached stats omit usgs_keys" do
