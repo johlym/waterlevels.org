@@ -1,32 +1,25 @@
 namespace :nwps do
-  desc "Sync NWS NWPS flood stages and categories (optional STATE=wa)"
+  desc "Sync NWS NWPS flood stages and categories (requires STATE=wa, or omit to enqueue all states)"
   task sync_flood_stages: :environment do
-    state = ENV["STATE"]
-    progress = SyncProgress.new("nwps:sync_flood_stages")
-    FloodStageSync.new(state: state, progress: progress).perform
+    if ENV["STATE"].present?
+      state = Usgs::StateCodes.normalize_postal(ENV["STATE"])
+      progress = SyncProgress.new("nwps:sync_flood_stages[#{state}]")
+      FloodStageSync.new(state: state, progress: progress).perform
+    else
+      puts "STATE not set — enqueuing per-state FloodStageSyncJob via FloodStageSyncBatchJob"
+      FloodStageSyncBatchJob.perform_later
+    end
   end
 
-  desc "Enqueue staggered per-state flood stage sync jobs (optional STATE=wa, DELAY_SECONDS=30)"
+  desc "Enqueue per-state flood stage sync jobs (optional STATE=wa). Jobs self-pace to ≥31s each."
   task enqueue_sync: :environment do
-    delay = ENV.fetch("DELAY_SECONDS", "30").to_i
-    delay = 0 if delay.negative?
-
-    states = if ENV["STATE"].present?
-      [ Usgs::StateCodes.normalize_postal(ENV["STATE"]) ]
+    if ENV["STATE"].present?
+      state = Usgs::StateCodes.normalize_postal(ENV["STATE"])
+      FloodStageSyncJob.perform_later(state)
+      puts "Enqueued FloodStageSyncJob state=#{state}"
     else
-      Usgs::StateCodes::STATES.keys.sort
+      count = FloodStageSyncBatchJob.perform_now
+      puts "Enqueued #{count} FloodStageSyncJob(s) via FloodStageSyncBatchJob"
     end
-
-    states.each_with_index do |state, index|
-      wait = index * delay
-      if wait.positive?
-        FloodStageSyncJob.set(wait: wait.seconds).perform_later(state)
-      else
-        FloodStageSyncJob.perform_later(state)
-      end
-    end
-
-    puts "Enqueued #{states.size} FloodStageSyncJob(s) delay_seconds=#{delay}"
-    puts "States: #{states.join(", ")}"
   end
 end
