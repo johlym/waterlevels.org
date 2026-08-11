@@ -51,6 +51,33 @@ namespace :usgs do
     puts "States: #{states.join(", ")}"
   end
 
+  desc "Backfill continuous tip/prev/anchor columns on time_series (optional STATE=wa LIMIT=n BATCH=500)"
+  task backfill_continuous_coverage: :environment do
+    batch_size = ENV.fetch("BATCH", "500").to_i
+    batch_size = 500 if batch_size <= 0
+    limit = ENV["LIMIT"]&.to_i
+
+    scope = TimeSeries.order(:id)
+    if ENV["STATE"].present?
+      state = Usgs::StateCodes.normalize_postal(ENV["STATE"])
+      scope = scope.joins(:monitoring_location).merge(MonitoringLocation.in_state(state))
+    end
+    scope = scope.limit(limit) if limit&.positive?
+
+    total = scope.count
+    progress = SyncProgress.new("usgs:backfill_continuous_coverage")
+    progress.step("series=#{total} batch=#{batch_size}#{" state=#{ENV['STATE']}" if ENV['STATE'].present?}")
+
+    updated = 0
+    scope.in_batches(of: batch_size) do |batch|
+      ids = batch.pluck(:id)
+      updated += TimeSeries.refresh_continuous_coverage!(ids)
+      progress.step("refreshed ids through=#{ids.last} batch_size=#{ids.size}")
+    end
+
+    progress.finish("series=#{total} rows_touched=#{updated}")
+  end
+
   desc "Backfill history for locations (STATE=wa RANGE=7d, optional LIMIT=n)"
   task backfill: :environment do
     state = ENV.fetch("STATE") { raise "STATE is required, e.g. STATE=wa bin/rails usgs:backfill" }

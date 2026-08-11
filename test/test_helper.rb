@@ -48,6 +48,8 @@ module ActiveSupport
         t += step
       end
       ContinuousObservation.insert_all(rows) if rows.any?
+      TimeSeries.refresh_continuous_coverage!([ series.id ])
+      series.reload
     end
   end
 end

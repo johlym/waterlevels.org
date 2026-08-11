@@ -290,6 +290,10 @@ class LatestObservationSync
         unique_by: %i[time_series_id observed_at],
         update_only: %i[value approval_status qualifier]
       )
+      tips = continuous_rows.each_with_object({}) { |row, hash|
+        hash[row[:time_series_id]] = row[:observed_at]
+      }
+      TimeSeries.advance_continuous_tips!(tips)
       continuous_buffer.clear
     end
   end
