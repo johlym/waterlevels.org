@@ -12,7 +12,7 @@ class TimeSeriesContinuousCoverageTest < ActiveSupport::TestCase
     )
   end
 
-  test "refresh_continuous_coverage! sets newest prev and anchor from observations" do
+  test "refresh_continuous_coverage! sets newest prev anchor and max gap from observations" do
     travel_to Time.zone.parse("2026-08-11 12:00:00") do
       older = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago - 1.day
       prev = 3.hours.ago
@@ -28,6 +28,7 @@ class TimeSeriesContinuousCoverageTest < ActiveSupport::TestCase
       assert_in_delta newest.to_i, @series.continuous_newest_at.to_i, 1
       assert_in_delta prev.to_i, @series.continuous_prev_at.to_i, 1
       assert @series.has_continuous_anchor?
+      assert_operator @series.continuous_max_gap_seconds, :>, HistoryIngestion::CONTINUOUS_GAP_THRESHOLD.to_i
     end
   end
 
@@ -35,7 +36,8 @@ class TimeSeriesContinuousCoverageTest < ActiveSupport::TestCase
     @series.update_columns(
       continuous_newest_at: 1.hour.ago,
       continuous_prev_at: 2.hours.ago,
-      has_continuous_anchor: true
+      has_continuous_anchor: true,
+      continuous_max_gap_seconds: 9_999
     )
 
     TimeSeries.refresh_continuous_coverage!([ @series.id ])
@@ -44,19 +46,25 @@ class TimeSeriesContinuousCoverageTest < ActiveSupport::TestCase
     assert_nil @series.continuous_newest_at
     assert_nil @series.continuous_prev_at
     refute @series.has_continuous_anchor?
+    assert_equal 0, @series.continuous_max_gap_seconds
   end
 
-  test "advance_continuous_tips! shifts prev when tip moves forward" do
+  test "advance_continuous_tips! shifts prev and raises max gap on tip jump" do
     travel_to Time.zone.parse("2026-08-11 12:00:00") do
-      first = 2.hours.ago
+      first = 5.hours.ago
       second = 30.minutes.ago
-      @series.update_columns(continuous_newest_at: first, continuous_prev_at: nil)
+      @series.update_columns(
+        continuous_newest_at: first,
+        continuous_prev_at: nil,
+        continuous_max_gap_seconds: 3_600
+      )
 
       TimeSeries.advance_continuous_tips!(@series.id => second)
       @series.reload
 
       assert_in_delta second.to_i, @series.continuous_newest_at.to_i, 1
       assert_in_delta first.to_i, @series.continuous_prev_at.to_i, 1
+      assert_operator @series.continuous_max_gap_seconds, :>=, 4.hours.to_i
     end
   end
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_11_050100) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_11_193000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -142,6 +142,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_11_050100) do
 
   create_table "time_series", force: :cascade do |t|
     t.datetime "begins_at"
+    t.integer "continuous_max_gap_seconds"
     t.datetime "continuous_newest_at"
     t.datetime "continuous_prev_at"
     t.datetime "created_at", null: false
@@ -161,6 +162,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_11_050100) do
     t.datetime "updated_at", null: false
     t.boolean "usgs_daily_absent", default: false, null: false
     t.string "usgs_time_series_id", null: false
+    t.index ["continuous_max_gap_seconds"], name: "index_time_series_selected_anchored_on_max_gap", where: "((selected_for_display = true) AND (has_continuous_anchor = true))"
     t.index ["monitoring_location_id", "measurement_kind", "selected_for_display"], name: "index_time_series_on_location_kind_selected"
     t.index ["monitoring_location_id"], name: "index_time_series_selected_on_location", where: "(selected_for_display = true)"
     t.index ["usgs_time_series_id"], name: "index_time_series_on_usgs_time_series_id", unique: true

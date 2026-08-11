@@ -30,6 +30,14 @@
       cron: "35 * * * 1-6"
       class: IvRepairBatchJob
       queue: iv_repair
+    iv_repair_scar_batch:
+      # Mon–Sat hourly interior-scar catch-up on USGS_API_HISTORY_IVREPAIR2_KEY.
+      # Deeper holes across ~35d continuous retention with a healthy tip.
+      # Isolated from tip IV repair so scar traffic cannot 429 key1.
+      # Drained by iv_repair_scar_worker.
+      cron: "50 * * * 1-6"
+      class: IvRepairScarBatchJob
+      queue: iv_repair_scar
     history_backfill_batch:
       # Mon–Sat only; Sunday is reserved for StationCatalogSyncJob.
       # HistoryBackfillJob also no-ops on Sunday as a safety net.

@@ -124,9 +124,8 @@ class MonitoringLocationTest < ActiveSupport::TestCase
   end
 
   test "needing_iv_repair tip-sync gap check ignores older interior holes" do
-    # Dense tip adjacency with an older hole further back. Batch only compares
-    # tip vs previous point; per-station needs_history_backfill? still sees the
-    # older hole for lazy enqueue / ingest.
+    # Dense tip adjacency with an older hole further back — tip lane ignores it;
+    # scar lane (key2) picks it up via continuous_max_gap_seconds.
     location = create(:monitoring_location, site_number: "20000007")
     series = create(:time_series, monitoring_location: location, selected_for_display: true)
 
@@ -145,9 +144,11 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
 
     refute_includes MonitoringLocation.needing_iv_repair.pluck(:id), location.id
+    assert_includes MonitoringLocation.needing_iv_scar_repair.pluck(:id), location.id
     refute_includes MonitoringLocation.needing_history_backfill.pluck(:id), location.id
     assert location.needs_history_backfill?
     refute location.needs_iv_repair?
+    assert location.needs_iv_scar_repair?
   end
 
   test "needs_history_backfill? is false without selected series" do

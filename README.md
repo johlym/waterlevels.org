@@ -49,7 +49,7 @@ STATE=wa RANGE=1y LIMIT=25 bin/rails usgs:backfill
 STATE=wa RANGE=3y LIMIT=25 bin/rails usgs:backfill
 ```
 
-Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_IV_REPAIR_BATCH` (default `50` stations per catch-up tick for recent IV gap repair), `HISTORY_BACKFILL_BATCH` (default `50` stations per cron tick for cold `1y` work), `HISTORY_DEEP_BACKFILL_BATCH` (default `400` stations for `3y` deep fills; set `0` to pause). History pins one USGS key per purpose (`USGS_API_HISTORY_CONTINUOUS_KEY` / `_DAILY_KEY` / `_PEAKS_KEY` / `_IVREPAIR_KEY`) and opens that purpose’s circuit on a 429 for the rest of the UTC hour. Tip sync enqueues `IvRepairJob` when a new tip jumps more than 2h past the previous continuous point; the catch-up sweeper (`IvRepairBatchJob`) runs Mon–Sat hourly at `:35` on `iv_repair` → `iv_repair_worker`. Cold/year backlog (`HistoryBackfillBatchJob`) runs Mon–Sat every 10 minutes on `backfill` → `historical_worker`. Circuit state per key is on `/admin`.
+Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_IV_REPAIR_BATCH` / `HISTORY_IV_SCAR_BATCH` (default `50` stations per catch-up tick), `HISTORY_BACKFILL_BATCH` (default `50` stations per cron tick for cold `1y` work), `HISTORY_DEEP_BACKFILL_BATCH` (default `400` stations for `3y` deep fills; set `0` to pause). History pins one USGS key per purpose (`USGS_API_HISTORY_CONTINUOUS_KEY` / `_DAILY_KEY` / `_PEAKS_KEY` / `_IVREPAIR_KEY` / `_IVREPAIR2_KEY`) and opens that purpose’s circuit on a 429 for the rest of the UTC hour. Tip sync enqueues `IvRepairJob` when a new tip jumps more than 2h past the previous continuous point; tip catch-up (`IvRepairBatchJob`) runs Mon–Sat hourly at `:35` on `iv_repair` → `iv_repair_worker`. Interior scar catch-up (`IvRepairScarBatchJob`) runs Mon–Sat hourly at `:50` on `iv_repair_scar` → `iv_repair_scar_worker` using `_IVREPAIR2_KEY` across the ~35d continuous window. Cold/year backlog (`HistoryBackfillBatchJob`) runs Mon–Sat every 10 minutes on `backfill` → `historical_worker`. Circuit state per key is on `/admin`.
 
 See `doc/postgres-r2-daily-archive.md` (current R2-first retention), `doc/plan-3y-daily-history.md` (historical 3y plan), and `doc/future.md` (hourly POR) for retention tiers and longer-history notes.
 
@@ -77,7 +77,7 @@ bin/rails test
 
 ## Heroku
 
-- Dynos: `web`, `worker` (default queue + scheduler), `sync_worker` (`sync` queue), `iv_repair_worker` (`iv_repair` queue), `historical_worker` (`backfill` queue)
+- Dynos: `web`, `worker` (default queue + scheduler), `sync_worker` (`sync` queue), `iv_repair_worker` (`iv_repair` queue), `iv_repair_scar_worker` (`iv_repair_scar` queue), `historical_worker` (`backfill` queue)
 - Add-ons: Postgres, Redis
 - Set `USGS_API_KEY` (tip/catalog), optional `USGS_API_HISTORY_CONTINUOUS_KEY` / `USGS_API_HISTORY_DAILY_KEY` / `USGS_API_HISTORY_PEAKS_KEY` (purpose-pinned history backfill), `REDIS_URL`, `DATABASE_URL`, `APP_HOST`, `SENTRY_DSN`; optional `CLOUDFLARE_ZONE_ID` + `CLOUDFLARE_API_TOKEN` for post-sync Cache-Tag purge; optional `CLOUDFLARE_R2_*` for the yearly daily-means archive ([`doc/postgres-r2-daily-archive.md`](doc/postgres-r2-daily-archive.md))
 - Enable [runtime dyno metadata](https://devcenter.heroku.com/articles/dyno-metadata) so `HEROKU_RELEASE_VERSION` is available; Sentry uses it as the release and tags environment as `production`

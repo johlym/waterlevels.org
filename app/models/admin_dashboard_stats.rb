@@ -15,13 +15,16 @@ class AdminDashboardStats
     prune: "admin:last_prune",
     daily_archive_export: "admin:last_daily_archive_export",
     iv_repair_batch: "admin:last_iv_repair_batch",
-    iv_repair: "admin:last_iv_repair"
+    iv_repair: "admin:last_iv_repair",
+    iv_repair_scar_batch: "admin:last_iv_repair_scar_batch",
+    iv_repair_scar: "admin:last_iv_repair_scar"
   }.freeze
   # Last successful IV-repair eligibility scan size. Kept separate from
   # iv_repair_batch job-finish so skipped runs (circuit/queue/Sunday) do not
   # wipe the pipeline "Need IV repair" figure — and so /admin never re-runs
   # MonitoringLocation.iv_repair_candidate_ids (tip_sync_gap + continuous scans).
   IV_REPAIR_CANDIDATES_CACHE_KEY = "admin:iv_repair_candidates".freeze
+  IV_SCAR_CANDIDATES_CACHE_KEY = "admin:iv_scar_candidates".freeze
   TIP_REFRESH_TTL = 7.days
   APPROX_COUNT_THRESHOLD = SiteStats::APPROX_COUNT_THRESHOLD
   SECTIONS = %i[core pipeline growth jobs states health].freeze
@@ -33,7 +36,7 @@ class AdminDashboardStats
   BACKFILL_RACE_TTL = 30.seconds
   # Bump when a section payload shape changes so deploys do not serve stale
   # hashes that crash the matching partial (Turbo then shows "Content missing").
-  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v7".freeze
+  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v8".freeze
   SECTION_TTL = 2.minutes
   SECTION_RACE_TTL = 15.seconds
   REDIS_SCAN_MAX_ITERATIONS = 50
@@ -85,6 +88,9 @@ class AdminDashboardStats
       if name.to_sym == :iv_repair_batch && extra.key?(:candidates)
         record_iv_repair_candidates!(extra[:candidates], scanned_at: finished_at)
       end
+      if name.to_sym == :iv_repair_scar_batch && extra.key?(:candidates)
+        record_iv_scar_candidates!(extra[:candidates], scanned_at: finished_at)
+      end
       payload
     end
 
@@ -98,8 +104,22 @@ class AdminDashboardStats
       )
     end
 
+    def record_iv_scar_candidates!(count, scanned_at: Time.current)
+      write_job_payload(
+        IV_SCAR_CANDIDATES_CACHE_KEY,
+        {
+          count: count.to_i,
+          scanned_at: scanned_at.iso8601
+        }
+      )
+    end
+
     def last_iv_repair_candidates_payload
       redis_read_job(IV_REPAIR_CANDIDATES_CACHE_KEY) || memory_jobs[IV_REPAIR_CANDIDATES_CACHE_KEY]
+    end
+
+    def last_iv_scar_candidates_payload
+      redis_read_job(IV_SCAR_CANDIDATES_CACHE_KEY) || memory_jobs[IV_SCAR_CANDIDATES_CACHE_KEY]
     end
 
     # Candidate station count from the last completed eligibility scan.
@@ -125,6 +145,26 @@ class AdminDashboardStats
       nil
     end
 
+    def last_iv_scar_candidates
+      payload = last_iv_scar_candidates_payload
+      return payload[:count].to_i if payload&.key?(:count)
+
+      batch = last_job(:iv_repair_scar_batch) || {}
+      return batch[:candidates].to_i if batch.key?(:candidates)
+
+      nil
+    end
+
+    def last_iv_scar_candidates_scanned_at
+      payload = last_iv_scar_candidates_payload
+      return parse_cached_time(payload[:scanned_at]) if payload&.key?(:scanned_at)
+
+      batch = last_job(:iv_repair_scar_batch) || {}
+      return parse_cached_time(batch[:finished_at]) if batch.key?(:candidates)
+
+      nil
+    end
+
     def last_tip_refresh
       last_job(:tip_refresh)
     end
@@ -140,7 +180,9 @@ class AdminDashboardStats
 
     def clear_jobs!
       self.memory_jobs = {}
-      redis_with_rescue { |r| r.del(*JOB_CACHE_KEYS.values, IV_REPAIR_CANDIDATES_CACHE_KEY) }
+      redis_with_rescue { |r|
+        r.del(*JOB_CACHE_KEYS.values, IV_REPAIR_CANDIDATES_CACHE_KEY, IV_SCAR_CANDIDATES_CACHE_KEY)
+      }
     end
 
     def parse_cached_time(value)
@@ -275,6 +317,8 @@ class AdminDashboardStats
       # Last batch eligibility scan — never live needing_iv_repair / tip_sync_gap.
       stations_needing_iv_repair: self.class.last_iv_repair_candidates.to_i,
       iv_repair_candidates_scanned_at: self.class.last_iv_repair_candidates_scanned_at,
+      stations_needing_iv_scar_repair: self.class.last_iv_scar_candidates.to_i,
+      iv_scar_candidates_scanned_at: self.class.last_iv_scar_candidates_scanned_at,
       stale_station_count: active_count - MonitoringLocation.active.not_stale.count,
       flood_alert_count: site[:flood_alert_count],
       nwps_matched_count: MonitoringLocation.active.where(nwps_matched: true).count,
@@ -302,6 +346,8 @@ class AdminDashboardStats
     archive_export = self.class.last_job(:daily_archive_export) || {}
     iv_repair_batch = self.class.last_job(:iv_repair_batch) || {}
     iv_repair = self.class.last_job(:iv_repair) || {}
+    iv_scar_batch = self.class.last_job(:iv_repair_scar_batch) || {}
+    iv_scar = self.class.last_job(:iv_repair_scar) || {}
 
     {
       last_tip_refresh_finished_at: parse_time(tip[:finished_at]),
@@ -332,7 +378,18 @@ class AdminDashboardStats
       last_iv_repair_site_number: iv_repair[:site_number],
       last_iv_repair_continuous_upserted: iv_repair[:continuous_upserted].to_i,
       last_iv_repair_still_needs: iv_repair[:still_needs],
-      last_iv_repair_elapsed_s: iv_repair[:elapsed_s]
+      last_iv_repair_elapsed_s: iv_repair[:elapsed_s],
+      last_iv_scar_batch_at: parse_time(iv_scar_batch[:finished_at]),
+      last_iv_scar_batch_enqueued: iv_scar_batch[:enqueued].to_i,
+      last_iv_scar_batch_candidates: iv_scar_batch[:candidates].to_i,
+      last_iv_scar_batch_skip_reason: iv_scar_batch[:skip_reason],
+      last_iv_scar_batch_workers: iv_scar_batch[:workers],
+      last_iv_scar_batch_queue_depth_after: iv_scar_batch[:queue_depth_after],
+      last_iv_scar_at: parse_time(iv_scar[:finished_at]),
+      last_iv_scar_site_number: iv_scar[:site_number],
+      last_iv_scar_continuous_upserted: iv_scar[:continuous_upserted].to_i,
+      last_iv_scar_still_needs: iv_scar[:still_needs],
+      last_iv_scar_elapsed_s: iv_scar[:elapsed_s]
     }
   end
 
@@ -588,7 +645,9 @@ class AdminDashboardStats
       queues: queues,
       workers_by_queue: workers_by_queue,
       iv_repair_queue_depth: queues["iv_repair"].to_i,
-      iv_repair_workers: workers_by_queue["iv_repair"].to_i
+      iv_repair_workers: workers_by_queue["iv_repair"].to_i,
+      iv_repair_scar_queue_depth: queues["iv_repair_scar"].to_i,
+      iv_repair_scar_workers: workers_by_queue["iv_repair_scar"].to_i
     }
   rescue StandardError => e
     { error: e.message }
