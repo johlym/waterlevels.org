@@ -71,16 +71,13 @@ class HistoryIngestionTest < ActiveSupport::TestCase
     stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/peaks/items})
       .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
 
-    previous = HistoryIngestion::CONTINUOUS_UPSERT_BATCH
-    HistoryIngestion.send(:remove_const, :CONTINUOUS_UPSERT_BATCH)
-    HistoryIngestion.const_set(:CONTINUOUS_UPSERT_BATCH, 5)
+    AppConfig.write!(:continuous_upsert_batch, 5)
 
     HistoryIngestion.new(monitoring_location: @location, range: "7d").perform
     assert_equal 12, @series.continuous_observations.count
     assert_in_delta 511.0, @series.continuous_observations.order(:observed_at).last.value, 0.001
   ensure
-    HistoryIngestion.send(:remove_const, :CONTINUOUS_UPSERT_BATCH)
-    HistoryIngestion.const_set(:CONTINUOUS_UPSERT_BATCH, previous)
+    AppConfig.reset!(:continuous_upsert_batch)
   end
 
   test "continuous ingest dedupes duplicate timestamps before upsert_all" do

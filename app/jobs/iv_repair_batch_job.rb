@@ -57,6 +57,9 @@ class IvRepairBatchJob < ApplicationJob
       )
     end
 
+    unless AppConfig.boolean?(:iv_repair_enabled)
+      return finish_skipped!("disabled_by_settings", started, queue_depth: queue_depth, workers: worker_count)
+    end
     if IvRepairJob.paused_for_catalog_sync?
       return finish_skipped!("sunday_catalog_sync", started, queue_depth: queue_depth, workers: worker_count)
     end
@@ -160,7 +163,7 @@ class IvRepairBatchJob < ApplicationJob
     return limit.to_i if !limit.nil?
     return 0 unless Usgs::HistoryKeyPool.iv_repair_available?
 
-    per_tick = ENV.fetch("HISTORY_IV_REPAIR_BATCH", DEFAULT_BATCH.to_s).to_i
+    per_tick = AppConfig.integer(:history_iv_repair_batch)
     per_tick = DEFAULT_BATCH if per_tick <= 0
     [ per_tick, theoretical_ceiling ].min
   end
@@ -175,10 +178,7 @@ class IvRepairBatchJob < ApplicationJob
   end
 
   def queue_busy_threshold
-    ENV.fetch(
-      "HISTORY_IV_REPAIR_QUEUE_BUSY",
-      DEFAULT_QUEUE_BUSY_THRESHOLD.to_s
-    ).to_i
+    AppConfig.integer(:history_iv_repair_queue_busy)
   end
 
   def iv_repair_queue_busy?(depth = nil)

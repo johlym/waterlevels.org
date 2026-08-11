@@ -107,7 +107,7 @@ class FloodStageSync
   end
 
   def detail_request_budget
-    ENV.fetch("NWPS_DETAIL_REQUEST_BUDGET", DEFAULT_DETAIL_REQUEST_BUDGET.to_s).to_i
+    AppConfig.integer(:nwps_detail_request_budget)
   end
 
   def consume_detail_request!

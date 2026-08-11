@@ -17,6 +17,10 @@ class AlertsListingCache
     Rails.cache.read(CACHE_KEY)
   end
 
+  def self.clear!
+    Rails.cache.delete(CACHE_KEY)
+  end
+
   def self.warm
     rows = MonitoringLocation.flood_alert
       .order(Arel.sql("LOWER(state_code) ASC, #{SEVERITY_ORDER_SQL}, LOWER(display_name) ASC"))

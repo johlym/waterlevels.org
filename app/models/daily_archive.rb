@@ -19,20 +19,18 @@ module DailyArchive
   end
 
   def reads_enabled?
-    configured? && env_flag?("DAILY_ARCHIVE_READS")
+    configured? && AppConfig.boolean?(:daily_archive_reads)
   end
 
   def prune_enabled?
-    configured? && env_flag?("DAILY_ARCHIVE_PRUNE")
+    configured? && AppConfig.boolean?(:daily_archive_prune)
   end
 
   # When enabled, ingest writes dailies to the archive only (not Postgres).
-  # Name kept for env compatibility; set DAILY_ARCHIVE_DUAL_WRITE=0 to pause archive writes.
+  # Name kept for env compatibility; set DAILY_ARCHIVE_DUAL_WRITE=0 (or admin
+  # override) to pause archive writes.
   def dual_write_enabled?
-    return false unless configured?
-
-    value = ENV["DAILY_ARCHIVE_DUAL_WRITE"]
-    value.nil? || %w[1 true yes on].include?(value.to_s.strip.downcase)
+    configured? && AppConfig.boolean?(:daily_archive_dual_write)
   end
 
   def archive_writes_enabled?

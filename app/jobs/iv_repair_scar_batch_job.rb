@@ -57,6 +57,9 @@ class IvRepairScarBatchJob < ApplicationJob
       )
     end
 
+    unless AppConfig.boolean?(:iv_scar_enabled)
+      return finish_skipped!("disabled_by_settings", started, queue_depth: queue_depth, workers: worker_count)
+    end
     if IvRepairScarJob.paused_for_catalog_sync?
       return finish_skipped!("sunday_catalog_sync", started, queue_depth: queue_depth, workers: worker_count)
     end
@@ -169,7 +172,7 @@ class IvRepairScarBatchJob < ApplicationJob
     return 0 unless Usgs::HistoryKeyPool.configured?(:iv_repair2)
     return 0 unless Usgs::HistoryKeyPool.iv_repair2_available?
 
-    per_tick = ENV.fetch("HISTORY_IV_SCAR_BATCH", DEFAULT_BATCH.to_s).to_i
+    per_tick = AppConfig.integer(:history_iv_scar_batch)
     per_tick = DEFAULT_BATCH if per_tick <= 0
     [ per_tick, theoretical_ceiling ].min
   end
@@ -184,10 +187,7 @@ class IvRepairScarBatchJob < ApplicationJob
   end
 
   def queue_busy_threshold
-    ENV.fetch(
-      "HISTORY_IV_SCAR_QUEUE_BUSY",
-      DEFAULT_QUEUE_BUSY_THRESHOLD.to_s
-    ).to_i
+    AppConfig.integer(:history_iv_scar_queue_busy)
   end
 
   def scar_queue_busy?(depth = nil)

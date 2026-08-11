@@ -7,6 +7,7 @@ class IvRepairJob < ApplicationJob
 
   # Returns nil when enqueued, or a symbol reason when skipped.
   def self.enqueue_block_reason(monitoring_location_id)
+    return :disabled_by_settings unless AppConfig.boolean?(:iv_repair_enabled)
     return :sunday_catalog_sync if paused_for_catalog_sync?
     return :iv_repair_circuit_open unless Usgs::HistoryKeyPool.iv_repair_available?
     return :db_read_only if DatabaseReadOnlyCircuit.open?
@@ -43,6 +44,11 @@ class IvRepairJob < ApplicationJob
         "app.monitoring_location_id" => monitoring_location_id
       }
     ) do
+      unless AppConfig.boolean?(:iv_repair_enabled)
+        Telemetry.add_attributes("app.skip_reason" => "disabled_by_settings")
+        Rails.logger.info("IvRepairJob skipped: disabled by admin settings id=#{monitoring_location_id}")
+        return
+      end
       if self.class.paused_for_catalog_sync?
         Telemetry.add_attributes("app.skip_reason" => "sunday_catalog_sync")
         Rails.logger.info("IvRepairJob skipped: Sunday catalog sync window id=#{monitoring_location_id}")
