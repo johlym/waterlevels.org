@@ -59,6 +59,16 @@ Local archive iteration (no Cloudflare): `.env.example` sets `DAILY_ARCHIVE_STOR
 
 OpenTelemetry traces export to Honeycomb when `OTEL_EXPORTER_OTLP_*` is set (see `.env.example`). ActiveRecord, PG, Redis, and Net::HTTP auto-spans are disabled to stay within event budgets; domain spans via `Telemetry` remain. Query recipes: [`doc/honeycomb-queries.md`](doc/honeycomb-queries.md).
 
+## Logging
+
+Production uses [Lograge](https://github.com/roidrage/lograge) plus `AppLogging` (`lib/app_logging.rb`) for single-line key=value request and ActiveJob logs (Heroku-router style). Example request line:
+
+```text
+rid=46dc1071-… method=GET path=/gauges/wa/… format=html status=200 duration=102.00 view=19.80 db=15.20 queries=19 cached=5 gc=1.90 allocations=… controller=GaugesController action=show ip=… host=waterlevels.org
+```
+
+Job lifecycle lines look like `event=job.perform job=FloodStageSyncJob jid=… queue=sync status=ok duration=12.34`. Set `LOGRAGE=1` to enable the same format locally, or `LOGRAGE=0` to disable it in production.
+
 ## Tests
 
 ```bash
