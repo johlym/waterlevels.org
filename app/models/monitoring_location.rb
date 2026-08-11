@@ -70,8 +70,8 @@ class MonitoringLocation < ApplicationRecord
   }
 
   # Materialize IV-repair location ids with staged logs. The tip-sync gap SQL is
-  # only the first step; resolving locations used to continue silently inside a
-  # large OR/COUNT and looked like a hang after tip_sync_gap_scan.
+  # only the first step; missing-tip resolve used to hang silently on a fleet-wide
+  # continuous_observations IN-list.
   def self.iv_repair_candidate_ids
     continuous_since = HistoryIngestion::CONTINUOUS_GAP_THRESHOLD.ago
     continuous_anchor = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
@@ -88,36 +88,57 @@ class MonitoringLocation < ApplicationRecord
     )
 
     step_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    hollow_location_ids = if tip_sync_gap_ids.empty?
-      []
-    else
-      TimeSeries.selected
+    hollow_location_ids = []
+    tip_sync_without_anchor = 0
+    if tip_sync_gap_ids.any?
+      anchored_gap_ids = TimeSeries.selected
         .where(id: tip_sync_gap_ids)
-        .where(id: ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id))
+        .where(
+          id: ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id)
+        )
+        .pluck(:id)
+      tip_sync_without_anchor = tip_sync_gap_ids.size - anchored_gap_ids.size
+      hollow_location_ids = TimeSeries.where(id: anchored_gap_ids)
         .distinct
         .pluck(:monitoring_location_id)
     end
     Rails.logger.info(
       "IvRepair candidates step=hollow_middle_locations ids=#{hollow_location_ids.size} " \
+      "tip_sync_without_anchor=#{tip_sync_without_anchor} " \
+      "(those stay on history cold-fill) " \
       "elapsed_ms=#{((Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_started) * 1000).round}"
     )
 
-    step_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    recent_continuous_ids = ContinuousObservation.where(observed_at: recent_since..).select(:time_series_id)
-    recently_active = TimeSeries.selected.left_joins(:latest_observation).where(
-      "(latest_observations.id IS NULL AND time_series.ends_at IS NULL) " \
-      "OR latest_observations.observed_at >= ? OR time_series.ends_at >= ? " \
-      "OR time_series.id IN (#{recent_continuous_ids.to_sql})",
-      recent_since,
-      recent_since
+    # EXISTS against (time_series_id, observed_at) — do NOT use
+    # IN (SELECT time_series_id FROM continuous_observations WHERE observed_at >= retention),
+    # which seq-scans the IV tip table and hung the batch after hollow_middle.
+    Rails.logger.info(
+      "IvRepair candidates step=missing_tip_locations starting " \
+      "(anchored selected series with no IV tip in #{HistoryIngestion::CONTINUOUS_GAP_THRESHOLD.inspect})"
     )
-    has_continuous_tip_ids = ContinuousObservation.where(observed_at: continuous_since..).select(:time_series_id)
-    has_continuous_anchor_ids = ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id)
-    missing_tip_location_ids = recently_active
-      .where(id: has_continuous_anchor_ids)
-      .where.not(id: has_continuous_tip_ids)
-      .distinct
-      .pluck(:monitoring_location_id)
+    step_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    sql = <<~SQL.squish
+      SELECT DISTINCT ts.monitoring_location_id
+      FROM time_series ts
+      LEFT JOIN latest_observations lo ON lo.time_series_id = ts.id
+      WHERE ts.selected_for_display = TRUE
+        AND EXISTS (
+          SELECT 1 FROM continuous_observations co
+          WHERE co.time_series_id = ts.id
+            AND co.observed_at <= #{connection.quote(continuous_anchor)}
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM continuous_observations co
+          WHERE co.time_series_id = ts.id
+            AND co.observed_at >= #{connection.quote(continuous_since)}
+        )
+        AND (
+          (lo.id IS NULL AND ts.ends_at IS NULL)
+          OR lo.observed_at >= #{connection.quote(recent_since)}
+          OR ts.ends_at >= #{connection.quote(recent_since)}
+        )
+    SQL
+    missing_tip_location_ids = connection.select_values(sql).map!(&:to_i)
     Rails.logger.info(
       "IvRepair candidates step=missing_tip_locations ids=#{missing_tip_location_ids.size} " \
       "elapsed_ms=#{((Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_started) * 1000).round}"
@@ -127,6 +148,7 @@ class MonitoringLocation < ApplicationRecord
     Rails.logger.info(
       "IvRepair candidates step=done count=#{ids.size} " \
       "hollow=#{hollow_location_ids.size} missing_tip=#{missing_tip_location_ids.size} " \
+      "tip_sync_without_anchor=#{tip_sync_without_anchor} " \
       "elapsed_ms=#{((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round}"
     )
     ids
