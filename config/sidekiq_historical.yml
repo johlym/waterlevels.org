@@ -1,6 +1,6 @@
 # historical_worker: history backfill batch/jobs + daily archive export
 # (queue: backfill). IV gap repair runs on iv_repair_worker.
 # 512MB eco dyno — single thread.
-:concurrency: 1
+:concurrency: 2
 :queues:
   - backfill
