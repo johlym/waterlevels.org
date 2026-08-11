@@ -406,6 +406,7 @@ class FloodStageSync
       progress&.step("warming national site stats + alerts caches")
       SiteStats.warm!
       AlertsListingCache.warm
+      AdminDashboardStats.schedule_inventory_refresh!
     else
       progress&.step("skipping national cache warm (no flood changes)")
     end

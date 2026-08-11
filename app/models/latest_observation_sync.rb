@@ -64,6 +64,7 @@ class LatestObservationSync
         StateListingCache.warm_all
         AlertsListingCache.warm
         SiteStats.warm!
+        AdminDashboardStats.schedule_inventory_refresh!
       end
 
       progress&.step("purging edge cache tags")

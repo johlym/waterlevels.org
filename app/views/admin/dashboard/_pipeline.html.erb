@@ -4,6 +4,13 @@
     <div>
       <p class="eyebrow">Pipeline</p>
       <h2 id="admin-pipeline-heading">Backfill &amp; freshness</h2>
+      <% if stats[:inventory_computed_at] %>
+        <p class="hint">
+          History / stale / NWPS Counters as of <%= time_ago_in_words(stats[:inventory_computed_at]) %> ago
+          · IV repair counts from last batch scan
+          · locks are live Redis SCAN
+        </p>
+      <% end %>
     </div>
   </div>
 

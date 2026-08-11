@@ -10,6 +10,9 @@
         Backlog columns are mutually exclusive queues: Need ≤1y is phase-1 work;
         Have ~1y → need 3y is year-ready waiting only on deep R2 fill.
         Ready = stations minus both backlog queues.
+        <% if stats[:inventory_computed_at] %>
+          Counters as of <%= time_ago_in_words(stats[:inventory_computed_at]) %> ago.
+        <% end %>
       </p>
     </div>
   </div>

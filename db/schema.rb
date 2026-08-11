@@ -10,9 +10,20 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_11_193000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_11_215042) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "admin_counters", force: :cascade do |t|
+    t.datetime "computed_at", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.string "source", default: "job", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "value", default: 0, null: false
+    t.index ["name"], name: "index_admin_counters_on_name", unique: true
+  end
 
   create_table "continuous_observations", force: :cascade do |t|
     t.string "approval_status"

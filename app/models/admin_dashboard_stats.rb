@@ -1,9 +1,17 @@
 # Live ops snapshot for the password-gated /admin dashboard.
-# Job-finish / tip-refresh summaries are written by sync POROs (Redis +
-# process-local fallback). The dashboard loads section snapshots via Turbo
-# Frames so the shell can render before heavy aggregates finish; backfill
-# aggregates are cached with race_condition_ttl so parallel section requests
-# share one compute instead of stampedes.
+#
+# Counter-backed (Postgres AdminCounter, written by jobs / AdminDashboardCountersJob):
+#   - Job-finish / tip-refresh / IV candidate snapshots (record_job_finish!)
+#   - Inventory aggregates (backfill coverage, measurement totals, stale/NWPS)
+#
+# Live on each section request (not Counters):
+#   - Sidekiq health, USGS/DB circuit breakers
+#   - Lock/cooldown Redis SCAN counts
+#   - Growth continuous 24h/7d counts and tip-freshness histogram
+#   - "Last station updated" row
+#
+# The dashboard loads section snapshots via Turbo Frames so the shell can render
+# before heavy work finishes; section payloads are still Rails.cache'd briefly.
 require "set"
 
 class AdminDashboardStats
@@ -25,18 +33,18 @@ class AdminDashboardStats
   # MonitoringLocation.iv_repair_candidate_ids (tip_sync_gap + continuous scans).
   IV_REPAIR_CANDIDATES_CACHE_KEY = "admin:iv_repair_candidates".freeze
   IV_SCAR_CANDIDATES_CACHE_KEY = "admin:iv_scar_candidates".freeze
-  TIP_REFRESH_TTL = 7.days
+  INVENTORY_KEY = "admin:inventory".freeze
+  JOB_COUNTER_NAMES = (
+    JOB_CACHE_KEYS.values + [ IV_REPAIR_CANDIDATES_CACHE_KEY, IV_SCAR_CANDIDATES_CACHE_KEY ]
+  ).freeze
   APPROX_COUNT_THRESHOLD = SiteStats::APPROX_COUNT_THRESHOLD
   SECTIONS = %i[core pipeline growth jobs states health].freeze
   # Cheap sections first so the sequential frame loader warms UI quickly, then
-  # core (which fills the backfill cache), then the remaining heavy panels.
+  # core (which may refresh inventory Counters on miss), then remaining panels.
   SECTION_LOAD_ORDER = %i[jobs health core pipeline growth states].freeze
-  BACKFILL_CACHE_KEY = "admin_dashboard/backfill_aggregates/v4".freeze
-  BACKFILL_TTL = 10.minutes
-  BACKFILL_RACE_TTL = 30.seconds
   # Bump when a section payload shape changes so deploys do not serve stale
   # hashes that crash the matching partial (Turbo then shows "Content missing").
-  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v8".freeze
+  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v9".freeze
   SECTION_TTL = 2.minutes
   SECTION_RACE_TTL = 15.seconds
   REDIS_SCAN_MAX_ITERATIONS = 50
@@ -115,11 +123,11 @@ class AdminDashboardStats
     end
 
     def last_iv_repair_candidates_payload
-      redis_read_job(IV_REPAIR_CANDIDATES_CACHE_KEY) || memory_jobs[IV_REPAIR_CANDIDATES_CACHE_KEY]
+      read_job_payload(IV_REPAIR_CANDIDATES_CACHE_KEY)
     end
 
     def last_iv_scar_candidates_payload
-      redis_read_job(IV_SCAR_CANDIDATES_CACHE_KEY) || memory_jobs[IV_SCAR_CANDIDATES_CACHE_KEY]
+      read_job_payload(IV_SCAR_CANDIDATES_CACHE_KEY)
     end
 
     # Candidate station count from the last completed eligibility scan.
@@ -170,8 +178,7 @@ class AdminDashboardStats
     end
 
     def last_job(name)
-      key = cache_key_for!(name)
-      redis_read_job(key) || memory_jobs[key]
+      read_job_payload(cache_key_for!(name))
     end
 
     def clear_tip_refresh!
@@ -179,10 +186,7 @@ class AdminDashboardStats
     end
 
     def clear_jobs!
-      self.memory_jobs = {}
-      redis_with_rescue { |r|
-        r.del(*JOB_CACHE_KEYS.values, IV_REPAIR_CANDIDATES_CACHE_KEY, IV_SCAR_CANDIDATES_CACHE_KEY)
-      }
+      AdminCounter.clear!(*JOB_COUNTER_NAMES)
     end
 
     def parse_cached_time(value)
@@ -195,12 +199,23 @@ class AdminDashboardStats
     end
 
     def bust_backfill_cache!
-      Rails.cache.delete(BACKFILL_CACHE_KEY)
+      AdminCounter.clear!(INVENTORY_KEY)
       SECTIONS.each { |name| Rails.cache.delete("#{SECTION_CACHE_KEY_PREFIX}/#{name}") }
     end
 
     def warm_backfill!
-      new.send(:backfill_aggregates)
+      refresh_inventory_counters!(source: "schedule")
+    end
+
+    def refresh_inventory_counters!(source: "schedule")
+      new.refresh_inventory_counters!(source: source)
+    end
+
+    def schedule_inventory_refresh!
+      AdminDashboardCountersJob.perform_later
+    rescue StandardError => e
+      Rails.logger.warn("[AdminDashboardStats] schedule inventory refresh #{e.class}: #{e.message}")
+      nil
     end
 
     def with_statement_timeout(ms = STATEMENT_TIMEOUT_MS)
@@ -217,32 +232,36 @@ class AdminDashboardStats
 
     private
 
-    def memory_jobs
-      @memory_jobs ||= {}
-    end
-
-    def memory_jobs=(value)
-      @memory_jobs = value || {}
-    end
-
     def cache_key_for!(name)
       JOB_CACHE_KEYS.fetch(name.to_sym)
     end
 
     def write_job_payload(key, payload)
-      memory_jobs[key] = payload
-      redis_with_rescue do |r|
-        r.set(key, payload.to_json, ex: TIP_REFRESH_TTL.to_i)
-      end
+      computed_at = parse_cached_time(payload[:finished_at] || payload[:scanned_at]) || Time.current
+      value =
+        if payload.key?(:count)
+          payload[:count].to_i
+        elsif payload.key?(:stations_updated)
+          payload[:stations_updated].to_i
+        elsif payload.key?(:enqueued)
+          payload[:enqueued].to_i
+        elsif payload.key?(:candidates)
+          payload[:candidates].to_i
+        else
+          0
+        end
+
+      AdminCounter.set!(
+        key,
+        value: value,
+        source: "job",
+        computed_at: computed_at,
+        **payload
+      )
     end
 
-    def redis_read_job(key)
-      raw = redis_with_rescue { |r| r.get(key) }
-      return if raw.blank?
-
-      JSON.parse(raw, symbolize_names: true)
-    rescue JSON::ParserError
-      nil
+    def read_job_payload(key)
+      AdminCounter.payload_for(key)
     end
 
     def redis_with_rescue
@@ -270,25 +289,58 @@ class AdminDashboardStats
     public_send(:"#{key}_section")
   end
 
-  def core_section
-    tip = tip_refresh_payload
-    last_station = MonitoringLocation.order(updated_at: :desc).first
+  def refresh_inventory_counters!(source: "schedule")
+    backfill = compute_backfill_aggregates
     continuous_count = approximate_or_exact_count(ContinuousObservation)
     daily_count = approximate_or_exact_count(DailyObservation)
     peak_count = approximate_or_exact_count(PeakObservation)
     archive_daily_count = DailyArchive.cold_archive_point_count
+    measurement_count = continuous_count + daily_count + peak_count + archive_daily_count
+    stale_station_count = [
+      backfill[:station_count] - MonitoringLocation.active.not_stale.count,
+      0
+    ].max
+    nwps_matched_count = MonitoringLocation.active.where(nwps_matched: true).count
+    computed_at = Time.current
+
+    AdminCounter.set!(
+      INVENTORY_KEY,
+      value: backfill[:station_count],
+      source: source,
+      computed_at: computed_at,
+      backfill: backfill,
+      continuous_observation_count: continuous_count,
+      daily_observation_count: daily_count,
+      peak_observation_count: peak_count,
+      archive_daily_observation_count: archive_daily_count,
+      daily_archive_shard_count: DailyArchive.shard_count,
+      measurement_count: measurement_count,
+      stale_station_count: stale_station_count,
+      nwps_matched_count: nwps_matched_count
+    )
+
+    @inventory_payload = nil
+    @backfill_aggregates = nil
+    backfill.merge(inventory_computed_at: computed_at)
+  end
+
+  def core_section
+    tip = tip_refresh_payload
+    last_station = MonitoringLocation.order(updated_at: :desc).first
+    inventory = inventory_payload
     backfill = backfill_aggregates
 
     {
       station_count: backfill[:station_count],
       stations_needing_history: backfill[:stations_needing_history],
       stations_missing_year_history: backfill[:stations_missing_year_history],
-      measurement_count: continuous_count + daily_count + peak_count + archive_daily_count,
-      continuous_observation_count: continuous_count,
-      daily_observation_count: daily_count,
-      peak_observation_count: peak_count,
-      archive_daily_observation_count: archive_daily_count,
-      daily_archive_shard_count: DailyArchive.shard_count,
+      measurement_count: inventory[:measurement_count],
+      continuous_observation_count: inventory[:continuous_observation_count],
+      daily_observation_count: inventory[:daily_observation_count],
+      peak_observation_count: inventory[:peak_observation_count],
+      archive_daily_observation_count: inventory[:archive_daily_observation_count],
+      daily_archive_shard_count: inventory[:daily_archive_shard_count],
+      inventory_computed_at: inventory[:computed_at],
       last_station_updated: last_station && {
         id: last_station.id,
         site_number: last_station.site_number,
@@ -308,20 +360,21 @@ class AdminDashboardStats
 
   def pipeline_section
     backfill = backfill_aggregates
-    active_count = backfill[:station_count]
+    inventory = inventory_payload
     site = SiteStats.snapshot
 
     {
       stations_needing_deep_history: backfill[:stations_needing_deep_history],
       stations_history_ready: backfill[:stations_history_ready],
+      inventory_computed_at: inventory[:computed_at],
       # Last batch eligibility scan — never live needing_iv_repair / tip_sync_gap.
       stations_needing_iv_repair: self.class.last_iv_repair_candidates.to_i,
       iv_repair_candidates_scanned_at: self.class.last_iv_repair_candidates_scanned_at,
       stations_needing_iv_scar_repair: self.class.last_iv_scar_candidates.to_i,
       iv_scar_candidates_scanned_at: self.class.last_iv_scar_candidates_scanned_at,
-      stale_station_count: active_count - MonitoringLocation.active.not_stale.count,
+      stale_station_count: inventory[:stale_station_count].to_i,
       flood_alert_count: site[:flood_alert_count],
-      nwps_matched_count: MonitoringLocation.active.where(nwps_matched: true).count,
+      nwps_matched_count: inventory[:nwps_matched_count].to_i,
       updates_today: site[:updates_today],
       history_backfill_locks: count_prefixed_redis_keys(HistoryBackfillLock::KEY_PREFIX),
       history_backfill_cooldowns: count_prefixed_redis_keys(HistoryBackfillLock::COOLDOWN_PREFIX),
@@ -394,7 +447,11 @@ class AdminDashboardStats
   end
 
   def states_section
-    { per_state: backfill_aggregates[:per_state] }
+    inventory = inventory_payload
+    {
+      per_state: backfill_aggregates[:per_state],
+      inventory_computed_at: inventory[:computed_at]
+    }
   end
 
   def health_section
@@ -415,13 +472,30 @@ class AdminDashboardStats
     self.class.last_tip_refresh || {}
   end
 
+  def inventory_payload
+    @inventory_payload ||= begin
+      row = AdminCounter.fetch(INVENTORY_KEY)
+      if row
+        payload = AdminCounter.payload_for(INVENTORY_KEY) || {}
+        payload.merge(computed_at: row.computed_at)
+      else
+        refresh_inventory_counters!(source: "schedule")
+        row = AdminCounter.fetch(INVENTORY_KEY)
+        payload = AdminCounter.payload_for(INVENTORY_KEY) || {}
+        payload.merge(computed_at: row&.computed_at)
+      end
+    end
+  end
+
   def backfill_aggregates
-    @backfill_aggregates ||= Rails.cache.fetch(
-      BACKFILL_CACHE_KEY,
-      expires_in: BACKFILL_TTL,
-      race_condition_ttl: BACKFILL_RACE_TTL
-    ) do
-      compute_backfill_aggregates
+    @backfill_aggregates ||= begin
+      stored = inventory_payload[:backfill]
+      if stored.is_a?(Hash) && stored[:station_count]
+        stored
+      else
+        refresh_inventory_counters!(source: "schedule")
+        inventory_payload[:backfill]
+      end
     end
   end
 
