@@ -22,13 +22,19 @@
       cron: "30 * * * *"
       class: FloodStageSyncJob
       queue: sync
+    iv_repair_batch:
+      # Mon–Sat; reserved IV completeness lane on USGS_API_HISTORY_IVREPAIR_KEY.
+      # Runs on the tens so tip-sync hollow middles get gap-sized continuous
+      # pulls without competing with the cold history backlog.
+      cron: "*/10 * * * 1-6"
+      class: IvRepairBatchJob
+      queue: iv_repair
     history_backfill_batch:
       # Mon–Sat only; Sunday is reserved for StationCatalogSyncJob.
       # HistoryBackfillJob also no-ops on Sunday as a safety net.
-      # Every 10 minutes so we refill after 429 circuits clear at :00 instead of
-      # waiting for :30. The job no-ops when purpose keys are exhausted or the
-      # backfill queue is busy.
-      cron: "*/10 * * * 1-6"
+      # Offset from iv_repair_batch (:00,:10,…) so IV repair claims the worker
+      # first. Cold/year backlog uses continuous/daily/peaks keys.
+      cron: "5-59/10 * * * 1-6"
       class: HistoryBackfillBatchJob
       queue: backfill
     continuous_prune:

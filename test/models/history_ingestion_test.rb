@@ -733,4 +733,53 @@ class HistoryIngestionTest < ActiveSupport::TestCase
     assert_includes ids, @series.id
     refute_includes ids, healthy.id
   end
+
+  test "iv_repair mode fetches continuous only on the iv_repair key" do
+    previous = {
+      "USGS_API_HISTORY_IVREPAIR_KEY" => ENV["USGS_API_HISTORY_IVREPAIR_KEY"],
+      "USGS_API_HISTORY_CONTINUOUS_KEY" => ENV["USGS_API_HISTORY_CONTINUOUS_KEY"],
+      "USGS_API_HISTORY_DAILY_KEY" => ENV["USGS_API_HISTORY_DAILY_KEY"],
+      "USGS_API_HISTORY_PEAKS_KEY" => ENV["USGS_API_HISTORY_PEAKS_KEY"]
+    }
+    ENV["USGS_API_HISTORY_IVREPAIR_KEY"] = "hist-iv-repair"
+    ENV["USGS_API_HISTORY_CONTINUOUS_KEY"] = "hist-continuous"
+    ENV["USGS_API_HISTORY_DAILY_KEY"] = "hist-daily"
+    ENV["USGS_API_HISTORY_PEAKS_KEY"] = "hist-peaks"
+
+    travel_to Time.zone.parse("2026-08-10 14:00:00 UTC") do
+      seed_continuous_coverage!(
+        @series,
+        from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+        to: Time.zone.parse("2026-08-09 20:00:00 UTC"),
+        step: 1.hour
+      )
+      ContinuousObservation.create!(
+        time_series: @series,
+        observed_at: Time.zone.parse("2026-08-10 13:30:00 UTC"),
+        value: 2.0
+      )
+      DailyObservation.create!(time_series: @series, observed_on: 11.months.ago.to_date, value: 1.0)
+      DailyObservation.create!(time_series: @series, observed_on: Date.current, value: 1.1)
+
+      continuous_stub = stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/continuous/items})
+        .with(headers: { "X-Api-Key" => "hist-iv-repair" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+      daily_stub = stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/daily/items})
+      peaks_stub = stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/peaks/items})
+
+      HistoryIngestion.new(
+        monitoring_location: @location,
+        range: "1y",
+        mode: HistoryIngestion::MODE_IV_REPAIR
+      ).perform
+
+      assert_requested continuous_stub
+      assert_not_requested daily_stub
+      assert_not_requested peaks_stub
+    end
+  ensure
+    previous.each do |key, value|
+      value.nil? ? ENV.delete(key) : ENV[key] = value
+    end
+  end
 end

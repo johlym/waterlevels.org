@@ -1,10 +1,12 @@
 class HistoryIngestion
   include ActiveModel::Model
 
-  attr_accessor :client, :monitoring_location, :range, :progress
+  attr_accessor :client, :monitoring_location, :range, :progress, :mode
 
   DEFAULT_RANGE = "1y"
   DEEP_RANGE = "3y"
+  MODE_FULL = "full"
+  MODE_IV_REPAIR = "iv_repair"
   # Batch continuous upserts so tip/gap fills don't one-row round-trip Postgres.
   CONTINUOUS_UPSERT_BATCH = 500
   # High-resolution continuous tip; 1y/3y charts use daily values from R2.
@@ -31,14 +33,19 @@ class HistoryIngestion
   # tip spacing — overnight outages (many hours) still qualify.
   CONTINUOUS_GAP_THRESHOLD = 2.hours
 
-  def initialize(monitoring_location:, range: DEFAULT_RANGE, client: nil, progress: nil)
+  def initialize(monitoring_location:, range: DEFAULT_RANGE, client: nil, progress: nil, mode: MODE_FULL)
     @monitoring_location = monitoring_location
     @range = range
     # Optional shared client for tests; production resolves a purpose-pinned
-    # client per collection (continuous / daily / peaks).
+    # client per collection (continuous / daily / peaks / iv_repair).
     @client = client
     @clients = {}
     @progress = progress
+    @mode = mode.presence || MODE_FULL
+  end
+
+  def iv_repair?
+    mode.to_s == MODE_IV_REPAIR
   end
 
   def perform
@@ -52,13 +59,14 @@ class HistoryIngestion
         "app.usgs_monitoring_location_id" => monitoring_location.usgs_monitoring_location_id,
         "app.location_name" => monitoring_location.display_name,
         "app.state" => monitoring_location.state_code,
-        "app.range" => range.to_s
+        "app.range" => range.to_s,
+        "app.ingest_mode" => mode.to_s
       }
     ) do
-      progress&.step("site=#{monitoring_location.site_number} range=#{range}")
+      progress&.step("site=#{monitoring_location.site_number} range=#{range} mode=#{mode}")
       series_list = monitoring_location.time_series.selected.includes(:latest_observation).to_a
       progress&.step("selected_series=#{series_list.size}")
-      clear_stale_usgs_daily_absent_flags!(series_list)
+      clear_stale_usgs_daily_absent_flags!(series_list) unless iv_repair?
 
       active_series = series_list.select(&:eligible_for_recent_history_backfill?)
       if active_series.size < series_list.size
@@ -66,9 +74,15 @@ class HistoryIngestion
         progress&.step("skipping_inactive_series=#{skipped} (tip older than #{CONTINUOUS_RETENTION.inspect})")
       end
 
-      continuous_series = continuous_range? ? active_series.select { |s| needs_continuous?(s) } : []
-      daily_series = daily_range? ? active_series.select { |s| needs_daily?(s) } : []
-      peak_series = active_series.select { |s| needs_peaks?(s) }
+      continuous_series = if iv_repair?
+        active_series.select { |s| self.class.series_needs_iv_repair?(s) }
+      elsif continuous_range?
+        active_series.select { |s| needs_continuous?(s) }
+      else
+        []
+      end
+      daily_series = iv_repair? ? [] : (daily_range? ? active_series.select { |s| needs_daily?(s) } : [])
+      peak_series = iv_repair? ? [] : active_series.select { |s| needs_peaks?(s) }
 
       continuous_count = ingest_continuous_for(continuous_series)
       daily_count = ingest_daily_for(daily_series)
@@ -104,7 +118,8 @@ class HistoryIngestion
   def client_for(purpose)
     return @client if @client
 
-    @clients[purpose] ||= Usgs::Client.for_history(purpose)
+    resolved = (purpose == :continuous && iv_repair?) ? :iv_repair : purpose
+    @clients[resolved] ||= Usgs::Client.for_history(resolved)
   end
 
   def with_purpose_client(purpose)
@@ -267,15 +282,32 @@ class HistoryIngestion
     ).any?
   end
 
+  # Anchored series with a stale tip or tip-vs-previous hollow middle. Matches
+  # needing_iv_repair batch eligibility (not cold missing-anchor fills).
+  def self.series_needs_iv_repair?(series, ends: Time.current.utc)
+    return false if series.continuous_observations.where(observed_at: ..CONTINUOUS_HISTORY_ANCHOR.ago).none?
+
+    newest = series.continuous_observations.maximum(:observed_at)&.utc
+    return true if newest.blank? || newest < CONTINUOUS_GAP_THRESHOLD.before(ends)
+
+    previous = series.continuous_observations
+      .where(observed_at: ...newest)
+      .maximum(:observed_at)
+      &.utc
+    return false if previous.blank?
+
+    (newest - previous) > CONTINUOUS_GAP_THRESHOLD
+  end
+
   # Selected series whose newest IV tip is fresh but the previous point is more
   # than threshold older — the tip-sync hollow-middle case (overnight miss, then
-  # a new tip). Used by needing_history_backfill.
+  # a new tip). Used by needing_iv_repair.
   #
-  # Intentionally NOT a fleet-wide LAG over retention: that hung
-  # HistoryBackfillBatchJob for 10+ minutes. This uses DISTINCT ON + LATERAL
-  # against (time_series_id, observed_at) so cost is ~one index seek per series
-  # with a recent tip. Deeper interior holes are still repaired by per-station
-  # ingest / needs_history_backfill? when a job runs for other reasons.
+  # Intentionally NOT a fleet-wide LAG over retention: that hung batch jobs for
+  # 10+ minutes. This uses DISTINCT ON + LATERAL against (time_series_id,
+  # observed_at) so cost is ~one index seek per series with a recent tip. Deeper
+  # interior holes are still repaired by per-station ingest /
+  # needs_history_backfill? when a job runs for other reasons.
   def self.time_series_ids_with_tip_sync_gaps(threshold: CONTINUOUS_GAP_THRESHOLD)
     threshold_seconds = threshold.to_i
     tip_since = ContinuousObservation.connection.quote(threshold.ago)

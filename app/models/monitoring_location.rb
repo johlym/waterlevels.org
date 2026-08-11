@@ -59,10 +59,39 @@ class MonitoringLocation < ApplicationRecord
       expanded: expanded
     )
   }
-  scope :needing_history_backfill, lambda {
-    # Tip lag uses the continuous gap threshold (not the legacy 7d freshness)
-    # so overnight tip-sync misses re-enter the batch within hours.
+  # Anchored stations with a stale continuous tip or tip-sync hollow middle.
+  # Served by IvRepairBatchJob on USGS_API_HISTORY_IVREPAIR_KEY — not the cold
+  # history backlog (missing ~32d archive / year daily).
+  scope :needing_iv_repair, lambda {
     continuous_since = HistoryIngestion::CONTINUOUS_GAP_THRESHOLD.ago
+    continuous_anchor = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
+    recent_since = HistoryIngestion::CONTINUOUS_RETENTION.ago
+
+    recent_continuous_ids = ContinuousObservation.where(observed_at: recent_since..).select(:time_series_id)
+    recently_active = TimeSeries.selected.left_joins(:latest_observation).where(
+      "(latest_observations.id IS NULL AND time_series.ends_at IS NULL) " \
+      "OR latest_observations.observed_at >= ? OR time_series.ends_at >= ? " \
+      "OR time_series.id IN (#{recent_continuous_ids.to_sql})",
+      recent_since,
+      recent_since
+    )
+
+    has_continuous_tip_ids = ContinuousObservation.where(observed_at: continuous_since..).select(:time_series_id)
+    has_continuous_anchor_ids = ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id)
+    anchored = recently_active.where(id: has_continuous_anchor_ids)
+    missing_tip = anchored.where.not(id: has_continuous_tip_ids)
+    tip_sync_gap_ids = HistoryIngestion.time_series_ids_with_tip_sync_gaps
+    hollow_middle = anchored.where(id: tip_sync_gap_ids)
+
+    where(id: missing_tip.select(:monitoring_location_id))
+      .or(where(id: hollow_middle.select(:monitoring_location_id)))
+      .distinct
+  }
+
+  scope :needing_history_backfill, lambda {
+    # Cold / year-daily backlog only. Recent IV tip/hollow-middle repair for
+    # already-anchored stations lives in needing_iv_repair so the long history
+    # queue cannot starve IV completeness.
     continuous_anchor = HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
     daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
@@ -81,14 +110,8 @@ class MonitoringLocation < ApplicationRecord
       recent_since
     )
 
-    has_continuous_tip_ids = ContinuousObservation.where(observed_at: continuous_since..).select(:time_series_id)
     has_continuous_anchor_ids = ContinuousObservation.where(observed_at: ..continuous_anchor).select(:time_series_id)
-    missing_continuous_tip = recently_active.where.not(id: has_continuous_tip_ids)
     missing_continuous_anchor = recently_active.where.not(id: has_continuous_anchor_ids)
-    # Tip-sync hollow middle: fresh tip whose previous IV point is too old.
-    # Indexed tip-vs-previous lookup — not a fleet LAG over retention.
-    tip_sync_gap_ids = HistoryIngestion.time_series_ids_with_tip_sync_gaps
-    missing_continuous_interior = recently_active.where(id: tip_sync_gap_ids)
     # Year anchor lives in R2 (legacy Postgres rows still count during drain).
     # Skip parameters USGS does not publish daily DV for (IV-only series).
     expecting_daily = recently_active.merge(TimeSeries.expecting_daily)
@@ -104,9 +127,7 @@ class MonitoringLocation < ApplicationRecord
         )
       )
     stale_daily_tip = expecting_daily.where.not(id: fresh_daily_tip_ids)
-    where(id: missing_continuous_tip.select(:monitoring_location_id))
-      .or(where(id: missing_continuous_anchor.select(:monitoring_location_id)))
-      .or(where(id: missing_continuous_interior.select(:monitoring_location_id)))
+    where(id: missing_continuous_anchor.select(:monitoring_location_id))
       .or(where(id: missing_daily_anchor.select(:monitoring_location_id)))
       .or(where(id: stale_daily_tip.select(:monitoring_location_id)))
       .distinct
@@ -175,6 +196,15 @@ class MonitoringLocation < ApplicationRecord
   def has_flood_stages?
     flood_stage_action.present? || flood_stage_minor.present? ||
       flood_stage_moderate.present? || flood_stage_major.present?
+  end
+
+  # Anchored series with a stale tip or tip-vs-previous hollow middle — IV repair
+  # lane (not cold year/daily backlog).
+  def needs_iv_repair?
+    series = time_series.selected.select(&:eligible_for_recent_history_backfill?)
+    return false if series.none?
+
+    series.any? { |s| HistoryIngestion.series_needs_iv_repair?(s) }
   end
 
   def needs_history_backfill?

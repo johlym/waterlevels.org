@@ -34,7 +34,7 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     assert_equal "Normal", normal.flood_category_label
   end
 
-  test "needing_history_backfill includes locations missing recent continuous or year daily" do
+  test "needing_history_backfill includes cold continuous or year daily backlog only" do
     needs_continuous = create(:monitoring_location, site_number: "20000001")
     create(:time_series, monitoring_location: needs_continuous, selected_for_display: true)
 
@@ -43,7 +43,7 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     seed_continuous_coverage!(
       daily_series,
       from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
-      to: 1.day.ago
+      to: 1.hour.ago
     )
 
     needs_daily_tip = create(:monitoring_location, site_number: "20000004")
@@ -51,7 +51,7 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     seed_continuous_coverage!(
       tip_series,
       from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
-      to: 1.day.ago
+      to: 1.hour.ago
     )
     DailyObservation.create!(time_series: tip_series, observed_on: 11.months.ago.to_date, value: 10.0)
 
@@ -83,19 +83,47 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     DailyObservation.create!(time_series: gappy, observed_on: 11.months.ago.to_date, value: 10.0)
     DailyObservation.create!(time_series: gappy, observed_on: Date.current, value: 11.0)
 
-    ids = MonitoringLocation.needing_history_backfill.pluck(:id)
-    assert_includes ids, needs_continuous.id
-    assert_includes ids, needs_daily.id
-    assert_includes ids, needs_daily_tip.id
-    assert_includes ids, needs_continuous_anchor.id
-    assert_includes ids, needs_interior_gap.id
-    refute_includes ids, complete.id
+    history_ids = MonitoringLocation.needing_history_backfill.pluck(:id)
+    iv_ids = MonitoringLocation.needing_iv_repair.pluck(:id)
+    assert_includes history_ids, needs_continuous.id
+    assert_includes history_ids, needs_daily.id
+    assert_includes history_ids, needs_daily_tip.id
+    assert_includes history_ids, needs_continuous_anchor.id
+    refute_includes history_ids, needs_interior_gap.id
+    refute_includes history_ids, complete.id
+    assert_includes iv_ids, needs_interior_gap.id
+    refute_includes iv_ids, complete.id
+    refute_includes iv_ids, needs_continuous_anchor.id
     assert needs_continuous_anchor.needs_history_backfill?
+    assert needs_interior_gap.needs_iv_repair?
     assert needs_interior_gap.needs_history_backfill?
     refute complete.needs_history_backfill?
+    refute complete.needs_iv_repair?
   end
 
-  test "needing_history_backfill tip-sync gap check ignores older interior holes" do
+  test "needing_iv_repair includes anchored stale tip and ignores cold tip-only" do
+    stale_tip = create(:monitoring_location, site_number: "20000008")
+    stale_series = create(:time_series, monitoring_location: stale_tip, selected_for_display: true)
+    seed_continuous_coverage!(
+      stale_series,
+      from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+      to: 6.hours.ago
+    )
+    DailyObservation.create!(time_series: stale_series, observed_on: 11.months.ago.to_date, value: 10.0)
+    DailyObservation.create!(time_series: stale_series, observed_on: Date.current, value: 11.0)
+
+    tip_only = create(:monitoring_location, site_number: "20000009")
+    tip_series = create(:time_series, monitoring_location: tip_only, selected_for_display: true)
+    ContinuousObservation.create!(time_series: tip_series, observed_at: 6.hours.ago, value: 12.3)
+
+    iv_ids = MonitoringLocation.needing_iv_repair.pluck(:id)
+    assert_includes iv_ids, stale_tip.id
+    refute_includes iv_ids, tip_only.id
+    assert stale_tip.needs_iv_repair?
+    refute tip_only.needs_iv_repair?
+  end
+
+  test "needing_iv_repair tip-sync gap check ignores older interior holes" do
     # Dense tip adjacency with an older hole further back. Batch only compares
     # tip vs previous point; per-station needs_history_backfill? still sees the
     # older hole for lazy enqueue / ingest.
@@ -116,8 +144,10 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 10.0)
     DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
 
+    refute_includes MonitoringLocation.needing_iv_repair.pluck(:id), location.id
     refute_includes MonitoringLocation.needing_history_backfill.pluck(:id), location.id
     assert location.needs_history_backfill?
+    refute location.needs_iv_repair?
   end
 
   test "needs_history_backfill? is false without selected series" do

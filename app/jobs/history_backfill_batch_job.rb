@@ -26,7 +26,7 @@ class HistoryBackfillBatchJob < ApplicationJob
         Rails.logger.info("HistoryBackfillBatchJob skipped: Sunday catalog sync window")
         return 0
       end
-      if Usgs::HistoryKeyPool.exhausted?
+      unless Usgs::HistoryKeyPool.phase1_available? || Usgs::HistoryKeyPool.deep_available?
         Telemetry.add_attributes("app.skip_reason" => "history_keys_exhausted")
         Rails.logger.info("HistoryBackfillBatchJob skipped: USGS history rate limit circuits open")
         return 0

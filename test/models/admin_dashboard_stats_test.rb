@@ -121,6 +121,7 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
       assert_includes stats[:history_circuits].map { |c| c[:key] }, "history_continuous"
       assert_includes stats[:history_circuits].map { |c| c[:key] }, "history_daily"
       assert_includes stats[:history_circuits].map { |c| c[:key] }, "history_peaks"
+      assert_includes stats[:history_circuits].map { |c| c[:key] }, "history_iv_repair"
       assert_equal "tip", stats[:usgs_keys][:tip][:key]
       assert_equal false, stats[:tip_circuit_open]
       assert_equal false, stats[:database_read_only]

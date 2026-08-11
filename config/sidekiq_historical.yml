@@ -1,5 +1,7 @@
-# historical_worker: history backfill batch/jobs + daily archive export (queue: backfill).
-# 512MB eco dyno — single thread.
+# historical_worker: IV repair (priority) + history backfill + daily archive export.
+# 512MB eco dyno — single thread. iv_repair before backfill so tip/hollow-middle
+# gap fills drain ahead of the cold year/daily backlog.
 :concurrency: 1
 :queues:
+  - iv_repair
   - backfill

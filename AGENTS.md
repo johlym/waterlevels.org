@@ -21,7 +21,7 @@ WaterLevels.org is a single Rails 8.1 / Ruby 4.0.4 app (USGS water-monitoring ma
 - `bin/rails db:seed` (or `bin/rails db:reset`) loads `db/seeds/demo_state.rb`: 100 Washington stations with 30 days of 15-minute USGS-shaped data. This fully populates the map, state directory, gauge detail cards, trend charts, and measurement tables with no network access. The seed insert is large (~864k rows) and takes ~80s. Example gauge URL: `/gauges/wa` then any station, e.g. `/gauges/wa/99000099-upper-jade-iris-alder-creek-near-site-99`. Site `99000020` is seeded in major flood (gage height above the major stage) for offline flood-alert UI checks.
 
 ### Live data (optional)
-- Live ingestion (`STATE=xx bin/rails usgs:bootstrap`, `usgs:backfill`) works against the public USGS API without `USGS_API_KEY` (the key is only sent if present) but is rate-limited. The scheduled pipeline needs Redis + Sidekiq. Sidekiq is NOT in `Procfile.dev`; run workers separately as needed: `bundle exec sidekiq -C config/sidekiq.yml` (default + scheduler), `config/sidekiq_sync.yml` (`sync`), `config/sidekiq_historical.yml` (`backfill`).
+- Live ingestion (`STATE=xx bin/rails usgs:bootstrap`, `usgs:backfill`) works against the public USGS API without `USGS_API_KEY` (the key is only sent if present) but is rate-limited. The scheduled pipeline needs Redis + Sidekiq. Sidekiq is NOT in `Procfile.dev`; run workers separately as needed: `bundle exec sidekiq -C config/sidekiq.yml` (default + scheduler), `config/sidekiq_sync.yml` (`sync`), `config/sidekiq_historical.yml` (`iv_repair` then `backfill`).
 
 ### Run / lint / test (standard commands; details in `README.md` and `.github/workflows/ci.yml`)
 - Run app (dev): `bin/dev` — Puma on `http://127.0.0.1:3000` plus esbuild and Tailwind watchers.

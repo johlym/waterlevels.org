@@ -6,7 +6,10 @@ class GaugesController < ApplicationController
     ensure_canonical_path!(@location)
     @snapshot = StationSnapshotCache.fetch(@location)
     enqueued = false
-    if @location.needs_history_backfill?
+    iv_repair_enqueued = false
+    if @location.needs_iv_repair?
+      iv_repair_enqueued = IvRepairJob.enqueue(@location.id)
+    elsif @location.needs_history_backfill?
       enqueued = HistoryBackfillJob.enqueue(@location.id)
     end
     Telemetry.add_attributes(
@@ -15,7 +18,8 @@ class GaugesController < ApplicationController
       "app.site_number" => @location.site_number,
       "app.state" => @location.state_code,
       "app.location_name" => @location.display_name,
-      "app.backfill_enqueued" => enqueued
+      "app.backfill_enqueued" => enqueued,
+      "app.iv_repair_enqueued" => iv_repair_enqueued
     )
     cache_public!(tags: [ "gauge:#{@location.site_number}" ])
   end
