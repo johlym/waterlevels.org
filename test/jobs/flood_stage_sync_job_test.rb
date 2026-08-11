@@ -12,48 +12,31 @@ class FloodStageSyncJobTest < ActiveSupport::TestCase
     Rails.cache = @previous_cache
   end
 
-  test "requires a state" do
-    error = assert_raises(ArgumentError) { FloodStageSyncJob.perform_now(nil) }
-    assert_match(/requires a state/, error.message)
-  end
-
-  test "requeues when another flood sync holds the lock" do
-    assert FloodStageSyncLock.claim!
-
-    assert_enqueued_with(
-      job: FloodStageSyncJob,
-      args: [ "wa" ],
-      at: (Time.current + FloodStageSyncJob::LOCK_BUSY_REQUEUE_SECONDS.seconds)
-    ) do
-      FloodStageSyncJob.perform_now("wa")
-    end
-  end
-
-  test "pads short runs to the 31s min cycle" do
+  test "pads short state cycles to 30s" do
     slept = nil
     job = FloodStageSyncJob.new
     job.define_singleton_method(:sleep_for_pacing) { |seconds| slept = seconds }
 
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC) - 5.0
     progress = SyncProgress.new("test", io: nil, logger: nil)
-    job.send(:pad_to_min_cycle!, started, progress)
+    job.send(:pad_to_min_cycle!, started, progress, label: "wa")
 
-    assert_in_delta 26.0, slept, 1.0
+    assert_in_delta 25.0, slept, 1.0
   end
 
-  test "skips pacing sleep when work already exceeded 31s" do
+  test "skips pacing sleep when a state already exceeded 30s" do
     slept = :not_called
     job = FloodStageSyncJob.new
     job.define_singleton_method(:sleep_for_pacing) { |seconds| slept = seconds }
 
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC) - 40.0
     progress = SyncProgress.new("test", io: nil, logger: nil)
-    job.send(:pad_to_min_cycle!, started, progress)
+    job.send(:pad_to_min_cycle!, started, progress, label: "wa")
 
     assert_equal :not_called, slept
   end
 
-  test "runs flood sync for the given state and pads afterward" do
+  test "single-state perform syncs that state and pads" do
     create(
       :monitoring_location,
       site_number: "01646500",
@@ -88,6 +71,49 @@ class FloodStageSyncJobTest < ActiveSupport::TestCase
     job.perform("WA")
 
     assert_operator slept, :>, 0
-    assert_operator slept, :<=, FloodStageSyncJob::MIN_CYCLE_SECONDS
+    assert_operator slept, :<=, FloodStageSyncJob::MIN_STATE_SECONDS
+  end
+
+  test "national perform loops states with pacing between each" do
+    paced = []
+    synced = []
+
+    job = FloodStageSyncJob.new
+    job.define_singleton_method(:states_to_sync) { %w[ak al] }
+    job.define_singleton_method(:sleep_for_pacing) { |seconds| paced << seconds }
+    job.define_singleton_method(:run_state_sync) { |code, _progress| synced << code }
+
+    job.perform
+
+    assert_equal %w[ak al], synced
+    assert_equal 2, paced.size
+    paced.each do |seconds|
+      assert_operator seconds, :>, 0
+      assert_operator seconds, :<=, FloodStageSyncJob::MIN_STATE_SECONDS
+    end
+  end
+
+  test "national perform skips when lock already held" do
+    assert FloodStageSyncLock.claim!
+
+    synced = 0
+    job = FloodStageSyncJob.new
+    job.define_singleton_method(:states_to_sync) { %w[ak] }
+    job.define_singleton_method(:run_state_sync) { |*_args| synced += 1 }
+    job.define_singleton_method(:sleep_for_pacing) { |_seconds| nil }
+    job.perform
+
+    assert_equal 0, synced
+  end
+
+  test "legacy no-arg perform runs the national loop" do
+    synced = []
+    job = FloodStageSyncJob.new
+    job.define_singleton_method(:states_to_sync) { %w[tx] }
+    job.define_singleton_method(:run_state_sync) { |code, _progress| synced << code }
+    job.define_singleton_method(:sleep_for_pacing) { |_seconds| nil }
+    job.perform
+
+    assert_equal %w[tx], synced
   end
 end
