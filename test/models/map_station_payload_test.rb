@@ -2,8 +2,8 @@ require "test_helper"
 
 class MapStationPayloadTest < ActiveSupport::TestCase
   test "prefers fresher LatestObservation tips over lagging denormalized columns" do
-    older = Time.utc(2026, 8, 2, 7, 30, 0)
-    newer = Time.utc(2026, 8, 5, 18, 30, 0)
+    older = 5.days.ago
+    newer = 2.days.ago
     location = create(
       :monitoring_location,
       site_number: "12199000",
