@@ -18,7 +18,7 @@ class SyncProgressTest < ActiveSupport::TestCase
     assert_match(/demo: done detail="ok" elapsed=\d+\.\ds/, output)
   end
 
-  test "logger lines use job= key value form when AppLogging is enabled" do
+  test "logger lines use JSON when AppLogging is enabled" do
     io = StringIO.new
     log_io = StringIO.new
     logger = ActiveSupport::Logger.new(log_io)
@@ -33,7 +33,9 @@ class SyncProgressTest < ActiveSupport::TestCase
     end
 
     logged = log_io.string
-    assert_includes logged, "job=FloodStageSyncJob phase=list_refresh done updated=1 elapsed=0.0s"
+    data = JSON.parse(logged.lines.map(&:strip).reject(&:blank?).last)
+    assert_equal "FloodStageSyncJob", data["job"]
+    assert_equal "phase=list_refresh done updated=1 elapsed=0.0s", data["msg"]
     refute_includes logged, "FloodStageSyncJob: phase="
     assert_match(/FloodStageSyncJob: phase=list_refresh/, io.string)
   end

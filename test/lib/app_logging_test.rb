@@ -1,18 +1,26 @@
 require "test_helper"
 
 class AppLoggingTest < ActiveSupport::TestCase
-  test "key_value formats floats hashes and error strings" do
-    line = AppLogging.key_value(
+  test "json formats floats hashes and error strings" do
+    line = AppLogging.json(
       event: "job.perform",
       duration: 12.3456,
       args: [ "wa", { id: 1 } ],
       error: "RuntimeError: boom boom"
     )
+    data = JSON.parse(line)
 
-    assert_includes line, "event=job.perform"
-    assert_includes line, "duration=12.35"
-    assert_includes line, 'args=["wa",{"id":1}]'
-    assert_includes line, 'error="RuntimeError: boom boom"'
+    assert_equal "job.perform", data["event"]
+    assert_equal 12.35, data["duration"]
+    assert_equal [ "wa", { "id" => 1 } ], data["args"]
+    assert_equal "RuntimeError: boom boom", data["error"]
+  end
+
+  test "json omits nil values" do
+    line = AppLogging.json(event: "job.perform", error: nil, status: "ok")
+    data = JSON.parse(line)
+
+    assert_equal({ "event" => "job.perform", "status" => "ok" }, data)
   end
 
   test "filtered_params drops controller action and filterable secrets" do
@@ -50,15 +58,25 @@ class AppLoggingTest < ActiveSupport::TestCase
       queries: 3
     )
 
-    assert_equal %i[method path status queries ua], ordered.keys
+    assert_equal %w[method path status queries ua], ordered.keys
   end
 
-  test "compact tag format joins key=value tags without brackets" do
+  test "compact tag format merges rid into JSON log lines" do
     stack = ActiveSupport::TaggedLogging::TagStack.new
     stack.singleton_class.prepend(AppLogging::CompactTagFormat)
     stack.push_tags([ "rid=abc-123" ])
 
-    assert_equal "rid=abc-123 method=GET path=/", stack.format_message("method=GET path=/")
+    merged = stack.format_message('{"method":"GET","path":"/"}')
+    assert_equal({ "rid" => "abc-123", "method" => "GET", "path" => "/" }, JSON.parse(merged))
+  end
+
+  test "compact tag format wraps freeform messages as JSON with rid" do
+    stack = ActiveSupport::TaggedLogging::TagStack.new
+    stack.singleton_class.prepend(AppLogging::CompactTagFormat)
+    stack.push_tags([ "rid=abc-123" ])
+
+    wrapped = stack.format_message("hello")
+    assert_equal({ "rid" => "abc-123", "msg" => "hello" }, JSON.parse(wrapped))
   end
 
   test "compact tag format keeps brackets for freeform tags" do
