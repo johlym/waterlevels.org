@@ -33,32 +33,42 @@ class FloodStageSync
       phase_start = monotonic_now
       gauges_by_lid = fetch_gauges_by_lid
       progress&.step(
-        "phase=list_fetch done gauges=#{gauges_by_lid.size} " \
-        "elapsed=#{elapsed_s(phase_start)}s"
+        phase: "list_fetch",
+        status: "done",
+        gauges: gauges_by_lid.size,
+        elapsed: elapsed_s(phase_start).to_f
       )
 
       phase_start = monotonic_now
       list_updated = refresh_categories_from_list(gauges_by_lid)
       progress&.step(
-        "phase=list_refresh done updated=#{list_updated} " \
-        "elapsed=#{elapsed_s(phase_start)}s"
+        phase: "list_refresh",
+        status: "done",
+        updated: list_updated,
+        elapsed: elapsed_s(phase_start).to_f
       )
 
       phase_start = monotonic_now
       alert_matched = match_unlinked_alert_gauges(gauges_by_lid)
       progress&.step(
-        "phase=alert_match done matched=#{alert_matched} " \
-        "budget_remaining=#{@detail_requests_remaining} " \
-        "elapsed=#{elapsed_s(phase_start)}s"
+        phase: "alert_match",
+        status: "done",
+        matched: alert_matched,
+        budget_remaining: @detail_requests_remaining,
+        elapsed: elapsed_s(phase_start).to_f
       )
 
       phase_start = monotonic_now
       matched, unmatched, skipped, errors = discover_and_refresh_details
       progress&.step(
-        "phase=detail_sync done matched=#{matched} unmatched=#{unmatched} " \
-        "skipped=#{skipped} errors=#{errors} " \
-        "budget_remaining=#{@detail_requests_remaining} " \
-        "elapsed=#{elapsed_s(phase_start)}s"
+        phase: "detail_sync",
+        status: "done",
+        matched: matched,
+        unmatched: unmatched,
+        skipped: skipped,
+        errors: errors,
+        budget_remaining: @detail_requests_remaining,
+        elapsed: elapsed_s(phase_start).to_f
       )
 
       Telemetry.add_attributes(
@@ -77,9 +87,13 @@ class FloodStageSync
         matched.positive? || unmatched.positive?
       warm_caches(changed: changed)
       progress&.finish(
-        "list_updated=#{list_updated} alert_matched=#{alert_matched} " \
-        "matched=#{matched} unmatched=#{unmatched} skipped=#{skipped} errors=#{errors} " \
-        "detail_budget_remaining=#{@detail_requests_remaining}"
+        list_updated: list_updated,
+        alert_matched: alert_matched,
+        matched: matched,
+        unmatched: unmatched,
+        skipped: skipped,
+        errors: errors,
+        detail_budget_remaining: @detail_requests_remaining
       )
       AdminDashboardStats.record_job_finish!(
         :flood_sync,

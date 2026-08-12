@@ -3,8 +3,8 @@ require "active_support/log_subscriber"
 module AppLogging
   # Lograge-style single-line ActiveJob lifecycle logs (JSON).
   #
-  #   {"event":"job.enqueue","job":"FloodStageSyncJob","jid":"…","queue":"sync","adapter":"Sidekiq","status":"ok"}
-  #   {"event":"job.perform","job":"FloodStageSyncJob","jid":"…","queue":"sync","status":"ok","duration":12.34}
+  #   {"level":"info","event":"job.enqueue","message":"job.enqueue FloodStageSyncJob ok","job":"FloodStageSyncJob",...}
+  #   {"level":"info","event":"job.perform","message":"job.perform FloodStageSyncJob ok","job":"FloodStageSyncJob","duration":12.34,...}
   class JobLogSubscriber < ActiveSupport::LogSubscriber
     def enqueue(event)
       log_lifecycle("job.enqueue", event)
@@ -21,13 +21,15 @@ module AppLogging
     def enqueue_all(event)
       jobs = event.payload[:jobs] || []
       enqueued = event.payload[:enqueued_count].to_i
+      failed = jobs.size - enqueued
       info do
-        AppLogging.json(
+        format_event(
           event: "job.enqueue_all",
+          status: failed.positive? ? "error" : "ok",
           adapter: adapter_name(event),
           count: jobs.size,
           enqueued: enqueued,
-          failed: jobs.size - enqueued
+          failed: failed
         )
       end
     end
@@ -49,10 +51,11 @@ module AppLogging
         jid: job.job_id,
         queue: job.queue_name,
         executions: job.executions,
-        wait: event.payload[:wait].to_i
+        wait: event.payload[:wait].to_i,
+        status: "ok"
       }
       data[:error] = "#{error.class}: #{error.message}" if error
-      info { AppLogging.json(data) }
+      info { format_event(**data) }
     end
     subscribe_log_level :enqueue_retry, :info
 
@@ -65,6 +68,7 @@ module AppLogging
         jid: job.job_id,
         queue: job.queue_name,
         executions: job.executions,
+        status: "error",
         error: error && "#{error.class}: #{error.message}"
       )
     end
@@ -78,6 +82,7 @@ module AppLogging
         job: job.class.name,
         jid: job.job_id,
         queue: job.queue_name,
+        status: "error",
         error: error && "#{error.class}: #{error.message}"
       )
     end
@@ -139,7 +144,7 @@ module AppLogging
     end
 
     def emit(data)
-      line = AppLogging.json(data)
+      line = format_event(**data)
       if data[:status] == "error" || data[:status] == "aborted"
         error { line }
       else
@@ -148,7 +153,18 @@ module AppLogging
     end
 
     def error_line(data)
-      error { AppLogging.json(data.compact) }
+      error { format_event(**data.compact) }
+    end
+
+    def format_event(**data)
+      status = data[:status]
+      level = if status == "error" || status == "aborted"
+        "error"
+      else
+        "info"
+      end
+      message = [ data[:event], data[:job], status ].compact.join(" ")
+      AppLogging.event(data.merge(level: level, message: message))
     end
 
     def adapter_name(event)
