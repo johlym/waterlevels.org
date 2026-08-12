@@ -32,14 +32,16 @@ class AppLoggingJobLogSubscriberTest < ActiveSupport::TestCase
     perform_enqueued_jobs { DemoJob.perform_later("wa") }
 
     lines = @io.string.lines.map(&:strip).reject(&:blank?)
-    perform_line = lines.find { |line| line.include?("event=job.perform") }
-
+    perform_line = lines.find { |line| line.include?('"event":"job.perform"') }
     assert perform_line, "expected a job.perform line, got: #{lines.inspect}"
-    assert_includes perform_line, "job=AppLoggingJobLogSubscriberTest::DemoJob"
-    assert_includes perform_line, "queue=default"
-    assert_includes perform_line, "status=ok"
-    assert_match(/duration=\d+\.\d+/, perform_line)
-    assert_includes perform_line, 'args=["wa"]'
+
+    data = JSON.parse(perform_line)
+    assert_equal "job.perform", data["event"]
+    assert_equal "AppLoggingJobLogSubscriberTest::DemoJob", data["job"]
+    assert_equal "default", data["queue"]
+    assert_equal "ok", data["status"]
+    assert_kind_of Numeric, data["duration"]
+    assert_equal [ "wa" ], data["args"]
     refute lines.any? { |line| line.include?("Performing ") || line.include?("Performed ") }
   end
 
@@ -47,11 +49,12 @@ class AppLoggingJobLogSubscriberTest < ActiveSupport::TestCase
     DemoJob.perform_later("or")
 
     lines = @io.string.lines.map(&:strip).reject(&:blank?)
-    enqueue_line = lines.find { |line| line.include?("event=job.enqueue") }
-
+    enqueue_line = lines.find { |line| line.include?('"event":"job.enqueue"') }
     assert enqueue_line, "expected a job.enqueue line, got: #{lines.inspect}"
-    assert_includes enqueue_line, "status=ok"
-    assert_includes enqueue_line, 'args=["or"]'
+
+    data = JSON.parse(enqueue_line)
+    assert_equal "ok", data["status"]
+    assert_equal [ "or" ], data["args"]
     refute lines.any? { |line| line.include?("Performing ") }
   end
 end

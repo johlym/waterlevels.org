@@ -1,4 +1,4 @@
-# Single-line request + job logs. See lib/app_logging.rb.
+# Single-line JSON request + job logs. See lib/app_logging.rb.
 require Rails.root.join("lib/app_logging")
 
 Rails.application.configure do
@@ -6,7 +6,7 @@ Rails.application.configure do
 
   next unless config.lograge.enabled
 
-  config.lograge.formatter = Lograge::Formatters::KeyValue.new
+  config.lograge.formatter = Lograge::Formatters::Json.new
   config.lograge.base_controller_class = [ "ActionController::Base" ]
 
   # /up is also silenced by config.silence_healthcheck_path; keep Lograge quiet too.
@@ -33,7 +33,7 @@ Rails.application.configure do
       queries: payload[:queries_count],
       cached: payload[:cached_queries_count],
       gc: event.respond_to?(:gc_time) ? event.gc_time.to_f.round(2) : nil,
-      params: params.presence&.then { |p| p.to_json }
+      params: params.presence
     }
     if (error = payload[:exception])
       options[:error] = "#{error[0]}: #{error[1]}"

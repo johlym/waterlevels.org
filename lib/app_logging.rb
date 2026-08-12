@@ -1,12 +1,13 @@
-# Structured, Heroku-router-style logging for web requests (via Lograge) and
-# ActiveJob lifecycle events. Enabled in production by default; set LOGRAGE=1
-# to enable in development/test, or LOGRAGE=0 to disable in production.
+# Structured JSON logging for web requests (via Lograge) and ActiveJob lifecycle
+# events. Enabled in production by default; set LOGRAGE=1 to enable in
+# development/test, or LOGRAGE=0 to disable in production.
 module AppLogging
   PARAM_EXCEPTIONS = %w[controller action format authenticity_token commit].freeze
   USER_AGENT_MAX = 120
   FIELD_ORDER = %i[
-    method path format status duration view db queries cached gc allocations
-    controller action location ip host cf_ray ua params error unpermitted_params
+    rid event job jid queue adapter method path format status duration view db
+    queries cached gc allocations controller action location ip host cf_ray ua
+    params args error unpermitted_params msg
   ].freeze
 
   module_function
@@ -18,27 +19,28 @@ module AppLogging
     Rails.env.production?
   end
 
-  def key_value(data)
-    data.each_with_object([]) do |(key, value), parts|
-      next if value.nil?
-
-      parts << "#{key}=#{format_value(key, value)}"
-    end.join(" ")
+  def json(data)
+    JSON.generate(order_fields(normalize(data)))
   end
 
-  def format_value(key, value)
+  def normalize(data)
+    data.each_with_object({}) do |(key, value), cleaned|
+      next if value.nil?
+
+      cleaned[key] = normalize_value(value)
+    end
+  end
+
+  def normalize_value(value)
     case value
     when Float
-      format("%.2f", value)
-    when Hash, Array
-      value.to_json
+      value.round(2)
+    when Hash
+      value.transform_values { |item| normalize_value(item) }
+    when Array
+      value.map { |item| normalize_value(item) }
     else
-      text = value.to_s
-      if key.to_sym == :error || text.match?(/[\s"'=]/)
-        text.dump
-      else
-        text
-      end
+      value
     end
   end
 
@@ -63,9 +65,13 @@ module AppLogging
   def order_fields(data)
     ordered = {}
     FIELD_ORDER.each do |key|
-      ordered[key] = data[key] if data.key?(key)
+      ordered[key.to_s] = data[key] if data.key?(key)
+      ordered[key.to_s] = data[key.to_s] if data.key?(key.to_s)
     end
-    data.each { |key, value| ordered[key] = value unless ordered.key?(key) }
+    data.each do |key, value|
+      string_key = key.to_s
+      ordered[string_key] = value unless ordered.key?(string_key)
+    end
     ordered
   end
 
@@ -84,8 +90,8 @@ module AppLogging
   end
 
   def install_request_id_tag!
-    # Keep request correlation on every line (including non-Lograge messages)
-    # but as rid=… so it matches the key=value style.
+    # Keep request correlation on every line (including non-Lograge messages).
+    # CompactTagFormat merges rid into JSON objects so lines stay valid JSON.
     Rails.application.config.log_tags = [ ->(request) { "rid=#{request.request_id}" } ]
   end
 
@@ -102,11 +108,13 @@ module AppLogging
     end
   end
 
-  # When every tag is already key=value, join with spaces instead of [brackets].
+  # Merge key=value tags into JSON log lines so TaggedLogging stays JSON-safe.
   module CompactTagFormat
     def format_message(message)
       return message if @tags.empty?
-      return "#{@tags.join(" ")} #{message}" if @tags.all? { |tag| tag.to_s.include?("=") }
+
+      tag_fields = kv_tag_fields
+      return merge_json_tags(tag_fields, message) if tag_fields
 
       if @tags.size == 1
         "[#{@tags[0]}] #{message}"
@@ -114,6 +122,34 @@ module AppLogging
         @tags_string ||= "[#{@tags.join("] [")}] "
         "#{@tags_string}#{message}"
       end
+    end
+
+    private
+
+    def kv_tag_fields
+      fields = {}
+      @tags.each do |tag|
+        str = tag.to_s
+        return nil unless str.include?("=")
+
+        key, value = str.split("=", 2)
+        fields[key] = value
+      end
+      fields
+    end
+
+    def merge_json_tags(tag_fields, message)
+      msg = message.to_s
+      if msg.start_with?("{")
+        begin
+          data = JSON.parse(msg)
+          return JSON.generate(tag_fields.merge(data))
+        rescue JSON::ParserError
+          # Fall through to wrap as msg.
+        end
+      end
+
+      JSON.generate(tag_fields.merge("msg" => msg))
     end
   end
 

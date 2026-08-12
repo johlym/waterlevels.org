@@ -1,10 +1,10 @@
 require "active_support/log_subscriber"
 
 module AppLogging
-  # Lograge-style single-line ActiveJob lifecycle logs.
+  # Lograge-style single-line ActiveJob lifecycle logs (JSON).
   #
-  #   event=job.enqueue job=FloodStageSyncJob jid=… queue=sync adapter=Sidekiq
-  #   event=job.perform job=FloodStageSyncJob jid=… queue=sync status=ok duration=12.34
+  #   {"event":"job.enqueue","job":"FloodStageSyncJob","jid":"…","queue":"sync","adapter":"Sidekiq","status":"ok"}
+  #   {"event":"job.perform","job":"FloodStageSyncJob","jid":"…","queue":"sync","status":"ok","duration":12.34}
   class JobLogSubscriber < ActiveSupport::LogSubscriber
     def enqueue(event)
       log_lifecycle("job.enqueue", event)
@@ -22,7 +22,7 @@ module AppLogging
       jobs = event.payload[:jobs] || []
       enqueued = event.payload[:enqueued_count].to_i
       info do
-        AppLogging.key_value(
+        AppLogging.json(
           event: "job.enqueue_all",
           adapter: adapter_name(event),
           count: jobs.size,
@@ -52,7 +52,7 @@ module AppLogging
         wait: event.payload[:wait].to_i
       }
       data[:error] = "#{error.class}: #{error.message}" if error
-      info { AppLogging.key_value(data) }
+      info { AppLogging.json(data) }
     end
     subscribe_log_level :enqueue_retry, :info
 
@@ -139,7 +139,7 @@ module AppLogging
     end
 
     def emit(data)
-      line = AppLogging.key_value(data)
+      line = AppLogging.json(data)
       if data[:status] == "error" || data[:status] == "aborted"
         error { line }
       else
@@ -148,7 +148,7 @@ module AppLogging
     end
 
     def error_line(data)
-      error { AppLogging.key_value(data.compact) }
+      error { AppLogging.json(data.compact) }
     end
 
     def adapter_name(event)

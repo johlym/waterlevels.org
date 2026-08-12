@@ -33,14 +33,14 @@ class SyncProgress
     @io&.puts("[#{Time.current.strftime("%H:%M:%S")}] #{@label}: #{message}")
     @io&.flush
 
-    # Logger lines are key=value friendly and avoid repeating the job class
-    # when AppLogging already emits structured job lifecycle events.
+    # Logger lines are JSON when AppLogging is on, and avoid repeating the job
+    # class when structured job lifecycle events are already emitted.
     @logger&.info(logger_line(message))
   end
 
   def logger_line(message)
     if defined?(AppLogging) && AppLogging.enabled?
-      "job=#{@label} #{message}"
+      AppLogging.json(job: @label, msg: message)
     else
       "#{@label}: #{message}"
     end
