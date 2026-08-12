@@ -61,13 +61,15 @@ OpenTelemetry traces export to Honeycomb when `OTEL_EXPORTER_OTLP_*` is set (see
 
 ## Logging
 
-Production uses [Lograge](https://github.com/roidrage/lograge) plus `AppLogging` (`lib/app_logging.rb`) for single-line structured JSON request and ActiveJob logs. Example request line:
+Production uses [Lograge](https://github.com/roidrage/lograge) plus `AppLogging` (`lib/app_logging.rb`) for single-line structured JSON request and ActiveJob logs (Heroku → Better Stack friendly). Each line includes `level`, `event`, a short human `message`, and flat fields. Example request line:
 
 ```json
-{"rid":"46dc1071-…","method":"GET","path":"/gauges/wa/…","format":"html","status":200,"duration":102.0,"view":19.8,"db":15.2,"queries":19,"cached":5,"gc":1.9,"allocations":…,"controller":"GaugesController","action":"show","ip":"…","host":"waterlevels.org"}
+{"level":"info","event":"request","message":"GET /gauges/wa/… 200","rid":"46dc1071-…","method":"GET","path":"/gauges/wa/…","format":"html","status":200,"duration":102.0,"view":19.8,"db":15.2,"queries":19,"cached":5,"gc":1.9,"allocations":…,"controller":"GaugesController","action":"show","ip":"…","host":"waterlevels.org"}
 ```
 
-Job lifecycle lines look like `{"event":"job.perform","job":"FloodStageSyncJob","jid":"…","queue":"sync","status":"ok","duration":12.34}`. Structured JSON logging is always enabled (including development and test).
+Job lifecycle lines look like `{"level":"info","event":"job.perform","message":"job.perform FloodStageSyncJob ok","job":"FloodStageSyncJob","jid":"…","queue":"sync","status":"ok","duration":12.34}`. Sync progress lines use `event=sync.progress` with flat `phase` / `updated` / `elapsed` fields. Structured JSON logging is always enabled (including development and test).
+
+Via a Heroku log drain, Better Stack nests the parsed JSON under `message.*` (for example `message.job`, `message.phase`). Configure Live Tail to show `{message.message}` and filter on those nested fields (or add a VRL transform to promote them).
 
 ## Tests
 

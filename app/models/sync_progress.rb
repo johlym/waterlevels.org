@@ -6,43 +6,114 @@ class SyncProgress
     @every = every
     @count = 0
     @started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    say("starting")
+    say("starting", status: "starting")
   end
 
-  def step(message)
-    say(message)
+  def step(message = nil, **fields)
+    if message.is_a?(Hash)
+      fields = message.merge(fields)
+      message = fields.delete(:message)
+    end
+    say(message, **fields)
   end
 
   def increment(amount = 1)
     @count += amount
-    say("#{@count} processed") if (@count % @every).zero?
+    say("#{@count} processed", count: @count, status: "running") if (@count % @every).zero?
     @count
   end
 
-  def finish(message = nil)
+  def finish(message = nil, **fields)
+    if message.is_a?(Hash)
+      fields = message.merge(fields)
+      message = fields.delete(:message)
+    end
+
     elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - @started_at
-    detail = message.presence || "#{@count} processed"
-    say("done detail=#{detail.to_s.dump} elapsed=#{format("%.1f", elapsed)}s")
+
+    if message.present? && !fields.key?(:detail)
+      if message.to_s.include?("=")
+        fields = AppLogging.extract_logfmt(message).merge(fields)
+      else
+        fields = { detail: message }.merge(fields)
+      end
+      message = "done"
+    end
+
+    say(
+      message || "done",
+      status: fields[:status] || "done",
+      detail: fields[:detail] || "#{@count} processed",
+      elapsed: fields[:elapsed] || elapsed.round(1),
+      count: fields[:count] || @count,
+      **fields.except(:status, :detail, :elapsed, :count)
+    )
     @count
   end
 
   private
 
-  def say(message)
+  def say(message = nil, **fields)
+    human = human_line(message, fields)
     # Human rake/console stream keeps the classic labeled lines.
-    @io&.puts("[#{Time.current.strftime("%H:%M:%S")}] #{@label}: #{message}")
+    @io&.puts("[#{Time.current.strftime("%H:%M:%S")}] #{@label}: #{human}")
     @io&.flush
 
-    # Logger lines are JSON when AppLogging is on, and avoid repeating the job
-    # class when structured job lifecycle events are already emitted.
-    @logger&.info(logger_line(message))
+    @logger&.info(logger_line(message, fields, human))
   end
 
-  def logger_line(message)
-    if defined?(AppLogging) && AppLogging.enabled?
-      AppLogging.json(job: @label, msg: message)
+  def human_line(message, fields)
+    return message.to_s if message.present? && fields.blank?
+
+    parts = []
+    parts << message if message.present?
+    fields.each do |key, value|
+      next if value.nil?
+      next if message.present? && message.to_s.include?("#{key}=")
+      next if key.to_sym == :status && message.to_s == value.to_s
+
+      parts << "#{key}=#{format_human_value(value)}"
+    end
+    parts.join(" ").presence || "progress"
+  end
+
+  def format_human_value(value)
+    case value
+    when Float
+      format("%.1f", value)
+    when String
+      if value.match?(%r{[\s"=]})
+        value.dump
+      else
+        value
+      end
     else
+      value
+    end
+  end
+
+  def logger_line(message, fields, human)
+    if defined?(AppLogging) && AppLogging.enabled?
+      extracted = message.present? ? AppLogging.extract_logfmt(message) : {}
+      payload = extracted.merge(fields.compact)
+      AppLogging.event(
+        event: "sync.progress",
+        job: @label,
+        message: summary_message(message, payload, human),
+        **payload
+      )
+    else
+      "#{@label}: #{human}"
+    end
+  end
+
+  def summary_message(message, payload, human)
+    if payload[:phase]
+      [ @label, payload[:phase], payload[:status] ].compact.join(" ")
+    elsif message.present? && !message.to_s.include?("=")
       "#{@label}: #{message}"
+    else
+      "#{@label}: #{human}"
     end
   end
 end

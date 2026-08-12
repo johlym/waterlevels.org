@@ -36,7 +36,9 @@ class AppLoggingJobLogSubscriberTest < ActiveSupport::TestCase
     assert perform_line, "expected a job.perform line, got: #{lines.inspect}"
 
     data = JSON.parse(perform_line)
+    assert_equal "info", data["level"]
     assert_equal "job.perform", data["event"]
+    assert_equal "job.perform AppLoggingJobLogSubscriberTest::DemoJob ok", data["message"]
     assert_equal "AppLoggingJobLogSubscriberTest::DemoJob", data["job"]
     assert_equal "default", data["queue"]
     assert_equal "ok", data["status"]
@@ -53,7 +55,9 @@ class AppLoggingJobLogSubscriberTest < ActiveSupport::TestCase
     assert enqueue_line, "expected a job.enqueue line, got: #{lines.inspect}"
 
     data = JSON.parse(enqueue_line)
+    assert_equal "info", data["level"]
     assert_equal "ok", data["status"]
+    assert_includes data["message"], "job.enqueue"
     assert_equal [ "or" ], data["args"]
     refute lines.any? { |line| line.include?("Performing ") }
   end

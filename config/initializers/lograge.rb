@@ -42,6 +42,16 @@ Rails.application.configure do
   end
 
   config.lograge.before_format = lambda do |data, _payload|
+    status = data[:status].to_i
+    data[:event] ||= "request"
+    data[:level] ||= if status >= 500
+      "error"
+    elsif status >= 400
+      "warn"
+    else
+      "info"
+    end
+    data[:message] ||= [ data[:method], data[:path], data[:status] ].compact.join(" ")
     AppLogging.order_fields(data)
   end
 end

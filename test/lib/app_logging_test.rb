@@ -33,6 +33,22 @@ class AppLoggingTest < ActiveSupport::TestCase
     assert_equal "RuntimeError: boom boom", data["error"]
   end
 
+  test "event defaults level to info" do
+    data = JSON.parse(AppLogging.event(event: "sync.progress", job: "DemoJob"))
+
+    assert_equal "info", data["level"]
+    assert_equal "sync.progress", data["event"]
+  end
+
+  test "extract_logfmt pulls flat fields and status words" do
+    fields = AppLogging.extract_logfmt("phase=list_refresh done updated=88 elapsed=24.3s")
+
+    assert_equal "list_refresh", fields[:phase]
+    assert_equal "done", fields[:status]
+    assert_equal 88, fields[:updated]
+    assert_in_delta 24.3, fields[:elapsed]
+  end
+
   test "json omits nil values" do
     line = AppLogging.json(event: "job.perform", error: nil, status: "ok")
     data = JSON.parse(line)
@@ -66,16 +82,19 @@ class AppLoggingTest < ActiveSupport::TestCase
     assert_match(/…\z/, truncated)
   end
 
-  test "order_fields puts method path status ahead of extras" do
+  test "order_fields puts level event message ahead of extras" do
     ordered = AppLogging.order_fields(
       ua: "bot",
       method: "GET",
       status: 200,
       path: "/gauges/wa",
-      queries: 3
+      queries: 3,
+      level: "info",
+      event: "request",
+      message: "GET /gauges/wa 200"
     )
 
-    assert_equal %w[method path status queries ua], ordered.keys
+    assert_equal %w[level event message method path status queries ua], ordered.keys
   end
 
   test "compact tag format merges rid into JSON log lines" do
@@ -87,13 +106,16 @@ class AppLoggingTest < ActiveSupport::TestCase
     assert_equal({ "rid" => "abc-123", "method" => "GET", "path" => "/" }, JSON.parse(merged))
   end
 
-  test "compact tag format wraps freeform messages as JSON with rid" do
+  test "compact tag format wraps freeform messages as JSON with message and level" do
     stack = ActiveSupport::TaggedLogging::TagStack.new
     stack.singleton_class.prepend(AppLogging::CompactTagFormat)
     stack.push_tags([ "rid=abc-123" ])
 
     wrapped = stack.format_message("hello")
-    assert_equal({ "rid" => "abc-123", "msg" => "hello" }, JSON.parse(wrapped))
+    assert_equal(
+      { "rid" => "abc-123", "message" => "hello", "level" => "info" },
+      JSON.parse(wrapped)
+    )
   end
 
   test "compact tag format keeps brackets for freeform tags" do

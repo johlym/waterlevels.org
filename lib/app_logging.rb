@@ -1,13 +1,27 @@
 # Structured JSON logging for web requests (via Lograge) and ActiveJob lifecycle
 # events. Always enabled in every environment.
+#
+# Shape is tuned for Heroku → Better Stack drains: each line is one JSON object
+# with a human `message`, a `level`, an `event`, and flat queryable fields.
+# Better Stack nests the parsed line under `message.*` (e.g. `message.job`).
 module AppLogging
   PARAM_EXCEPTIONS = %w[controller action format authenticity_token commit].freeze
   USER_AGENT_MAX = 120
   FIELD_ORDER = %i[
-    rid event job jid queue adapter method path format status duration view db
-    queries cached gc allocations controller action location ip host cf_ray ua
-    params args error unpermitted_params msg
+    level event message rid job jid queue adapter method path format status
+    duration view db queries cached gc allocations controller action location
+    ip host cf_ray ua params args error unpermitted_params phase count
   ].freeze
+  LOGFMT_TOKEN = /
+    (?:^|\s)
+    ([A-Za-z_][A-Za-z0-9_]*)=
+    (
+      "(?:\\.|[^"\\])*"
+      |
+      \S+
+    )
+  /x
+  STATUS_WORDS = %w[done starting skip skipped ok error].freeze
 
   module_function
 
@@ -17,6 +31,13 @@ module AppLogging
 
   def json(data)
     JSON.generate(order_fields(normalize(data)))
+  end
+
+  # Prefer this for app events so level/message defaults stay consistent.
+  def event(data)
+    payload = data.to_h.compact
+    payload[:level] ||= "info"
+    json(payload)
   end
 
   def normalize(data)
@@ -35,6 +56,42 @@ module AppLogging
       value.transform_values { |item| normalize_value(item) }
     when Array
       value.map { |item| normalize_value(item) }
+    else
+      value
+    end
+  end
+
+  # Pull key=value tokens out of legacy SyncProgress / job strings so Better
+  # Stack gets flat fields (message.phase, message.updated, …) instead of one
+  # opaque msg blob.
+  def extract_logfmt(text)
+    fields = {}
+    text.to_s.scan(LOGFMT_TOKEN) do |key, raw|
+      fields[key.to_sym] = coerce_logfmt_value(raw)
+    end
+
+    remainder = text.to_s.gsub(LOGFMT_TOKEN, " ")
+    status = remainder.split.find { |token| STATUS_WORDS.include?(token) }
+    fields[:status] ||= status if status
+    fields
+  end
+
+  def coerce_logfmt_value(raw)
+    value = raw.to_s
+    if value.start_with?('"') && value.end_with?('"')
+      begin
+        return value.undump
+      rescue ArgumentError
+        value = value[1..-2]
+      end
+    end
+
+    if value.match?(/\A-?\d+\z/)
+      value.to_i
+    elsif value.match?(/\A-?\d+\.\d+s\z/)
+      value.delete_suffix("s").to_f
+    elsif value.match?(/\A-?\d+\.\d+\z/)
+      value.to_f
     else
       value
     end
@@ -141,11 +198,11 @@ module AppLogging
           data = JSON.parse(msg)
           return JSON.generate(tag_fields.merge(data))
         rescue JSON::ParserError
-          # Fall through to wrap as msg.
+          # Fall through to wrap as message.
         end
       end
 
-      JSON.generate(tag_fields.merge("msg" => msg))
+      JSON.generate(tag_fields.merge("message" => msg, "level" => "info"))
     end
   end
 
