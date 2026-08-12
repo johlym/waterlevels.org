@@ -1,6 +1,23 @@
 require "test_helper"
 
 class AppLoggingTest < ActiveSupport::TestCase
+  test "enabled? is always true" do
+    previous = ENV["LOGRAGE"]
+    begin
+      ENV["LOGRAGE"] = "0"
+      assert AppLogging.enabled?
+
+      ENV.delete("LOGRAGE")
+      assert AppLogging.enabled?
+    ensure
+      if previous.nil?
+        ENV.delete("LOGRAGE")
+      else
+        ENV["LOGRAGE"] = previous
+      end
+    end
+  end
+
   test "json formats floats hashes and error strings" do
     line = AppLogging.json(
       event: "job.perform",

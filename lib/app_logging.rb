@@ -1,6 +1,5 @@
 # Structured JSON logging for web requests (via Lograge) and ActiveJob lifecycle
-# events. Enabled in production by default; set LOGRAGE=1 to enable in
-# development/test, or LOGRAGE=0 to disable in production.
+# events. Always enabled in every environment.
 module AppLogging
   PARAM_EXCEPTIONS = %w[controller action format authenticity_token commit].freeze
   USER_AGENT_MAX = 120
@@ -13,10 +12,7 @@ module AppLogging
   module_function
 
   def enabled?
-    return false if ENV["LOGRAGE"] == "0"
-    return true if ENV["LOGRAGE"] == "1"
-
-    Rails.env.production?
+    true
   end
 
   def json(data)

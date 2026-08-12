@@ -67,7 +67,7 @@ Production uses [Lograge](https://github.com/roidrage/lograge) plus `AppLogging`
 {"rid":"46dc1071-…","method":"GET","path":"/gauges/wa/…","format":"html","status":200,"duration":102.0,"view":19.8,"db":15.2,"queries":19,"cached":5,"gc":1.9,"allocations":…,"controller":"GaugesController","action":"show","ip":"…","host":"waterlevels.org"}
 ```
 
-Job lifecycle lines look like `{"event":"job.perform","job":"FloodStageSyncJob","jid":"…","queue":"sync","status":"ok","duration":12.34}`. Set `LOGRAGE=1` to enable the same format locally, or `LOGRAGE=0` to disable it in production.
+Job lifecycle lines look like `{"event":"job.perform","job":"FloodStageSyncJob","jid":"…","queue":"sync","status":"ok","duration":12.34}`. Structured JSON logging is always enabled (including development and test).
 
 ## Tests
 

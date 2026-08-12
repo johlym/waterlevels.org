@@ -23,14 +23,8 @@ class SyncProgressTest < ActiveSupport::TestCase
     log_io = StringIO.new
     logger = ActiveSupport::Logger.new(log_io)
 
-    enabled = AppLogging.method(:enabled?)
-    AppLogging.define_singleton_method(:enabled?) { true }
-    begin
-      progress = SyncProgress.new("FloodStageSyncJob", io: io, logger: logger, every: 10)
-      progress.step("phase=list_refresh done updated=1 elapsed=0.0s")
-    ensure
-      AppLogging.define_singleton_method(:enabled?, enabled)
-    end
+    progress = SyncProgress.new("FloodStageSyncJob", io: io, logger: logger, every: 10)
+    progress.step("phase=list_refresh done updated=1 elapsed=0.0s")
 
     logged = log_io.string
     data = JSON.parse(logged.lines.map(&:strip).reject(&:blank?).last)
