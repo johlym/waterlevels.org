@@ -67,7 +67,7 @@ Production uses [Lograge](https://github.com/roidrage/lograge) plus `AppLogging`
 {"level":"info","event":"request","message":"GET /gauges/wa/… 200","rid":"46dc1071-…","method":"GET","path":"/gauges/wa/…","format":"html","status":200,"duration":102.0,"view":19.8,"db":15.2,"queries":19,"cached":5,"gc":1.9,"allocations":…,"controller":"GaugesController","action":"show","ip":"…","host":"waterlevels.org"}
 ```
 
-Job lifecycle lines look like `{"level":"info","event":"job.perform","message":"job.perform FloodStageSyncJob ok","job":"FloodStageSyncJob","jid":"…","queue":"sync","status":"ok","duration":12.34}`. Sync progress lines use `event=sync.progress` with flat `phase` / `updated` / `elapsed` fields. Structured JSON logging is always enabled (including development and test).
+Job lifecycle lines look like `{"level":"info","event":"job.perform","message":"job.perform FloodStageSyncJob ok","job":"FloodStageSyncJob","jid":"…","queue":"sync","status":"ok","duration":12.34}`. Sync progress lines use `event=sync.progress` with flat `phase` / `updated` / `elapsed` fields. Sidekiq's own logger (job start/done and scheduler `queueing …` lines) uses the same JSON shape (`event=sidekiq.job` / `sidekiq.enqueue`). Remaining `Rails.logger` strings are wrapped as JSON (`event=app.log`) with `[Component]` prefixes and `key=value` tokens lifted into fields. Structured JSON logging is always enabled (including development and test).
 
 Via a Heroku log drain, Better Stack nests the parsed JSON under `message.*` (for example `message.job`, `message.phase`). Configure Live Tail to show `{message.message}` and filter on those nested fields (or add a VRL transform to promote them).
 

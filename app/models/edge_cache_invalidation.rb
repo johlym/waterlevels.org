@@ -91,10 +91,27 @@ class EdgeCacheInvalidation
 
   def purge!(tags)
     result = purger.purge_tags(tags)
-    Rails.logger.info("[EdgeCacheInvalidation] purge_tags=#{Array(tags).size} result=#{result}")
+    Rails.logger.info(
+      AppLogging.event(
+        event: "edge_cache.purge",
+        component: "EdgeCacheInvalidation",
+        message: "purge_tags=#{Array(tags).size} result=#{result}",
+        purge_tags: Array(tags).size,
+        result: result
+      )
+    )
     result
   rescue Cloudflare::CachePurge::Error => e
-    Rails.logger.error("[EdgeCacheInvalidation] #{e.message}")
+    Rails.logger.error(
+      AppLogging.event(
+        level: "error",
+        event: "edge_cache.purge",
+        component: "EdgeCacheInvalidation",
+        message: e.message,
+        error: "#{e.class}: #{e.message}",
+        status: "error"
+      )
+    )
     Sentry.capture_exception(e) if defined?(Sentry)
     :failed
   end

@@ -28,7 +28,7 @@ class AppLoggingTest < ActiveSupport::TestCase
     data = JSON.parse(line)
 
     assert_equal "job.perform", data["event"]
-    assert_equal 12.35, data["duration"]
+    assert_equal 12.346, data["duration"]
     assert_equal [ "wa", { "id" => 1 } ], data["args"]
     assert_equal "RuntimeError: boom boom", data["error"]
   end
@@ -124,5 +124,33 @@ class AppLoggingTest < ActiveSupport::TestCase
     stack.push_tags([ "ActiveJob", "DemoJob" ])
 
     assert_equal "[ActiveJob] [DemoJob] hello", stack.format_message("hello")
+  end
+
+  test "wrap_unstructured lifts component prefix and logfmt fields" do
+    fields = AppLogging.wrap_unstructured(
+      "[EdgeCacheInvalidation] purge_tags=0 result=empty",
+      severity: "INFO"
+    )
+
+    assert_equal "info", fields[:level]
+    assert_equal "app.log", fields[:event]
+    assert_equal "EdgeCacheInvalidation", fields[:component]
+    assert_equal "purge_tags=0 result=empty", fields[:message]
+    assert_equal 0, fields[:purge_tags]
+    assert_equal "empty", fields[:result]
+  end
+
+  test "json formatter wraps unstructured lines and passes JSON through" do
+    formatter = AppLogging::JsonFormatter.new
+
+    wrapped = formatter.call("INFO", Time.utc(2026, 8, 12), nil, "[ZipCodeLookup] 98101: boom")
+    data = JSON.parse(wrapped)
+    assert_equal "info", data["level"]
+    assert_equal "ZipCodeLookup", data["component"]
+    assert_equal "98101: boom", data["message"]
+
+    json_line = '{"level":"info","event":"request","message":"GET / 200"}'
+    passed = formatter.call("INFO", Time.utc(2026, 8, 12), nil, json_line)
+    assert_equal "#{json_line}\n", passed
   end
 end
