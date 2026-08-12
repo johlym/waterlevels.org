@@ -11,6 +11,7 @@ module AppLogging
     level event message rid job jid queue adapter method path format status
     duration view db queries cached gc allocations controller action location
     ip host cf_ray ua params args error unpermitted_params phase count
+    component pid tid schedule elapsed
   ].freeze
   LOGFMT_TOKEN = /
     (?:^|\s)
@@ -51,7 +52,7 @@ module AppLogging
   def normalize_value(value)
     case value
     when Float
-      value.round(2)
+      value.round(3)
     when Hash
       value.transform_values { |item| normalize_value(item) }
     when Array
@@ -74,6 +75,38 @@ module AppLogging
     status = remainder.split.find { |token| STATUS_WORDS.include?(token) }
     fields[:status] ||= status if status
     fields
+  end
+
+  # Turn leftover Rails.logger strings into the same JSON shape as AppLogging.event.
+  # Pulls a `[Component]` prefix and key=value tokens into flat fields.
+  def wrap_unstructured(text, severity: "info", event: "app.log")
+    text = text.to_s
+    fields = {
+      level: severity.to_s.downcase,
+      event: event,
+      message: text
+    }
+
+    if (match = text.match(/\A\[([^\]]+)\]\s*(.*)\z/m))
+      fields[:component] = match[1]
+      rest = match[2]
+      fields[:message] = rest.presence || text
+      fields.merge!(extract_logfmt(rest).except(:level, :event, :message))
+    else
+      fields.merge!(extract_logfmt(text).except(:level, :event, :message))
+    end
+
+    fields
+  end
+
+  def json_object?(text)
+    str = text.to_s.strip
+    return false unless str.start_with?("{")
+
+    JSON.parse(str)
+    true
+  rescue JSON::ParserError
+    false
   end
 
   def coerce_logfmt_value(raw)
@@ -135,7 +168,17 @@ module AppLogging
     @installed = true
     install_compact_tag_format!
     install_request_id_tag!
+    install_json_formatter!
     install_active_job_logging!
+  end
+
+  def install_json_formatter!
+    logger = Rails.logger
+    return unless logger.respond_to?(:formatter=)
+
+    formatter = JsonFormatter.new
+    formatter.extend(ActiveSupport::TaggedLogging::Formatter)
+    logger.formatter = formatter
   end
 
   def install_compact_tag_format!
@@ -158,6 +201,16 @@ module AppLogging
       require Rails.root.join("lib/app_logging/job_log_subscriber")
       ActiveJob::LogSubscriber.detach_from(:active_job)
       AppLogging::JobLogSubscriber.attach_to :active_job
+    end
+  end
+
+  # Logger formatter: pass through JSON lines, wrap everything else.
+  class JsonFormatter < ::Logger::Formatter
+    def call(severity, _time, _progname, msg)
+      text = msg2str(msg).to_s.strip
+      return "#{text}\n" if AppLogging.json_object?(text)
+
+      AppLogging.event(AppLogging.wrap_unstructured(text, severity: severity)) << "\n"
     end
   end
 
