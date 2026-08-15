@@ -5,6 +5,10 @@ class FloodStageSync
   UNMATCHED_RETRY_AFTER = 7.days
   # Thresholds rarely change; list refresh already updates flood_category hourly.
   MATCHED_DETAIL_REFRESH_AFTER = 7.days
+  # Drop action+ categories we have not seen a current NWPS status for. List
+  # refresh skips missing LIDs and keeps the prior category on obs/fcst
+  # sentinels; without an age-out those rows ratchet the national alert count.
+  STALE_ALERT_AFTER = 24.hours
   # Per-state detail GET cap (alert LID + site discovery). Keep small so each
   # state usually finishes near the job's 30s inter-state timer under NWPS pacing.
   DEFAULT_DETAIL_REQUEST_BUDGET = 3
@@ -36,20 +40,23 @@ class FloodStageSync
         phase: "list_fetch",
         status: "done",
         gauges: gauges_by_lid.size,
+        list_fetch_failed: @list_fetch_failed,
         elapsed: elapsed_s(phase_start).to_f
       )
 
       phase_start = monotonic_now
       list_updated = refresh_categories_from_list(gauges_by_lid)
+      expired = expire_stale_unseen_alerts!(gauges_by_lid)
       progress&.step(
         phase: "list_refresh",
         status: "done",
         updated: list_updated,
+        expired: expired,
         elapsed: elapsed_s(phase_start).to_f
       )
 
       phase_start = monotonic_now
-      alert_matched = match_unlinked_alert_gauges(gauges_by_lid)
+      alert_matched = match_unlinked_alert_gauges(gauges_in_state(gauges_by_lid))
       progress&.step(
         phase: "alert_match",
         status: "done",
@@ -74,6 +81,7 @@ class FloodStageSync
       Telemetry.add_attributes(
         "app.batch_size" => gauges_by_lid.size,
         "app.list_updated" => list_updated,
+        "app.expired_count" => expired,
         "app.alert_matched" => alert_matched,
         "app.matched_count" => matched,
         "app.unmatched_count" => unmatched,
@@ -83,11 +91,12 @@ class FloodStageSync
         "app.detail_budget_remaining" => @detail_requests_remaining
       )
 
-      changed = list_updated.positive? || alert_matched.positive? ||
-        matched.positive? || unmatched.positive?
+      changed = list_updated.positive? || expired.positive? ||
+        alert_matched.positive? || matched.positive? || unmatched.positive?
       warm_caches(changed: changed)
       progress&.finish(
         list_updated: list_updated,
+        expired: expired,
         alert_matched: alert_matched,
         matched: matched,
         unmatched: unmatched,
@@ -99,6 +108,7 @@ class FloodStageSync
         :flood_sync,
         state: postal_code,
         list_updated: list_updated,
+        expired: expired,
         matched: matched,
         unmatched: unmatched
       )
@@ -143,20 +153,36 @@ class FloodStageSync
   # ≥30s apart so a full national pass is 53 list calls, not repeated multi-state
   # region downloads.
   def fetch_gauges_by_lid
+    @list_fetch_failed = false
     progress&.step("nwps list state=#{postal_code}")
-    gauges = filter_gauges_for_state(client.gauges(state: postal_code))
+    # Keep the padded bbox payload (neighbor-state LIDs included) so a WA
+    # station crosswalked to an OR-classified point still gets hourly status.
+    # Alert matching filters to this state's abbreviation so we do not spend
+    # the detail budget on neighbor gauges we cannot join.
+    by_lid = index_gauges_by_lid(client.gauges(state: postal_code))
+    progress&.step("nwps list state=#{postal_code} gauges=#{by_lid.size}")
+    by_lid
+  rescue Nwps::Client::Error => e
+    @list_fetch_failed = true
+    progress&.step("list fetch skipped state=#{postal_code}: #{e.message}")
+    {}
+  end
 
-    by_lid = gauges.each_with_object({}) do |gauge, memo|
+  def index_gauges_by_lid(gauges)
+    Array(gauges).each_with_object({}) do |gauge, memo|
       lid = gauge["lid"].to_s.upcase.presence
       next unless lid
 
       memo[lid] = gauge
     end
-    progress&.step("nwps list state=#{postal_code} gauges=#{by_lid.size}")
-    by_lid
-  rescue Nwps::Client::Error => e
-    progress&.step("list fetch skipped state=#{postal_code}: #{e.message}")
-    {}
+  end
+
+  def gauges_in_state(by_lid)
+    by_lid.select { |_lid, gauge| gauge_in_state?(gauge) }
+  end
+
+  def gauge_in_state?(gauge)
+    gauge.dig("state", "abbreviation").to_s.upcase == postal_code.to_s.upcase
   end
 
   # Phase 1: list calls update flood_category for every site we already
@@ -184,9 +210,35 @@ class FloodStageSync
     updated
   end
 
-  def filter_gauges_for_state(gauges)
-    abbrev = postal_code.to_s.upcase
-    gauges.select { |gauge| gauge.dig("state", "abbreviation").to_s.upcase == abbrev }
+  # After a successful non-empty list, drop action+ rows whose LID was not in
+  # the payload and whose last current NWPS status is older than
+  # STALE_ALERT_AFTER. Empty / failed lists must not wipe a state's alerts.
+  def expire_stale_unseen_alerts!(by_lid)
+    return 0 if @list_fetch_failed || by_lid.blank?
+
+    expired = 0
+    sync_scope.flood_alert.where.not(nwps_lid: [ nil, "" ]).find_each do |location|
+      next if by_lid.key?(location.nwps_lid.to_s.upcase)
+      next unless stale_alert?(location)
+
+      clear_stale_alert!(location)
+      expired += 1
+      progress&.increment
+    end
+    progress&.step("stale unseen alerts expired=#{expired}")
+    expired
+  end
+
+  def stale_alert?(location)
+    return false unless location.flood_alert?
+    return true if location.flood_category_observed_at.blank?
+
+    location.flood_category_observed_at < STALE_ALERT_AFTER.ago
+  end
+
+  def clear_stale_alert!(location)
+    location.update!(flood_category: "no_flooding")
+    StationSnapshotCache.warm(location)
   end
 
   # Phase 1b: for NWPS points currently at action+ that we have not linked yet,
@@ -344,10 +396,13 @@ class FloodStageSync
   def apply_list_status!(location, gauge)
     category, category_at = category_from_status(gauge["status"])
     attrs = { nwps_matched: true }
-    # Keep the prior category when NWPS reports only non-current sentinels.
     if category.present?
       attrs[:flood_category] = category
       attrs[:flood_category_observed_at] = category_at || location.flood_category_observed_at
+    elsif stale_alert?(location)
+      # Sentinels only (obs_not_current / fcst_not_current). Keep a recent
+      # category to avoid flicker; drop it once the last current status ages out.
+      attrs[:flood_category] = "no_flooding"
     end
 
     # Avoid rewrite + snapshot warm when the list status did not change.
