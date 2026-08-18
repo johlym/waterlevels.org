@@ -1,7 +1,8 @@
 # iv_repair_worker: recent IV tip / tip-sync hollow-middle gap fills
-# (queue: iv_repair). Own process so cold history backfill cannot starve
-# IV completeness. 512MB eco dyno — single thread.
+# (queue: iv_repair only). Own process so cold history backfill cannot starve
+# IV completeness, and so these threads cannot drain iv_repair_scar —
+# that lane belongs to iv_repair_scar_worker / USGS_API_HISTORY_IVREPAIR2_KEY.
+# 512MB eco dyno — concurrency 4.
 :concurrency: 4
 :queues:
   - iv_repair
-  - iv_repair_scar

@@ -30,6 +30,10 @@ class IvRepairScarBatchJobTest < ActiveSupport::TestCase
     end
   end
 
+  test "runs on the isolated iv_repair_scar queue" do
+    assert_equal "iv_repair_scar", IvRepairScarBatchJob.new.queue_name
+  end
+
   test "enqueues scar jobs for anchored stations with older interior holes" do
     location = create(:monitoring_location, site_number: "30000301")
     series = create(:time_series, monitoring_location: location, selected_for_display: true)

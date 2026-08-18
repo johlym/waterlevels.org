@@ -27,6 +27,10 @@ class IvRepairScarJobTest < ActiveSupport::TestCase
     end
   end
 
+  test "runs on the isolated iv_repair_scar queue" do
+    assert_equal "iv_repair_scar", IvRepairScarJob.new.queue_name
+  end
+
   test "enqueue claims shared lock and requires iv_repair2 key" do
     travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
       assert IvRepairScarJob.enqueue(99)
