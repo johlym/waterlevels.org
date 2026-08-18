@@ -1,6 +1,7 @@
 # iv_repair_scar_worker: deeper interior IV gap fills across continuous
-# retention (queue: iv_repair_scar) on USGS_API_HISTORY_IVREPAIR2_KEY.
-# Own process so tip IV repair (key1 / iv_repair_worker) stays isolated.
+# retention (queue: iv_repair_scar only) on USGS_API_HISTORY_IVREPAIR2_KEY.
+# Sole consumer of this queue — tip IV repair (key1 / iv_repair_worker)
+# must not also listen here or it starves this process.
 :concurrency: 2
 :queues:
   - iv_repair_scar
