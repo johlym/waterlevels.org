@@ -166,6 +166,10 @@ class MonitoringLocation < ApplicationRecord
       .where("continuous_newest_at >= ?", tip_since)
       .where.not(continuous_prev_at: nil)
       .where("continuous_newest_at - continuous_prev_at <= INTERVAL '#{threshold_seconds} seconds'")
+      .where(
+        "iv_scar_checked_at IS NULL OR iv_scar_checked_at < ? OR continuous_max_gap_seconds > COALESCE(iv_scar_checked_max_gap_seconds, 0)",
+        HistoryIngestion.iv_scar_retry_after
+      )
       .distinct
       .order(:monitoring_location_id)
       .pluck(:monitoring_location_id)

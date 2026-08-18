@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_11_215042) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_18_220000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -167,6 +167,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_11_215042) do
     t.datetime "created_at", null: false
     t.datetime "ends_at"
     t.boolean "has_continuous_anchor", default: false, null: false
+    t.datetime "iv_scar_checked_at"
+    t.integer "iv_scar_checked_max_gap_seconds"
     t.string "measurement_kind", null: false
     t.datetime "metadata_synced_at"
     t.bigint "monitoring_location_id", null: false
