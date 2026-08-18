@@ -61,13 +61,13 @@ module Admin
             label: "IV scar queue busy threshold",
             description: "Skip scar batch ticks when the iv_repair_scar queue depth is at least this high. 0 disables the check."
 
-          integer :history_iv_scar_retry_hours,
-            default: 24,
-            env: "HISTORY_IV_SCAR_RETRY_HOURS",
+          integer :history_iv_scar_retry_days,
+            default: 7,
+            env: "HISTORY_IV_SCAR_RETRY_DAYS",
             min: 1,
-            max: 720,
-            label: "IV scar retry (hours)",
-            description: "After a completed scar fetch, park USGS-empty interior holes for this long (or until a worse gap appears) so they leave Need IV scar repair."
+            max: 30,
+            label: "IV scar retry (days)",
+            description: "After USGS confirms an interior hole has no fillable data, wait this many days before checking that station again (or sooner if a worse gap appears)."
 
           integer :usgs_request_pause_ms,
             default: 100,

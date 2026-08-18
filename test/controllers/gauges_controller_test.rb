@@ -169,6 +169,33 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "USGS does not publish daily history for Gage height"
   end
 
+  test "shows known-missing USGS IV callout with the next check time" do
+    series = create(:time_series, monitoring_location: @location, selected_for_display: true)
+    DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 10.0)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do
+      seed_continuous_coverage!(
+        series,
+        from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+        to: 5.days.ago
+      )
+      seed_continuous_coverage!(
+        series,
+        from: 3.days.ago,
+        to: 1.hour.ago
+      )
+      TimeSeries.record_iv_scar_check!([ series.id ])
+
+      get "/gauges/#{@location.state_code}/#{@location.to_param}"
+      assert_response :success
+      assert_includes response.body, 'class="history-callout"'
+      assert_includes response.body, "USGS is missing data that would fill a gap"
+      assert_includes response.body, "We'll check USGS again"
+      assert_includes response.body, "August 10, 2026"
+    end
+  end
+
   test "shows 3 year range tab when deep daily history is present" do
     series = create(:time_series, monitoring_location: @location, selected_for_display: true)
     ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)

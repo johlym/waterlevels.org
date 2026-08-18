@@ -163,6 +163,20 @@
           </p>
         </div>
       <% end %>
+      <% if @location.known_missing_usgs_iv? %>
+        <div class="history-callout" role="status">
+          <p>
+            USGS is missing data that would fill a gap in this station's recent readings.
+            The hashed stretch on the chart is a real outage, not a hole in our archive.
+            <% recheck_at = @location.usgs_iv_gap_recheck_at %>
+            <% if recheck_at %>
+              We'll check USGS again <%= display_timestamp(recheck_at, time_zone: @snapshot[:time_zone_identifier] || @snapshot[:time_zone], state_code: @snapshot[:state_code]) %>.
+            <% else %>
+              We'll check USGS again after the retry window.
+            <% end %>
+          </p>
+        </div>
+      <% end %>
       <div class="chart-panel">
         <div class="pad">
           <div class="chart-legend" data-hydrograph-target="legend"></div>

@@ -59,6 +59,7 @@ class StationInspector
     lines << "Tip at=#{loc[:latest_observed_at] || '—'} stage=#{loc[:latest_water_level_value] || '—'} flow=#{loc[:latest_discharge_value] || '—'} temp_c=#{loc[:latest_temperature_c] || '—'}"
     lines << ""
     lines << "IV repair: needs=#{r[:backfill][:needs_iv_repair]} locked=#{r[:backfill][:iv_repair_locked]} cooldown=#{r[:backfill][:iv_repair_cooling_down]}"
+    lines << "Known missing USGS IV: #{r[:backfill][:known_missing_usgs_iv]} recheck=#{r[:backfill][:usgs_iv_gap_recheck_at] || '—'}"
     lines << "Backfill: needs=#{r[:backfill][:needs_history_backfill]} locked=#{r[:backfill][:locked]} cooldown=#{r[:backfill][:cooling_down]} sunday_pause=#{r[:backfill][:sunday_catalog_pause]}"
     lines << "Gates: missing_year=#{r[:history_gates][:missing_year_history]} missing_deep=#{r[:history_gates][:missing_deep_history]} has_deep=#{r[:history_gates][:has_deep_history]}"
     lines << ""
@@ -127,6 +128,8 @@ class StationInspector
       iv_repair_locked: IvRepairLock.locked?(location.id),
       iv_repair_cooling_down: IvRepairLock.cooling_down?(location.id),
       iv_repair_available: Usgs::HistoryKeyPool.iv_repair_available?,
+      known_missing_usgs_iv: location.known_missing_usgs_iv?,
+      usgs_iv_gap_recheck_at: location.usgs_iv_gap_recheck_at,
       needs_history_backfill: location.needs_history_backfill?,
       missing_year_history: location.missing_year_history?,
       missing_deep_history: location.missing_deep_history?,
@@ -261,6 +264,15 @@ class StationInspector
         :error,
         "no_selected_series",
         "No selected display series — gauge cards/charts have nothing to bind to."
+      )
+    end
+
+    if bf[:known_missing_usgs_iv]
+      recheck = bf[:usgs_iv_gap_recheck_at]
+      findings << finding(
+        :info,
+        :known_missing_usgs_iv,
+        "Gauge page marks known-missing USGS IV. Next check #{recheck || 'after the retry window'}."
       )
     end
 

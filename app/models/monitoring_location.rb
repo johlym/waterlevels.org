@@ -285,6 +285,21 @@ class MonitoringLocation < ApplicationRecord
     series.any? { |s| HistoryIngestion.series_needs_iv_scar_repair?(s) }
   end
 
+  # Selected series whose interior IV hole USGS already confirmed it cannot fill.
+  def known_missing_usgs_iv_series
+    time_series.selected.select { |series| HistoryIngestion.series_iv_scar_recently_checked?(series) }
+  end
+
+  def known_missing_usgs_iv?
+    known_missing_usgs_iv_series.any?
+  end
+
+  def usgs_iv_gap_recheck_at
+    known_missing_usgs_iv_series
+      .filter_map { |series| HistoryIngestion.iv_scar_recheck_at(series.iv_scar_checked_at) }
+      .min
+  end
+
   def needs_history_backfill?
     series = time_series.selected.select(&:eligible_for_recent_history_backfill?)
     return false if series.none?

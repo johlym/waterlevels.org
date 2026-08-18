@@ -120,6 +120,17 @@
         <p class="hint">Public 1y callout</p>
       </article>
       <article>
+        <p class="value value-sm"><%= backfill[:known_missing_usgs_iv] ? "Yes" : "No" %></p>
+        <p class="label">known missing USGS IV</p>
+        <p class="hint">
+          <% if backfill[:usgs_iv_gap_recheck_at] %>
+            Public gap callout · next check <%= backfill[:usgs_iv_gap_recheck_at] %>
+          <% else %>
+            Public gap callout when USGS has no fillable IV
+          <% end %>
+        </p>
+      </article>
+      <article>
         <p class="value value-sm"><%= backfill[:missing_deep_history] ? "Yes" : "No" %></p>
         <p class="label">missing_deep_history?</p>
       </article>
