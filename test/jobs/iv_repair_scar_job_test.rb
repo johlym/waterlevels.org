@@ -92,6 +92,8 @@ class IvRepairScarJobTest < ActiveSupport::TestCase
       refute location.reload.needs_iv_scar_repair?
       refute_includes MonitoringLocation.iv_scar_candidate_ids, location.id
       refute IvRepairLock.cooling_down?(location.id)
+      assert location.known_missing_usgs_iv?
+      assert_in_delta 7.days.from_now.to_i, location.usgs_iv_gap_recheck_at.to_i, 2
 
       series.reload
       assert series.iv_scar_checked_at.present?

@@ -396,14 +396,24 @@ class HistoryIngestion
     true
   end
 
-  def self.iv_scar_retry_hours
-    hours = AppConfig.integer(:history_iv_scar_retry_hours)
-    hours = 24 if hours <= 0
-    hours
+  def self.iv_scar_retry_days
+    days = AppConfig.integer(:history_iv_scar_retry_days)
+    days = 7 if days <= 0
+    days
+  end
+
+  def self.iv_scar_retry_period
+    iv_scar_retry_days.days
   end
 
   def self.iv_scar_retry_after
-    iv_scar_retry_hours.hours.ago
+    iv_scar_retry_period.ago
+  end
+
+  def self.iv_scar_recheck_at(checked_at)
+    return if checked_at.blank?
+
+    checked_at + iv_scar_retry_period
   end
 
   # Selected series whose newest IV tip is fresh but the previous point is more

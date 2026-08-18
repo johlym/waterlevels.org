@@ -100,9 +100,8 @@ class IvRepairScarJob < ApplicationJob
 
       location.time_series.reset
       still_needs = location.needs_iv_scar_repair?
-      parked_unfillable = !still_needs && location.time_series.selected.any? { |series|
-        series.continuous_max_gap_seconds.to_i > HistoryIngestion.continuous_gap_threshold.to_i
-      }
+      parked_unfillable = location.known_missing_usgs_iv?
+      recheck_at = location.usgs_iv_gap_recheck_at
       elapsed_s = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(2)
       Telemetry.add_attributes(
         "app.still_needs_iv_scar_repair" => still_needs,
@@ -126,7 +125,8 @@ class IvRepairScarJob < ApplicationJob
           "IvRepairScarJob finished site=#{location.site_number} elapsed_s=#{elapsed_s} " \
           "continuous_upserted=#{stats[:continuous_observation_count].to_i} " \
           "series=#{stats[:continuous_series_count].to_i} ranges=#{stats[:range_count].to_i} " \
-          "still_needs_iv_scar_repair=false parked_unfillable=#{parked_unfillable}"
+          "still_needs_iv_scar_repair=false parked_unfillable=#{parked_unfillable} " \
+          "recheck_at=#{recheck_at&.iso8601}"
         )
       end
 
@@ -139,6 +139,7 @@ class IvRepairScarJob < ApplicationJob
         range_count: stats[:range_count].to_i,
         still_needs: still_needs,
         parked_unfillable: parked_unfillable,
+        usgs_iv_gap_recheck_at: recheck_at&.iso8601,
         elapsed_s: elapsed_s
       )
     end

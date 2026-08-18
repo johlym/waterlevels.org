@@ -173,6 +173,8 @@ class MonitoringLocationTest < ActiveSupport::TestCase
       series.reload
       refute_includes MonitoringLocation.needing_iv_scar_repair.pluck(:id), location.id
       refute location.reload.needs_iv_scar_repair?
+      assert location.known_missing_usgs_iv?
+      assert_in_delta 7.days.from_now.to_i, location.usgs_iv_gap_recheck_at.to_i, 2
 
       series.update_columns(
         continuous_max_gap_seconds: series.continuous_max_gap_seconds + 3_600
@@ -201,13 +203,14 @@ class MonitoringLocationTest < ActiveSupport::TestCase
       refute_includes MonitoringLocation.needing_iv_scar_repair.pluck(:id), location.id
     end
 
-    travel_to Time.zone.parse("2026-08-04 13:00:00") do
+    travel_to Time.zone.parse("2026-08-10 13:00:00") do
       series.update_columns(
         continuous_newest_at: 1.hour.ago,
         continuous_prev_at: 2.hours.ago
       )
       assert_includes MonitoringLocation.needing_iv_scar_repair.pluck(:id), location.id
       assert location.reload.needs_iv_scar_repair?
+      refute location.known_missing_usgs_iv?
     end
   end
 
