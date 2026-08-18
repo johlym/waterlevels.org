@@ -454,6 +454,7 @@ class AdminDashboardStats
       last_iv_scar_site_number: iv_scar[:site_number],
       last_iv_scar_continuous_upserted: iv_scar[:continuous_upserted].to_i,
       last_iv_scar_still_needs: iv_scar[:still_needs],
+      last_iv_scar_parked_unfillable: iv_scar[:parked_unfillable],
       last_iv_scar_elapsed_s: iv_scar[:elapsed_s]
     }
   end

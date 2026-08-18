@@ -145,6 +145,38 @@ class TimeSeries < ApplicationRecord
     connection.update(sql)
   end
 
+  # After a completed scar fetch, park series whose interior hole USGS could not
+  # fill. Cleared when the hole drops below the gap threshold (filled or aged out).
+  def self.record_iv_scar_check!(ids, checked_at: Time.current)
+    ids = Array(ids).map(&:to_i).uniq
+    return 0 if ids.empty?
+
+    threshold = HistoryIngestion.continuous_gap_threshold.to_i
+    now = "#{connection.quote(checked_at)}::timestamptz"
+    updated = "#{connection.quote(Time.current)}::timestamptz"
+    id_list = ids.join(",")
+    sql = <<~SQL.squish
+      UPDATE time_series
+      SET iv_scar_checked_at = CASE
+            WHEN has_continuous_anchor
+              AND continuous_max_gap_seconds IS NOT NULL
+              AND continuous_max_gap_seconds > #{threshold}
+            THEN #{now}
+            ELSE NULL
+          END,
+          iv_scar_checked_max_gap_seconds = CASE
+            WHEN has_continuous_anchor
+              AND continuous_max_gap_seconds IS NOT NULL
+              AND continuous_max_gap_seconds > #{threshold}
+            THEN continuous_max_gap_seconds
+            ELSE NULL
+          END,
+          updated_at = #{updated}
+      WHERE id IN (#{id_list})
+    SQL
+    connection.update(sql)
+  end
+
   # Cheap tip-path bump after LatestObservationSync / catalog discovery upserts.
   # Only moves newest forward (and shifts prev); never clears anchor.
   # Also raises continuous_max_gap_seconds when the tip jump is larger than the

@@ -98,10 +98,15 @@ class IvRepairScarJob < ApplicationJob
       ingestion.perform
       stats = ingestion.last_stats || {}
 
+      location.time_series.reset
       still_needs = location.needs_iv_scar_repair?
+      parked_unfillable = !still_needs && location.time_series.selected.any? { |series|
+        series.continuous_max_gap_seconds.to_i > HistoryIngestion.continuous_gap_threshold.to_i
+      }
       elapsed_s = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(2)
       Telemetry.add_attributes(
         "app.still_needs_iv_scar_repair" => still_needs,
+        "app.parked_unfillable" => parked_unfillable,
         "app.continuous_observation_count" => stats[:continuous_observation_count].to_i,
         "app.continuous_series_count" => stats[:continuous_series_count].to_i,
         "app.range_count" => stats[:range_count].to_i,
@@ -121,7 +126,7 @@ class IvRepairScarJob < ApplicationJob
           "IvRepairScarJob finished site=#{location.site_number} elapsed_s=#{elapsed_s} " \
           "continuous_upserted=#{stats[:continuous_observation_count].to_i} " \
           "series=#{stats[:continuous_series_count].to_i} ranges=#{stats[:range_count].to_i} " \
-          "still_needs_iv_scar_repair=false"
+          "still_needs_iv_scar_repair=false parked_unfillable=#{parked_unfillable}"
         )
       end
 
@@ -133,6 +138,7 @@ class IvRepairScarJob < ApplicationJob
         series_count: stats[:continuous_series_count].to_i,
         range_count: stats[:range_count].to_i,
         still_needs: still_needs,
+        parked_unfillable: parked_unfillable,
         elapsed_s: elapsed_s
       )
     end

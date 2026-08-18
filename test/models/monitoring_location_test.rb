@@ -151,6 +151,66 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     assert location.needs_iv_scar_repair?
   end
 
+  test "needing_iv_scar_repair excludes USGS-empty scars until retry or a worse gap" do
+    location = create(:monitoring_location, site_number: "20000017")
+    series = create(:time_series, monitoring_location: location, selected_for_display: true)
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do
+      seed_continuous_coverage!(
+        series,
+        from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+        to: 5.days.ago
+      )
+      seed_continuous_coverage!(
+        series,
+        from: 3.days.ago,
+        to: 1.hour.ago
+      )
+
+      assert_includes MonitoringLocation.needing_iv_scar_repair.pluck(:id), location.id
+
+      TimeSeries.record_iv_scar_check!([ series.id ])
+      series.reload
+      refute_includes MonitoringLocation.needing_iv_scar_repair.pluck(:id), location.id
+      refute location.reload.needs_iv_scar_repair?
+
+      series.update_columns(
+        continuous_max_gap_seconds: series.continuous_max_gap_seconds + 3_600
+      )
+      assert_includes MonitoringLocation.needing_iv_scar_repair.pluck(:id), location.id
+      assert location.reload.needs_iv_scar_repair?
+    end
+  end
+
+  test "needing_iv_scar_repair returns after the scar retry window" do
+    location = create(:monitoring_location, site_number: "20000018")
+    series = create(:time_series, monitoring_location: location, selected_for_display: true)
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do
+      seed_continuous_coverage!(
+        series,
+        from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+        to: 5.days.ago
+      )
+      seed_continuous_coverage!(
+        series,
+        from: 3.days.ago,
+        to: 1.hour.ago
+      )
+      TimeSeries.record_iv_scar_check!([ series.id ])
+      refute_includes MonitoringLocation.needing_iv_scar_repair.pluck(:id), location.id
+    end
+
+    travel_to Time.zone.parse("2026-08-04 13:00:00") do
+      series.update_columns(
+        continuous_newest_at: 1.hour.ago,
+        continuous_prev_at: 2.hours.ago
+      )
+      assert_includes MonitoringLocation.needing_iv_scar_repair.pluck(:id), location.id
+      assert location.reload.needs_iv_scar_repair?
+    end
+  end
+
   test "needs_history_backfill? is false without selected series" do
     location = create(:monitoring_location)
     create(:time_series, monitoring_location: location, selected_for_display: false)
