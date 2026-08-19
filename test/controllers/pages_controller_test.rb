@@ -34,6 +34,20 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, alerts_path
   end
 
+  test "returns markdown for disclosures when agents request it" do
+    get disclosures_path, headers: {
+      "Accept" => "text/markdown",
+      "User-Agent" => "curl/8.5.0"
+    }
+
+    assert_response :success
+    assert_equal "text/markdown", response.media_type
+    assert_includes response.body, "USGS"
+    assert_includes response.body, "National Water Prediction Service"
+    assert response.headers["x-markdown-tokens"].to_i.positive?
+    assert_includes response.headers["Vary"], "Accept"
+  end
+
   test "404s unknown pages" do
     get "/pages/nope"
     assert_response :not_found

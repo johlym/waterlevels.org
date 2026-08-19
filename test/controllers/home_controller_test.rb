@@ -59,6 +59,30 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.headers["Cloudflare-CDN-Cache-Control"], "max-age=3600"
     assert_includes response.headers["Cloudflare-CDN-Cache-Control"], "stale-while-revalidate=86400"
     assert_includes response.body, 'name="turbo-cache-control" content="no-cache"'
+    assert_includes response.headers["Link"], 'rel="api-catalog"'
+    assert_includes response.headers["Link"], "</.well-known/api-catalog>"
+    assert_includes response.headers["Link"], 'rel="service-doc"'
+    assert_includes response.headers["Link"], "</disclosures>"
+    assert_includes response.headers["Link"], "</faq>"
+    assert_includes response.headers["Link"], 'rel="describedby"'
+    assert_includes response.headers["Link"], "</llms.txt>"
+    assert_includes response.headers["Vary"], "Accept"
+    assert_includes response.media_type, "html"
+  end
+
+  test "returns markdown when agents request it" do
+    get root_path, headers: {
+      "Accept" => "text/markdown",
+      "User-Agent" => "curl/8.5.0"
+    }
+
+    assert_response :success
+    assert_equal "text/markdown", response.media_type
+    assert_includes response.body, "Monitor water levels"
+    assert_match(/^# /, response.body)
+    assert response.headers["x-markdown-tokens"].to_i.positive?
+    assert_includes response.headers["Vary"], "Accept"
+    assert_includes response.headers["Link"], 'rel="api-catalog"'
   end
 
   test "map lives at /map without the site footer" do
