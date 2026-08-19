@@ -1,9 +1,11 @@
 # Serve a markdown twin when agents send Accept: text/markdown.
-# Does not register a Rails :md format — that would 406 missing .md templates.
+# Rails already registers text/markdown as :md. Force HTML templates first so
+# missing show.md views do not 406, then convert the rendered HTML.
 module MarkdownForAgents
   extend ActiveSupport::Concern
 
   included do
+    before_action :render_html_for_markdown_negotiation
     after_action :negotiate_markdown_for_agents
   end
 
@@ -18,6 +20,10 @@ module MarkdownForAgents
 
     html_q = accept_quality(accept, "text/html")
     html_q.nil? || markdown_q >= html_q
+  end
+
+  def render_html_for_markdown_negotiation
+    request.format = :html if markdown_request?
   end
 
   def negotiate_markdown_for_agents

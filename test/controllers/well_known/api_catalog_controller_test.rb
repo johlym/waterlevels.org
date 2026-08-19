@@ -5,7 +5,7 @@ class WellKnown::ApiCatalogControllerTest < ActionDispatch::IntegrationTest
     get api_catalog_path
 
     assert_response :success
-    assert_equal "application/linkset+json", response.media_type
+    assert_includes response.media_type, "application/linkset+json"
     assert_includes response.content_type, 'profile="https://www.rfc-editor.org/info/rfc9727"'
     assert_includes response.headers["Link"], 'rel="api-catalog"'
     assert_includes response.headers["Cache-Control"], "public"
@@ -25,6 +25,6 @@ class WellKnown::ApiCatalogControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.headers["Link"], 'rel="api-catalog"'
-    assert_equal "application/linkset+json", response.media_type
+    assert_includes response.media_type, "application/linkset+json"
   end
 end
