@@ -12,13 +12,24 @@
     <article>
       <p class="value"><%= number_with_delimiter(stats[:continuous_last_24h]) %></p>
       <p class="label">Continuous points (24h)</p>
-      <p class="hint">By observed_at</p>
+      <p class="hint">
+        By observed_at
+        <% if stats[:implied_interval_minutes] %>
+          · ≈ <%= number_with_precision(stats[:implied_interval_minutes], precision: 1, strip_insignificant_zeros: true) %> min spacing
+          across <%= number_with_delimiter(stats[:recent_iv_series_count].to_i) %> selected series
+        <% end %>
+      </p>
     </article>
 
     <article>
       <p class="value"><%= number_with_delimiter(stats[:continuous_last_7d]) %></p>
       <p class="label">Continuous points (7d)</p>
-      <p class="hint">By observed_at</p>
+      <p class="hint">
+        By observed_at
+        <% if stats[:selected_series_count].to_i.positive? %>
+          · <%= number_with_delimiter(stats[:selected_series_count]) %> selected series total
+        <% end %>
+      </p>
     </article>
   </div>
 

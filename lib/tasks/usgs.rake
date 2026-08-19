@@ -135,6 +135,13 @@ namespace :usgs do
     puts "Purged #{deleted} locations for STATE=#{state}"
   end
 
+  desc "Fleet continuous IV inventory (optional EXACT=1 SAMPLE=80)"
+  task continuous_inventory: :environment do
+    exact = ENV["EXACT"] == "1"
+    sample = ENV["SAMPLE"].presence&.to_i
+    puts ContinuousInventory.report(exact: exact, sample: sample || ContinuousInventory::DEFAULT_SAMPLE)
+  end
+
   desc "Inspect a station's series coverage and history gaps (SITE=08405200)"
   task inspect: :environment do
     site = ENV.fetch("SITE") { raise "SITE is required, e.g. SITE=08405200 bin/rails usgs:inspect" }

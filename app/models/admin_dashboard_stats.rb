@@ -45,7 +45,7 @@ class AdminDashboardStats
   SECTION_LOAD_ORDER = %i[jobs health core pipeline growth states].freeze
   # Bump when a section payload shape changes so deploys do not serve stale
   # hashes that crash the matching partial (Turbo then shows "Content missing").
-  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v10".freeze
+  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v11".freeze
   SECTION_TTL = 2.minutes
   SECTION_RACE_TTL = 15.seconds
   REDIS_SCAN_MAX_ITERATIONS = 50
@@ -367,7 +367,8 @@ class AdminDashboardStats
       last_tip_refresh_stations_updated: tip[:stations_updated],
       last_tip_refresh_series_upserted: tip[:series_upserted],
       last_tip_refresh_finished_at: parse_time(tip[:finished_at]),
-      last_tip_refresh_state: tip[:state]
+      last_tip_refresh_state: tip[:state],
+      continuous_retention_days: AppConfig.integer(:continuous_retention_days)
     }
   end
 
@@ -397,9 +398,15 @@ class AdminDashboardStats
   end
 
   def growth_section
+    last_24h = ContinuousObservation.where(observed_at: 24.hours.ago..).count
+    recent_iv_series = TimeSeries.selected.where(continuous_newest_at: 24.hours.ago..).count
+
     {
-      continuous_last_24h: ContinuousObservation.where(observed_at: 24.hours.ago..).count,
+      continuous_last_24h: last_24h,
       continuous_last_7d: ContinuousObservation.where(observed_at: 7.days.ago..).count,
+      selected_series_count: TimeSeries.selected.count,
+      recent_iv_series_count: recent_iv_series,
+      implied_interval_minutes: implied_iv_interval_minutes(last_24h, recent_iv_series),
       tip_freshness: tip_freshness_histogram
     }
   end
@@ -626,6 +633,12 @@ class AdminDashboardStats
         has_daily_tip_by_state: has_daily_tip_by_state
       )
     }
+  end
+
+  def implied_iv_interval_minutes(point_count, series_count)
+    return if series_count <= 0 || point_count <= 0
+
+    ((24.0 * 60) / (point_count.to_f / series_count)).round(1)
   end
 
   def approximate_or_exact_count(model)

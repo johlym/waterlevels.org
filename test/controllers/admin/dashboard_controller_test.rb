@@ -87,6 +87,7 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Updated in last tip refresh"
     assert_includes response.body, ">7<"
     assert_includes response.body, "Total measurements"
+    assert_includes response.body, "~15-min IV"
 
     get admin_dashboard_section_path(section: :pipeline)
     assert_response :success
@@ -96,6 +97,7 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     get admin_dashboard_section_path(section: :growth)
     assert_response :success
     assert_includes response.body, "Tip freshness"
+    assert_includes response.body, "min spacing"
     assert_includes response.body, "freshness-stack"
     assert_includes response.body, "Current"
     assert_includes response.body, "1+ Hour"
