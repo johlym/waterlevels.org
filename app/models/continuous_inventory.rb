@@ -251,7 +251,7 @@ class ContinuousInventory
         ids
       ]
     )
-    rows = connection.select_all(sql)
+    rows = connection.select_all(sql).to_a
     intervals = rows.filter_map { |row| row["avg_interval_seconds"]&.to_f }
     points = rows.map { |row| row["point_count"].to_i }
     {
