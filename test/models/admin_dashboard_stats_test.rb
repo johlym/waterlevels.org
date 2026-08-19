@@ -68,7 +68,16 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
         :daily_archive_export,
         finished_at: 3.hours.ago,
         series: 12,
-        points: 340
+        points: 340,
+        daily_deleted: 340,
+        vacuumed: true
+      )
+      AdminDashboardStats.record_job_finish!(
+        :daily_archive_drain,
+        finished_at: 90.minutes.ago,
+        daily_deleted: 18,
+        daily_blocked: 2,
+        vacuumed: false
       )
       AdminDashboardStats.record_job_finish!(
         :iv_repair_batch,
@@ -113,6 +122,12 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
       assert stats[:last_daily_archive_export_at]
       assert_equal 12, stats[:last_daily_archive_export_series]
       assert_equal 340, stats[:last_daily_archive_export_points]
+      assert_equal 340, stats[:last_daily_archive_export_daily_deleted]
+      assert_equal true, stats[:last_daily_archive_export_vacuumed]
+      assert stats[:last_daily_archive_drain_at]
+      assert_equal 18, stats[:last_daily_archive_drain_deleted]
+      assert_equal 2, stats[:last_daily_archive_drain_blocked]
+      assert_equal false, stats[:last_daily_archive_drain_vacuumed]
       assert stats[:last_iv_repair_batch_at]
       assert_equal 7, stats[:last_iv_repair_batch_enqueued]
       assert_equal 40, stats[:last_iv_repair_batch_candidates]

@@ -45,6 +45,11 @@ module Admin
             label: "Continuous prune / archive retention",
             description: "When off, ContinuousPruneJob skips daily archive retention and IV prune."
 
+          boolean :daily_archive_drain_enabled,
+            default: true,
+            label: "Periodic leftover daily drain",
+            description: "When off, DailyArchiveDrainJob skips the 6-hour leftover Postgres daily cleanup (already-in-R2 deletes + VACUUM)."
+
           boolean :sunday_catalog_pause_enabled,
             default: true,
             label: "Sunday catalog pause",

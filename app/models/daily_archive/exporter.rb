@@ -24,10 +24,18 @@ module DailyArchive
       end
 
       scope = TimeSeries.order(:id).where("id > ?", checkpoint.after_series_id)
-      scope = scope.where(id: time_series_ids) if time_series_ids.present?
+      if time_series_ids.present?
+        scope = scope.where(id: time_series_ids)
+      else
+        # Catch-up export only needs leftover Postgres dailies — skip the rest
+        # of the fleet so scheduled drains stay cheap after the table is empty.
+        scope = scope.where(id: DailyObservation.select(:time_series_id).distinct)
+      end
 
       exported_series = checkpoint.series
       exported_points = checkpoint.points
+      daily_deleted = 0
+      drain = Drain.new(store: @store, progress: @progress)
 
       scope.find_in_batches(batch_size: @batch_size) do |batch|
         batch.each do |series|
@@ -50,22 +58,41 @@ module DailyArchive
             raise
           end
 
+          # Shuttle succeeded — drop the same leftover rows now instead of
+          # waiting for the nightly retention pass.
+          deleted = drain.delete_exported!(relation)
+          daily_deleted += deleted
+
           exported_series += 1
           exported_points += count
           checkpoint.mark_series!(series.id, exported_points: count, exported_series: 1)
-          @progress&.step("series=#{series.id} points=#{count}")
+          @progress&.step("series=#{series.id} points=#{count} daily_deleted=#{deleted}")
         end
       end
 
       checkpoint.clear!
 
+      vacuum = TableMaintenance.vacuum_after_deletes!(
+        daily_deleted: daily_deleted,
+        progress: @progress
+      )
+
       Telemetry.add_attributes(
         "app.operation" => "daily_archive.export",
         "app.series_count" => exported_series,
-        "app.observation_count" => exported_points
+        "app.observation_count" => exported_points,
+        "app.daily_deleted" => daily_deleted,
+        "app.vacuumed" => vacuum[:vacuumed]
       ) if defined?(Telemetry)
 
-      { series: exported_series, points: exported_points }
+      {
+        series: exported_series,
+        points: exported_points,
+        daily_deleted: daily_deleted,
+        vacuumed: vacuum[:vacuumed],
+        vacuum_tables: vacuum[:tables],
+        vacuum_ms: vacuum[:duration_ms]
+      }
     end
   end
 end

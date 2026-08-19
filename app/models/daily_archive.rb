@@ -1,6 +1,7 @@
 # R2 (or local disk) is the daily system of record. Postgres keeps ~35 days of
 # continuous IV only — not daily history. Legacy daily_observations rows drain
-# via DAILY_ARCHIVE_PRUNE once present in R2.
+# immediately after export, on the 6-hour leftover job, and during nightly
+# retention when DAILY_ARCHIVE_PRUNE is on.
 # See doc/postgres-r2-daily-archive.md.
 require "set"
 
@@ -24,6 +25,11 @@ module DailyArchive
 
   def prune_enabled?
     configured? && AppConfig.boolean?(:daily_archive_prune)
+  end
+
+  # Periodic leftover drain (export-after-shuttle + already-in-R2 deletes).
+  def drain_enabled?
+    prune_enabled? && AppConfig.boolean?(:daily_archive_drain_enabled)
   end
 
   # When enabled, ingest writes dailies to the archive only (not Postgres).

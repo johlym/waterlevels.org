@@ -24,7 +24,8 @@ class ContinuousPruneJob < ApplicationJob
         "app.iv_deleted" => stats[:iv_deleted],
         "app.iv_prune_blocked" => stats[:iv_prune_blocked],
         "app.daily_deleted" => stats[:daily_deleted],
-        "app.daily_prune_blocked" => stats[:daily_prune_blocked]
+        "app.daily_prune_blocked" => stats[:daily_prune_blocked],
+        "app.vacuumed" => stats[:vacuumed]
       )
       AdminDashboardStats.record_job_finish!(
         :prune,
@@ -38,14 +39,17 @@ class ContinuousPruneJob < ApplicationJob
         daily_prune_blocked: stats[:daily_prune_blocked],
         continuous_deleted: stats[:continuous_deleted],
         rolled_up: stats[:rolled_up],
-        rollup_skipped: stats[:rollup_skipped]
+        rollup_skipped: stats[:rollup_skipped],
+        vacuumed: stats[:vacuumed],
+        vacuum_ms: stats[:vacuum_ms]
       )
       AdminDashboardStats.schedule_inventory_refresh!
       progress.finish(
         "usgs_ensured=#{stats[:usgs_ensured]} derived=#{stats[:derived]} " \
         "retrying=#{stats[:retrying]} gaps_alerted=#{stats[:gaps_alerted]} " \
         "iv_deleted=#{stats[:iv_deleted]} iv_blocked=#{stats[:iv_prune_blocked]} " \
-        "daily_deleted=#{stats[:daily_deleted]} daily_blocked=#{stats[:daily_prune_blocked]}"
+        "daily_deleted=#{stats[:daily_deleted]} daily_blocked=#{stats[:daily_prune_blocked]} " \
+        "vacuumed=#{stats[:vacuumed]}"
       )
     end
   end

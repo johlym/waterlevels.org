@@ -131,7 +131,8 @@ Fallback if `app.page` is missing on older traffic: GROUP BY `http.route` (Rails
 | Catalog health snapshot | `app.station_inventory` + `app.stations_*` |
 | History backfill | `history.ingest` (+ `.continuous` / `.daily` / `.peaks`) |
 | Backfill planner | `job.history_backfill_batch` |
-| Day-31 handoff + retention | `daily_archive.retention` + `app.usgs_ensured` / `app.derived` / `app.retrying` / `app.gaps_alerted` / `app.iv_deleted` / `app.iv_prune_blocked` |
+| Day-31 handoff + retention | `daily_archive.retention` + `app.usgs_ensured` / `app.derived` / `app.retrying` / `app.gaps_alerted` / `app.iv_deleted` / `app.iv_prune_blocked` / `app.vacuumed` |
+| Leftover daily drain | `daily_archive.drain` + `app.daily_deleted` / `app.vacuumed` |
 | Tip / catalog / flood sync | `latest.sync`, `catalog.sync`, `flood.sync` |
 | Page latency | request root + `app.page` |
 

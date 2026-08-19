@@ -74,6 +74,9 @@
           <% if stats[:last_prune_iv_blocked].to_i.positive? %>
             (<%= number_with_delimiter(stats[:last_prune_iv_blocked].to_i) %> blocked)
           <% end %>
+          <% if stats[:last_prune_vacuumed] %>
+            · VACUUM
+          <% end %>
         <% else %>
           USGS-first ensure, then IV prune + Postgres daily drain
         <% end %>
@@ -89,8 +92,34 @@
         <% if stats[:last_daily_archive_export_at] %>
           <%= number_with_delimiter(stats[:last_daily_archive_export_series].to_i) %> series ·
           <%= number_with_delimiter(stats[:last_daily_archive_export_points].to_i) %> points
+          <% if stats[:last_daily_archive_export_daily_deleted].to_i.positive? %>
+            · PG −<%= number_with_delimiter(stats[:last_daily_archive_export_daily_deleted].to_i) %>
+          <% end %>
+          <% if stats[:last_daily_archive_export_vacuumed] %>
+            · VACUUM
+          <% end %>
         <% else %>
           Postgres → R2 / local shards
+        <% end %>
+      </p>
+    </article>
+
+    <article>
+      <p class="value value-sm">
+        <%= stats[:last_daily_archive_drain_at] ? "#{time_ago_in_words(stats[:last_daily_archive_drain_at])} ago" : "—" %>
+      </p>
+      <p class="label">Leftover daily drain</p>
+      <p class="hint">
+        <% if stats[:last_daily_archive_drain_at] %>
+          PG −<%= number_with_delimiter(stats[:last_daily_archive_drain_deleted].to_i) %>
+          <% if stats[:last_daily_archive_drain_blocked].to_i.positive? %>
+            (<%= number_with_delimiter(stats[:last_daily_archive_drain_blocked].to_i) %> still only in Postgres)
+          <% end %>
+          <% if stats[:last_daily_archive_drain_vacuumed] %>
+            · VACUUM
+          <% end %>
+        <% else %>
+          Every 6h: delete leftover dailies already in R2, then VACUUM if needed
         <% end %>
       </p>
     </article>

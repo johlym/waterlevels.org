@@ -48,7 +48,8 @@ Invariant: **never prune IV for local day D until R2 has D (USGS or derived) or 
    - Else derive a local-midnight mean from IV (coverage-gated) and store with `s: "derived"`.
    - Else leave IV in place and count as `retrying` while inside the 35-day window.
 3. When a day reaches IV prune age still uncovered: **alert** (`gaps_alerted`, log + Sentry), then allow prune.
-4. When `DAILY_ARCHIVE_PRUNE=1`, delete **any** leftover Postgres `daily_observations` row whose day already exists in R2 (full drain — no scratch tip).
+4. When `DAILY_ARCHIVE_PRUNE=1`, delete **any** leftover Postgres `daily_observations` row whose day already exists in R2 (full drain — no scratch tip). Export deletes those rows immediately after a successful shuttle; `DailyArchiveDrainJob` repeats the already-in-R2 delete every 6 hours so ingest-fallback leftovers do not wait for the nightly pass.
+5. After a large delete (or when `pg_stat_user_tables.n_dead_tup` is already high), `VACUUM (ANALYZE)` the observation table(s) so Postgres reclaims space and refreshes planner stats instead of waiting on autovacuum.
 
 UI copy for derived points: **Estimated** (chart footnote + history-table status). Not conflated with Provisional.
 
@@ -70,6 +71,8 @@ DAILY_ARCHIVE_LOCAL_PATH=tmp/daily_archive
 DAILY_ARCHIVE_READS=1
 DAILY_ARCHIVE_DUAL_WRITE=1
 DAILY_ARCHIVE_PRUNE=0
+# DAILY_ARCHIVE_VACUUM=1
+# DAILY_ARCHIVE_VACUUM_MIN_DELETED=10000
 ```
 
 Workflow:
@@ -92,14 +95,16 @@ CLOUDFLARE_R2_SECRET_ACCESS_KEY=...
 DAILY_ARCHIVE_READS=1
 DAILY_ARCHIVE_PRUNE=1
 DAILY_ARCHIVE_DUAL_WRITE=1
+# DAILY_ARCHIVE_DRAIN is on by default (admin lever). VACUUM defaults on.
 ```
 
 Keep `CLOUDFLARE_ZONE_ID` / `CLOUDFLARE_API_TOKEN` for Cache-Tag purge only — separate from R2 keys.
 
 ## Jobs / rake
 
-- `DailyArchiveExportJob` / `bin/rails archive:export_daily` — one-time / catch-up Postgres → R2 for leftover rows (safe to re-run).
-- `ContinuousPruneJob` (daily 04:15) — USGS-first day-31+ ensure, estimated fallback, gap alerts, IV prune, and Postgres daily drain when `DAILY_ARCHIVE_PRUNE=1`.
+- `DailyArchiveExportJob` / `bin/rails archive:export_daily` — one-time / catch-up Postgres → R2 for leftover rows (safe to re-run). When prune is on, each successfully shuttled series is deleted from Postgres in the same pass, then `VACUUM (ANALYZE)` runs if deletes (or dead tuples) cross the threshold.
+- `DailyArchiveDrainJob` / `bin/rails archive:drain_daily` — every 6 hours (`:20` past 00/06/12/18 UTC). Deletes leftover Postgres dailies already present in R2 (ingest fallback, export that ran with prune off). Same VACUUM gate. Does not rewrite R2, so it cannot clobber an in-flight export checkpoint.
+- `ContinuousPruneJob` (daily 09:15 UTC) — USGS-first day-31+ ensure, estimated fallback, gap alerts, IV prune, Postgres daily drain when `DAILY_ARCHIVE_PRUNE=1`, then VACUUM.
 - Readiness / freshness gates use R2 shard catalog (`min_on` / `max_on`), not Postgres daily row presence.
 - Admin `/admin` coverage aggregates use the same gates (`DailyArchive.daily_coverage_series_ids` + `fresh_daily_tip_series_ids`) so prune does not zero out “have ~1y → need 3y”.
 
@@ -109,4 +114,4 @@ Keep `CLOUDFLARE_ZONE_ID` / `CLOUDFLARE_API_TOKEN` for Cache-Tag purge only — 
 2. `DAILY_ARCHIVE_READS=1` — `1y` / `3y` (and future `Ny`) read R2 only.
 3. Day-31 ensure/retry/alert live; monitor `gaps_alerted` on `/admin` and Honeycomb.
 4. `DAILY_ARCHIVE_PRUNE=1` — drain leftover Postgres `daily_observations`.
-5. Confirm IV stays near 35d, Postgres daily count → 0, gap alerts stay near zero.
+5. Confirm IV stays near 35d, Postgres daily count → 0, gap alerts stay near zero, and `/admin` leftover-drain / VACUUM hints move after large deletes.

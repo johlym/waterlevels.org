@@ -15,9 +15,15 @@ class DailyArchiveExportJob < ApplicationJob
     AdminDashboardStats.record_job_finish!(
       :daily_archive_export,
       series: result[:series],
-      points: result[:points]
+      points: result[:points],
+      daily_deleted: result[:daily_deleted],
+      vacuumed: result[:vacuumed],
+      vacuum_ms: result[:vacuum_ms]
     )
     AdminDashboardStats.schedule_inventory_refresh!
-    progress.finish("series=#{result[:series]} points=#{result[:points]}")
+    progress.finish(
+      "series=#{result[:series]} points=#{result[:points]} " \
+      "daily_deleted=#{result[:daily_deleted]} vacuumed=#{result[:vacuumed]}"
+    )
   end
 end
