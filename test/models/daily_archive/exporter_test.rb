@@ -8,6 +8,8 @@ module DailyArchive
       @previous_cache = Rails.cache
       Rails.cache = ActiveSupport::Cache::MemoryStore.new
       ExportCheckpoint.clear!
+      ENV.delete("DAILY_ARCHIVE_PRUNE")
+      AppConfig.bust!
       @series = create(:time_series)
       DailyObservation.create!(time_series: @series, observed_on: 20.months.ago.to_date, value: 1.0)
       DailyObservation.create!(time_series: @series, observed_on: Date.current, value: 2.0)
@@ -17,14 +19,45 @@ module DailyArchive
       ExportCheckpoint.clear!
       Rails.cache = @previous_cache
       DailyArchive.reset_store!
+      ENV.delete("DAILY_ARCHIVE_PRUNE")
+      AppConfig.bust!
     end
 
     test "exports daily observations into shards" do
       result = Exporter.new(store: @store).perform(time_series_ids: [ @series.id ])
       assert_equal 1, result[:series]
       assert_operator result[:points], :>=, 2
+      assert_equal 0, result[:daily_deleted]
       assert DailyArchiveShard.exists?(time_series_id: @series.id, year: Date.current.year)
+      assert_equal 2, @series.daily_observations.count
       assert_nil ExportCheckpoint.read_raw
+    end
+
+    test "deletes shuttled leftover rows when prune is enabled" do
+      ENV["DAILY_ARCHIVE_PRUNE"] = "1"
+      AppConfig.bust!
+
+      result = Exporter.new(store: @store).perform(time_series_ids: [ @series.id ])
+      assert_equal 1, result[:series]
+      assert_operator result[:daily_deleted], :>=, 2
+      assert DailyArchiveShard.exists?(time_series_id: @series.id, year: Date.current.year)
+      assert_equal 0, @series.daily_observations.count
+    ensure
+      ENV.delete("DAILY_ARCHIVE_PRUNE")
+      AppConfig.bust!
+    end
+
+    test "only_cold prune keeps today's leftover tip" do
+      ENV["DAILY_ARCHIVE_PRUNE"] = "1"
+      AppConfig.bust!
+
+      result = Exporter.new(store: @store).perform(time_series_ids: [ @series.id ], only_cold: true)
+      assert_equal 1, result[:series]
+      assert_equal 1, result[:daily_deleted]
+      assert_equal [ Date.current ], @series.daily_observations.order(:observed_on).map(&:observed_on)
+    ensure
+      ENV.delete("DAILY_ARCHIVE_PRUNE")
+      AppConfig.bust!
     end
 
     test "only_cold skips hot tip days" do

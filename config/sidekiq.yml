@@ -49,6 +49,12 @@
       cron: "15 9 * * *"
       class: ContinuousPruneJob
       queue: default
+    daily_archive_drain:
+      # Offset from nightly retention (09:15) so leftover Postgres dailies
+      # (ingest fallback / export catch-up) do not sit until the next UTC day.
+      cron: "20 */6 * * *"
+      class: DailyArchiveDrainJob
+      queue: default
     admin_dashboard_counters:
       # Materialize /admin inventory Counters off the web dyno. Sync jobs also
       # enqueue this opportunistically after tip/catalog/archive/prune.

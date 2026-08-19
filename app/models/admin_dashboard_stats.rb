@@ -22,6 +22,7 @@ class AdminDashboardStats
     flood_sync: "admin:last_flood_sync",
     prune: "admin:last_prune",
     daily_archive_export: "admin:last_daily_archive_export",
+    daily_archive_drain: "admin:last_daily_archive_drain",
     iv_repair_batch: "admin:last_iv_repair_batch",
     iv_repair: "admin:last_iv_repair",
     iv_repair_scar_batch: "admin:last_iv_repair_scar_batch",
@@ -44,7 +45,7 @@ class AdminDashboardStats
   SECTION_LOAD_ORDER = %i[jobs health core pipeline growth states].freeze
   # Bump when a section payload shape changes so deploys do not serve stale
   # hashes that crash the matching partial (Turbo then shows "Content missing").
-  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v9".freeze
+  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v10".freeze
   SECTION_TTL = 2.minutes
   SECTION_RACE_TTL = 15.seconds
   REDIS_SCAN_MAX_ITERATIONS = 50
@@ -409,6 +410,7 @@ class AdminDashboardStats
     flood = self.class.last_job(:flood_sync) || {}
     prune = self.class.last_job(:prune) || {}
     archive_export = self.class.last_job(:daily_archive_export) || {}
+    archive_drain = self.class.last_job(:daily_archive_drain) || {}
     iv_repair_batch = self.class.last_job(:iv_repair_batch) || {}
     iv_repair = self.class.last_job(:iv_repair) || {}
     iv_scar_batch = self.class.last_job(:iv_repair_scar_batch) || {}
@@ -430,9 +432,16 @@ class AdminDashboardStats
       last_prune_iv_blocked: prune[:iv_prune_blocked].to_i,
       last_prune_daily_deleted: prune[:daily_deleted].to_i,
       last_prune_daily_blocked: prune[:daily_prune_blocked].to_i,
+      last_prune_vacuumed: prune[:vacuumed],
       last_daily_archive_export_at: parse_time(archive_export[:finished_at]),
       last_daily_archive_export_series: archive_export[:series],
       last_daily_archive_export_points: archive_export[:points],
+      last_daily_archive_export_daily_deleted: archive_export[:daily_deleted].to_i,
+      last_daily_archive_export_vacuumed: archive_export[:vacuumed],
+      last_daily_archive_drain_at: parse_time(archive_drain[:finished_at]),
+      last_daily_archive_drain_deleted: archive_drain[:daily_deleted].to_i,
+      last_daily_archive_drain_blocked: archive_drain[:daily_blocked].to_i,
+      last_daily_archive_drain_vacuumed: archive_drain[:vacuumed],
       last_iv_repair_batch_at: parse_time(iv_repair_batch[:finished_at]),
       last_iv_repair_batch_enqueued: iv_repair_batch[:enqueued].to_i,
       last_iv_repair_batch_candidates: iv_repair_batch[:candidates].to_i,

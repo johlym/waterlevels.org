@@ -33,6 +33,11 @@ class AdminSettingsJobLeversTest < ActiveSupport::TestCase
     assert_equal :disabled_by_settings, IvRepairJob.enqueue_block_reason(location.id)
   end
 
+  test "DailyArchiveDrainJob skips when disabled" do
+    AppConfig.write!(:daily_archive_drain_enabled, false)
+    assert_nil DailyArchiveDrainJob.perform_now
+  end
+
   test "AdminDashboardCountersJob skips when disabled" do
     AppConfig.write!(:admin_dashboard_counters_enabled, false)
     AdminDashboardStats.bust_backfill_cache!

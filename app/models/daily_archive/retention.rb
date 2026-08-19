@@ -58,6 +58,12 @@ module DailyArchive
         "daily prune done deleted=#{daily_result[:deleted]} blocked=#{daily_result[:blocked]}"
       )
 
+      vacuum = TableMaintenance.vacuum_after_deletes!(
+        daily_deleted: daily_result[:deleted],
+        continuous_deleted: iv_result[:deleted],
+        progress: @progress
+      )
+
       @checkpoint.clear!
 
       {
@@ -69,6 +75,9 @@ module DailyArchive
         iv_prune_blocked: iv_result[:blocked],
         daily_deleted: daily_result[:deleted],
         daily_prune_blocked: daily_result[:blocked],
+        vacuumed: vacuum[:vacuumed],
+        vacuum_tables: vacuum[:tables],
+        vacuum_ms: vacuum[:duration_ms],
         # Back-compat aliases for existing job/admin wiring.
         rolled_up: handoff[:derived],
         rollup_skipped: handoff[:usgs_ensured] + handoff[:retrying],
@@ -423,58 +432,18 @@ module DailyArchive
 
       if DailyArchive.prune_enabled?
         # Drain every Postgres daily that already exists in R2 — no scratch tip.
-        # Work per series so we load each year shard once and delete by date list
-        # instead of accumulating every row id in Ruby.
-        blocked = @checkpoint.stats["daily_blocked"]
-        deleted = @checkpoint.stats["daily_deleted"]
-        series_ids = DailyObservation
-          .distinct
-          .where("time_series_id > ?", @checkpoint.after_series_id)
-          .order(:time_series_id)
-          .pluck(:time_series_id)
-        total_series = series_ids.size
-        @progress&.step(
-          "daily prune series=#{total_series} after_series_id=#{@checkpoint.after_series_id} " \
-          "(R2 drain mode; day-oriented GC)"
-        )
-
-        processed = 0
-        series_ids.each do |time_series_id|
-          series_deleted = 0
-          series_blocked = 0
-          days_by_year = DailyObservation
-            .where(time_series_id: time_series_id)
-            .pluck(:observed_on)
-            .group_by(&:year)
-
-          days_by_year.each do |year, days|
-            archived_days = archived_days_for(time_series_id, year)
-            deletable_days = days.select { |day| archived_days.include?(day.iso8601) }
-            series_blocked += days.size - deletable_days.size
-            next if deletable_days.empty?
-
-            series_deleted += DailyObservation
-              .where(time_series_id: time_series_id, observed_on: deletable_days)
-              .delete_all
-          end
-
-          deleted += series_deleted
-          blocked += series_blocked
+        Drain.new(store: @store, progress: @progress).perform(
+          after_series_id: @checkpoint.after_series_id
+        ) do |time_series_id, counts|
           @checkpoint.mark_series!(
             time_series_id,
-            daily_deleted: series_deleted,
-            daily_blocked: series_blocked
+            daily_deleted: counts[:deleted],
+            daily_blocked: counts[:blocked]
           )
-
-          processed += 1
-          if (processed % 50).zero? || processed == total_series
-            @progress&.step(
-              "daily prune series=#{processed}/#{total_series} " \
-              "deleted=#{deleted} blocked=#{blocked}"
-            )
-          end
         end
 
+        deleted = @checkpoint.stats["daily_deleted"]
+        blocked = @checkpoint.stats["daily_blocked"]
         @checkpoint.complete_phase!(
           "daily_prune",
           daily_deleted: deleted,
@@ -524,10 +493,6 @@ module DailyArchive
     def archived_usgs_day?(time_series_id, day)
       point = archived_points_for(time_series_id, day.year)[day.iso8601]
       point.present? && point["s"] == DailyArchive::SOURCE_USGS
-    end
-
-    def archived_days_for(time_series_id, year)
-      archived_points_for(time_series_id, year).keys.to_set
     end
 
     # Decode each year shard once per retention run; presence + source checks

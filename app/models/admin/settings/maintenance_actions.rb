@@ -94,6 +94,14 @@ module Admin
             :ok
           end
 
+          action :enqueue_daily_archive_drain,
+            label: "Drain leftover Postgres dailies",
+            description: "Enqueue DailyArchiveDrainJob to delete leftover daily_observations already present in the archive, then VACUUM if needed.",
+            confirm: "Enqueue leftover daily drain now?" do
+            DailyArchiveDrainJob.perform_later
+            :enqueued
+          end
+
           action :clear_daily_archive_checkpoints,
             label: "Clear daily archive checkpoints",
             description: "Reset export and retention resume cursors so the next run starts from the beginning.",
