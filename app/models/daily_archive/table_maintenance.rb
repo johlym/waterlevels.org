@@ -61,11 +61,9 @@ module DailyArchive
         return skip_result("disabled") unless vacuum_enabled?
         return skip_result("empty") if tables.empty?
 
-        quoted = tables.map { |name| connection.quote_table_name(name) }.join(", ")
-        previous_timeout = connection.select_value("SHOW statement_timeout")
         started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         connection.execute("SET statement_timeout TO 0")
-        connection.execute("VACUUM (ANALYZE) #{quoted}")
+        vacuum_allowlisted!(tables)
         duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
         progress&.step("postgres vacuum tables=#{tables.join(",")} duration_ms=#{duration_ms}")
         Rails.logger.info(
@@ -77,7 +75,7 @@ module DailyArchive
         Sentry.capture_exception(e) if defined?(Sentry)
         { vacuumed: false, tables: tables, duration_ms: 0, error: e.message }
       ensure
-        restore_statement_timeout(previous_timeout) if previous_timeout
+        connection.execute("SET statement_timeout TO DEFAULT")
       end
 
       private
@@ -94,10 +92,19 @@ module DailyArchive
         { vacuumed: false, tables: [], duration_ms: 0, skipped: reason }
       end
 
-      def restore_statement_timeout(previous)
-        connection.execute("SET statement_timeout TO #{connection.quote(previous)}")
-      rescue StandardError => e
-        Rails.logger.warn("[DailyArchive::TableMaintenance] restore statement_timeout failed: #{e.message}")
+      # Literal SQL only — Brakeman treats interpolated VACUUM as SQL injection
+      # even after quote_table_name.
+      def vacuum_allowlisted!(tables)
+        tables.each do |name|
+          case name
+          when TABLES[:daily]
+            connection.execute("VACUUM (ANALYZE) daily_observations")
+          when TABLES[:continuous]
+            connection.execute("VACUUM (ANALYZE) continuous_observations")
+          else
+            raise ArgumentError, "refusing to vacuum #{name.inspect}"
+          end
+        end
       end
 
       def connection

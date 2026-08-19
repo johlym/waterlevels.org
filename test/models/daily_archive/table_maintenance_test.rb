@@ -63,6 +63,13 @@ module DailyArchive
       assert_equal "test", result[:skipped]
     end
 
+    test "vacuum! rejects tables outside the observation allowlist" do
+      error = assert_raises(ArgumentError) do
+        TableMaintenance.send(:vacuum_allowlisted!, [ "schema_migrations" ])
+      end
+      assert_match(/schema_migrations/, error.message)
+    end
+
     test "vacuum_after_deletes! no-ops below the threshold" do
       AppConfig.write!(:daily_archive_vacuum_min_deleted, 50_000)
       result = TableMaintenance.vacuum_after_deletes!(
