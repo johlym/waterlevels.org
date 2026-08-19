@@ -15,10 +15,29 @@ Related: [`plan-3y-daily-history.md`](./plan-3y-daily-history.md) (historical 1y
 
 | Layer | Retention |
 |-------|-----------|
-| Continuous IV (Postgres) | **35 days** (`HistoryIngestion::CONTINUOUS_RETENTION`) |
+| Continuous IV (Postgres) | **35 days** (`HistoryIngestion::CONTINUOUS_RETENTION`) of native USGS IV (typically ~15-minute) |
 | Day-31 handoff frontier | Local calendar **day 31** (`DailyArchive::CONTINUOUS_ROLLUP_AFTER`) |
 | Daily history (R2) | All historical dailies used by `1y` / `3y` / `Ny` |
 | `daily_observations` (Postgres) | **Legacy drain only** — new ingest does not write here when archive writes are on |
+
+## Expected IV row counts
+
+USGS instantaneous values are typically **15-minute**, not hourly:
+
+```text
+96 points/day × 35 days = 3,360 rows per fully covered series
+```
+
+Hourly mental math (`stations × 24 × 35 ≈ 15M` at ~18k stations) undercounts by ~4× and assumes one series per station. Gauge cards show at most 3 measurement kinds, but `selected_for_display` can include multiple water-level parameter codes (gage height + an elevation datum) plus discharge and temperature.
+
+Fleet size is approximately `selected series with IV × 3,360`, reduced by gaps, hourly sites, and incomplete backfill. Confirm on production with:
+
+```bash
+bin/rails usgs:continuous_inventory
+# or in console: puts ContinuousInventory.report
+```
+
+`/admin` uses Postgres `reltuples` (ANALYZE estimate). `ContinuousInventory` also reports `n_live_tup`, rows older than retention, unselected leftovers, and a sampled median interval.
 
 ## Object layout
 

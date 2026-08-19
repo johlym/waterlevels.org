@@ -115,6 +115,10 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
       assert_equal 1, stats[:tip_freshness][:stale]
       assert_equal 1, stats[:continuous_last_24h]
       assert_equal 1, stats[:continuous_last_7d]
+      assert_equal 35, stats[:continuous_retention_days]
+      assert_equal 1, stats[:selected_series_count]
+      assert_equal 1, stats[:recent_iv_series_count]
+      assert stats[:implied_interval_minutes]
       assert_equal "wa", stats[:last_catalog_sync_state]
       assert stats[:last_catalog_sync_at]
       assert stats[:last_flood_sync_at]
@@ -445,6 +449,9 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
       assert_equal 1, stats[:continuous_last_24h]
       assert_equal 2, stats[:continuous_last_7d]
       assert stats[:inventory_computed_at]
+      assert_equal 1, stats[:selected_series_count]
+      assert_equal 1, stats[:recent_iv_series_count]
+      assert stats[:implied_interval_minutes]
     end
   end
 

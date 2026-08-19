@@ -189,7 +189,7 @@
 
             <%= render "pages/faq_item", question: "How far back does history go on this site?", id: "history" do %>
               <p>
-                Station charts and tables use history we have cached for that gauge—typically recent continuous (sub-daily) points, plus daily and peak series where available. Recent daily means stay in our primary database; older daily history may be served from a cold archive. Retention is finite (on the order of ~90 days of continuous points and multi-year daily means when backfilled), not the full USGS archive back to the early 1900s.
+                Station charts and tables use history we have cached for that gauge—typically recent continuous (sub-daily, often ~15-minute) points, plus daily and peak series where available. Short charts keep about 35 days of continuous points in our primary database; older daily history is served from a cold archive. Retention is finite (not the full USGS archive back to the early 1900s).
               </p>
               <p>
                 For the complete period of record, use the official USGS station page.

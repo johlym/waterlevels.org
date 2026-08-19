@@ -81,7 +81,7 @@ Design the schema so the hot read paths (map viewport, state listing, gauge snap
 - **`time_series`** — per-parameter series metadata for a location. `measurement_kind ∈ {water_level, discharge, temperature}`, `selected_for_display` gate, `primary_series`.
 - **Observation tables**, all FK → `time_series`, all upserted on natural keys:
   - `latest_observations` — one row per series (unique `time_series_id`).
-  - `continuous_observations` — sub-daily points (unique `(time_series_id, observed_at)`); ~35-day retention (charts use ≤30d; day-31+ handoff ensures R2 has USGS or estimated daily before IV prune).
+  - `continuous_observations` — sub-daily points (unique `(time_series_id, observed_at)`); typically USGS ~15-minute IV; ~35-day retention (charts use ≤30d; day-31+ handoff ensures R2 has USGS or estimated daily before IV prune). Full coverage is ~3,360 rows/series (`96 × 35`), not hourly (`24 × 35`). See [`doc/postgres-r2-daily-archive.md`](doc/postgres-r2-daily-archive.md).
   - `daily_observations` — **legacy drain only**. New ingest writes dailies to R2 when archive writes are enabled; export and the 6-hour drain delete Postgres rows once present in R2 (nightly retention is the backstop).
   - `peak_observations` — annual peaks (unique `(time_series_id, water_year, peak_kind)`).
   - `daily_archive_shards` — catalog of Cloudflare R2 year objects (`daily/v1/{time_series_id}/{yyyy}.json.gz`) for **all** daily history used by `1y` / `3y` / `Ny`. See [`doc/postgres-r2-daily-archive.md`](doc/postgres-r2-daily-archive.md).
