@@ -3,11 +3,12 @@
 # Counter-backed (Postgres AdminCounter, written by jobs / AdminDashboardCountersJob):
 #   - Job-finish / tip-refresh / IV candidate snapshots (record_job_finish!)
 #   - Inventory aggregates (backfill coverage, measurement totals, stale/NWPS)
+#   - Growth continuous 24h/7d window counts (COUNT on continuous_observations)
 #
 # Live on each section request (not Counters):
 #   - Sidekiq health, USGS/DB circuit breakers
 #   - Lock/cooldown Redis SCAN counts
-#   - Growth continuous 24h/7d counts and tip-freshness histogram
+#   - Tip-freshness histogram (active stations by latest_observed_at)
 #   - "Last station updated" row
 #
 # The dashboard loads section snapshots via Turbo Frames so the shell can render
@@ -45,7 +46,7 @@ class AdminDashboardStats
   SECTION_LOAD_ORDER = %i[jobs health core pipeline growth states].freeze
   # Bump when a section payload shape changes so deploys do not serve stale
   # hashes that crash the matching partial (Turbo then shows "Content missing").
-  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v11".freeze
+  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v12".freeze
   SECTION_TTL = 2.minutes
   SECTION_RACE_TTL = 15.seconds
   REDIS_SCAN_MAX_ITERATIONS = 50
@@ -309,6 +310,7 @@ class AdminDashboardStats
     peak_count = approximate_or_exact_count(PeakObservation)
     archive_daily_count = DailyArchive.cold_archive_point_count
     measurement_count = continuous_count + daily_count + peak_count + archive_daily_count
+    window_counts = continuous_window_counts
     stale_station_count = [
       backfill[:station_count] - MonitoringLocation.active.not_stale.count,
       0
@@ -328,6 +330,8 @@ class AdminDashboardStats
       archive_daily_observation_count: archive_daily_count,
       daily_archive_shard_count: DailyArchive.shard_count,
       measurement_count: measurement_count,
+      continuous_last_24h: window_counts[:continuous_last_24h],
+      continuous_last_7d: window_counts[:continuous_last_7d],
       stale_station_count: stale_station_count,
       nwps_matched_count: nwps_matched_count
     )
@@ -398,12 +402,16 @@ class AdminDashboardStats
   end
 
   def growth_section
-    last_24h = ContinuousObservation.where(observed_at: 24.hours.ago..).count
+    # Read-only — never COUNT continuous_observations on the web request.
+    # Those window aggregates live in inventory Counters (job / core miss).
+    inventory = stored_inventory_payload
+    last_24h = inventory[:continuous_last_24h].to_i
     recent_iv_series = TimeSeries.selected.where(continuous_newest_at: 24.hours.ago..).count
 
     {
       continuous_last_24h: last_24h,
-      continuous_last_7d: ContinuousObservation.where(observed_at: 7.days.ago..).count,
+      continuous_last_7d: inventory[:continuous_last_7d].to_i,
+      inventory_computed_at: inventory[:computed_at],
       selected_series_count: TimeSeries.selected.count,
       recent_iv_series_count: recent_iv_series,
       implied_interval_minutes: implied_iv_interval_minutes(last_24h, recent_iv_series),
@@ -504,17 +512,50 @@ class AdminDashboardStats
 
   def inventory_payload
     @inventory_payload ||= begin
-      row = AdminCounter.fetch(INVENTORY_KEY)
-      if row
-        payload = AdminCounter.payload_for(INVENTORY_KEY) || {}
-        payload.merge(computed_at: row.computed_at)
+      stored = stored_inventory_payload
+      if stored[:computed_at]
+        stored
       else
         refresh_inventory_counters!(source: "schedule")
-        row = AdminCounter.fetch(INVENTORY_KEY)
-        payload = AdminCounter.payload_for(INVENTORY_KEY) || {}
-        payload.merge(computed_at: row&.computed_at)
+        stored_inventory_payload
       end
     end
+  end
+
+  # Last-known inventory row only. Growth uses this so a Counter miss cannot
+  # trigger a 7-day continuous COUNT under the dashboard statement timeout.
+  def stored_inventory_payload
+    row = AdminCounter.fetch(INVENTORY_KEY)
+    return {} unless row
+
+    payload = AdminCounter.payload_for(INVENTORY_KEY) || {}
+    payload.merge(computed_at: row.computed_at)
+  end
+
+  # One index range scan for both windows — 7d includes 24h.
+  def continuous_window_counts
+    since_24h = 24.hours.ago
+    since_7d = 7.days.ago
+    row = connection.select_one(
+      ActiveRecord::Base.sanitize_sql_array(
+        [
+          <<~SQL.squish,
+            SELECT
+              COUNT(*) FILTER (WHERE observed_at >= ?) AS last_24h,
+              COUNT(*) AS last_7d
+            FROM continuous_observations
+            WHERE observed_at >= ?
+          SQL
+          since_24h,
+          since_7d
+        ]
+      )
+    ) || {}
+
+    {
+      continuous_last_24h: row["last_24h"].to_i,
+      continuous_last_7d: row["last_7d"].to_i
+    }
   end
 
   def backfill_aggregates

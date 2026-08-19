@@ -99,6 +99,8 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Tip freshness"
     assert_includes response.body, "min spacing"
     assert_includes response.body, "freshness-stack"
+    assert_includes response.body, "inventory Counters"
+    assert_includes response.body, "tip freshness is live"
     assert_includes response.body, "Current"
     assert_includes response.body, "1+ Hour"
     assert_includes response.body, "6+ Hours"
@@ -151,6 +153,22 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "Content missing"
   ensure
     AdminDashboardStats.define_singleton_method(:section, original)
+  end
+
+  test "growth section renders when inventory Counters are missing" do
+    ENV["DASHBOARD_PW"] = "secret-dashboard"
+    create(:monitoring_location, name: "Cedar River near Renton", latest_observed_at: 20.minutes.ago)
+    post admin_login_path, params: { password: "secret-dashboard" }
+    AdminDashboardStats.bust_backfill_cache!
+    Rails.cache.clear
+
+    get admin_dashboard_section_path(section: :growth)
+
+    assert_response :success
+    assert_includes response.body, 'id="admin_section_growth"'
+    assert_includes response.body, "pending inventory Counters"
+    assert_includes response.body, "Tip freshness"
+    refute_includes response.body, "timed out"
   end
 
   test "unknown section returns not found" do

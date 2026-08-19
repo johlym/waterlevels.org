@@ -4,7 +4,14 @@
     <div>
       <p class="eyebrow">Growth</p>
       <h2 id="admin-growth-heading">Measurements &amp; tip freshness</h2>
-      <p class="hint">Live Postgres counts (not Counters)</p>
+      <% if stats[:inventory_computed_at] %>
+        <p class="hint">
+          Continuous 24h/7d from inventory Counters as of <%= time_ago_in_words(stats[:inventory_computed_at]) %> ago
+          · tip freshness is live
+        </p>
+      <% else %>
+        <p class="hint">Continuous 24h/7d pending inventory Counters · tip freshness is live</p>
+      <% end %>
     </div>
   </div>
 

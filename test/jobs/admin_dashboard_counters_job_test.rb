@@ -18,5 +18,7 @@ class AdminDashboardCountersJobTest < ActiveSupport::TestCase
     assert_equal 1, payload[:backfill][:station_count]
     assert payload.key?(:measurement_count)
     assert payload.key?(:stale_station_count)
+    assert payload.key?(:continuous_last_24h)
+    assert payload.key?(:continuous_last_7d)
   end
 end

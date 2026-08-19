@@ -430,6 +430,53 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
     assert pipeline[:inventory_computed_at]
   end
 
+  test "growth section reads 24h/7d counts from inventory Counters without live COUNT" do
+    travel_to Time.find_zone!("America/Los_Angeles").local(2026, 8, 3, 15, 0, 0) do
+      location = create(:monitoring_location, state_code: "wa", latest_observed_at: 30.minutes.ago)
+      series = create(:time_series, monitoring_location: location)
+      ContinuousObservation.create!(time_series: series, value: 1, observed_at: 1.hour.ago)
+      ContinuousObservation.create!(time_series: series, value: 2, observed_at: 3.days.ago)
+      ContinuousObservation.create!(time_series: series, value: 3, observed_at: 10.days.ago)
+
+      AdminDashboardStats.refresh_inventory_counters!(source: "schedule")
+      payload = AdminCounter.payload_for(AdminDashboardStats::INVENTORY_KEY)
+      assert_equal 1, payload[:continuous_last_24h]
+      assert_equal 2, payload[:continuous_last_7d]
+
+      ContinuousObservation.delete_all
+
+      stats = AdminDashboardStats.new.growth_section
+      assert_equal 1, stats[:continuous_last_24h]
+      assert_equal 2, stats[:continuous_last_7d]
+      assert stats[:inventory_computed_at]
+      assert_equal 1, stats[:selected_series_count]
+      assert_equal 1, stats[:recent_iv_series_count]
+      assert stats[:implied_interval_minutes]
+    end
+  end
+
+  test "growth section does not COUNT continuous_observations when Counters are missing" do
+    location = create(:monitoring_location, state_code: "wa", latest_observed_at: 30.minutes.ago)
+    series = create(:time_series, monitoring_location: location)
+    ContinuousObservation.create!(time_series: series, value: 1, observed_at: 1.hour.ago)
+    AdminDashboardStats.bust_backfill_cache!
+
+    eigen = ContinuousObservation.singleton_class
+    eigen.alias_method :__orig_where, :where
+    eigen.define_method(:where) do |*args, **kwargs|
+      raise "live continuous_observations window count"
+    end
+
+    stats = AdminDashboardStats.new.growth_section
+    assert_equal 0, stats[:continuous_last_24h]
+    assert_equal 0, stats[:continuous_last_7d]
+    assert_nil stats[:inventory_computed_at]
+    assert stats[:tip_freshness][:current].positive?
+  ensure
+    eigen.alias_method :where, :__orig_where
+    eigen.remove_method :__orig_where
+  end
+
   test "statement_timeout_ms reads AppConfig override" do
     AppConfig.write!(:admin_dashboard_statement_timeout_ms, 8_000)
     assert_equal 8_000, AdminDashboardStats.statement_timeout_ms
