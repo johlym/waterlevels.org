@@ -59,6 +59,99 @@ class IvRepairScarJobTest < ActiveSupport::TestCase
     end
   end
 
+  test "empty USGS response parks the unfillable scar so the candidate count can fall" do
+    location = create(:monitoring_location, site_number: "30000401")
+    series = create(:time_series, monitoring_location: location, selected_for_display: true)
+
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/continuous/items})
+      .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+    daily_stub = stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/daily/items})
+    peaks_stub = stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/peaks/items})
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      seed_continuous_coverage!(
+        series,
+        from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+        to: 5.days.ago
+      )
+      seed_continuous_coverage!(
+        series,
+        from: 3.days.ago,
+        to: 1.hour.ago
+      )
+
+      assert location.reload.needs_iv_scar_repair?
+      assert_includes MonitoringLocation.iv_scar_candidate_ids, location.id
+
+      assert IvRepairLock.claim!(location.id)
+      IvRepairScarJob.perform_now(location.id)
+
+      assert_requested :get, %r{collections/continuous/items}
+      assert_not_requested daily_stub
+      assert_not_requested peaks_stub
+      refute location.reload.needs_iv_scar_repair?
+      refute_includes MonitoringLocation.iv_scar_candidate_ids, location.id
+      refute IvRepairLock.cooling_down?(location.id)
+      assert location.known_missing_usgs_iv?
+      assert_in_delta 7.days.from_now.to_i, location.usgs_iv_gap_recheck_at.to_i, 2
+
+      series.reload
+      assert series.iv_scar_checked_at.present?
+      assert_operator series.continuous_max_gap_seconds, :>, HistoryIngestion.continuous_gap_threshold.to_i
+    end
+  end
+
+  test "filling the interior hole clears the scar check and candidate flag" do
+    location = create(:monitoring_location, site_number: "30000402")
+    series = create(:time_series, monitoring_location: location, selected_for_display: true)
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      seed_continuous_coverage!(
+        series,
+        from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+        to: 5.days.ago
+      )
+      seed_continuous_coverage!(
+        series,
+        from: 3.days.ago,
+        to: 1.hour.ago
+      )
+
+      fill_from = 5.days.ago
+      fill_to = 3.days.ago
+      features = []
+      t = fill_from
+      while t <= fill_to
+        features << {
+          id: t.to_i.to_s,
+          properties: {
+            time_series_id: series.usgs_time_series_id,
+            parameter_code: series.parameter_code,
+            time: t.utc.iso8601,
+            value: 2.5
+          }
+        }
+        t += 1.hour
+      end
+
+      stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/continuous/items})
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/geo+json" },
+          body: { features: features, links: [] }.to_json
+        )
+
+      assert IvRepairLock.claim!(location.id)
+      IvRepairScarJob.perform_now(location.id)
+
+      refute location.reload.needs_iv_scar_repair?
+      refute_includes MonitoringLocation.iv_scar_candidate_ids, location.id
+      series.reload
+      assert_nil series.iv_scar_checked_at
+      assert_operator series.continuous_max_gap_seconds, :<=, HistoryIngestion.continuous_gap_threshold.to_i
+    end
+  end
+
   test "enqueue still works when tip iv_repair circuit is open" do
     travel_to Time.zone.parse("2026-08-03 12:00:00") do
       Usgs::RateLimitCircuit.open!(key_id: "history_iv_repair", ttl: 1.minute)

@@ -49,6 +49,32 @@ class TimeSeriesContinuousCoverageTest < ActiveSupport::TestCase
     assert_equal 0, @series.continuous_max_gap_seconds
   end
 
+  test "record_iv_scar_check! parks remaining holes and clears filled ones" do
+    travel_to Time.zone.parse("2026-08-11 12:00:00") do
+      seed_continuous_coverage!(
+        @series,
+        from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+        to: 5.days.ago
+      )
+      seed_continuous_coverage!(
+        @series,
+        from: 3.days.ago,
+        to: 1.hour.ago
+      )
+
+      assert_equal 1, TimeSeries.record_iv_scar_check!([ @series.id ])
+      @series.reload
+      assert @series.iv_scar_checked_at.present?
+      assert_equal @series.continuous_max_gap_seconds, @series.iv_scar_checked_max_gap_seconds
+
+      @series.update_columns(continuous_max_gap_seconds: 60)
+      TimeSeries.record_iv_scar_check!([ @series.id ])
+      @series.reload
+      assert_nil @series.iv_scar_checked_at
+      assert_nil @series.iv_scar_checked_max_gap_seconds
+    end
+  end
+
   test "advance_continuous_tips! shifts prev and raises max gap on tip jump" do
     travel_to Time.zone.parse("2026-08-11 12:00:00") do
       first = 5.hours.ago

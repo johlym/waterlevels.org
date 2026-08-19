@@ -134,10 +134,12 @@ class HistoryIngestion
         )
       end
 
+      @continuous_incomplete = false
       continuous_count = ingest_continuous_for(continuous_series)
       daily_count = ingest_daily_for(daily_series)
       peak_count = ingest_peaks_for(peak_series)
       observation_count = continuous_count + daily_count + peak_count
+      finalize_iv_scar!(continuous_series) if iv_repair_scar?
 
       @last_stats = {
         continuous_observation_count: continuous_count,
@@ -147,7 +149,8 @@ class HistoryIngestion
         continuous_series_count: continuous_series.size,
         daily_series_count: daily_series.size,
         peak_series_count: peak_series.size,
-        range_count: @last_continuous_range_count.to_i
+        range_count: @last_continuous_range_count.to_i,
+        continuous_incomplete: @continuous_incomplete
       }
 
       Telemetry.add_attributes(
@@ -160,7 +163,8 @@ class HistoryIngestion
         "app.daily_observation_count" => daily_count,
         "app.peak_observation_count" => peak_count,
         "app.observation_count" => observation_count,
-        "app.range_count" => @last_continuous_range_count.to_i
+        "app.range_count" => @last_continuous_range_count.to_i,
+        "app.continuous_incomplete" => @continuous_incomplete
       )
 
       # History may write fresher continuous points while hourly tip sync lagged.
@@ -368,14 +372,48 @@ class HistoryIngestion
 
   # Anchored series with a healthy tip adjacency but a deeper interior hole in
   # the retained IV window. Served by the scar lane (key2), not tip IV repair.
+  # USGS-empty holes are parked after a completed scar fetch until the denorm
+  # gap grows or the retry window elapses — otherwise the candidate count only
+  # climbs (hourly tip sync raises max-gap; most interior outages are unfillable).
   def self.series_needs_iv_scar_repair?(series, ends: Time.current.utc)
     return false unless series.has_continuous_anchor?
     return false if series_needs_iv_repair?(series, ends: ends)
 
     max_gap = series.continuous_max_gap_seconds
     return false if max_gap.blank?
+    return false if max_gap <= continuous_gap_threshold.to_i
+    return false if series_iv_scar_recently_checked?(series)
 
-    max_gap > continuous_gap_threshold.to_i
+    true
+  end
+
+  def self.series_iv_scar_recently_checked?(series)
+    checked_at = series.iv_scar_checked_at
+    return false if checked_at.blank?
+    return false if checked_at < iv_scar_retry_after
+    return false if series.continuous_max_gap_seconds.to_i > series.iv_scar_checked_max_gap_seconds.to_i
+
+    true
+  end
+
+  def self.iv_scar_retry_days
+    days = AppConfig.integer(:history_iv_scar_retry_days)
+    days = 7 if days <= 0
+    days
+  end
+
+  def self.iv_scar_retry_period
+    iv_scar_retry_days.days
+  end
+
+  def self.iv_scar_retry_after
+    iv_scar_retry_period.ago
+  end
+
+  def self.iv_scar_recheck_at(checked_at)
+    return if checked_at.blank?
+
+    checked_at + iv_scar_retry_period
   end
 
   # Selected series whose newest IV tip is fresh but the previous point is more
@@ -508,6 +546,18 @@ class HistoryIngestion
     end
   end
 
+  # After a completed scar fetch, refresh the sliding-window max-gap denorm and
+  # park USGS-empty holes so they leave the candidate set until retry / a worse gap.
+  def finalize_iv_scar!(attempted_series)
+    ids = monitoring_location.time_series.selected.pluck(:id)
+    TimeSeries.refresh_continuous_coverage!(ids)
+    if !@continuous_incomplete && attempted_series.any?
+      TimeSeries.record_iv_scar_check!(attempted_series.map(&:id))
+    end
+    monitoring_location.time_series.reset
+    attempted_series.each(&:reload)
+  end
+
   def ingest_continuous_for(series_list)
     @last_continuous_range_count = 0
     if series_list.empty?
@@ -547,6 +597,7 @@ class HistoryIngestion
     ) do
       client = with_purpose_client(:continuous)
       unless client
+        @continuous_incomplete = true
         Rails.logger.warn(
           "HistoryIngestion continuous aborted site=#{monitoring_location.site_number} " \
           "mode=#{mode} reason=client_unavailable"
@@ -612,6 +663,7 @@ class HistoryIngestion
           )
         end
       rescue Usgs::Client::RateLimitError => e
+        @continuous_incomplete = true
         progress&.step("continuous stopped (#{e.message})")
         Rails.logger.warn(
           "HistoryIngestion continuous rate-limited site=#{monitoring_location.site_number} " \

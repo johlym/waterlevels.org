@@ -170,6 +170,11 @@
           <%= stats[:last_iv_scar_elapsed_s] %>s
           <% if stats[:last_iv_scar_still_needs] %>
             · still needs scar repair
+          <% elsif stats[:last_iv_scar_parked_unfillable] %>
+            · known missing USGS data
+            <% if stats[:last_iv_scar_recheck_at] %>
+              · next check in <%= distance_of_time_in_words_to_now(stats[:last_iv_scar_recheck_at]) %>
+            <% end %>
           <% end %>
         <% else %>
           Per-station interior gap fetch (key2)
