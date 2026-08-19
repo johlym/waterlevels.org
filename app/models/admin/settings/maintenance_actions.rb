@@ -37,7 +37,7 @@ module Admin
 
           action :clear_sitemap_and_og_caches,
             label: "Clear sitemap & OG image caches",
-            description: "Drop cached sitemap XML and Open Graph PNG payloads." do
+            description: "Drop cached sitemap XML, the default OG PNG, and any leftover station OG keys in Redis. Station cards are edge-cached, not stored in Redis." do
             Sitemap.clear!
             OgImage.clear!
             :ok

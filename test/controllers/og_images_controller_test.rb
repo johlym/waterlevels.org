@@ -31,6 +31,10 @@ class OgImagesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "image/png", response.media_type
     assert response.body.start_with?("\x89PNG".b)
     assert_includes response.headers["Cache-Tag"], "og:gauge:#{@location.site_number}"
+    assert_includes response.headers["Cache-Tag"], "og"
+    assert_includes response.headers["Cache-Tag"], "gauges"
+    assert_includes response.headers["Cache-Control"], "s-maxage=3600"
+    assert_nil response.headers["Cloudflare-CDN-Cache-Control"]
   end
 
   test "station og image 404s for unknown site" do

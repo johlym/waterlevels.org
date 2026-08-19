@@ -44,6 +44,7 @@ class EdgeCacheInvalidationTest < ActiveSupport::TestCase
     assert_includes tags, "alerts"
     assert_includes tags, "gauges"
     assert_includes tags, "states"
+    assert_includes tags, "og"
     assert_not_includes tags, "map-stations"
     assert_not tags.any? { |tag| tag.start_with?("gauge:") }
 
@@ -61,6 +62,7 @@ class EdgeCacheInvalidationTest < ActiveSupport::TestCase
     @invalidation.after_latest_sync!(state: "wa")
     tags = @purger.calls.first
     assert_includes tags, "state:wa"
+    assert_includes tags, "og"
     assert_includes tags, "gauge:12101000"
     assert_not_includes tags, "gauge:09380000"
   end

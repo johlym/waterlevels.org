@@ -131,7 +131,7 @@ class EdgeCacheInvalidation
   end
 
   def sync_tags(state:)
-    tags = %w[home map alerts]
+    tags = %w[home map alerts og]
 
     code = state.present? ? Usgs::StateCodes.normalize_postal(state) : nil
     if code

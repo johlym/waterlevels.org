@@ -1,6 +1,13 @@
 # Generates Open Graph share cards (1200×630 PNG) from SVG templates.
 # General pages share one branded default; gauge pages include name, site ID,
 # and latest measurements.
+#
+# Station PNGs are not stored in Redis. A 1200×630 card is ~115KB; hashing the
+# tip into the cache key left a new copy every hour while the old one lived 24h
+# and filled a 250MB Redis (allkeys-lru). The URL stays stable
+# (`/og/gauges/:site.png`). Cloudflare holds the card (`s-maxage` 1h) and
+# hourly tip/flood syncs purge `og` / `gauge:{site}` / `gauges` so the next
+# origin hit rasterizes the new tip. `clear!` only sweeps leftover hashed keys.
 class OgImage
   WIDTH = 1200
   HEIGHT = 630
@@ -35,20 +42,7 @@ class OgImage
 
   def self.station_png(snapshot)
     snapshot = snapshot.with_indifferent_access
-    key = station_cache_key(snapshot)
-    Rails.cache.fetch(key, expires_in: CACHE_TTL) do
-      new(:station, snapshot: snapshot).png
-    end
-  end
-
-  def self.station_cache_key(snapshot)
-    fingerprint = [
-      snapshot[:site_number],
-      snapshot[:latest_observed_at],
-      snapshot[:flood_category],
-      Array(snapshot[:measurements]).map { |m| [ m[:kind] || m["kind"], m[:value] || m["value"] ] }
-    ].flatten.join(":")
-    "#{STATION_CACHE_PREFIX}:#{Digest::SHA256.hexdigest(fingerprint)}"
+    new(:station, snapshot: snapshot).png
   end
 
   def initialize(variant, snapshot: nil)
