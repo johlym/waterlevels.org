@@ -49,7 +49,9 @@ STATE=wa RANGE=1y LIMIT=25 bin/rails usgs:backfill
 STATE=wa RANGE=3y LIMIT=25 bin/rails usgs:backfill
 ```
 
-Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_IV_REPAIR_BATCH` / `HISTORY_IV_SCAR_BATCH` (default `50` stations per catch-up tick), `HISTORY_BACKFILL_BATCH` (default `50` stations per cron tick for cold `1y` work), `HISTORY_DEEP_BACKFILL_BATCH` (default `400` stations for `3y` deep fills; set `0` to pause). History pins one USGS key per purpose (`USGS_API_HISTORY_CONTINUOUS_KEY` / `_DAILY_KEY` / `_PEAKS_KEY` / `_IVREPAIR_KEY` / `_IVREPAIR2_KEY`) and opens that purpose’s circuit on a 429 for the rest of the UTC hour. Tip sync enqueues `IvRepairJob` when a new tip jumps more than 2h past the previous continuous point; tip catch-up (`IvRepairBatchJob`) runs Mon–Sat hourly at `:35` on `iv_repair` → `iv_repair_worker`. Interior scar catch-up (`IvRepairScarBatchJob`) runs Mon–Sat hourly at `:50` on `iv_repair_scar` → `iv_repair_scar_worker` using `_IVREPAIR2_KEY` across the ~35d continuous window. Cold/year backlog (`HistoryBackfillBatchJob`) runs Mon–Sat every 10 minutes on `backfill` → `historical_worker`. Circuit state per key is on `/admin`.
+Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_IV_REPAIR_BATCH` / `HISTORY_IV_SCAR_BATCH` (default `50` stations per catch-up tick), `HISTORY_BACKFILL_BATCH` (default `50` stations per cron tick for cold `1y` work), `HISTORY_DEEP_BACKFILL_BATCH` (default `400` stations for `3y` deep fills; set `0` to pause), `HISTORY_IV_SCAR_RETRY_DAYS` (default `7`). History pins one USGS key per purpose (`USGS_API_HISTORY_CONTINUOUS_KEY` / `_DAILY_KEY` / `_PEAKS_KEY` / `_IVREPAIR_KEY` / `_IVREPAIR2_KEY`) and opens that purpose’s circuit on a 429 for the rest of the UTC hour. Tip sync enqueues `IvRepairJob` when a new tip jumps more than 2h past the previous continuous point; tip catch-up (`IvRepairBatchJob`) runs Mon–Sat hourly at `:35` on `iv_repair` → `iv_repair_worker`. Interior scar catch-up (`IvRepairScarBatchJob`) runs Mon–Sat hourly at `:50` on `iv_repair_scar` → `iv_repair_scar_worker` using `_IVREPAIR2_KEY` across the ~35d continuous window. After a completed scar fetch, USGS-empty interior holes park on `time_series` (`iv_scar_checked_at`) until the retry window elapses or the gap worsens — the gauge page shows a known-missing callout. Cold/year backlog (`HistoryBackfillBatchJob`) runs Mon–Sat every 10 minutes on `backfill` → `historical_worker`. Circuit state per key is on `/admin`.
+
+`FloodStageSync` expires flood alerts that drop off the NWPS state list: if a LID is unseen and `flood_category_observed_at` is blank or older than 24 hours, category resets to `no_flooding`.
 
 See `doc/postgres-r2-daily-archive.md` (current R2-first retention), `doc/plan-3y-daily-history.md` (historical 3y plan), and `doc/future.md` (hourly POR) for retention tiers and longer-history notes.
 
@@ -71,6 +73,25 @@ Job lifecycle lines look like `{"level":"info","event":"job.perform","message":"
 
 Via a Heroku log drain, Better Stack nests the parsed JSON under `message.*` (for example `message.job`, `message.phase`). Configure Live Tail to show `{message.message}` and filter on those nested fields (or add a VRL transform to promote them).
 
+## Agent discovery
+
+There is **no public third-party data API**. First-party `/api/*` stays website-only (`X-WaterLevels-Client: web` + same-origin). Agents and scrapers should use USGS / NWPS, advertised here:
+
+| Surface | Role |
+| ------- | ---- |
+| `/llms.txt` | Static site summary, page list, and “use USGS/NWPS” policy |
+| `/.well-known/api-catalog` | RFC 9727 linkset (`application/linkset+json`). Anchors: site root, USGS Water Data API, NWPS API. Does **not** list `/api/*`. |
+| Homepage `Link` headers | `rel="api-catalog"` → catalog; `rel="service-doc"` → `/disclosures`, `/faq`; `rel="describedby"` → `/llms.txt`. Only `/` sets the full discovery header. |
+| `/robots.txt` | `Content-Signal: ai-train=no, search=yes, ai-input=no`; `Disallow: /admin` and `/api` |
+
+HTML pages honor `Accept: text/markdown` (`MarkdownForAgents` on `ApplicationController`): if markdown quality ≥ HTML, the HTML template still renders, then `HtmlToMarkdown` converts hero + `main` (nav/header/footer/svg stripped). Response is `text/markdown; charset=utf-8` with `Vary: Accept` and `x-markdown-tokens` (rough `ceil(chars/4)`). JSON `/api/*` is unchanged. The modern-browser gate is skipped for markdown requests.
+
+Example:
+
+```bash
+curl -sH "Accept: text/markdown" https://waterlevels.org/faq
+```
+
 ## Tests
 
 ```bash
@@ -79,17 +100,17 @@ bin/rails test
 
 ## Heroku
 
-- Dynos: `web`, `worker` (default queue + scheduler), `sync_worker` (`sync` queue), `iv_repair_worker` (`iv_repair` queue), `iv_repair_scar_worker` (`iv_repair_scar` queue), `historical_worker` (`backfill` queue)
+- Dynos: `web`, `worker` (default queue + scheduler), `sync_worker` (`sync` queue), `iv_repair_worker` (`iv_repair` queue), `iv_repair_scar_worker` (`iv_repair_scar` queue), `historical_worker` (`backfill` queue). Keep the two IV workers isolated: `iv_repair_worker` must listen **only** to `iv_repair` (`config/sidekiq_iv_repair.yml`). Scar jobs are consumed solely by `iv_repair_scar_worker`. Admin health warns if the scar queue has depth and no scar workers.
 - Add-ons: Postgres, Redis
 - Set `USGS_API_KEY` (tip/catalog), optional `USGS_API_HISTORY_CONTINUOUS_KEY` / `USGS_API_HISTORY_DAILY_KEY` / `USGS_API_HISTORY_PEAKS_KEY` (purpose-pinned history backfill), `REDIS_URL`, `DATABASE_URL`, `APP_HOST`, `SENTRY_DSN`; optional `CLOUDFLARE_ZONE_ID` + `CLOUDFLARE_API_TOKEN` for post-sync Cache-Tag purge; optional `CLOUDFLARE_R2_*` for the yearly daily-means archive ([`doc/postgres-r2-daily-archive.md`](doc/postgres-r2-daily-archive.md))
 - Enable [runtime dyno metadata](https://devcenter.heroku.com/articles/dyno-metadata) so `HEROKU_RELEASE_VERSION` is available; Sentry uses it as the release and tags environment as `production`
-- Open Graph PNGs are rendered with `rsvg-convert` (`Aptfile` → `librsvg2-bin`). Requires [`heroku-community/apt`](https://elements.heroku.com/buildpacks/heroku/heroku-buildpack-apt) as buildpack **#1** (before Ruby) so the Aptfile packages install on the dyno.
+- Open Graph PNGs are rendered with `rsvg-convert` (`Aptfile` → `librsvg2-bin`). Requires [`heroku-community/apt`](https://elements.heroku.com/buildpacks/heroku/heroku-buildpack-apt) as buildpack **#1** (before Ruby) so the Aptfile packages install on the dyno. Station cards are **not** stored in Redis (they filled a 250MB instance); `/og/gauges/:site_number.png` rasterizes on the origin and is Cloudflare-cached (`s-maxage=3600`). Tip/flood syncs purge `og` / `gauge:{site}` tags. The default OG PNG is still Redis-cached.
 - Redis TLS: Sidekiq, cache, and Action Cable use `ssl_params.verify_mode = VERIFY_NONE` for Heroku self-signed `rediss://` certs
 - After deploy: `heroku run bin/rails usgs:enqueue_bootstrap -a <app>`
 - Optional: `MALLOC_ARENA_MAX=2` if worker RSS climbs
 - Put Cloudflare in front; honor `Cache-Control` / `Cache-Tag` from the app. Use a Cache Rule (Eligible for cache + Origin Cache Control) for public HTML; bypass `/contact`, `/admin`, and `/api/*`. Public pages skip the Rails session cookie so HTML is not forced to `BYPASS`.
 - Internal `/api/*` JSON is first-party-only (`X-WaterLevels-Client: web` + same-origin browser context), returns `private, no-store`, and is cached in Redis via `ApiResponseCache` (invalidated when syncs bump generation counters).
-- Optional ops dashboard at `/admin` when `DASHBOARD_PW` is set (session login at `/admin/login`). Returns 404 when the env var is unset. Login attempts are rate-limited (Rails `rate_limit`, 10 per 3 minutes per IP). Sidekiq Web is at `/admin/sidekiq` behind the same session.
+- Optional ops dashboard at `/admin` when `DASHBOARD_PW` is set (session login at `/admin/login`). Returns 404 when the env var is unset. Login attempts are rate-limited (Rails `rate_limit`, 10 per 3 minutes per IP). Sidekiq Web is at `/admin/sidekiq` behind the same session. Inventory / growth 24h–7d numbers come from Postgres `admin_counters` (`AdminDashboardCountersJob` every 10 min) — do not `COUNT(*)` `continuous_observations` on the request. Sidekiq stats, USGS circuits, and the tip-freshness histogram stay live.
 - **Cold first request:** Eco/Hobby web dynos sleep when idle; the next hit waits for Puma/Rails boot (often multi-second). Prefer an always-on web dyno, or ping `/up` every few minutes. Puma also warms DB/Redis/`SiteStats` on boot so a post-sleep origin render is cheaper once the process is up.
 
 ## Contact form
