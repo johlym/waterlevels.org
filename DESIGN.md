@@ -1,6 +1,6 @@
 # DESIGN.md — WaterLevels.org
 
-How WaterLevels.org is designed and how it should continue to be designed. This is the architectural reference and the source of truth for the conventions new code should follow. For local setup/run commands see `README.md`; for cloud-agent environment caveats see `AGENTS.md`; for the accessibility keyboard/screen-reader matrix see [`doc/accessibility.md`](doc/accessibility.md) (and §15 below for CI-enforced UI contracts).
+How WaterLevels.org is designed and how it should continue to be designed. This is the architectural reference and the source of truth for the conventions new code should follow. For local setup/run commands see `README.md`; for cloud-agent environment caveats see `AGENTS.md`; for the accessibility keyboard/screen-reader matrix see [`doc/accessibility.md`](doc/accessibility.md) (and §15 below for CI-enforced UI contracts); for agent discovery / markdown twins see §16.
 
 ## 1. Product overview
 
@@ -63,13 +63,14 @@ lib/redis_config.rb    shared Redis options (TLS verify_mode for Heroku rediss:/
 ## 5. Routing & URL design
 
 - `root` → `home#show`; `/map` → `maps#show`.
-- Static/legal pages via `pages#show` (`/about`, `/privacy`, `/terms`, `/disclosures`, `/contact`).
+- Static/legal pages via `pages#show` (`/about`, `/disclosures`, `/faq`, `/privacy`, `/terms`, `/contact`).
 - **Canonical gauge URL:** `/gauges/{state}/{site_number}-{slug}` (e.g. `/gauges/wa/09380000-colorado-river-at-lees-ferry`). A numeric-only `/gauges/{site_number}` short route 301-redirects to the canonical path (`GaugesController#ensure_canonical_path!`). State is constrained to two lowercase letters.
 - **State directory:** `/gauges/{state}`.
-- **JSON API (`/api`):** first-party-only endpoints for map/hydrograph Stimulus fetches — `map/stations` (bbox, `search`, `nearest`) and `gauges/:gauge_id/observations`. Requests must send `X-WaterLevels-Client: web` plus a same-party browser context (`Sec-Fetch-Site: same-origin|same-site`, or matching `Origin`/`Referer`). Responses are `private, no-store` (bypass at Cloudflare) and cached in Redis via `ApiResponseCache`; syncs bump generation counters through `EdgeCacheInvalidation`.
+- **JSON API (`/api`):** first-party-only endpoints for map/hydrograph Stimulus fetches — `map/stations` (bbox, `search`, `nearest`) and `gauges/:gauge_id/observations`. Requests must send `X-WaterLevels-Client: web` plus a same-party browser context (`Sec-Fetch-Site: same-origin|same-site`, or matching `Origin`/`Referer`). Responses are `private, no-store` (bypass at Cloudflare) and cached in Redis via `ApiResponseCache`; syncs bump generation counters through `EdgeCacheInvalidation`. **Do not advertise `/api/*` as a public data API** — see §16.
+- **Agent discovery:** `GET /.well-known/api-catalog` (RFC 9727 linkset; cache tag `static`) and static `/llms.txt`. Homepage `Link` advertises the catalog plus `/disclosures`, `/faq`, and `/llms.txt`. See §16.
 - **Sitemaps:** `/sitemap.xml` index + `/sitemaps/static.xml` + `/sitemaps/{state}.xml`.
 - **Preferences:** `PUT /temperature_unit` sets the °F/°C cookie.
-- **Ops:** `/up` health check. Password-gated `/admin` dashboard when `DASHBOARD_PW` is set (session form at `/admin/login`); returns 404 when unset. Login attempts are rate-limited via Rails `rate_limit` (10 / 3 minutes / IP). The dashboard shell loads immediately; section bodies fill via Turbo Frames (`/admin/sections/:section`) so heavy backfill aggregates do not block first paint. Sidekiq Web (+ scheduler UI) is mounted at `/admin/sidekiq` behind the same session. Not edge-cached (`private, no-store`); admin controllers opt into Rails sessions.
+- **Ops:** `/up` health check. Password-gated `/admin` dashboard when `DASHBOARD_PW` is set (session form at `/admin/login`); returns 404 when unset. Login attempts are rate-limited via Rails `rate_limit` (10 / 3 minutes / IP). The dashboard shell loads immediately; section bodies fill via Turbo Frames (`/admin/sections/:section`) so heavy backfill aggregates do not block first paint. `/admin/settings` writes `AppConfig` levers (pipeline on/off, batch sizes, `HISTORY_IV_SCAR_RETRY_DAYS`, maintenance actions) without a redeploy; reset returns a key to ENV/default. Sidekiq Web (+ scheduler UI) is mounted at `/admin/sidekiq` behind the same session. Not edge-cached (`private, no-store`); admin controllers opt into Rails sessions.
 
 New public URLs should be slug-based, lowercase, and get a canonical form + `Cache-Tag`.
 
@@ -100,7 +101,7 @@ External data flows in through namespaced clients → sync objects → Sidekiq j
 - **Sync objects (`app/models/*_sync.rb`, `history_ingestion.rb`, `display_series_selection.rb`):**
   - `StationCatalogSync` (weekly / bootstrap) — discover active continuous water-body sites, filter via `Usgs::SiteTypes`, upsert series + latest, select display series, prune inactive, warm caches.
   - `LatestObservationSync` (hourly) — refresh `selected_for_display` series, denormalize location columns, warm caches. Enqueues `IvRepairJob` when a new tip jumps more than `CONTINUOUS_GAP_THRESHOLD` past the previous continuous tip on an anchored series.
-  - IV repair lanes — tip/tip-adjacent on `USGS_API_HISTORY_IVREPAIR_KEY` (`IvRepairJob` / `IvRepairBatchJob`); deeper interior scars across `CONTINUOUS_RETENTION` on `USGS_API_HISTORY_IVREPAIR2_KEY` (`IvRepairScarJob` / `IvRepairScarBatchJob`), using denorm `continuous_max_gap_seconds`.
+  - IV repair lanes — tip/tip-adjacent on `USGS_API_HISTORY_IVREPAIR_KEY` (`IvRepairJob` / `IvRepairBatchJob`); deeper interior scars across `CONTINUOUS_RETENTION` on `USGS_API_HISTORY_IVREPAIR2_KEY` (`IvRepairScarJob` / `IvRepairScarBatchJob`), using denorm `continuous_max_gap_seconds`. After a completed scar fetch, USGS-empty holes are **parked** (`time_series.iv_scar_checked_at` / `iv_scar_checked_max_gap_seconds`) for `HISTORY_IV_SCAR_RETRY_DAYS` (default 7; AppConfig `history_iv_scar_retry_days`) so they leave the candidate set until the window elapses or the denorm gap grows. Gauge pages show a callout when `known_missing_usgs_iv?`.
   - `FloodStageSyncJob` (hourly at `:30`, opposing latest tip near `:00`) — one job loops every state with ≥30s between states. Each state does **one** NWPS list GET scoped to that state's padded bbox, refreshes flood categories, prioritizes detail-matching for unlinked action+ gauges (LID → usgsId → site), then spends a small budget on threshold discovery. `FloodStageSyncLock` prevents overlapping runs. Also runs at the end of each `BootstrapStateJob`.
   - `HistoryIngestion` (on-demand/batch) — fetch continuous/daily/peaks for charts; gap-aware. Cold/lazy path uses `1y`; deep `3y` daily only for year-ready stations.
   - `DisplaySeriesSelection` — choose one discharge + one temperature + ranked water-level series; set `has_*` flags and denormalized columns.
@@ -114,13 +115,13 @@ External data flows in through namespaced clients → sync objects → Sidekiq j
 
 Caching is layered; keep all three layers consistent when adding a surface.
 
-1. **HTTP edge headers** via `CacheableResponse`: browser `Cache-Control` defaults to `public, max-age=60, s-maxage=3600` (no long browser `stale-while-revalidate` — that caused Turbo revisits to keep last visit’s HTML until a hard reload). Edge freshness uses `Cloudflare-CDN-Cache-Control: max-age={s_maxage}, stale-while-revalidate=86400` plus a `Cache-Tag`. Every gauge tags `gauge:{site_number}` **and** aggregate `gauges`; states tag `state:{code}` **and** `states`; home/map/static/sitemap/alerts/map APIs have their own tags. The contact page is explicitly `private, no-store`. HTML layouts also set `turbo-cache-control: no-cache` so Turbo Drive does not restore in-memory page snapshots for live data.
+1. **HTTP edge headers** via `CacheableResponse`: browser `Cache-Control` defaults to `public, max-age=60, s-maxage=3600` (no long browser `stale-while-revalidate` — that caused Turbo revisits to keep last visit’s HTML until a hard reload). Edge freshness uses `Cloudflare-CDN-Cache-Control: max-age={s_maxage}, stale-while-revalidate=86400` plus a `Cache-Tag`. Every gauge tags `gauge:{site_number}` **and** aggregate `gauges`; states tag `state:{code}` **and** `states`; home/map/static/sitemap/alerts/map APIs have their own tags. The contact page is explicitly `private, no-store`. HTML layouts also set `turbo-cache-control: no-cache` so Turbo Drive does not restore in-memory page snapshots for live data. Successful HTML responses also send `Vary: Accept` so markdown twins (§16) do not share a cache object with browsers.
 2. **Redis payload snapshots:** `StationSnapshotCache` (per gauge, versioned key + TTL) and `StateListingCache` (per state) hold fully-shaped read models so page renders avoid joins. Caches are **warmed** at the end of the relevant sync and **rebuilt lazily** on `fetch` when stale/schema-bumped. `SiteStats` is warmed by latest/flood syncs and on Puma boot (not only busted); measurement totals may use Postgres `reltuples` estimates when tables are large. `Sitemap` is similarly cached.
 3. **Rails cache store:** Redis in production, memory store in development.
 4. **Cloudflare tag purge** via `Cloudflare::CachePurge` + `EdgeCacheInvalidation` after latest/flood/catalog syncs (and after history ingestion). Requires `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ZONE_ID`; no-ops when unset. National syncs purge aggregate tags (`gauges`, `states`, `home`, `map`, `alerts`, map API tags); state-scoped syncs also purge that state’s gauges. History ingestions **coalesce** tags through `EdgeCachePurgeBuffer` + debounced `EdgeCachePurgeJob` (or `EdgeCacheInvalidation.coalesce` for synchronous `usgs:backfill`) so a multi-station backfill does not fire one Instant Purge per station. `Cloudflare::CachePurge` retries rate-limit responses with backoff. Purge failures are logged/Sentry’d and do **not** fail the sync.
 5. **No Rails session on cacheable pages.** `ApplicationController` sets `request.session_options[:skip] = true` by default so public HTML/JSON does not emit `_waterlevels_session`. Cloudflare treats `Set-Cookie` as `BYPASS` even when a Cache Rule marks the path Eligible for cache. **Only contact and admin opt into sessions** (`PagesController` / `ContactsController` / `Admin::*` via `enable_session?`) for CSRF + flash / login. `csrf_meta_tags` render only when the session is enabled. `PUT /temperature_unit` skips forgery protection (preference cookie is also set client-side). **If you add another form or anything that needs CSRF/flash/session, you must opt that controller into `enable_session?` and keep its path out of the edge cache (or accept that it cannot be CDN-cached).** Do not put CSRF meta tags back on the global layout for cacheable pages. Admin sets `private, no-store`.
 
-**Cloudflare dashboard (ops):** public HTML/JSON need a Cache Rule with **Eligible for cache** + **Origin Cache Control: On**. Bypass `/contact*` and `/admin*` (and any future session-backed or credentialed paths). Without that rule, HTML stays `DYNAMIC`/`BYPASS` and tag purge has nothing to invalidate.
+**Cloudflare dashboard (ops):** public HTML/JSON need a Cache Rule with **Eligible for cache** + **Origin Cache Control: On**. Bypass `/contact*` and `/admin*` (and any future session-backed or credentialed paths). Without that rule, HTML stays `DYNAMIC`/`BYPASS` and tag purge has nothing to invalidate. Honor origin `Vary: Accept` (do not cache one representation for every `Accept`) or an agent’s `text/markdown` twin can be served to browsers, and vice versa.
 
 **Conventions:** bump the version segment in a snapshot cache key when its shape changes; emit a `Cache-Tag` for any new cacheable surface and purge it from Cloudflare after the corresponding sync; treat snapshots as derived and always warmable from the DB; never write a session cookie on a cacheable GET.
 
@@ -168,7 +169,7 @@ When adding a feature, keep the design intact:
 1. New logic → a model/PORO (namespaced for external integrations), not a controller/helper/service.
 2. New read surface → denormalize or snapshot for speed; add a `Cache-Tag` (and aggregate tag if per-entity); warm on the relevant sync, purge via `EdgeCacheInvalidation`, and rebuild lazily on `fetch`. Do not enable a Rails session on cacheable GETs.
 3. New external data → a namespaced Faraday client + a sync PORO + a Sidekiq job + a rake task, reusing pacing + `RateLimitCircuit`; never call it inline on a cached path.
-4. New URL → lowercase slug + canonical redirect + sitemap entry.
+4. New URL → lowercase slug + canonical redirect + sitemap entry. Public HTML automatically gets a markdown twin (§16). Do not add first-party `/api/*` to `ApiCatalog`.
 5. New UI → a ViewComponent sidecar and, if interactive, a single registered Stimulus controller. Follow §15 (contrast tokens, landmarks, keyboard/ARIA patterns); extend `accessibility_smoke_test.rb` when adding a new public interactive pattern.
 6. Tests → FactoryBot data, WebMock-stubbed HTTP, and `Cache-Tag`/JSON-shape assertions; run `bin/rails test test/integration/accessibility_smoke_test.rb` and `yarn test:js` after UI/CSS changes.
 7. Keep prune retention aligned with backfill ranges, and store canonical units (°C) with edge conversion.
@@ -222,3 +223,50 @@ On `bg-zinc-950` / `bg-zinc-900`, use only approved muted text:
    yarn test:js
    ```
 6. If you add a new public interactive surface, add assertions to `accessibility_smoke_test.rb` (and update [`doc/accessibility.md`](doc/accessibility.md) when the keyboard matrix changes).
+
+## 16. Agent discovery & markdown twins
+
+WaterLevels.org is a **website**, not a public data API. Discovery surfaces exist so crawlers and coding agents learn that, get pointed at USGS / NWPS, and can read a markdown twin of public HTML instead of a 406.
+
+### Discovery
+
+| Surface | What it is |
+| --- | --- |
+| Homepage `Link` | `ApiCatalog.discovery_link_header` — `api-catalog` (`/.well-known/api-catalog`), `service-doc` (`/disclosures`, `/faq`), `describedby` (`/llms.txt`) |
+| `GET /.well-known/api-catalog` | RFC 9727 `application/linkset+json` (`ApiCatalog` + `WellKnown::ApiCatalogController`). Cached as a static page (`Cache-Tag: static`). Production absolute URLs use `https://#{APP_HOST}` when set. |
+| `GET /llms.txt` | Static file in `public/llms.txt` — site purpose, page list, and “no third-party API” plus USGS/NWPS links |
+| `robots.txt` | `Content-Signal: ai-train=no, search=yes, ai-input=no` plus `Disallow: /admin` and `/api` |
+
+The catalog **anchors USGS** (`https://api.waterdata.usgs.gov/`) and **NWPS** (`https://api.water.noaa.gov/nwps/v1/docs/`) as the programmatic APIs. It must **not** list first-party `/api/*` (website-only map/hydrograph JSON). Tests in `test/controllers/agent_discovery_test.rb` and `test/models/api_catalog_test.rb` lock this.
+
+### Markdown negotiation (`MarkdownForAgents`)
+
+Included on `ApplicationController`. Rails already maps `text/markdown` → `:md`; missing `show.md` templates would 406, so the concern forces `request.format = :html`, renders the HTML template, then converts.
+
+A request is a markdown request when `Accept` includes `text/markdown` and its `q` is **≥** `text/html` (or HTML is absent). Empty `Accept` stays HTML.
+
+On a successful HTML response:
+
+1. `HtmlToMarkdown` converts the body (page `<title>` as `# …`, then `.page-hero` + `main#main` when present; otherwise the body after stripping chrome).
+2. Chrome dropped: `header`, `footer`, `nav`, `script`, `style`, `noscript`, `svg`, `template`, `dialog`, `[aria-hidden='true']`.
+3. `Content-Type: text/markdown; charset=utf-8`.
+4. `x-markdown-tokens` = `ceil(body.length / 4)` (rough token estimate, not a model tokenizer).
+5. `Vary: Accept` is appended on **all** HTML responses (not only markdown hits) so CDN/browser caches key on `Accept`.
+
+JSON, PNG, and other non-HTML bodies are left alone. `allow_browser versions: :modern` is skipped for markdown requests so non-browser agents are not 406’d. Open Graph PNGs stay on `OgImagesController` (`ActionController::Base`) for the same reason.
+
+Example:
+
+```bash
+curl -sS -D - -H "Accept: text/markdown" https://waterlevels.org/disclosures
+# 200, content-type: text/markdown; charset=utf-8, x-markdown-tokens: <n>
+```
+
+### Constraints & pitfalls
+
+- Prefer `Accept: text/markdown` (or `text/markdown, text/html;q=0.9`). A browser-like `text/html, …` list wins over markdown.
+- Conversion only runs on **successful** HTML. 4xx/5xx stay HTML.
+- `llms.txt` and the catalog are the contract with agents — keep them honest when pages or data policy change.
+- Do **not** re-apply `allow_browser` without the `unless: :markdown_request?` exception.
+- Cloudflare must honor `Vary: Accept` (see §8). Caching one body per URL mixes HTML and markdown.
+- Adding a public HTML page inherits the twin automatically; keep primary content in `main#main` (and optional `.page-hero`) so chrome does not leak into the markdown.

@@ -49,7 +49,7 @@ STATE=wa RANGE=1y LIMIT=25 bin/rails usgs:backfill
 STATE=wa RANGE=3y LIMIT=25 bin/rails usgs:backfill
 ```
 
-Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_IV_REPAIR_BATCH` / `HISTORY_IV_SCAR_BATCH` (default `50` stations per catch-up tick), `HISTORY_BACKFILL_BATCH` (default `50` stations per cron tick for cold `1y` work), `HISTORY_DEEP_BACKFILL_BATCH` (default `400` stations for `3y` deep fills; set `0` to pause). History pins one USGS key per purpose (`USGS_API_HISTORY_CONTINUOUS_KEY` / `_DAILY_KEY` / `_PEAKS_KEY` / `_IVREPAIR_KEY` / `_IVREPAIR2_KEY`) and opens that purpose’s circuit on a 429 for the rest of the UTC hour. Tip sync enqueues `IvRepairJob` when a new tip jumps more than 2h past the previous continuous point; tip catch-up (`IvRepairBatchJob`) runs Mon–Sat hourly at `:35` on `iv_repair` → `iv_repair_worker`. Interior scar catch-up (`IvRepairScarBatchJob`) runs Mon–Sat hourly at `:50` on `iv_repair_scar` → `iv_repair_scar_worker` using `_IVREPAIR2_KEY` across the ~35d continuous window. Cold/year backlog (`HistoryBackfillBatchJob`) runs Mon–Sat every 10 minutes on `backfill` → `historical_worker`. Circuit state per key is on `/admin`.
+Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_IV_REPAIR_BATCH` / `HISTORY_IV_SCAR_BATCH` (default `50` stations per catch-up tick), `HISTORY_IV_SCAR_RETRY_DAYS` (default `7` — park USGS-empty interior holes so they leave the scar candidate set), `HISTORY_BACKFILL_BATCH` (default `50` stations per cron tick for cold `1y` work), `HISTORY_DEEP_BACKFILL_BATCH` (default `400` stations for `3y` deep fills; set `0` to pause). History pins one USGS key per purpose (`USGS_API_HISTORY_CONTINUOUS_KEY` / `_DAILY_KEY` / `_PEAKS_KEY` / `_IVREPAIR_KEY` / `_IVREPAIR2_KEY`) and opens that purpose’s circuit on a 429 for the rest of the UTC hour. Tip sync enqueues `IvRepairJob` when a new tip jumps more than 2h past the previous continuous point; tip catch-up (`IvRepairBatchJob`) runs Mon–Sat hourly at `:35` on `iv_repair` → `iv_repair_worker`. Interior scar catch-up (`IvRepairScarBatchJob`) runs Mon–Sat hourly at `:50` on `iv_repair_scar` → `iv_repair_scar_worker` using `_IVREPAIR2_KEY` across the ~35d continuous window. Cold/year backlog (`HistoryBackfillBatchJob`) runs Mon–Sat every 10 minutes on `backfill` → `historical_worker`. Circuit state per key is on `/admin`.
 
 See `doc/postgres-r2-daily-archive.md` (current R2-first retention), `doc/plan-3y-daily-history.md` (historical 3y plan), and `doc/future.md` (hourly POR) for retention tiers and longer-history notes.
 
@@ -87,8 +87,8 @@ bin/rails test
 - Redis TLS: Sidekiq, cache, and Action Cable use `ssl_params.verify_mode = VERIFY_NONE` for Heroku self-signed `rediss://` certs
 - After deploy: `heroku run bin/rails usgs:enqueue_bootstrap -a <app>`
 - Optional: `MALLOC_ARENA_MAX=2` if worker RSS climbs
-- Put Cloudflare in front; honor `Cache-Control` / `Cache-Tag` from the app. Use a Cache Rule (Eligible for cache + Origin Cache Control) for public HTML; bypass `/contact`, `/admin`, and `/api/*`. Public pages skip the Rails session cookie so HTML is not forced to `BYPASS`.
-- Internal `/api/*` JSON is first-party-only (`X-WaterLevels-Client: web` + same-origin browser context), returns `private, no-store`, and is cached in Redis via `ApiResponseCache` (invalidated when syncs bump generation counters).
+- Put Cloudflare in front; honor `Cache-Control` / `Cache-Tag` / `Vary: Accept` from the app. Use a Cache Rule (Eligible for cache + Origin Cache Control) for public HTML; bypass `/contact`, `/admin`, and `/api/*`. Public pages skip the Rails session cookie so HTML is not forced to `BYPASS`. Do not collapse all `Accept` values onto one cached body — public HTML has a markdown twin (see Agent discovery).
+- Internal `/api/*` JSON is first-party-only (`X-WaterLevels-Client: web` + same-origin browser context), returns `private, no-store`, and is cached in Redis via `ApiResponseCache` (invalidated when syncs bump generation counters). Not listed in `/.well-known/api-catalog`.
 - Optional ops dashboard at `/admin` when `DASHBOARD_PW` is set (session login at `/admin/login`). Returns 404 when the env var is unset. Login attempts are rate-limited (Rails `rate_limit`, 10 per 3 minutes per IP). Sidekiq Web is at `/admin/sidekiq` behind the same session.
 - **Cold first request:** Eco/Hobby web dynos sleep when idle; the next hit waits for Puma/Rails boot (often multi-second). Prefer an always-on web dyno, or ping `/up` every few minutes. Puma also warms DB/Redis/`SiteStats` on boot so a post-sleep origin render is cheaper once the process is up.
 
@@ -101,6 +101,25 @@ Set in `.env`:
 - `TURNSTILE_SITE_KEY` (defaults to the existing widget) / `TURNSTILE_SECRET`
 - `CONTACT_TO_EMAIL` / `MAIL_FROM`
 - `BENTO_SITE_UUID`, `BENTO_PUBLISHABLE_KEY`, `BENTO_SECRET_KEY` (Action Mailer via `bento-actionmailer` + `premailer-rails`)
+
+## Agent discovery
+
+WaterLevels.org does not offer a public third-party data API. Agents should use USGS and NWPS; this site advertises that via:
+
+| Surface | Purpose |
+| --- | --- |
+| `GET /.well-known/api-catalog` | RFC 9727 linkset (`application/linkset+json`) — site docs plus USGS / NWPS. Does **not** list `/api/*`. |
+| `GET /llms.txt` | Short site description and page list (`public/llms.txt`) |
+| Homepage `Link` | `rel="api-catalog"` / `service-doc` / `describedby` |
+| `robots.txt` | `Content-Signal: ai-train=no, search=yes, ai-input=no`; `Disallow: /admin` and `/api` |
+
+Request a markdown twin of any public HTML page (home, gauges, disclosures, …) instead of a 406:
+
+```bash
+curl -sS -D - -H "Accept: text/markdown" https://waterlevels.org/disclosures
+```
+
+Successful responses are `text/markdown; charset=utf-8` with `x-markdown-tokens` (character length / 4) and `Vary: Accept`. Rails renders the HTML template first, then `HtmlToMarkdown` strips chrome (`header` / `footer` / `nav` / scripts) and keeps `.page-hero` + `main#main`. `allow_browser` is skipped for these requests. Architecture and pitfalls: `DESIGN.md` §16.
 
 ## Notes
 
