@@ -204,6 +204,7 @@ class FloodStageSyncTest < ActiveSupport::TestCase
 
     @location.reload
     assert_equal "moderate", @location.flood_category
+    assert_equal Time.zone.parse("2026-08-03T12:00:00Z"), @location.flood_category_observed_at
   end
 
   test "skips unmatched sites that were checked recently" do
@@ -422,6 +423,166 @@ class FloodStageSyncTest < ActiveSupport::TestCase
     FloodStageSync.new(state: "wa").perform
 
     assert_equal "no_flooding", @location.reload.flood_category
+  end
+
+  test "list refresh records forecast validTime when observed is a year-1 sentinel" do
+    forecast_at = 90.minutes.ago.change(usec: 0)
+    @location.update!(
+      nwps_lid: "BRKM2",
+      nwps_matched: true,
+      nwps_synced_at: 2.hours.ago,
+      flood_category: "action",
+      flood_category_observed_at: 3.hours.ago,
+      state_code: "wa"
+    )
+    @unmatched.update!(nwps_matched: false, nwps_synced_at: 1.day.ago)
+
+    stub_nwps_gauges(
+      gauges: [
+        {
+          lid: "BRKM2",
+          state: { abbreviation: "WA" },
+          status: {
+            observed: { floodCategory: "obs_not_current", validTime: "0001-01-01T00:00:00Z" },
+            forecast: { floodCategory: "moderate", validTime: forecast_at.iso8601 }
+          }
+        }
+      ]
+    )
+
+    FloodStageSync.new(state: "wa").perform
+
+    @location.reload
+    assert_equal "moderate", @location.flood_category
+    assert_in_delta forecast_at.to_i, @location.flood_category_observed_at.to_i, 1
+  end
+
+  test "keeps a forecast-backed alert when a later list only reports sentinels" do
+    forecast_at = 90.minutes.ago.change(usec: 0)
+    @location.update!(
+      nwps_lid: "BRKM2",
+      nwps_matched: true,
+      nwps_synced_at: 2.hours.ago,
+      flood_category: "action",
+      flood_category_observed_at: 3.hours.ago,
+      state_code: "wa"
+    )
+    @unmatched.update!(nwps_matched: false, nwps_synced_at: 1.day.ago)
+
+    stub_nwps_gauges(
+      gauges: [
+        {
+          lid: "BRKM2",
+          state: { abbreviation: "WA" },
+          status: {
+            observed: { floodCategory: "obs_not_current", validTime: "0001-01-01T00:00:00Z" },
+            forecast: { floodCategory: "moderate", validTime: forecast_at.iso8601 }
+          }
+        }
+      ]
+    )
+    FloodStageSync.new(state: "wa").perform
+    assert_equal "moderate", @location.reload.flood_category
+
+    stub_nwps_gauges(
+      gauges: [
+        {
+          lid: "BRKM2",
+          state: { abbreviation: "WA" },
+          status: {
+            observed: { floodCategory: "obs_not_current", validTime: "0001-01-01T00:00:00Z" },
+            forecast: { floodCategory: "fcst_not_current", validTime: "0001-01-01T00:00:00Z" }
+          }
+        }
+      ]
+    )
+    FloodStageSync.new(state: "wa").perform
+
+    @location.reload
+    assert_equal "moderate", @location.flood_category
+    assert @location.flood_alert?
+    assert_in_delta forecast_at.to_i, @location.flood_category_observed_at.to_i, 1
+  end
+
+  test "keeps a forecast-backed alert when the LID is later absent from the list" do
+    forecast_at = 90.minutes.ago.change(usec: 0)
+    @location.update!(
+      nwps_lid: "BRKM2",
+      nwps_matched: true,
+      nwps_synced_at: 2.hours.ago,
+      flood_category: "action",
+      flood_category_observed_at: 3.hours.ago,
+      state_code: "wa"
+    )
+    @unmatched.update!(nwps_matched: false, nwps_synced_at: 1.day.ago)
+
+    stub_nwps_gauges(
+      gauges: [
+        {
+          lid: "BRKM2",
+          state: { abbreviation: "WA" },
+          status: {
+            observed: { floodCategory: "obs_not_current", validTime: "0001-01-01T00:00:00Z" },
+            forecast: { floodCategory: "major", validTime: forecast_at.iso8601 }
+          }
+        }
+      ]
+    )
+    FloodStageSync.new(state: "wa").perform
+    assert_equal "major", @location.reload.flood_category
+
+    stub_nwps_gauges(
+      gauges: [
+        {
+          lid: "OTHER",
+          state: { abbreviation: "WA" },
+          status: {
+            observed: { floodCategory: "no_flooding", validTime: Time.current.iso8601 }
+          }
+        }
+      ]
+    )
+    FloodStageSync.new(state: "wa").perform
+
+    assert_equal "major", @location.reload.flood_category
+    assert @location.flood_alert?
+  end
+
+  test "detail refresh with sentinels keeps a recent alert" do
+    @location.update!(
+      nwps_lid: "BRKM2",
+      nwps_matched: true,
+      nwps_synced_at: 8.days.ago,
+      flood_category: "moderate",
+      flood_category_observed_at: 2.hours.ago,
+      flood_stage_minor: 10,
+      state_code: "wa"
+    )
+    @unmatched.update!(nwps_matched: false, nwps_synced_at: 1.day.ago)
+
+    stub_nwps_gauges(gauges: [])
+    stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges/01646500")
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: {
+          lid: "BRKM2",
+          usgsId: "01646500",
+          flood: { categories: { action: { stage: 5 }, minor: { stage: 10 }, moderate: { stage: 12 }, major: { stage: 14 } } },
+          status: {
+            observed: { floodCategory: "obs_not_current", validTime: "0001-01-01T00:00:00Z" },
+            forecast: { floodCategory: "fcst_not_current", validTime: "0001-01-01T00:00:00Z" }
+          }
+        }.to_json
+      )
+    stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges/99999999").to_return(status: 404, body: "{}")
+
+    FloodStageSync.new(state: "wa").perform
+
+    @location.reload
+    assert_equal "moderate", @location.flood_category
+    assert @location.flood_alert?
+    assert @location.nwps_matched?
   end
 
   test "keeps a recent alert when the list only reports non-current sentinels" do
