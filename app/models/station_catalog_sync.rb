@@ -200,11 +200,33 @@ class StationCatalogSync
             drainage_area: item["drainage_area"],
             time_zone: item["time_zone_abbreviation"],
             active: true,
-            metadata_synced_at: Time.current,
-            created_at: Time.current,
-            updated_at: Time.current
+            metadata_synced_at: Time.current
           },
-          unique_by: :usgs_monitoring_location_id
+          unique_by: :usgs_monitoring_location_id,
+          # New rows still get slug / active from the insert hash. Existing rows
+          # must keep created_at, slug, and active — weekly catalog is not the
+          # source of truth for those. Do not list updated_at: Rails already
+          # stamps it, and including it in update_only makes Postgres reject
+          # the statement (#152).
+          update_only: %i[
+            agency_code
+            site_number
+            name
+            display_name
+            search_name
+            site_type_code
+            site_type_name
+            latitude
+            longitude
+            state_code
+            state_name
+            county_code
+            county_name
+            hydrologic_unit_code
+            drainage_area
+            time_zone
+            metadata_synced_at
+          ]
         )
         kept << usgs_id.to_s
         progress&.increment
