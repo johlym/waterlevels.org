@@ -568,6 +568,20 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
     eigen.remove_method :__orig_iv_repair_candidate_ids
   end
 
+  test "jobs section includes catalog resume metadata" do
+    AdminDashboardStats.record_job_finish!(
+      :catalog_sync,
+      finished_at: Time.current,
+      resumed: true,
+      skipped_parameter_codes: "00060,00010",
+      locations: 12
+    )
+
+    stats = AdminDashboardStats.new.jobs_section
+    assert_equal true, stats[:last_catalog_sync_resumed]
+    assert_equal "00060,00010", stats[:last_catalog_sync_skipped_parameter_codes]
+  end
+
   test "unknown section raises" do
     assert_raises(ArgumentError) { AdminDashboardStats.section(:nope) }
   end
