@@ -161,4 +161,135 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
     assert series.reload.selected_for_display?
     assert_equal "ft", series.unit_of_measure
   end
+
+  test "dirty display reselect only apply!s the touched USGS locations" do
+    dirty = create(
+      :monitoring_location,
+      site_number: "12099550",
+      usgs_monitoring_location_id: "USGS-12099550",
+      has_discharge: false,
+      has_temperature: false
+    )
+    other = create(
+      :monitoring_location,
+      site_number: "12101000",
+      usgs_monitoring_location_id: "USGS-12101000",
+      has_discharge: false,
+      has_temperature: false
+    )
+    dirty_series = create(
+      :time_series,
+      monitoring_location: dirty,
+      parameter_code: "00065",
+      measurement_kind: "water_level",
+      selected_for_display: false,
+      usgs_time_series_id: "ts-dirty"
+    )
+    other_series = create(
+      :time_series,
+      monitoring_location: other,
+      parameter_code: "00065",
+      measurement_kind: "water_level",
+      selected_for_display: false,
+      usgs_time_series_id: "ts-other"
+    )
+    LatestObservation.create!(
+      time_series: dirty_series,
+      value: 16.72,
+      unit_of_measure: "ft",
+      observed_at: 1.hour.ago,
+      synced_at: Time.current
+    )
+    LatestObservation.create!(
+      time_series: other_series,
+      value: 4.2,
+      unit_of_measure: "ft",
+      observed_at: 1.hour.ago,
+      synced_at: Time.current
+    )
+
+    StationCatalogSync.new.send(:select_display_series, usgs_ids: [ "USGS-12099550" ])
+
+    assert dirty_series.reload.selected_for_display?
+    refute other_series.reload.selected_for_display?
+  end
+
+  test "catalog abort after the first parameter still selects that series" do
+    domestic_location_id = "USGS-12101000"
+
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/latest-continuous/items})
+      .to_return do |request|
+        query = request.uri.query.to_s
+        raise Usgs::Client::Error, "USGS 503: boom" if query.include?("parameter_code=00010")
+
+        features =
+          if query.include?("parameter_code=00060")
+            [ {
+              id: "ts-flow",
+              properties: {
+                monitoring_location_id: domestic_location_id,
+                time_series_id: "ts-flow",
+                parameter_code: "00060",
+                time: "2026-08-24T03:15:00Z",
+                value: 4.13,
+                unit_of_measure: "ft3/s"
+              }
+            } ]
+          else
+            []
+          end
+        {
+          status: 200,
+          headers: { "Content-Type" => "application/geo+json" },
+          body: { features: features, links: [] }.to_json
+        }
+      end
+
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/monitoring-locations/items})
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/geo+json" },
+        body: {
+          features: [ {
+            id: domestic_location_id,
+            geometry: { type: "Point", coordinates: [ -122.2, 47.6 ] },
+            properties: {
+              agency_code: "USGS",
+              monitoring_location_number: "12101000",
+              monitoring_location_name: "CEDAR RIVER NEAR DEMO, WA",
+              site_type_code: "ST",
+              site_type: "Stream",
+              state_code: "53",
+              state_name: "Washington",
+              county_name: "King",
+              time_zone_abbreviation: "PST"
+            }
+          } ],
+          links: []
+        }.to_json
+      )
+
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/time-series-metadata/items})
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/geo+json" },
+        body: {
+          features: [ {
+            id: "ts-flow",
+            properties: {
+              parameter_name: "Discharge",
+              parameter_description: "Discharge, cubic feet per second",
+              unit_of_measure: "ft3/s",
+              primary: "Primary"
+            }
+          } ],
+          links: []
+        }.to_json
+      )
+
+    assert_raises(Usgs::Client::Error) { StationCatalogSync.new(state: nil).perform }
+
+    series = TimeSeries.find_by!(usgs_time_series_id: "ts-flow")
+    assert series.selected_for_display?
+  end
 end

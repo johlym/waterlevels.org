@@ -57,6 +57,62 @@ class HydrographSeriesTest < ActiveSupport::TestCase
     assert_equal({ kind: "water_level", range: "7d", unit: nil, points: [], peaks: [] }, payload)
   end
 
+  test "empty series miss records observation_count 0 and series_found false" do
+    attrs = capture_telemetry_attributes do
+      HydrographSeries.for(
+        location: @location,
+        kind: "water_level",
+        parameter_code: "00060",
+        range: "7d"
+      )
+    end
+
+    assert_equal 0, attrs["app.observation_count"]
+    assert_equal false, attrs["app.series_found"]
+  end
+
+  test "empty series miss logs when the location still has tip flags" do
+    io = StringIO.new
+    previous = Rails.logger
+    Rails.logger = ActiveSupport::Logger.new(io)
+    HydrographSeries.for(
+      location: @location,
+      kind: "water_level",
+      parameter_code: "00060",
+      range: "7d"
+    )
+    output = io.string
+
+    assert_includes output, "hydrograph.empty"
+    assert_includes output, @location.site_number
+  ensure
+    Rails.logger = previous
+  end
+
+  test "found series records series_found true" do
+    attrs = capture_telemetry_attributes do
+      HydrographSeries.for(location: @location, kind: "water_level", range: "7d")
+    end
+
+    assert_equal true, attrs["app.series_found"]
+    assert_equal true, attrs["app.series_selected"]
+    assert_equal 0, attrs["app.observation_count"]
+  end
+
+  def capture_telemetry_attributes
+    recorded = {}
+    eigen = Telemetry.singleton_class
+    original = eigen.instance_method(:add_attributes)
+    eigen.define_method(:add_attributes) do |extra|
+      recorded.merge!(extra)
+      original.bind_call(Telemetry, extra)
+    end
+    yield
+    recorded
+  ensure
+    eigen.define_method(:add_attributes, original)
+  end
+
   test "3y range returns daily points within three years" do
     DailyObservation.create!(time_series: @series, observed_on: 40.months.ago.to_date, value: 0.5)
     DailyObservation.create!(time_series: @series, observed_on: 30.months.ago.to_date, value: 1.0)

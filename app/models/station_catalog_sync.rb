@@ -30,25 +30,34 @@ class StationCatalogSync
     kept_location_ids = Set.new
     discovered_rows = 0
 
-    Usgs::ParameterCodes::ALL.each do |parameter_code|
-      rows = discover_active_series_for(parameter_code)
-      discovered_rows += rows.size
-      progress&.step("parameter=#{parameter_code} active series=#{rows.size}")
-      Telemetry.add_attributes(
-        "app.parameter_code" => parameter_code,
-        "app.batch_size" => rows.size
-      )
+    begin
+      Usgs::ParameterCodes::ALL.each do |parameter_code|
+        rows = discover_active_series_for(parameter_code)
+        discovered_rows += rows.size
+        progress&.step("parameter=#{parameter_code} active series=#{rows.size}")
+        Telemetry.add_attributes(
+          "app.parameter_code" => parameter_code,
+          "app.batch_size" => rows.size
+        )
 
-      kept = upsert_locations_for(rows)
-      kept_location_ids.merge(kept)
+        kept = upsert_locations_for(rows)
+        kept_location_ids.merge(kept)
 
-      rows.select! { |row| kept.include?(row[:monitoring_location_id]) }
-      upsert_time_series_for(rows)
-      upsert_latest_observations(rows)
+        rows.select! { |row| kept.include?(row[:monitoring_location_id]) }
+        upsert_time_series_for(rows)
+        upsert_latest_observations(rows)
+        # New series default to selected_for_display=false. Reselect just the
+        # locations this parameter touched so 00065 is displayable before 00060
+        # starts paging — do not wait for the final full pass.
+        select_display_series(usgs_ids: kept)
+      end
+    ensure
+      # Full pass drops discontinued kinds (locations not in this week's
+      # latest-continuous for that code) and heals selection if the loop aborted.
+      select_display_series
     end
 
     progress&.step("water-body locations kept=#{kept_location_ids.size}")
-    select_display_series
     prune_inactive_locations!(kept_location_ids.to_a)
 
     progress&.step("refreshing nearby stations")
@@ -329,17 +338,27 @@ class StationCatalogSync
     progress&.step("latest observations upserted=#{count}")
   end
 
-  def select_display_series
-    progress&.step("selecting display series")
-    kept = 0
+  def select_display_series(usgs_ids: nil)
+    scope = location_scope.includes(time_series: :latest_observation)
+    if usgs_ids
+      ids = Array(usgs_ids).map(&:to_s).uniq
+      return 0 if ids.empty?
 
-    location_scope.includes(time_series: :latest_observation).find_each do |location|
+      scope = scope.where(usgs_monitoring_location_id: ids)
+      progress&.step("selecting display series dirty=#{ids.size}")
+    else
+      progress&.step("selecting display series")
+    end
+
+    kept = 0
+    scope.find_each do |location|
       DisplaySeriesSelection.apply!(location)
       kept += 1 if location.time_series.selected.exists?
       progress&.increment
     end
 
     progress&.step("display series selected locations=#{kept}")
+    kept
   end
 
   def prune_inactive_locations!(kept_usgs_ids)
