@@ -1,6 +1,6 @@
 GIT
   remote: https://github.com/bentonow/bento-actionmailer.git
-  revision: 8d122fdc4444ebf54a758d5b94d3dd298d903d29
+  revision: b555064f48bdc38a718c5a07b2658840fe364ce9
   branch: main
   specs:
     bento-actionmailer (0.0.1)
