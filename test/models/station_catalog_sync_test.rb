@@ -113,4 +113,52 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
     assert TimeSeries.exists?(usgs_time_series_id: "ts-domestic")
     assert_not TimeSeries.exists?(usgs_time_series_id: "ts-foreign")
   end
+
+  test "re-upserting metadata keeps selected_for_display on existing series" do
+    location = create(
+      :monitoring_location,
+      site_number: "12099550",
+      usgs_monitoring_location_id: "USGS-12099550"
+    )
+    series = create(
+      :time_series,
+      monitoring_location: location,
+      usgs_time_series_id: "ts-boise-gage",
+      parameter_code: "00065",
+      measurement_kind: "water_level",
+      selected_for_display: true
+    )
+
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/time-series-metadata/items})
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/geo+json" },
+        body: {
+          features: [ {
+            id: "ts-boise-gage",
+            properties: {
+              parameter_name: "Gage height",
+              parameter_description: "Gage height, feet",
+              unit_of_measure: "ft",
+              primary: "Primary"
+            }
+          } ],
+          links: []
+        }.to_json
+      )
+
+    StationCatalogSync.new.send(
+      :upsert_time_series_for,
+      [ {
+        monitoring_location_id: "USGS-12099550",
+        time_series_id: "ts-boise-gage",
+        parameter_code: "00065",
+        measurement_kind: "water_level",
+        unit_of_measure: "ft"
+      } ]
+    )
+
+    assert series.reload.selected_for_display?
+    assert_equal "ft", series.unit_of_measure
+  end
 end

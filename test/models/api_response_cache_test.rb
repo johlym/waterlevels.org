@@ -62,6 +62,23 @@ class ApiResponseCacheTest < ActiveSupport::TestCase
     assert_equal 1, calls["b"]
   end
 
+  test "observation cache does not pin empty point lists" do
+    calls = 0
+
+    first = ApiResponseCache.fetch_observations(site_number: "a", parameter_code: "00065", kind: "water_level", range: "7d") do
+      calls += 1
+      { kind: "water_level", range: "7d", unit: nil, points: [], peaks: [] }
+    end
+    second = ApiResponseCache.fetch_observations(site_number: "a", parameter_code: "00065", kind: "water_level", range: "7d") do
+      calls += 1
+      { kind: "water_level", range: "7d", unit: "ft", points: [ { t: "2026-08-24T00:00:00Z", v: 16.72 } ], peaks: [] }
+    end
+
+    assert_equal 2, calls
+    assert_equal [], first[:points]
+    assert_equal 1, second[:points].size
+  end
+
   test "invalidate_after_sync bumps map and all observations" do
     map_calls = 0
     obs_calls = 0

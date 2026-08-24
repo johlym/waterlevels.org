@@ -40,13 +40,16 @@ class HydrographSeries
   def self.find_series(location, kind:, parameter_code:)
     selected = location.time_series.selected
     if parameter_code.present?
-      return selected.find_by(parameter_code: parameter_code)
+      return selected.find_by(parameter_code: parameter_code) ||
+        location.time_series.find_by(parameter_code: parameter_code)
     end
 
     return unless kind.present?
 
     selected.where(measurement_kind: kind)
-      .min_by { |s| Usgs::ParameterCodes.preference_rank(s.parameter_code) }
+      .min_by { |s| Usgs::ParameterCodes.preference_rank(s.parameter_code) } ||
+      location.time_series.where(measurement_kind: kind)
+        .min_by { |s| Usgs::ParameterCodes.preference_rank(s.parameter_code) }
   end
   private_class_method :find_series
 
