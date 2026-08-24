@@ -46,7 +46,7 @@ class AdminDashboardStats
   SECTION_LOAD_ORDER = %i[jobs health core pipeline growth states].freeze
   # Bump when a section payload shape changes so deploys do not serve stale
   # hashes that crash the matching partial (Turbo then shows "Content missing").
-  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v12".freeze
+  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v13".freeze
   SECTION_TTL = 2.minutes
   SECTION_RACE_TTL = 15.seconds
   REDIS_SCAN_MAX_ITERATIONS = 50
@@ -436,6 +436,8 @@ class AdminDashboardStats
       last_tip_refresh_state: tip[:state],
       last_catalog_sync_at: parse_time(catalog[:finished_at]),
       last_catalog_sync_state: catalog[:state],
+      last_catalog_sync_resumed: ActiveModel::Type::Boolean.new.cast(catalog[:resumed]),
+      last_catalog_sync_skipped_parameter_codes: catalog[:skipped_parameter_codes].to_s,
       last_flood_sync_at: parse_time(flood[:finished_at]),
       last_flood_sync_state: flood[:state],
       last_prune_at: parse_time(prune[:finished_at]),

@@ -7,10 +7,11 @@ class StationCatalogSync
 
   attr_accessor :client, :state, :progress
 
-  def initialize(client: Usgs::Client.for_tip, state: nil, progress: nil)
+  def initialize(client: Usgs::Client.for_tip, state: nil, progress: nil, checkpoint: nil)
     @client = client
     @state = state.presence
     @progress = progress
+    @checkpoint = checkpoint
   end
 
   def perform
@@ -26,18 +27,41 @@ class StationCatalogSync
   end
 
   def perform_body
+    checkpoint = @checkpoint || StationCatalogCheckpoint.resume_or_start!(state: postal_code)
+    skipped_parameter_codes = checkpoint.completed_parameter_codes
+    kept_location_ids = checkpoint.kept_location_ids.to_set
+    discovered_rows = checkpoint.discovered_rows
+    resumed = checkpoint.resumed
+
     progress&.step(scope_label)
-    kept_location_ids = Set.new
-    discovered_rows = 0
+    if resumed
+      remaining = checkpoint.remaining_parameter_codes
+      progress&.step(
+        "resuming catalog completed=#{skipped_parameter_codes.join(",")} " \
+        "remaining=#{remaining.join(",").presence || "none"}"
+      )
+    else
+      progress&.step("starting catalog")
+    end
+    Telemetry.add_attributes(
+      "app.catalog_resumed" => resumed,
+      "app.completed_parameter_codes" => skipped_parameter_codes.join(",")
+    )
 
     begin
       Usgs::ParameterCodes::ALL.each do |parameter_code|
+        if checkpoint.completed?(parameter_code)
+          progress&.step("parameter=#{parameter_code} skipped (completed)")
+          next
+        end
+
         rows = discover_active_series_for(parameter_code)
-        discovered_rows += rows.size
-        progress&.step("parameter=#{parameter_code} active series=#{rows.size}")
+        parameter_discovered = rows.size
+        discovered_rows += parameter_discovered
+        progress&.step("parameter=#{parameter_code} active series=#{parameter_discovered}")
         Telemetry.add_attributes(
           "app.parameter_code" => parameter_code,
-          "app.batch_size" => rows.size
+          "app.batch_size" => parameter_discovered
         )
 
         kept = upsert_locations_for(rows)
@@ -50,6 +74,11 @@ class StationCatalogSync
         # locations this parameter touched so 00065 is displayable before 00060
         # starts paging — do not wait for the final full pass.
         select_display_series(usgs_ids: kept)
+        checkpoint.mark_parameter!(
+          parameter_code,
+          kept_location_ids: kept,
+          discovered_rows: parameter_discovered
+        )
       end
     ensure
       # Full pass drops discontinued kinds (locations not in this week's
@@ -76,14 +105,18 @@ class StationCatalogSync
       "app.locations_count" => location_count,
       "app.series_count" => series_count,
       "app.observation_count" => discovered_rows,
-      "app.batch_size" => kept_location_ids.size
+      "app.batch_size" => kept_location_ids.size,
+      "app.catalog_resumed" => resumed
     )
     progress&.finish("locations=#{location_count} time_series=#{series_count}")
     AdminDashboardStats.record_job_finish!(
       :catalog_sync,
       state: postal_code,
-      locations: location_count
+      locations: location_count,
+      resumed: resumed,
+      skipped_parameter_codes: skipped_parameter_codes.join(",")
     )
+    checkpoint.clear!
     AdminDashboardStats.schedule_inventory_refresh!
     true
   end
