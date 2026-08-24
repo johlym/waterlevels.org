@@ -36,8 +36,25 @@ class ApiResponseCache
       kind,
       range
     )
-    Rails.cache.fetch(key, expires_in: OBSERVATIONS_TTL) { yield }
+    cached = Rails.cache.read(key)
+    return cached if cached
+
+    payload = yield
+    # Empty hydrographs are often a transient catalog/selection miss. Do not
+    # pin that 200 for an hour while tip cards still show current values.
+    unless empty_observations?(payload)
+      Rails.cache.write(key, payload, expires_in: OBSERVATIONS_TTL)
+    end
+    payload
   end
+
+  def self.empty_observations?(payload)
+    return true if payload.blank?
+
+    points = payload.is_a?(Hash) ? (payload[:points] || payload["points"]) : nil
+    Array(points).empty?
+  end
+  private_class_method :empty_observations?
 
   def self.invalidate_map!
     MAP_NAMESPACES.each_key { |namespace| bump!(namespace) }

@@ -112,6 +112,15 @@ module Admin
             :ok
           end
 
+          action :clear_catalog_checkpoint,
+            label: "Clear catalog sync checkpoint",
+            description: "Reset the weekly StationCatalogSync resume cursor (national and per-state) so the next run starts from the first parameter.",
+            danger: true,
+            confirm: "Clear the catalog sync checkpoint? The next run will re-page every parameter collection." do
+            StationCatalogCheckpoint.clear_all!
+            :ok
+          end
+
           action :clear_admin_job_finish_keys,
             label: "Clear admin job-finish records",
             description: "Wipe AdminCounter rows that power the dashboard Jobs panel and IV candidate counts.",

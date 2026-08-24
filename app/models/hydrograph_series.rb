@@ -24,14 +24,19 @@ class HydrographSeries
       }
     ) do
       series = find_series(location, kind: kind, parameter_code: parameter_code)
-      return empty(kind || parameter_code, range) unless series
+      unless series
+        record_empty!(location, kind: kind, parameter_code: parameter_code, range: range)
+        return empty(kind || parameter_code, range)
+      end
 
       payload = new(time_series: series, range: range).as_json
       Telemetry.add_attributes(
         "app.parameter_code" => series.parameter_code,
         "app.measurement_kind" => series.measurement_kind,
         "app.observation_count" => Array(payload[:points]).size,
-        "app.batch_size" => Array(payload[:points]).size
+        "app.batch_size" => Array(payload[:points]).size,
+        "app.series_found" => true,
+        "app.series_selected" => series.selected_for_display?
       )
       payload
     end
@@ -40,19 +45,50 @@ class HydrographSeries
   def self.find_series(location, kind:, parameter_code:)
     selected = location.time_series.selected
     if parameter_code.present?
-      return selected.find_by(parameter_code: parameter_code)
+      return selected.find_by(parameter_code: parameter_code) ||
+        location.time_series.find_by(parameter_code: parameter_code)
     end
 
     return unless kind.present?
 
     selected.where(measurement_kind: kind)
-      .min_by { |s| Usgs::ParameterCodes.preference_rank(s.parameter_code) }
+      .min_by { |s| Usgs::ParameterCodes.preference_rank(s.parameter_code) } ||
+      location.time_series.where(measurement_kind: kind)
+        .min_by { |s| Usgs::ParameterCodes.preference_rank(s.parameter_code) }
   end
   private_class_method :find_series
 
   def self.empty(kind, range)
     { kind: kind, range: range, unit: nil, points: [], peaks: [] }
   end
+
+  def self.record_empty!(location, kind:, parameter_code:, range:)
+    Telemetry.add_attributes(
+      "app.observation_count" => 0,
+      "app.batch_size" => 0,
+      "app.series_found" => false
+    )
+    return unless location.has_water_level? || location.has_discharge? ||
+      location.has_temperature? || location.latest_observed_at.present?
+
+    Rails.logger.info(
+      AppLogging.event(
+        event: "hydrograph.empty",
+        component: "HydrographSeries",
+        message: "hydrograph empty site=#{location.site_number} kind=#{kind} " \
+                 "parameter_code=#{parameter_code} range=#{range}",
+        site_number: location.site_number,
+        state: location.state_code,
+        kind: kind,
+        parameter_code: parameter_code,
+        range: range,
+        has_water_level: location.has_water_level?,
+        has_discharge: location.has_discharge?,
+        has_temperature: location.has_temperature?
+      )
+    )
+  end
+  private_class_method :record_empty!
 
   def as_json(*)
     config = RANGES[range] || RANGES["7d"]

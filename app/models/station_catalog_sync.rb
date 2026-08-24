@@ -7,10 +7,11 @@ class StationCatalogSync
 
   attr_accessor :client, :state, :progress
 
-  def initialize(client: Usgs::Client.for_tip, state: nil, progress: nil)
+  def initialize(client: Usgs::Client.for_tip, state: nil, progress: nil, checkpoint: nil)
     @client = client
     @state = state.presence
     @progress = progress
+    @checkpoint = checkpoint
   end
 
   def perform
@@ -26,29 +27,66 @@ class StationCatalogSync
   end
 
   def perform_body
+    checkpoint = @checkpoint || StationCatalogCheckpoint.resume_or_start!(state: postal_code)
+    skipped_parameter_codes = checkpoint.completed_parameter_codes
+    kept_location_ids = checkpoint.kept_location_ids.to_set
+    discovered_rows = checkpoint.discovered_rows
+    resumed = checkpoint.resumed
+
     progress&.step(scope_label)
-    kept_location_ids = Set.new
-    discovered_rows = 0
-
-    Usgs::ParameterCodes::ALL.each do |parameter_code|
-      rows = discover_active_series_for(parameter_code)
-      discovered_rows += rows.size
-      progress&.step("parameter=#{parameter_code} active series=#{rows.size}")
-      Telemetry.add_attributes(
-        "app.parameter_code" => parameter_code,
-        "app.batch_size" => rows.size
+    if resumed
+      remaining = checkpoint.remaining_parameter_codes
+      progress&.step(
+        "resuming catalog completed=#{skipped_parameter_codes.join(",")} " \
+        "remaining=#{remaining.join(",").presence || "none"}"
       )
+    else
+      progress&.step("starting catalog")
+    end
+    Telemetry.add_attributes(
+      "app.catalog_resumed" => resumed,
+      "app.completed_parameter_codes" => skipped_parameter_codes.join(",")
+    )
 
-      kept = upsert_locations_for(rows)
-      kept_location_ids.merge(kept)
+    begin
+      Usgs::ParameterCodes::ALL.each do |parameter_code|
+        if checkpoint.completed?(parameter_code)
+          progress&.step("parameter=#{parameter_code} skipped (completed)")
+          next
+        end
 
-      rows.select! { |row| kept.include?(row[:monitoring_location_id]) }
-      upsert_time_series_for(rows)
-      upsert_latest_observations(rows)
+        rows = discover_active_series_for(parameter_code)
+        parameter_discovered = rows.size
+        discovered_rows += parameter_discovered
+        progress&.step("parameter=#{parameter_code} active series=#{parameter_discovered}")
+        Telemetry.add_attributes(
+          "app.parameter_code" => parameter_code,
+          "app.batch_size" => parameter_discovered
+        )
+
+        kept = upsert_locations_for(rows)
+        kept_location_ids.merge(kept)
+
+        rows.select! { |row| kept.include?(row[:monitoring_location_id]) }
+        upsert_time_series_for(rows)
+        upsert_latest_observations(rows)
+        # New series default to selected_for_display=false. Reselect just the
+        # locations this parameter touched so 00065 is displayable before 00060
+        # starts paging — do not wait for the final full pass.
+        select_display_series(usgs_ids: kept)
+        checkpoint.mark_parameter!(
+          parameter_code,
+          kept_location_ids: kept,
+          discovered_rows: parameter_discovered
+        )
+      end
+    ensure
+      # Full pass drops discontinued kinds (locations not in this week's
+      # latest-continuous for that code) and heals selection if the loop aborted.
+      select_display_series
     end
 
     progress&.step("water-body locations kept=#{kept_location_ids.size}")
-    select_display_series
     prune_inactive_locations!(kept_location_ids.to_a)
 
     progress&.step("refreshing nearby stations")
@@ -67,14 +105,18 @@ class StationCatalogSync
       "app.locations_count" => location_count,
       "app.series_count" => series_count,
       "app.observation_count" => discovered_rows,
-      "app.batch_size" => kept_location_ids.size
+      "app.batch_size" => kept_location_ids.size,
+      "app.catalog_resumed" => resumed
     )
     progress&.finish("locations=#{location_count} time_series=#{series_count}")
     AdminDashboardStats.record_job_finish!(
       :catalog_sync,
       state: postal_code,
-      locations: location_count
+      locations: location_count,
+      resumed: resumed,
+      skipped_parameter_codes: skipped_parameter_codes.join(",")
     )
+    checkpoint.clear!
     AdminDashboardStats.schedule_inventory_refresh!
     true
   end
@@ -191,11 +233,33 @@ class StationCatalogSync
             drainage_area: item["drainage_area"],
             time_zone: item["time_zone_abbreviation"],
             active: true,
-            metadata_synced_at: Time.current,
-            created_at: Time.current,
-            updated_at: Time.current
+            metadata_synced_at: Time.current
           },
-          unique_by: :usgs_monitoring_location_id
+          unique_by: :usgs_monitoring_location_id,
+          # New rows still get slug / active from the insert hash. Existing rows
+          # must keep created_at, slug, and active — weekly catalog is not the
+          # source of truth for those. Do not list updated_at: Rails already
+          # stamps it, and including it in update_only makes Postgres reject
+          # the statement (#152).
+          update_only: %i[
+            agency_code
+            site_number
+            name
+            display_name
+            search_name
+            site_type_code
+            site_type_name
+            latitude
+            longitude
+            state_code
+            state_name
+            county_code
+            county_name
+            hydrologic_unit_code
+            drainage_area
+            time_zone
+            metadata_synced_at
+          ]
         )
         kept << usgs_id.to_s
         progress&.increment
@@ -243,14 +307,29 @@ class StationCatalogSync
             unit_of_measure: item["unit_of_measure"] || row[:unit_of_measure],
             measurement_kind: row[:measurement_kind],
             primary_series: primary,
-            selected_for_display: false,
             begins_at: item["begin_date"] || item["begins_at"] || item["begin"] || item["begin_utc"],
             ends_at: item["end_date"] || item["ends_at"] || item["end"] || item["end_utc"],
-            metadata_synced_at: Time.current,
-            created_at: Time.current,
-            updated_at: Time.current
+            metadata_synced_at: Time.current
           },
-          unique_by: :usgs_time_series_id
+          unique_by: :usgs_time_series_id,
+          # New rows keep the schema default (false) until select_display_series.
+          # Existing rows must keep selected_for_display — a national catalog run
+          # upserts every series before the final apply!, and overwriting the flag
+          # empties /api/gauges/:id/observations for the rest of the job.
+          update_only: %i[
+            monitoring_location_id
+            parameter_code
+            parameter_name
+            parameter_description
+            statistic_code
+            statistic_name
+            unit_of_measure
+            measurement_kind
+            primary_series
+            begins_at
+            ends_at
+            metadata_synced_at
+          ]
         )
         progress&.increment
       end
@@ -314,17 +393,27 @@ class StationCatalogSync
     progress&.step("latest observations upserted=#{count}")
   end
 
-  def select_display_series
-    progress&.step("selecting display series")
-    kept = 0
+  def select_display_series(usgs_ids: nil)
+    scope = location_scope.includes(time_series: :latest_observation)
+    if usgs_ids
+      ids = Array(usgs_ids).map(&:to_s).uniq
+      return 0 if ids.empty?
 
-    location_scope.includes(time_series: :latest_observation).find_each do |location|
+      scope = scope.where(usgs_monitoring_location_id: ids)
+      progress&.step("selecting display series dirty=#{ids.size}")
+    else
+      progress&.step("selecting display series")
+    end
+
+    kept = 0
+    scope.find_each do |location|
       DisplaySeriesSelection.apply!(location)
       kept += 1 if location.time_series.selected.exists?
       progress&.increment
     end
 
     progress&.step("display series selected locations=#{kept}")
+    kept
   end
 
   def prune_inactive_locations!(kept_usgs_ids)

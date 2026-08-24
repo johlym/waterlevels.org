@@ -38,6 +38,12 @@
         <% else %>
           Not recorded yet
         <% end %>
+        <% if stats[:last_catalog_sync_at] %>
+          · <%= stats[:last_catalog_sync_resumed] ? "Resumed" : "Fresh start" %>
+          <% if stats[:last_catalog_sync_resumed] && stats[:last_catalog_sync_skipped_parameter_codes].present? %>
+            (skipped <%= stats[:last_catalog_sync_skipped_parameter_codes] %>)
+          <% end %>
+        <% end %>
       </p>
     </article>
 
