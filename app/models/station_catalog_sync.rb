@@ -245,9 +245,7 @@ class StationCatalogSync
             primary_series: primary,
             begins_at: item["begin_date"] || item["begins_at"] || item["begin"] || item["begin_utc"],
             ends_at: item["end_date"] || item["ends_at"] || item["end"] || item["end_utc"],
-            metadata_synced_at: Time.current,
-            created_at: Time.current,
-            updated_at: Time.current
+            metadata_synced_at: Time.current
           },
           unique_by: :usgs_time_series_id,
           # New rows keep the schema default (false) until select_display_series.
@@ -267,7 +265,6 @@ class StationCatalogSync
             begins_at
             ends_at
             metadata_synced_at
-            updated_at
           ]
         )
         progress&.increment
