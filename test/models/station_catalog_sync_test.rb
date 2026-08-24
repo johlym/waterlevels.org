@@ -110,6 +110,8 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
     assert_nil MonitoringLocation.find_by(usgs_monitoring_location_id: foreign_location_id)
     domestic = MonitoringLocation.find_by!(usgs_monitoring_location_id: domestic_location_id)
     assert_equal "wa", domestic.state_code
+    assert domestic.active?
+    assert_equal MonitoringLocation.slug_for(domestic.name), domestic.slug
     assert TimeSeries.exists?(usgs_time_series_id: "ts-domestic")
     assert_not TimeSeries.exists?(usgs_time_series_id: "ts-foreign")
   end
@@ -160,6 +162,65 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
 
     assert series.reload.selected_for_display?
     assert_equal "ft", series.unit_of_measure
+  end
+
+  test "re-upserting location metadata keeps created_at slug and active" do
+    created_at = Time.zone.parse("2026-01-15 12:00:00 UTC")
+    location = create(
+      :monitoring_location,
+      site_number: "12099550",
+      usgs_monitoring_location_id: "USGS-12099550",
+      name: "BOISE CREEK AT DEMO, WA",
+      slug: "custom-stable-slug",
+      active: false,
+      created_at: created_at,
+      has_water_level: true,
+      latest_water_level_value: 16.72,
+      flood_category: "minor"
+    )
+    incoming_name = "BOISE CREEK AT 252ND AVE NE NEAR BUCKLEY, WA"
+    derived_names = MonitoringLocation.derived_names_for(incoming_name)
+
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/monitoring-locations/items})
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/geo+json" },
+        body: {
+          features: [ {
+            id: "USGS-12099550",
+            geometry: { type: "Point", coordinates: [ -122.0, 47.2 ] },
+            properties: {
+              agency_code: "USGS",
+              monitoring_location_number: "12099550",
+              monitoring_location_name: incoming_name,
+              site_type_code: "ST",
+              site_type: "Stream",
+              state_code: "53",
+              state_name: "Washington",
+              county_name: "King",
+              time_zone_abbreviation: "PST"
+            }
+          } ],
+          links: []
+        }.to_json
+      )
+
+    StationCatalogSync.new.send(
+      :upsert_locations_for,
+      [ { monitoring_location_id: "USGS-12099550" } ]
+    )
+
+    location.reload
+    assert_equal created_at, location.created_at
+    assert_equal "custom-stable-slug", location.slug
+    assert_not location.active?
+    assert_equal incoming_name, location.name
+    assert_equal derived_names[:display_name], location.display_name
+    assert_equal derived_names[:search_name], location.search_name
+    assert_in_delta 16.72, location.latest_water_level_value, 0.001
+    assert_equal "minor", location.flood_category
+    assert location.has_water_level?
+    assert_not_nil location.metadata_synced_at
   end
 
   test "dirty display reselect only apply!s the touched USGS locations" do
