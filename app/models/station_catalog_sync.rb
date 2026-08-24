@@ -243,14 +243,29 @@ class StationCatalogSync
             unit_of_measure: item["unit_of_measure"] || row[:unit_of_measure],
             measurement_kind: row[:measurement_kind],
             primary_series: primary,
-            selected_for_display: false,
             begins_at: item["begin_date"] || item["begins_at"] || item["begin"] || item["begin_utc"],
             ends_at: item["end_date"] || item["ends_at"] || item["end"] || item["end_utc"],
-            metadata_synced_at: Time.current,
-            created_at: Time.current,
-            updated_at: Time.current
+            metadata_synced_at: Time.current
           },
-          unique_by: :usgs_time_series_id
+          unique_by: :usgs_time_series_id,
+          # New rows keep the schema default (false) until select_display_series.
+          # Existing rows must keep selected_for_display — a national catalog run
+          # upserts every series before the final apply!, and overwriting the flag
+          # empties /api/gauges/:id/observations for the rest of the job.
+          update_only: %i[
+            monitoring_location_id
+            parameter_code
+            parameter_name
+            parameter_description
+            statistic_code
+            statistic_name
+            unit_of_measure
+            measurement_kind
+            primary_series
+            begins_at
+            ends_at
+            metadata_synced_at
+          ]
         )
         progress&.increment
       end
