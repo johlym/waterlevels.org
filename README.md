@@ -34,6 +34,8 @@ bin/rails usgs:enqueue_bootstrap
 
 Hourly `LatestObservationSyncJob` keeps readings fresh near `:00`. `FloodStageSyncJob` runs at `:30` and loops every state in one job with ≥30s between states (one NWPS list GET per state bbox, category refresh, unlinked action+ linking, small detail-GET budget). `STATE=wa bin/rails nwps:sync_flood_stages` or `bin/rails nwps:enqueue_sync`. Bootstrap also runs flood sync per state. Hourly `HistoryBackfillBatchJob` fills gap-aware continuous history (up to ~35 days) and year daily history into R2 in batches (gauge page views also enqueue a station when charts are empty). Prefer this over a national one-off `usgs:bootstrap` on a small dyno.
 
+Sunday `StationCatalogSyncJob` (03:00 UTC on `sync`) checkpoints finished parameter codes in Redis (`catalog:sync_checkpoint:{national|wa|…}`, 7-day TTL). A dyno kill or retry resumes that Sunday-week fingerprint and skips completed codes instead of re-paging `latest-continuous` from the start. The in-flight code is always re-done. Display-series selection runs on just-touched locations during the loop so gauge hydrographs keep loading mid-job. Weekly upserts refresh USGS identity fields but leave `slug` / `active` / `created_at` and `selected_for_display` alone. History backfill is off on Sunday so catalog can use the tip key.
+
 ### Local / single-state
 
 ```bash
