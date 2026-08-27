@@ -10,8 +10,9 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
 
     stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/latest-continuous/items})
       .to_return do |request|
+        query = request.uri.query.to_s
         features =
-          if request.uri.query.to_s.include?("parameter_code=00065")
+          if query.include?("parameter_code=00065")
             [
               {
                 id: "ts-foreign",
@@ -33,6 +34,20 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
                   time: "2026-08-02T18:00:00Z",
                   value: 12.5,
                   unit_of_measure: "ft"
+                }
+              }
+            ]
+          elsif query.include?("parameter_code=00060")
+            [
+              {
+                id: "ts-domestic-flow",
+                properties: {
+                  monitoring_location_id: domestic_location_id,
+                  time_series_id: "ts-domestic-flow",
+                  parameter_code: "00060",
+                  time: "2026-08-02T18:00:00Z",
+                  value: 4.13,
+                  unit_of_measure: "ft3/s"
                 }
               }
             ]
@@ -92,15 +107,26 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
         status: 200,
         headers: { "Content-Type" => "application/geo+json" },
         body: {
-          features: [ {
-            id: "ts-domestic",
-            properties: {
-              parameter_name: "Gage height",
-              parameter_description: "Gage height, feet",
-              unit_of_measure: "ft",
-              primary: "Primary"
+          features: [
+            {
+              id: "ts-domestic",
+              properties: {
+                parameter_name: "Gage height",
+                parameter_description: "Gage height, feet",
+                unit_of_measure: "ft",
+                primary: "Primary"
+              }
+            },
+            {
+              id: "ts-domestic-flow",
+              properties: {
+                parameter_name: "Discharge",
+                parameter_description: "Discharge, cubic feet per second",
+                unit_of_measure: "ft3/s",
+                primary: "Primary"
+              }
             }
-          } ],
+          ],
           links: []
         }.to_json
       )
@@ -386,13 +412,24 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
               value: 4.13,
               unit_of_measure: "ft3/s"
             ) ]
+          elsif code == "00065"
+            [ catalog_feature(
+              id: "ts-gage",
+              monitoring_location_id: flow_location_id,
+              parameter_code: "00065",
+              value: 12.5,
+              unit_of_measure: "ft"
+            ) ]
           else
             []
           end
         catalog_collection_response(features)
       end,
       locations: [ catalog_location_feature(flow_location_id) ],
-      time_series: [ catalog_time_series_feature("ts-flow", "Discharge", "ft3/s") ]
+      time_series: [
+        catalog_time_series_feature("ts-flow", "Discharge", "ft3/s"),
+        catalog_time_series_feature("ts-gage", "Gage height", "ft")
+      ]
     )
 
     io = StringIO.new
@@ -479,6 +516,116 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
     assert series.reload.selected_for_display?
     assert_nil MonitoringLocation.find_by(id: orphan.id)
     assert_nil StationCatalogCheckpoint.read_raw(state: nil)
+  ensure
+    StationCatalogCheckpoint.clear_all!
+    Rails.cache = previous_cache
+  end
+
+  test "empty required latest-continuous does not mark complete or prune" do
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    StationCatalogCheckpoint.clear_all!
+
+    gage_only = create(
+      :monitoring_location,
+      site_number: "12099550",
+      usgs_monitoring_location_id: "USGS-12099550",
+      has_water_level: true,
+      latest_observed_at: 1.hour.ago
+    )
+    create(
+      :time_series,
+      monitoring_location: gage_only,
+      usgs_time_series_id: "ts-gage-only",
+      parameter_code: "00065",
+      measurement_kind: "water_level",
+      selected_for_display: true
+    )
+    LatestObservation.create!(
+      time_series: gage_only.time_series.first,
+      value: 16.72,
+      unit_of_measure: "ft",
+      observed_at: 1.hour.ago,
+      synced_at: Time.current
+    )
+
+    stub_catalog_collections(
+      latest_continuous: lambda do |request|
+        query = request.uri.query.to_s
+        features =
+          if query.include?("parameter_code=00060")
+            [ catalog_feature(
+              id: "ts-other-flow",
+              monitoring_location_id: "USGS-12101000",
+              parameter_code: "00060",
+              value: 4.13,
+              unit_of_measure: "ft3/s"
+            ) ]
+          else
+            []
+          end
+        catalog_collection_response(features)
+      end,
+      locations: [ catalog_location_feature("USGS-12101000") ],
+      time_series: [ catalog_time_series_feature("ts-other-flow", "Discharge", "ft3/s") ]
+    )
+
+    error = assert_raises(Usgs::Client::Error) { StationCatalogSync.new(state: nil).perform }
+    assert_match(/required parameter=00065/, error.message)
+
+    checkpoint = StationCatalogCheckpoint.resume_or_start!(state: nil)
+    assert checkpoint.resumed
+    assert checkpoint.completed?("00060")
+    refute checkpoint.completed?("00065")
+    assert MonitoringLocation.exists?(gage_only.id)
+  ensure
+    StationCatalogCheckpoint.clear_all!
+    Rails.cache = previous_cache
+  end
+
+  test "prune keeps discovered locations that have no denormalized tip" do
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    StationCatalogCheckpoint.clear_all!
+
+    discovered = create(
+      :monitoring_location,
+      site_number: "12101000",
+      usgs_monitoring_location_id: "USGS-12101000",
+      has_water_level: false,
+      has_discharge: false,
+      has_temperature: false,
+      latest_observed_at: nil
+    )
+    orphan = create(
+      :monitoring_location,
+      site_number: "99999999",
+      usgs_monitoring_location_id: "USGS-99999999",
+      has_discharge: true,
+      latest_observed_at: 1.hour.ago
+    )
+
+    checkpoint = StationCatalogCheckpoint.resume_or_start!(state: nil)
+    Usgs::ParameterCodes::ALL.each do |code|
+      checkpoint.mark_parameter!(
+        code,
+        kept_location_ids: [ "USGS-12101000" ],
+        discovered_rows: 1
+      )
+    end
+
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/latest-continuous/items})
+      .to_return { flunk "resume must not re-page a completed latest-continuous collection" }
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/monitoring-locations/items})
+      .to_return { flunk "resume must not re-fetch location metadata for completed parameters" }
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/time-series-metadata/items})
+      .to_return { flunk "resume must not re-fetch time-series metadata for completed parameters" }
+
+    StationCatalogSync.new(state: nil).perform
+
+    assert MonitoringLocation.exists?(discovered.id)
+    assert_nil discovered.reload.latest_observed_at
+    assert_nil MonitoringLocation.find_by(id: orphan.id)
   ensure
     StationCatalogCheckpoint.clear_all!
     Rails.cache = previous_cache
