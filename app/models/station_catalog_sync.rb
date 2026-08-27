@@ -4,6 +4,12 @@ class StationCatalogSync
   include ActiveModel::Model
 
   ID_BATCH_SIZE = 100
+  # Discharge and gage height back the map, listings, and hydrographs. An empty
+  # latest-continuous page for either is a USGS failure (200 + empty body, missing
+  # JSON, or truncated collection) — never a real national/state catalog. Marking
+  # that code complete and pruning would delete every station only seen in the
+  # missing parameter, including IV, dailies, peaks, and R2 shard rows.
+  REQUIRED_PARAMETER_CODES = %w[00060 00065].freeze
 
   attr_accessor :client, :state, :progress
 
@@ -56,6 +62,10 @@ class StationCatalogSync
         end
 
         rows = discover_active_series_for(parameter_code)
+        if rows.empty? && required_parameter?(parameter_code)
+          raise Usgs::Client::Error,
+            "latest-continuous returned 0 rows for required parameter=#{parameter_code}"
+        end
         parameter_discovered = rows.size
         discovered_rows += parameter_discovered
         progress&.step("parameter=#{parameter_code} active series=#{parameter_discovered}")
@@ -425,20 +435,13 @@ class StationCatalogSync
     # Stream candidates instead of plucking the whole catalog into one id list
     # and issuing a single giant purge (IV tip deletes dominate).
     location_scope
-      .select(
-        :id,
-        :usgs_monitoring_location_id,
-        :has_water_level,
-        :has_discharge,
-        :has_temperature,
-        :latest_observed_at
-      )
+      .select(:id, :usgs_monitoring_location_id)
       .find_each do |location|
-        inactive =
-          kept_set.exclude?(location.usgs_monitoring_location_id) ||
-          location.latest_observed_at.nil? ||
-          !(location.has_water_level? || location.has_discharge? || location.has_temperature?)
-        next unless inactive
+        # Allow-list membership is the only prune signal. A kept location can
+        # still have a nil tip (blank USGS value, temperature sentinel) — that
+        # is not a reason to delete its history. StationCatalogCleanup handles
+        # never-observed leftovers.
+        next if kept_set.include?(location.usgs_monitoring_location_id)
 
         batch << location.id
         next if batch.size < MonitoringLocation::PURGE_LOCATION_BATCH
@@ -450,6 +453,10 @@ class StationCatalogSync
 
     deleted += MonitoringLocation.purge_ids!(batch) if batch.any?
     progress&.step("pruned locations=#{deleted}")
+  end
+
+  def required_parameter?(parameter_code)
+    REQUIRED_PARAMETER_CODES.include?(parameter_code.to_s)
   end
 
   def primary_series?(value)
