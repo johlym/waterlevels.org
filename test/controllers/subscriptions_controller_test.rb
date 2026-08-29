@@ -95,6 +95,29 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "America/Los_Angeles", subscriber.reload.time_zone
   end
 
+  test "gauge page embeds turnstile when secret is configured" do
+    previous_secret = ENV["TURNSTILE_SECRET"]
+    previous_site = ENV["TURNSTILE_SITE_KEY"]
+    ENV["TURNSTILE_SECRET"] = "test-secret"
+    ENV["TURNSTILE_SITE_KEY"] = "test-site-key"
+
+    get gauge_path(state: @location.path_state, site_number_slug: @location.to_param)
+    assert_response :success
+    assert_includes response.body, "cf-turnstile"
+    assert_includes response.body, "challenges.cloudflare.com/turnstile"
+  ensure
+    if previous_secret
+      ENV["TURNSTILE_SECRET"] = previous_secret
+    else
+      ENV.delete("TURNSTILE_SECRET")
+    end
+    if previous_site
+      ENV["TURNSTILE_SITE_KEY"] = previous_site
+    else
+      ENV.delete("TURNSTILE_SITE_KEY")
+    end
+  end
+
   test "create manage_link intent emails existing subscriber" do
     subscriber = create(:subscriber, :verified, email: "manage.me@example.com")
 
