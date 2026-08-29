@@ -87,7 +87,9 @@ class SubscriptionsController < ApplicationController
     digest_enabled = ActiveModel::Type::Boolean.new.cast(params.fetch(:digest_enabled, true))
 
     subscriber = Subscriber.find_or_initialize_by(email: email)
-    subscriber.time_zone = time_zone if subscriber.new_record? || subscriber.time_zone.blank?
+    # Always apply a provided zone so re-subscribe / second station signup keeps the user's choice.
+    subscriber.time_zone = time_zone if params[:time_zone].present?
+    subscriber.time_zone = SubscriberTimeZones::DEFAULT if subscriber.time_zone.blank?
     subscriber.digest_enabled = digest_enabled if subscriber.new_record?
     # Re-subscribe soft-unsubscribed addresses.
     if subscriber.unsubscribed?
