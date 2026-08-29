@@ -2,6 +2,7 @@
 @import "leaflet/dist/leaflet.css";
 @import "leaflet.markercluster/dist/MarkerCluster.css";
 @import "leaflet.markercluster/dist/MarkerCluster.Default.css";
+@import "maplibre-gl/dist/maplibre-gl.css";
 
 @theme {
   --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
@@ -67,7 +68,7 @@
     @apply relative min-h-0 flex-1 overflow-hidden bg-zinc-900;
   }
 
-  /* Leaflet lives only in this layer */
+  /* Leaflet + MapLibre vector basemap live only in this layer */
   .map-surface {
     @apply absolute inset-0 z-0;
 
@@ -2096,6 +2097,21 @@ body.dialog-open {
 
   .leaflet-control-zoom {
     display: none;
+  }
+
+  .maplibregl-ctrl,
+  .maplibregl-ctrl-bottom-left,
+  .maplibregl-ctrl-bottom-right,
+  .maplibregl-ctrl-top-left,
+  .maplibregl-ctrl-top-right {
+    display: none;
+  }
+
+  .leaflet-gl-layer,
+  .maplibregl-map,
+  .maplibregl-canvas-container,
+  .maplibregl-canvas {
+    background: transparent;
   }
 }
 

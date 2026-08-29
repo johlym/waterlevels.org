@@ -32,8 +32,8 @@ These principles explain *why* the code is shaped the way it is. New work should
 - **Data:** PostgreSQL (no PostGIS — lat/lon B-tree indexes + haversine precompute), Redis (cache store, Sidekiq broker, locks, circuit breaker).
 - **Background:** Sidekiq 8 + sidekiq-scheduler.
 - **View layer:** ViewComponent (sidecar), Propshaft, Hotwired Turbo + Stimulus.
-- **Frontend build:** esbuild (JS, ESM bundle) + Tailwind CSS v4 CLI, output to `app/assets/builds`.
-- **Client libraries:** Leaflet + markercluster (map), Chart.js (hydrographs).
+- **Frontend build:** esbuild (JS, ESM bundle) + Tailwind CSS v4 CLI, output to `app/assets/builds`. The map build also emits a bundled `maplibre-gl-worker.js` so MapLibre can parse vector tiles (Propshaft-digested; URL passed via `data-map-maplibre-worker-url-value`).
+- **Client libraries:** Leaflet + markercluster + MapLibre GL via `@maplibre/maplibre-gl-leaflet` (CARTO Dark Matter vector basemap; `CARTO_API_KEY` stamped as `key` on style/tile requests), Chart.js (hydrographs).
 - **HTTP:** Faraday (+ faraday-retry) for USGS/NWPS/Turnstile.
 - **Mail/anti-spam:** bento-actionmailer + premailer-rails; invisible_captcha + Cloudflare Turnstile.
 
@@ -127,7 +127,7 @@ Caching is layered; keep all three layers consistent when adding a surface.
 ## 9. Frontend
 
 - **Build:** esbuild bundles `app/javascript/*.*` to an ESM bundle; Tailwind v4 CLI builds CSS. `Procfile.dev` runs both in `--watch` alongside Rails; production builds the assets ahead of Propshaft serving.
-- **Behavior:** progressive enhancement with Turbo + Stimulus. Notable controllers: `map` (Leaflet + clustering + bbox fetch + search/geolocation + layer filters + stations-in-view list), `hydrograph` (Chart.js dual-axis chart, range tabs, history table, CSV export), `parameter-toggle`, `temperature-unit` (cookie + `PUT /temperature_unit`), `state-directory`, `station-search` (combobox), `mobile-nav`, `dialog`, `faq`.
+- **Behavior:** progressive enhancement with Turbo + Stimulus. Notable controllers: `map` (Leaflet + MapLibre CARTO Dark Matter vector basemap + clustering + bbox fetch + search/geolocation + layer filters + stations-in-view list), `hydrograph` (Chart.js dual-axis chart, range tabs, history table, CSV export), `parameter-toggle`, `temperature-unit` (cookie + `PUT /temperature_unit`), `state-directory`, `station-search` (combobox), `mobile-nav`, `dialog`, `faq`.
 - **Chart data:** the gauge view passes an observations URL; `hydrograph_controller` fetches `/api/gauges/:id/observations` per measurement. `HydrographSeries` returns `{ kind, label, range, unit, parameter_code, points:[{t,v}], peaks:[…] }`, using continuous points for `24h/7d/30d` and daily points for `1y`.
 - **Units:** temperature converts to °F/°C client-side based on the `temperature_unit` cookie (default °F).
 - **Accessibility:** every public HTML surface keeps a skip link → `#main`, a `<main id="main">` landmark, visible `:focus-visible` outlines, and `prefers-reduced-motion` reductions. Interactive patterns (search combobox, measurement tabs, mobile nav, FAQ, dialogs, form errors) must preserve the ARIA wiring CI asserts. See §15 and [`doc/accessibility.md`](doc/accessibility.md).
