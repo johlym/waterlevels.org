@@ -47,7 +47,7 @@
                   } %>
           </div>
 
-          <div class="field-row">
+          <div class="field-row digest-time-row">
             <div class="field">
               <%= f.label :digest_hour, "Digest hour" %>
               <%= f.select :digest_hour, (0..23).map { |h| [format("%02d", h), h] } %>
@@ -111,35 +111,42 @@
 
                 <div class="field-row threshold-params">
                   <div class="field">
-                    <label>Parameter</label>
+                    <label for="watch-<%= watch.id %>-threshold-parameter">Parameter</label>
                     <%= select_tag "watches[#{watch.id}][threshold_parameter]",
                           options_for_select(
                             [["Water level", "water_level"], ["Discharge", "discharge"]],
                             threshold&.param("parameter", "water_level")
-                          ) %>
+                          ),
+                          id: "watch-#{watch.id}-threshold-parameter" %>
                   </div>
                   <div class="field">
-                    <label>When</label>
+                    <label for="watch-<%= watch.id %>-threshold-op">When</label>
                     <%= select_tag "watches[#{watch.id}][threshold_op]",
                           options_for_select(
                             [["Above", "above"], ["Below", "below"]],
                             threshold&.param("op", "above")
-                          ) %>
+                          ),
+                          id: "watch-#{watch.id}-threshold-op" %>
                   </div>
                   <div class="field">
-                    <label>Value</label>
+                    <label for="watch-<%= watch.id %>-threshold-value">Value</label>
                     <%= number_field_tag "watches[#{watch.id}][threshold_value]",
                           threshold&.param("value", ""),
-                          step: "any" %>
+                          step: "any",
+                          id: "watch-#{watch.id}-threshold-value" %>
                   </div>
                 </div>
 
                 <div class="watch-actions">
-                  <%= button_to "Remove station",
+                  <%# Avoid nested <form> (button_to). Re-enable Turbo so method/confirm work inside data-turbo=false parent. %>
+                  <%= link_to "Remove station",
                         subscriptions_manage_watch_path(token: @manage_token, id: watch.id),
-                        method: :delete,
                         class: "btn-danger-text",
-                        form: { data: { turbo_confirm: "Remove this station from your watches?" } } %>
+                        data: {
+                          turbo: true,
+                          turbo_method: :delete,
+                          turbo_confirm: "Remove this station from your watches?"
+                        } %>
                 </div>
               </div>
             <% end %>

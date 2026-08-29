@@ -77,6 +77,24 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
     assert subscriber.station_watches.exists?(monitoring_location_id: @location.id)
   end
 
+  test "create updates time zone when existing subscriber provides one" do
+    subscriber = create(
+      :subscriber,
+      :verified,
+      email: "tz.update@example.com",
+      time_zone: "America/New_York"
+    )
+
+    post subscriptions_path, params: {
+      email: subscriber.email,
+      monitoring_location_id: @location.id,
+      time_zone: "America/Los_Angeles"
+    }
+
+    assert_redirected_to subscriptions_path(monitoring_location_id: @location.id)
+    assert_equal "America/Los_Angeles", subscriber.reload.time_zone
+  end
+
   test "create manage_link intent emails existing subscriber" do
     subscriber = create(:subscriber, :verified, email: "manage.me@example.com")
 

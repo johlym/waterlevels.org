@@ -9,6 +9,7 @@ export default class extends Controller {
     if (this.hasHiddenTarget && !this.hiddenTarget.value) {
       this.hiddenTarget.value = this.detected
     }
+    this.syncSelectFromHidden()
     this.updateLabel()
     if (this.hasSelectTarget) {
       this.selectTarget.hidden = true
@@ -29,15 +30,25 @@ export default class extends Controller {
     this.labelTarget.textContent = zone || "America/New_York"
   }
 
+  syncSelectFromHidden() {
+    if (!this.hasSelectTarget || !this.hasHiddenTarget) return
+    const current = this.hiddenTarget.value
+    if (!current) return
+
+    const match = [...this.selectTarget.options].find((opt) => opt.value === current)
+    if (match) {
+      this.selectTarget.value = current
+    }
+  }
+
   showSelect(event) {
     event?.preventDefault()
     if (!this.hasSelectTarget) return
+    // Keep the saved/detected zone — do not copy the select's default (often Eastern) onto the hidden field.
+    this.syncSelectFromHidden()
     this.selectTarget.hidden = false
     if (this.hasChangeButtonTarget) {
       this.changeButtonTarget.hidden = true
-    }
-    if (this.hasHiddenTarget && this.selectTarget.value) {
-      this.hiddenTarget.value = this.selectTarget.value
     }
     this.updateLabel()
   }
