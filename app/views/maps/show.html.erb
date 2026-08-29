@@ -167,6 +167,14 @@
               </div>
             </div>
           </div>
+          <% if AlertsConfig.enabled? %>
+            <div class="legend-group">
+              <p class="group-label">Email</p>
+              <p class="aside map-alerts-link">
+                <%= link_to "Get email alerts", subscriptions_path, class: "text-link" %>
+              </p>
+            </div>
+          <% end %>
         </div>
       </details>
     </div>

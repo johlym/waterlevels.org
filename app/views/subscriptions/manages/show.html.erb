@@ -1,0 +1,160 @@
+<% content_for :title, "Manage email alerts | WaterLevels.org" %>
+<% content_for :meta_description, "Update WaterLevels.org email alert preferences, digest timing, and watched stations." %>
+
+<div class="app-shell">
+  <%= render Navigation::BarComponent.new %>
+  <main id="main" class="page-main narrow">
+    <div class="state-intro">
+      <h1>Alert preferences</h1>
+      <p><%= @subscriber.email %></p>
+    </div>
+
+    <% if flash[:notice].present? %>
+      <div class="flash notice" role="status"><%= flash[:notice] %></div>
+    <% end %>
+    <% if flash[:alert].present? %>
+      <div class="flash alert" role="alert"><%= flash[:alert] %></div>
+    <% end %>
+
+    <div class="subscriptions-manage">
+      <div class="manage-status">
+        <% if @subscriber.paused? %>
+          <p class="aside">Alerts are <span class="emphasis">paused</span>.</p>
+          <%= button_to "Resume alerts", subscriptions_manage_unpause_path(token: @manage_token), method: :post, class: "btn-secondary" %>
+        <% else %>
+          <p class="aside">Alerts are active<%= " (pending email confirmation)" unless @subscriber.verified? %>.</p>
+          <%= button_to "Pause all alerts", subscriptions_manage_pause_path(token: @manage_token), method: :post, class: "btn-secondary" %>
+        <% end %>
+      </div>
+
+      <%= form_with model: @subscriber, url: subscriptions_manage_path(token: @manage_token), method: :patch, class: "contact-form manage-form", data: { turbo: false } do |f| %>
+        <fieldset class="manage-fieldset">
+          <legend>Digest &amp; timezone</legend>
+
+          <div class="field" data-controller="subscription-timezone">
+            <%= f.label :time_zone, "Time zone" %>
+            <p class="aside">
+              Current: <span data-subscription-timezone-target="label"><%= @subscriber.time_zone %></span>
+              <button type="button" class="text-link" data-subscription-timezone-target="changeButton" data-action="subscription-timezone#showSelect">Change</button>
+            </p>
+            <%= f.hidden_field :time_zone, data: { subscription_timezone_target: "hidden" } %>
+            <%= select_tag "subscriber_time_zone_select",
+                  options_for_select(SubscriberTimeZones.options_for_select(extra_iana: @subscriber.time_zone), @subscriber.time_zone),
+                  hidden: true,
+                  data: {
+                    subscription_timezone_target: "select",
+                    action: "change->subscription-timezone#selectChanged"
+                  } %>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <%= f.label :digest_hour, "Digest hour" %>
+              <%= f.select :digest_hour, (0..23).map { |h| [format("%02d", h), h] } %>
+            </div>
+            <div class="field">
+              <%= f.label :digest_minute, "Minute" %>
+              <%= f.select :digest_minute, [["00", 0], ["30", 30]] %>
+            </div>
+          </div>
+
+          <div class="field checkbox-field">
+            <label class="checkbox-label">
+              <%= f.check_box :digest_enabled %>
+              Enable daily digest emails
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="manage-fieldset">
+          <legend>Watched stations</legend>
+
+          <% if @watches.blank? %>
+            <p class="aside">No stations yet. Open a gauge page and choose Get email alerts.</p>
+          <% else %>
+            <% @watches.each do |watch| %>
+              <%
+                location = watch.monitoring_location
+                flood = watch.rule_for("flood_category_change")
+                digest = watch.rule_for("digest")
+                threshold = watch.rule_for("threshold")
+              %>
+              <div class="watch-card">
+                <div class="watch-head">
+                  <div>
+                    <h2><%= location.display_name %></h2>
+                    <p class="aside">Site <%= location.site_number %> · <%= location.state_code.to_s.upcase %></p>
+                  </div>
+                  <%= link_to "View", gauge_path(state: location.path_state, site_number_slug: location.to_param), class: "section-link" %>
+                </div>
+
+                <div class="field checkbox-field">
+                  <label class="checkbox-label">
+                    <%= check_box_tag "watches[#{watch.id}][flood_enabled]", "1", flood&.enabled? != false %>
+                    Flood category changes
+                  </label>
+                </div>
+
+                <div class="field checkbox-field">
+                  <label class="checkbox-label">
+                    <%= check_box_tag "watches[#{watch.id}][digest_enabled]", "1", digest&.enabled? != false %>
+                    Include in daily digest
+                  </label>
+                </div>
+
+                <div class="field checkbox-field">
+                  <label class="checkbox-label">
+                    <%= check_box_tag "watches[#{watch.id}][threshold_enabled]", "1", threshold&.enabled? == true %>
+                    Threshold alert
+                  </label>
+                </div>
+
+                <div class="field-row threshold-params">
+                  <div class="field">
+                    <label>Parameter</label>
+                    <%= select_tag "watches[#{watch.id}][threshold_parameter]",
+                          options_for_select(
+                            [["Water level", "water_level"], ["Discharge", "discharge"]],
+                            threshold&.param("parameter", "water_level")
+                          ) %>
+                  </div>
+                  <div class="field">
+                    <label>When</label>
+                    <%= select_tag "watches[#{watch.id}][threshold_op]",
+                          options_for_select(
+                            [["Above", "above"], ["Below", "below"]],
+                            threshold&.param("op", "above")
+                          ) %>
+                  </div>
+                  <div class="field">
+                    <label>Value</label>
+                    <%= number_field_tag "watches[#{watch.id}][threshold_value]",
+                          threshold&.param("value", ""),
+                          step: "any" %>
+                  </div>
+                </div>
+
+                <div class="watch-actions">
+                  <%= button_to "Remove station",
+                        subscriptions_manage_watch_path(token: @manage_token, id: watch.id),
+                        method: :delete,
+                        class: "btn-danger-text",
+                        form: { data: { turbo_confirm: "Remove this station from your watches?" } } %>
+                </div>
+              </div>
+            <% end %>
+          <% end %>
+        </fieldset>
+
+        <%= f.submit "Save preferences", class: "submit" %>
+      <% end %>
+
+      <p class="aside unsubscribe-row">
+        <%= link_to "Unsubscribe from all email alerts",
+              subscriptions_unsubscribe_path(token: @manage_token, scope: "all"),
+              class: "text-link" %>
+      </p>
+    </div>
+  </main>
+  <%= render Footer::ThinComponent.new %>
+</div>

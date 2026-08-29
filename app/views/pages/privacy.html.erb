@@ -20,7 +20,7 @@
 
       <section aria-labelledby="information-you-provide-heading">
         <h2 id="information-you-provide-heading">Information you provide</h2>
-        <p>WaterLevels.org does not offer user accounts.</p>
+        <p>WaterLevels.org does not offer password-based user accounts. You can browse without signing in.</p>
         <p>When you use our contact form, you may provide:</p>
         <ul role="list">
           <li>Your name</li>
@@ -29,6 +29,15 @@
         </ul>
         <p>
           We use this information to read and respond to your message. We may also use it to handle related follow-up questions or support requests.
+        </p>
+        <p>When you opt in to optional email alerts, you may provide:</p>
+        <ul role="list">
+          <li>Your email address</li>
+          <li>A time zone preference for digest timing</li>
+          <li>Which monitoring stations you want to watch and which alert rules to enable</li>
+        </ul>
+        <p>
+          We use this information to confirm your email (double opt-in), send the alert and digest messages you requested, and honor manage / unsubscribe requests. Alert emails include links to manage preferences or unsubscribe. Flood-related messages are informational and are not National Weather Service watches or warnings.
         </p>
       </section>
 
@@ -72,7 +81,7 @@
 
       <section aria-labelledby="cookies-heading">
         <h2 id="cookies-heading">Cookies</h2>
-          <p>WaterLevels.org may use a technical session cookie on the contact form (CSRF protection). Other public pages are served without a session cookie so they can be cached at the CDN edge.</p>
+          <p>WaterLevels.org may use a technical session cookie on the contact form and on email-alert subscription / preference pages (CSRF protection). Other public pages are served without a session cookie so they can be cached at the CDN edge.</p>
         <p>
           This cookie is used only to make the site work correctly. It is not used for advertising or cross-site tracking.
         </p>
@@ -107,6 +116,7 @@
           <li>Provide WaterLevels.org and its map features</li>
           <li>Center the map or locate nearby stations when requested</li>
           <li>Respond to contact-form messages</li>
+          <li>Deliver optional email alerts you subscribe to, and process manage / unsubscribe requests</li>
           <li>Maintain the security and reliability of the site</li>
           <li>Diagnose errors and performance problems</li>
           <li>Understand general site usage</li>
@@ -130,7 +140,7 @@
           <li>Cloudflare, for security, traffic delivery, and performance</li>
           <li>Fathom Analytics, for privacy-focused website analytics</li>
           <li>Our website-hosting and infrastructure providers</li>
-          <li>Any email-delivery provider used to deliver contact-form messages</li>
+          <li>Any email-delivery provider used to deliver contact-form messages and optional alert emails (currently Bento)</li>
         </ul>
         <p>
           These providers may process information only as needed to provide their services, maintain security, comply with the law, or protect their legal rights.
@@ -144,6 +154,9 @@
         </p>
         <p>
           Contact-form messages may be kept for as long as reasonably necessary to respond to the message, handle follow-up correspondence, and maintain appropriate business records. They are deleted when they are no longer needed.
+        </p>
+        <p>
+          Optional email-alert subscriber records (email address, preferences, watched stations, and related tokens) are kept while you remain subscribed and for a reasonable period afterward as needed to honor unsubscribe requests, prevent abuse, and maintain operational records. You can unsubscribe or manage preferences using links in each alert email.
         </p>
         <p>
           WaterLevels.org does not intentionally maintain a history of the precise locations submitted through the optional location feature.
@@ -162,7 +175,7 @@
           WaterLevels.org is operated by a solo developer and has no employees. Administrative access to WaterLevels.org systems is limited to the owner of Bytoro LLC. Our service providers may process information as necessary to provide and secure their services.
         </p>
         <p>
-          WaterLevels.org does not store user passwords because user accounts are not available.
+          WaterLevels.org does not store user passwords because password-based user accounts are not available. Optional email alerts use emailed confirmation and manage links instead.
         </p>
         <p>No website or internet transmission can be guaranteed to be completely secure.</p>
       </section>
@@ -192,7 +205,7 @@
           You can choose not to provide your location. You can also change or withdraw location permission through your browser or device settings.
         </p>
         <p>
-          You may contact us to ask about personal information you submitted through the contact form or to request that it be corrected or deleted. We may need to verify that the request relates to you before completing it.
+          If you subscribe to optional email alerts, each message includes manage and unsubscribe links. You may also contact us to ask about personal information you submitted through the contact form or alert signup, or to request that it be corrected or deleted. We may need to verify that the request relates to you before completing it.
         </p>
       </section>
 

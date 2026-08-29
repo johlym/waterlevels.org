@@ -6,21 +6,27 @@
     <% @snapshots.each do |snap| %>
       <%
         name = snap[:name] || snap["name"] || "Station"
-        category = snap[:flood_category] || snap["flood_category"]
+        category = snap[:flood_category_label] || snap["flood_category_label"] || snap[:flood_category] || snap["flood_category"]
         level = snap[:water_level] || snap["water_level"]
+        level_unit = snap[:water_level_unit] || snap["water_level_unit"]
         discharge = snap[:discharge] || snap["discharge"]
+        discharge_unit = snap[:discharge_unit] || snap["discharge_unit"]
         url = snap[:url] || snap["url"]
+        site = snap[:site_number] || snap["site_number"]
       %>
       <li style="margin-bottom:12px;">
         <strong><%= name %></strong>
+        <% if site.present? %>
+          <span style="color:#71717a;">(<%= site %>)</span>
+        <% end %>
         <% if category.present? %>
           — flood: <%= category.to_s.tr("_", " ") %>
         <% end %>
         <% if level.present? %>
-          — gage height: <%= level %>
+          — gage height: <%= level %><%= " #{level_unit}" if level_unit.present? %>
         <% end %>
         <% if discharge.present? %>
-          — discharge: <%= discharge %>
+          — discharge: <%= discharge %><%= " #{discharge_unit}" if discharge_unit.present? %>
         <% end %>
         <% if url.present? %>
           <br><a href="<%= url %>">Open station</a>

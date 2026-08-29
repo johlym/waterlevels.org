@@ -309,6 +309,54 @@
       </section>
     <% end %>
 
+    <% if AlertsConfig.enabled? %>
+      <section class="section-block gauge-alerts-cta" aria-labelledby="alerts-cta-heading">
+        <div class="section-head">
+          <div>
+            <h2 id="alerts-cta-heading">Get email alerts</h2>
+            <p class="aside">Optional flood-category and threshold emails for this station. Confirm by email; unsubscribe anytime.</p>
+          </div>
+        </div>
+
+        <%= form_with url: subscriptions_path, method: :post, class: "contact-form gauge-alert-form", data: { turbo: false, controller: "subscription-timezone" } do %>
+          <%= invisible_captcha :subtitle %>
+          <%= hidden_field_tag :monitoring_location_id, @location.id %>
+          <%= hidden_field_tag :time_zone, "", data: { subscription_timezone_target: "hidden" } %>
+
+          <div class="field">
+            <label for="gauge-alert-email">Email address</label>
+            <%= email_field_tag :email, nil, id: "gauge-alert-email", required: true, autocomplete: "email", placeholder: "you@example.com" %>
+          </div>
+
+          <p class="aside">
+            Time zone: <span data-subscription-timezone-target="label">detecting…</span>
+            <button type="button" class="text-link" data-subscription-timezone-target="changeButton" data-action="subscription-timezone#showSelect">Change</button>
+          </p>
+          <%= select_tag :time_zone_select,
+                options_for_select(SubscriberTimeZones.options_for_select),
+                id: "gauge-alert-time-zone",
+                hidden: true,
+                data: {
+                  subscription_timezone_target: "select",
+                  action: "change->subscription-timezone#selectChanged"
+                } %>
+
+          <div class="field checkbox-field">
+            <label class="checkbox-label">
+              <%= check_box_tag :digest_enabled, "1", true, id: "gauge-alert-digest" %>
+              Include in daily digest
+            </label>
+          </div>
+
+          <%= submit_tag "Subscribe to alerts", class: "submit" %>
+          <p class="aside">
+            Or <%= link_to "open the subscriptions page", subscriptions_path(monitoring_location_id: @location.id), class: "text-link" %>.
+            Informational only — not NWS warnings.
+          </p>
+        <% end %>
+      </section>
+    <% end %>
+
     <p class="usgs-note">
       Data courtesy of the <%= link_to "U.S. Geological Survey", @snapshot[:usgs_url], rel: "noopener noreferrer", target: "_blank" %><% if @snapshot[:agency_credit].present? %> and <%= @snapshot[:agency_credit] %><% end %>.
     </p>
