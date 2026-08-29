@@ -1,0 +1,18 @@
+<% name = @location&.display_name.presence || "Station" %>
+<p><strong><%= name %></strong> flood category changed.</p>
+<p>
+  From <strong><%= (@from_category || "unknown").to_s.tr("_", " ") %></strong>
+  to <strong><%= (@to_category || "unknown").to_s.tr("_", " ") %></strong>
+  <% if @observed_at.present? %>
+    at <%= @observed_at %>
+  <% end %>.
+</p>
+<p>
+  This is an informational category from NWS NWPS via WaterLevels.org — not an official
+  flood watch or warning. For watches/warnings use
+  <a href="https://water.noaa.gov/" rel="noopener noreferrer">water.noaa.gov</a>.
+</p>
+<% if @station_url.present? %>
+  <p><a href="<%= @station_url %>">View station on WaterLevels.org</a></p>
+<% end %>
+<%= render "footer" %>

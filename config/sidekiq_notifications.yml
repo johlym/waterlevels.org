@@ -1,0 +1,5 @@
+# notifications_worker: email alert evaluation + delivery (queue: notifications).
+# Concurrency 1 keeps digests / per-subscriber sends from racing on eco dynos.
+:concurrency: 1
+:queues:
+  - notifications

@@ -25,6 +25,48 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
     t.index ["name"], name: "index_admin_counters_on_name", unique: true
   end
 
+  create_table "alert_deliveries", force: :cascade do |t|
+    t.bigint "alert_event_id"
+    t.bigint "alert_rule_id"
+    t.datetime "created_at", null: false
+    t.string "mailer_action", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "sent_at"
+    t.string "status", default: "queued", null: false
+    t.bigint "subscriber_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["alert_event_id"], name: "index_alert_deliveries_on_alert_event_id"
+    t.index ["alert_rule_id"], name: "index_alert_deliveries_on_alert_rule_id"
+    t.index ["subscriber_id", "created_at"], name: "index_alert_deliveries_on_subscriber_id_and_created_at"
+    t.index ["subscriber_id"], name: "index_alert_deliveries_on_subscriber_id"
+  end
+
+  create_table "alert_events", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "dedupe_key", null: false
+    t.string "kind", null: false
+    t.bigint "monitoring_location_id", null: false
+    t.datetime "occurred_at", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.datetime "updated_at", null: false
+    t.index ["dedupe_key"], name: "index_alert_events_on_dedupe_key", unique: true
+    t.index ["monitoring_location_id", "occurred_at"], name: "index_alert_events_on_monitoring_location_id_and_occurred_at"
+    t.index ["monitoring_location_id"], name: "index_alert_events_on_monitoring_location_id"
+  end
+
+  create_table "alert_rules", force: :cascade do |t|
+    t.boolean "armed", default: true, null: false
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: true, null: false
+    t.string "kind", null: false
+    t.datetime "last_fired_at"
+    t.jsonb "params", default: {}, null: false
+    t.bigint "station_watch_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["station_watch_id", "kind"], name: "index_alert_rules_on_station_watch_id_and_kind"
+    t.index ["station_watch_id"], name: "index_alert_rules_on_station_watch_id"
+  end
+
   create_table "app_settings", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "key", null: false
@@ -162,6 +204,47 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
     t.index ["time_series_id", "water_year", "peak_kind"], name: "index_peak_observations_unique", unique: true
   end
 
+  create_table "station_watches", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "label"
+    t.bigint "monitoring_location_id", null: false
+    t.bigint "subscriber_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["monitoring_location_id"], name: "index_station_watches_on_monitoring_location_id"
+    t.index ["subscriber_id", "monitoring_location_id"], name: "index_station_watches_on_subscriber_and_location", unique: true
+    t.index ["subscriber_id"], name: "index_station_watches_on_subscriber_id"
+  end
+
+  create_table "subscriber_tokens", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "expires_at"
+    t.string "purpose", null: false
+    t.bigint "subscriber_id", null: false
+    t.string "token_digest", null: false
+    t.datetime "updated_at", null: false
+    t.datetime "used_at"
+    t.index ["subscriber_id", "purpose"], name: "index_subscriber_tokens_on_subscriber_id_and_purpose"
+    t.index ["subscriber_id"], name: "index_subscriber_tokens_on_subscriber_id"
+    t.index ["token_digest"], name: "index_subscriber_tokens_on_token_digest", unique: true
+  end
+
+  create_table "subscribers", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.boolean "digest_enabled", default: true, null: false
+    t.integer "digest_hour", default: 7, null: false
+    t.date "digest_last_sent_on"
+    t.integer "digest_minute", default: 0, null: false
+    t.string "email", null: false
+    t.datetime "paused_at"
+    t.integer "quiet_hours_end_minute"
+    t.integer "quiet_hours_start_minute"
+    t.string "time_zone", default: "America/New_York", null: false
+    t.datetime "unsubscribed_at"
+    t.datetime "updated_at", null: false
+    t.datetime "verified_at"
+    t.index ["email"], name: "index_subscribers_on_email", unique: true
+  end
+
   create_table "time_series", force: :cascade do |t|
     t.datetime "begins_at"
     t.integer "continuous_max_gap_seconds"
@@ -192,10 +275,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
     t.index ["usgs_time_series_id"], name: "index_time_series_on_usgs_time_series_id", unique: true
   end
 
+  add_foreign_key "alert_deliveries", "alert_events"
+  add_foreign_key "alert_deliveries", "alert_rules"
+  add_foreign_key "alert_deliveries", "subscribers"
+  add_foreign_key "alert_events", "monitoring_locations"
+  add_foreign_key "alert_rules", "station_watches"
   add_foreign_key "continuous_observations", "time_series"
   add_foreign_key "daily_archive_shards", "time_series"
   add_foreign_key "daily_observations", "time_series"
   add_foreign_key "latest_observations", "time_series"
   add_foreign_key "peak_observations", "time_series"
+  add_foreign_key "station_watches", "monitoring_locations"
+  add_foreign_key "station_watches", "subscribers"
+  add_foreign_key "subscriber_tokens", "subscribers"
   add_foreign_key "time_series", "monitoring_locations"
 end

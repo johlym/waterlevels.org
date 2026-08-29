@@ -1465,6 +1465,11 @@ body.dialog-open {
   .nearby-card {
     @apply flex h-full flex-col rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5 no-underline transition-all hover:border-cyan-500/30 hover:bg-zinc-900/80;
 
+    &.nearby-card--watch {
+      @apply border-amber-500/50 bg-amber-950/20 shadow-[0_0_0_1px_rgba(245,158,11,0.15)];
+      animation: nearby-watch-pulse 2.4s ease-in-out infinite;
+    }
+
     .card-top {
       @apply mb-3 flex items-center justify-between gap-3;
     }
@@ -1481,6 +1486,14 @@ body.dialog-open {
 
         .dot {
           @apply bg-emerald-400;
+        }
+      }
+
+      &.watch {
+        @apply font-medium text-amber-300;
+
+        .dot {
+          @apply bg-amber-400;
         }
       }
 
@@ -2801,6 +2814,17 @@ body.dialog-open {
   }
 }
 
+@keyframes nearby-watch-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.15);
+  }
+
+  50% {
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.28);
+  }
+}
+
 .marker-cluster-small,
 .marker-cluster-medium,
 .marker-cluster-large {
@@ -2929,4 +2953,91 @@ td.status .status-pill {
 
 .nav-link[aria-current="page"] {
   @apply text-white;
+}
+
+/* —— Email alert subscriptions —— */
+.text-link {
+  @apply font-medium text-cyan-400 underline transition-colors hover:text-cyan-300 bg-transparent border-0 cursor-pointer p-0;
+}
+
+.subscriptions-form-title {
+  @apply mb-2 font-display text-xl font-semibold text-white;
+}
+
+.subscriptions-station {
+  @apply mb-6;
+}
+
+.subscriptions-manage {
+  @apply mt-8 space-y-8;
+
+  .manage-status {
+    @apply flex flex-wrap items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3;
+  }
+
+  .manage-form {
+    @apply space-y-8;
+  }
+
+  .manage-fieldset {
+    @apply space-y-4 rounded-xl border border-zinc-800 bg-zinc-900/30 p-5;
+
+    legend {
+      @apply px-1 font-display text-lg font-semibold text-white;
+    }
+  }
+
+  .field-row {
+    @apply grid gap-4 sm:grid-cols-3;
+  }
+
+  .watch-card {
+    @apply space-y-3 rounded-lg border border-zinc-800/80 bg-zinc-950/40 p-4;
+  }
+
+  .watch-head {
+    @apply flex flex-wrap items-start justify-between gap-3;
+
+    h2 {
+      @apply font-display text-base font-semibold text-white;
+    }
+  }
+
+  .watch-actions {
+    @apply pt-2;
+  }
+
+  .unsubscribe-row {
+    @apply border-t border-zinc-800 pt-6;
+  }
+
+  select {
+    @apply w-full rounded-lg border border-zinc-800 bg-zinc-950/80 px-4 py-3 text-base text-white outline-none transition-all focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 sm:text-sm;
+  }
+}
+
+.checkbox-field .checkbox-label {
+  @apply flex items-start gap-3 text-sm font-medium text-zinc-300 cursor-pointer;
+
+  input[type="checkbox"] {
+    @apply mt-0.5 size-4 shrink-0 rounded border-zinc-700 bg-zinc-950 text-cyan-500 focus:ring-cyan-500/30;
+  }
+}
+
+.btn-danger-text {
+  @apply cursor-pointer border-0 bg-transparent p-0 text-sm font-medium text-rose-400 underline transition-colors hover:text-rose-300;
+}
+
+.gauge-alerts-cta {
+  .gauge-alert-form {
+    @apply mt-4 max-w-lg rounded-xl border border-zinc-800 bg-zinc-900/40 p-5;
+  }
+
+  .submit {
+    @apply mt-2;
+  }
+}
+
+.map-alerts-link {
+  @apply mt-2;
 }

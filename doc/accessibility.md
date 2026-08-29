@@ -25,7 +25,7 @@ Leaflet markers are not individually keyboard-operable. Equivalent tasks:
 
 1. **Search stations** (combobox on home and map)
 2. **Stations in view** list inside Map settings
-3. **State directory** and **Alerts** pages
+3. **State directory** and **Flood Alerts** pages
 4. **Gauge detail** pages (charts + hourly table)
 
 Escape closes map popups, settings, and mobile search.

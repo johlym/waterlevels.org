@@ -1,0 +1,8 @@
+<% name = @location&.display_name.presence || "Station" %>
+<%= name %> flood category changed.
+
+From <%= (@from_category || "unknown").to_s.tr("_", " ") %> to <%= (@to_category || "unknown").to_s.tr("_", " ") %><% if @observed_at.present? %> at <%= @observed_at %><% end %>.
+
+<% if @station_url.present? %>View station: <%= @station_url %>
+<% end %>
+<%= render "footer" %>

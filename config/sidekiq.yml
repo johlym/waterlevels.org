@@ -61,3 +61,13 @@
       cron: "8-58/10 * * * *"
       class: AdminDashboardCountersJob
       queue: default
+    alert_quiet_scan:
+      # Phase F: quiet / resume detection for watched stations only.
+      cron: "10 * * * *"
+      class: AlertQuietScanJob
+      queue: notifications
+    alert_digest_scheduler:
+      # Local digest windows are 15 minutes wide (Subscriber#due_for_digest?).
+      cron: "*/15 * * * *"
+      class: AlertDigestSchedulerJob
+      queue: notifications

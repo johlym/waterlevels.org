@@ -1,0 +1,37 @@
+<% content_for :title, "Unsubscribe | WaterLevels.org" %>
+<% content_for :meta_description, "Confirm unsubscribing from WaterLevels.org email alerts." %>
+
+<div class="app-shell">
+  <%= render Navigation::BarComponent.new %>
+  <main id="main" class="page-main narrow">
+    <div class="state-intro">
+      <h1>Unsubscribe</h1>
+      <p><%= @subscriber.email %></p>
+    </div>
+
+    <div class="prose-page">
+      <% if @scope == "watch" && @watch %>
+        <p>
+          Stop email alerts for
+          <strong><%= @watch.monitoring_location.display_name %></strong>?
+          Other watched stations stay subscribed.
+        </p>
+      <% else %>
+        <p>Unsubscribe from <strong>all</strong> WaterLevels.org email alerts?</p>
+      <% end %>
+
+      <%= form_with url: subscriptions_unsubscribe_path(token: @raw_token), method: :post, data: { turbo: false } do %>
+        <%= hidden_field_tag :scope, @scope %>
+        <% if @watch %>
+          <%= hidden_field_tag :watch_id, @watch.id %>
+        <% end %>
+        <%= submit_tag(@scope == "watch" ? "Unsubscribe from this station" : "Unsubscribe from all alerts", class: "btn-primary") %>
+      <% end %>
+
+      <p class="aside">
+        <%= link_to "Cancel and keep alerts", subscriptions_path, class: "text-link" %>
+      </p>
+    </div>
+  </main>
+  <%= render Footer::ThinComponent.new %>
+</div>

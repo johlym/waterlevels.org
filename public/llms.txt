@@ -8,7 +8,7 @@ This is not an official USGS or NWS website.
 
 - / — homepage and station search
 - /map — interactive map
-- /alerts — gauges at or above flood stage
+- /alerts — Flood Alerts: gauges at or above NWS flood stage (not email subscriptions)
 - /gauges/{state} — state directory (two-letter state code)
 - /gauges/{state}/{site-number}-{slug} — station page
 - /about — project mission

@@ -361,10 +361,22 @@ class LatestObservationSync
     count = 0
 
     scope.find_each do |location|
+      previous_water_level = location.latest_water_level_value
+      previous_discharge = location.latest_discharge_value
+      previous_water_level_unit = location.latest_water_level_unit
+      previous_discharge_unit = location.latest_discharge_unit
+
       # Re-apply selection so discontinued series (stale tip while siblings are
       # fresh) drop off has_* / Partial / history gates without waiting for the
       # weekly catalog sync. Snapshots rebuild lazily via StationSnapshotCache.fetch.
       DisplaySeriesSelection.apply!(location)
+      record_reading_changes_after_denormalize!(
+        location,
+        previous_water_level: previous_water_level,
+        previous_discharge: previous_discharge,
+        previous_water_level_unit: previous_water_level_unit,
+        previous_discharge_unit: previous_discharge_unit
+      )
       count += 1
       progress&.increment
     end
@@ -375,6 +387,35 @@ class LatestObservationSync
     progress&.step("locations denormalized=#{count}")
     count
   end
+
+  def record_reading_changes_after_denormalize!(
+    location,
+    previous_water_level:,
+    previous_discharge:,
+    previous_water_level_unit:,
+    previous_discharge_unit:
+  )
+    observed_at = location.latest_observed_at || Time.current
+
+    AlertEventRecorder.reading_change!(
+      location: location,
+      parameter: "water_level",
+      from: previous_water_level,
+      to: location.latest_water_level_value,
+      unit: location.latest_water_level_unit.presence || previous_water_level_unit,
+      observed_at: observed_at
+    )
+
+    AlertEventRecorder.reading_change!(
+      location: location,
+      parameter: "discharge",
+      from: previous_discharge,
+      to: location.latest_discharge_value,
+      unit: location.latest_discharge_unit.presence || previous_discharge_unit,
+      observed_at: observed_at
+    )
+  end
+  private :record_reading_changes_after_denormalize!
 
   def parse_time(value)
     return if value.blank?

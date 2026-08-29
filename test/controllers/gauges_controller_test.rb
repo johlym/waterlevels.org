@@ -349,7 +349,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
 
     get "/gauges/wa"
     assert_response :success
-    assert_includes response.body, "Critical Alerts"
+    assert_includes response.body, "Critical flood alerts"
     assert_includes response.body, "Action"
     assert_includes response.body, "status flood-action"
     assert_includes response.body, "elevated"

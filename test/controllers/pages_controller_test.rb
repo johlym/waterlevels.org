@@ -25,7 +25,7 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "What flood data do you show?"
     assert_includes response.body, "Why doesn’t every station have flood stages?"
-    assert_includes response.body, "What is the alerts list?"
+    assert_includes response.body, "What is the flood alerts list?"
     assert_includes response.body, "Is this an official USGS or NWS website?"
     assert_includes response.body, "National Water Prediction Service"
     assert_includes response.body, "https://water.noaa.gov/"

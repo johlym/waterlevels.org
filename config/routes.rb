@@ -31,6 +31,17 @@ Rails.application.routes.draw do
   get "/contact", to: "pages#show", id: "contact", as: :contact
   post "/contact", to: "contacts#create"
 
+  get "/subscriptions", to: "subscriptions#new", as: :subscriptions
+  post "/subscriptions", to: "subscriptions#create"
+  get "/subscriptions/verify/:token", to: "subscriptions/verifications#show", as: :subscriptions_verify
+  get "/subscriptions/manage/:token", to: "subscriptions/manages#show", as: :subscriptions_manage
+  patch "/subscriptions/manage/:token", to: "subscriptions/manages#update"
+  delete "/subscriptions/manage/:token/watches/:id", to: "subscriptions/manages#destroy_watch", as: :subscriptions_manage_watch
+  post "/subscriptions/manage/:token/pause", to: "subscriptions/manages#pause", as: :subscriptions_manage_pause
+  post "/subscriptions/manage/:token/unpause", to: "subscriptions/manages#unpause", as: :subscriptions_manage_unpause
+  get "/subscriptions/unsubscribe/:token", to: "subscriptions/unsubscribes#show", as: :subscriptions_unsubscribe
+  post "/subscriptions/unsubscribe/:token", to: "subscriptions/unsubscribes#create"
+
   resource :temperature_unit, only: :update
 
   get "/admin", to: "admin/dashboard#show", as: :admin

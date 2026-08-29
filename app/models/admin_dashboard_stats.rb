@@ -46,7 +46,7 @@ class AdminDashboardStats
   SECTION_LOAD_ORDER = %i[jobs health core pipeline growth states].freeze
   # Bump when a section payload shape changes so deploys do not serve stale
   # hashes that crash the matching partial (Turbo then shows "Content missing").
-  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v13".freeze
+  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v14".freeze
   SECTION_TTL = 2.minutes
   SECTION_RACE_TTL = 15.seconds
   REDIS_SCAN_MAX_ITERATIONS = 50
@@ -415,7 +415,8 @@ class AdminDashboardStats
       selected_series_count: TimeSeries.selected.count,
       recent_iv_series_count: recent_iv_series,
       implied_interval_minutes: implied_iv_interval_minutes(last_24h, recent_iv_series),
-      tip_freshness: tip_freshness_histogram
+      tip_freshness: tip_freshness_histogram,
+      email_alerts: AlertsAdminStats.snapshot
     }
   end
 

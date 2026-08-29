@@ -1,0 +1,11 @@
+---
+These messages are informational only. They are not National Weather Service watches, warnings, or official flood alerts. For official forecasts and warnings, use https://water.noaa.gov/ and your local NWS products.
+
+<% if @manage_url.present? %>Manage preferences: <%= @manage_url %>
+<% end %>
+<% if @unsubscribe_all_url.present? %>Unsubscribe from all alerts: <%= @unsubscribe_all_url %>
+<% end %>
+<% if @unsubscribe_watch_url.present? && @station_watch.present? %>Unsubscribe from this station: <%= @unsubscribe_watch_url %>
+<% end %>
+
+WaterLevels.org · Bytoro LLC

@@ -43,8 +43,9 @@ class AlertsControllerTest < ActionDispatch::IntegrationTest
 
     get alerts_path
     assert_response :success
-    assert_includes response.body, "Stations With Active Alerts"
-    assert_includes response.body, "Alert Stations"
+    assert_includes response.body, "Stations with active flood alerts"
+    assert_includes response.body, "Flood alert stations"
+    assert_includes response.body, "Flood Alerts"
     assert_includes response.body, "States Affected"
     assert_includes response.body, "Major Flooding"
     assert_includes response.body, "Washington"
