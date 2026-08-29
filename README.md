@@ -39,7 +39,8 @@ Hourly `LatestObservationSyncJob` keeps readings fresh near `:00`. `FloodStageSy
 ```bash
 STATE=wa bin/rails usgs:purge ALL=1   # wipe a bad/partial import
 STATE=wa bin/rails usgs:bootstrap
-# On-stream neighbors (also runs at the end of catalog sync). FORCE=1 recomputes fresh rows.
+# On-stream neighbors (catalog sync does one batch, then NetworkRefreshBatchJob
+# drains the rest Mon–Sat). FORCE=1 recomputes fresh rows. LIMIT=50 for a chunk.
 STATE=wa bin/rails nldi:refresh
 ```
 
@@ -51,7 +52,7 @@ STATE=wa RANGE=1y LIMIT=25 bin/rails usgs:backfill
 STATE=wa RANGE=3y LIMIT=25 bin/rails usgs:backfill
 ```
 
-Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `HISTORY_IV_REPAIR_BATCH` / `HISTORY_IV_SCAR_BATCH` (default `50` stations per catch-up tick), `HISTORY_BACKFILL_BATCH` (default `50` stations per cron tick for cold `1y` work), `HISTORY_DEEP_BACKFILL_BATCH` (default `400` stations for `3y` deep fills; set `0` to pause), `HISTORY_IV_SCAR_RETRY_DAYS` (default `7`). History pins one USGS key per purpose (`USGS_API_HISTORY_CONTINUOUS_KEY` / `_DAILY_KEY` / `_PEAKS_KEY` / `_IVREPAIR_KEY` / `_IVREPAIR2_KEY`) and opens that purpose’s circuit on a 429 for the rest of the UTC hour. Tip sync enqueues `IvRepairJob` when a new tip jumps more than 2h past the previous continuous point; tip catch-up (`IvRepairBatchJob`) runs Mon–Sat hourly at `:35` on `iv_repair` → `iv_repair_worker`. Interior scar catch-up (`IvRepairScarBatchJob`) runs Mon–Sat hourly at `:50` on `iv_repair_scar` → `iv_repair_scar_worker` using `_IVREPAIR2_KEY` across the ~35d continuous window. After a completed scar fetch, USGS-empty interior holes park on `time_series` (`iv_scar_checked_at`) until the retry window elapses or the gap worsens — the gauge page shows a known-missing callout. Cold/year backlog (`HistoryBackfillBatchJob`) runs Mon–Sat every 10 minutes on `backfill` → `historical_worker`. Circuit state per key is on `/admin`.
+Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `NLDI_REFRESH_BATCH` (default `50` stations per on-stream neighbor tick), `HISTORY_IV_REPAIR_BATCH` / `HISTORY_IV_SCAR_BATCH` (default `50` stations per catch-up tick), `HISTORY_BACKFILL_BATCH` (default `50` stations per cron tick for cold `1y` work), `HISTORY_DEEP_BACKFILL_BATCH` (default `400` stations for `3y` deep fills; set `0` to pause), `HISTORY_IV_SCAR_RETRY_DAYS` (default `7`). History pins one USGS key per purpose (`USGS_API_HISTORY_CONTINUOUS_KEY` / `_DAILY_KEY` / `_PEAKS_KEY` / `_IVREPAIR_KEY` / `_IVREPAIR2_KEY`) and opens that purpose’s circuit on a 429 for the rest of the UTC hour. Tip sync enqueues `IvRepairJob` when a new tip jumps more than 2h past the previous continuous point; tip catch-up (`IvRepairBatchJob`) runs Mon–Sat hourly at `:35` on `iv_repair` → `iv_repair_worker`. Interior scar catch-up (`IvRepairScarBatchJob`) runs Mon–Sat hourly at `:50` on `iv_repair_scar` → `iv_repair_scar_worker` using `_IVREPAIR2_KEY` across the ~35d continuous window. After a completed scar fetch, USGS-empty interior holes park on `time_series` (`iv_scar_checked_at`) until the retry window elapses or the gap worsens — the gauge page shows a known-missing callout. Cold/year backlog (`HistoryBackfillBatchJob`) runs Mon–Sat every 10 minutes on `backfill` → `historical_worker`. Circuit state per key is on `/admin`.
 
 `FloodStageSync` expires flood alerts that drop off the NWPS state list: if a LID is unseen and `flood_category_observed_at` is blank or older than 24 hours, category resets to `no_flooding`.
 
@@ -130,4 +131,4 @@ Set in `.env`:
 - Map may be empty until catalog sync lands locations.
 - Temperature is stored in °C; UI defaults to °F via a preference cookie.
 - Local PostGIS is optional; nearby stations use haversine precompute, map bbox uses lat/lon indexes.
-- On-stream upstream/downstream neighbors are precomputed from the public USGS NLDI API (no API key). After a catalog sync, or `bin/rails nldi:refresh` (optional `STATE=wa`, `FORCE=1`), gauge pages show a timeline above Nearby. Demo seed wires a 5-station chain offline (`99000096`–`990000100`).
+- On-stream upstream/downstream neighbors are precomputed from the public USGS NLDI API (no API key). Catalog sync refreshes one `NLDI_REFRESH_BATCH`, then `NetworkRefreshBatchJob` drains unsynced rows (Mon–Sat). One-off: `bin/rails nldi:refresh` (optional `STATE=wa`, `FORCE=1`, `LIMIT=50`). Re-runs skip a fresh `network_synced_at`. Demo seed wires a 5-station chain offline (`99000096`–`990000100`).

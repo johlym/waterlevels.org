@@ -85,6 +85,14 @@ module Admin
             label: "NLDI request pause (ms)",
             description: "Sleep between NLDI navigation requests when refreshing on-stream neighbors. NLDI is unauthenticated and does not use USGS_API_KEY."
 
+          integer :nldi_refresh_batch,
+            default: 50,
+            env: "NLDI_REFRESH_BATCH",
+            min: 0,
+            max: 5_000,
+            label: "NLDI refresh batch",
+            description: "Stations to refresh per NetworkRefreshBatchJob tick (and per catalog-sync kickoff). Set 0 to pause the batch job. Re-runs skip rows with a fresh network_synced_at."
+
           integer :nwps_request_pause_ms,
             default: 30_000,
             env: "NWPS_REQUEST_PAUSE_MS",

@@ -45,6 +45,13 @@
       cron: "5-59/10 * * * 1-6"
       class: HistoryBackfillBatchJob
       queue: backfill
+    network_refresh_batch:
+      # Drain unsynced on-stream neighbors. Catalog sync kicks one limited
+      # pass then enqueues this; cron finishes the national set. Sunday
+      # no-ops so it does not overlap StationCatalogSyncJob on sync_worker.
+      cron: "12-52/10 * * * 1-6"
+      class: NetworkRefreshBatchJob
+      queue: sync
     continuous_prune:
       cron: "15 9 * * *"
       class: ContinuousPruneJob
