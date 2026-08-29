@@ -22,5 +22,10 @@
 
 ## Operator notes
 - Enable product with `ALERTS_ENABLED=1`.
-- Run `notifications_worker` (Sidekiq `notifications` queue) in addition to
-  existing web/sync/backfill processes.
+- Scale `notifications_worker` (Sidekiq `notifications` queue) in addition to
+  existing web/sync/backfill processes:
+  `heroku ps:scale notifications_worker=1 -a <app>`.
+  Config: `config/sidekiq_notifications.yml` / Procfile process type
+  `notifications_worker`. Digest and quiet-scan cron ticks enqueue here even
+  when the product flag is off — without a listener the queue backs up.
+- `/admin` health flags `notifications` depth with zero workers.

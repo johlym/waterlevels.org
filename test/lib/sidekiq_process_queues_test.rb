@@ -6,7 +6,8 @@ class SidekiqProcessQueuesTest < ActiveSupport::TestCase
     "config/sidekiq_sync.yml" => %w[sync],
     "config/sidekiq_iv_repair.yml" => %w[iv_repair],
     "config/sidekiq_iv_repair_scar.yml" => %w[iv_repair_scar],
-    "config/sidekiq_historical.yml" => %w[backfill]
+    "config/sidekiq_historical.yml" => %w[backfill],
+    "config/sidekiq_notifications.yml" => %w[notifications]
   }.freeze
 
   PROCFILE_CONFIGS = {
@@ -14,7 +15,8 @@ class SidekiqProcessQueuesTest < ActiveSupport::TestCase
     "sync_worker" => "config/sidekiq_sync.yml",
     "iv_repair_worker" => "config/sidekiq_iv_repair.yml",
     "iv_repair_scar_worker" => "config/sidekiq_iv_repair_scar.yml",
-    "historical_worker" => "config/sidekiq_historical.yml"
+    "historical_worker" => "config/sidekiq_historical.yml",
+    "notifications_worker" => "config/sidekiq_notifications.yml"
   }.freeze
 
   test "each Sidekiq process listens to exactly one dedicated queue" do
@@ -62,6 +64,21 @@ class SidekiqProcessQueuesTest < ActiveSupport::TestCase
     assert_equal "iv_repair_scar", IvRepairScarBatchJob.new.queue_name
     assert_equal "iv_repair", IvRepairJob.new.queue_name
     assert_equal "iv_repair", IvRepairBatchJob.new.queue_name
+  end
+
+  test "alert jobs and digest cron use the notifications queue" do
+    assert_equal "notifications", AlertDeliveryJob.new.queue_name
+    assert_equal "notifications", AlertEvaluationJob.new.queue_name
+    assert_equal "notifications", AlertDigestSchedulerJob.new.queue_name
+    assert_equal "notifications", AlertQuietScanJob.new.queue_name
+
+    schedule = load_sidekiq_yaml("config/sidekiq.yml").dig(:scheduler, :schedule)
+    assert_equal "notifications", schedule.fetch("alert_digest_scheduler")["queue"]
+    assert_equal "notifications", schedule.fetch("alert_quiet_scan")["queue"]
+  end
+
+  test "AlertMailer deliver_later uses the notifications queue" do
+    assert_equal :notifications, AlertMailer.deliver_later_queue_name
   end
 
   private
