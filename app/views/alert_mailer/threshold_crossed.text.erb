@@ -1,0 +1,7 @@
+<% name = @location&.display_name.presence || "Station" %>
+<% param_label = (@parameter || "reading").to_s.tr("_", " ") %>
+<%= name %>: <%= param_label %> crossed <%= (@op || "above").to_s %> <%= @threshold %><%= " #{@unit}" if @unit.present? %> (observed <%= @value %><%= " #{@unit}" if @unit.present? %>)<% if @observed_at.present? %> at <%= @observed_at %><% end %>.
+
+<% if @station_url.present? %>View station: <%= @station_url %>
+<% end %>
+<%= render "footer" %>

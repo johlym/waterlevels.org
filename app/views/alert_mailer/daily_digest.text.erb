@@ -1,0 +1,20 @@
+Your daily WaterLevels.org digest:
+
+<% if @snapshots.blank? %>
+No watched stations to report right now.
+<% else %>
+<% @snapshots.each do |snap| %>
+<%
+  name = snap[:name] || snap["name"] || "Station"
+  category = snap[:flood_category] || snap["flood_category"]
+  level = snap[:water_level] || snap["water_level"]
+  discharge = snap[:discharge] || snap["discharge"]
+  url = snap[:url] || snap["url"]
+%>
+- <%= name %><% if category.present? %> — flood: <%= category.to_s.tr("_", " ") %><% end %><% if level.present? %> — gage height: <%= level %><% end %><% if discharge.present? %> — discharge: <%= discharge %><% end %>
+<% if url.present? %>  <%= url %>
+<% end %>
+
+<% end %>
+<% end %>
+<%= render "footer" %>

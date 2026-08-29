@@ -237,7 +237,15 @@ class FloodStageSync
   end
 
   def clear_stale_alert!(location)
+    old_category = location.flood_category
+    observed_at = Time.current
     location.update!(flood_category: "no_flooding")
+    AlertEventRecorder.flood_category_change!(
+      location: location,
+      from: old_category,
+      to: "no_flooding",
+      observed_at: observed_at
+    )
     StationSnapshotCache.warm(location)
   end
 
@@ -408,8 +416,17 @@ class FloodStageSync
     # Avoid rewrite + snapshot warm when the list status did not change.
     return false if list_status_unchanged?(location, attrs)
 
+    old_category = location.flood_category
     # List responses omit thresholds; keep existing stage columns.
     location.update!(attrs)
+    if attrs.key?(:flood_category)
+      AlertEventRecorder.flood_category_change!(
+        location: location,
+        from: old_category,
+        to: attrs[:flood_category],
+        observed_at: attrs[:flood_category_observed_at] || Time.current
+      )
+    end
     StationSnapshotCache.warm(location)
     true
   end
@@ -428,6 +445,7 @@ class FloodStageSync
   def apply_match!(location, gauge)
     categories = gauge.dig("flood", "categories") || {}
     category, category_at = category_from_status(gauge["status"])
+    old_category = location.flood_category
 
     location.update!(
       nwps_lid: gauge["lid"].presence || location.nwps_lid,
@@ -439,6 +457,12 @@ class FloodStageSync
       flood_stage_major: Nwps::FloodCategories.stage_value(categories.dig("major", "stage")),
       flood_category: category,
       flood_category_observed_at: category_at
+    )
+    AlertEventRecorder.flood_category_change!(
+      location: location,
+      from: old_category,
+      to: category,
+      observed_at: category_at || Time.current
     )
     StationSnapshotCache.warm(location)
   end

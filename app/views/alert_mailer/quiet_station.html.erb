@@ -1,0 +1,8 @@
+<p><strong><%= @phase_f_label %></strong> alert (Phase F preview).</p>
+<% if @location %>
+  <p>Station: <%= @location.display_name %></p>
+<% end %>
+<% if @station_url.present? %>
+  <p><a href="<%= @station_url %>">View station</a></p>
+<% end %>
+<%= render "footer" %>

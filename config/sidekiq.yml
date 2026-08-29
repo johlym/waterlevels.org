@@ -61,3 +61,8 @@
       cron: "8-58/10 * * * *"
       class: AdminDashboardCountersJob
       queue: default
+    alert_digest_scheduler:
+      # Local digest windows are 15 minutes wide (Subscriber#due_for_digest?).
+      cron: "*/15 * * * *"
+      class: AlertDigestSchedulerJob
+      queue: notifications
