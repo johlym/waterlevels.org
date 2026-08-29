@@ -67,6 +67,7 @@ export default class extends Controller {
     this.map = L.map(this.canvasTarget, {
       zoomControl: false,
       attributionControl: false,
+      maxZoom: this.constructor.MAX_ZOOM,
       maxBounds: [[-85.05112878, -180], [85.05112878, 180]],
       maxBoundsViscosity: 1
     }).setView(initial.center, initial.zoom)
