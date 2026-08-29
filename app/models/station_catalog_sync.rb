@@ -91,6 +91,8 @@ class StationCatalogSync
 
     progress&.step("refreshing nearby stations")
     NearbyStations.refresh_all
+    progress&.step("refreshing network stations")
+    NetworkStations.refresh(location_scope)
     progress&.step("warming state listing caches")
     StateListingCache.warm_all
     AlertsListingCache.warm

@@ -5,7 +5,7 @@ Rails 8.1 / Ruby 4 app that maps USGS water monitoring locations (water level, f
 ## Stack
 
 - PostgreSQL, Redis, Sidekiq (+ sidekiq-scheduler)
-- Tailwind CSS v4, esbuild, Stimulus, Leaflet, Chart.js
+- Tailwind CSS v4, esbuild, Stimulus, Leaflet + MapLibre GL (CARTO Dark Matter vector basemap), Chart.js
 - ViewComponent (sidecar)
 
 ## Local setup
@@ -39,6 +39,8 @@ Hourly `LatestObservationSyncJob` keeps readings fresh near `:00`. `FloodStageSy
 ```bash
 STATE=wa bin/rails usgs:purge ALL=1   # wipe a bad/partial import
 STATE=wa bin/rails usgs:bootstrap
+# On-stream neighbors (also runs at the end of catalog sync). FORCE=1 recomputes fresh rows.
+STATE=wa bin/rails nldi:refresh
 ```
 
 Optional history backfill after bootstrap:
@@ -102,7 +104,7 @@ bin/rails test
 
 - Dynos: `web`, `worker` (default queue + scheduler), `sync_worker` (`sync` queue), `iv_repair_worker` (`iv_repair` queue), `iv_repair_scar_worker` (`iv_repair_scar` queue), `historical_worker` (`backfill` queue). Keep the two IV workers isolated: `iv_repair_worker` must listen **only** to `iv_repair` (`config/sidekiq_iv_repair.yml`). Scar jobs are consumed solely by `iv_repair_scar_worker`. Admin health warns if the scar queue has depth and no scar workers.
 - Add-ons: Postgres, Redis
-- Set `USGS_API_KEY` (tip/catalog), optional `USGS_API_HISTORY_CONTINUOUS_KEY` / `USGS_API_HISTORY_DAILY_KEY` / `USGS_API_HISTORY_PEAKS_KEY` (purpose-pinned history backfill), `REDIS_URL`, `DATABASE_URL`, `APP_HOST`, `SENTRY_DSN`; optional `CLOUDFLARE_ZONE_ID` + `CLOUDFLARE_API_TOKEN` for post-sync Cache-Tag purge; optional `CLOUDFLARE_R2_*` for the yearly daily-means archive ([`doc/postgres-r2-daily-archive.md`](doc/postgres-r2-daily-archive.md))
+- Set `USGS_API_KEY` (tip/catalog), optional `USGS_API_HISTORY_CONTINUOUS_KEY` / `USGS_API_HISTORY_DAILY_KEY` / `USGS_API_HISTORY_PEAKS_KEY` (purpose-pinned history backfill), `REDIS_URL`, `DATABASE_URL`, `APP_HOST`, `SENTRY_DSN`; `CARTO_API_KEY` for the `/map` Dark Matter vector basemap (higher-traffic CARTO tier; request at [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey/)); optional `CLOUDFLARE_ZONE_ID` + `CLOUDFLARE_API_TOKEN` for post-sync Cache-Tag purge; optional `CLOUDFLARE_R2_*` for the yearly daily-means archive ([`doc/postgres-r2-daily-archive.md`](doc/postgres-r2-daily-archive.md))
 - Enable [runtime dyno metadata](https://devcenter.heroku.com/articles/dyno-metadata) so `HEROKU_RELEASE_VERSION` is available; Sentry uses it as the release and tags environment as `production`
 - Open Graph PNGs are rendered with `rsvg-convert` (`Aptfile` → `librsvg2-bin`). Requires [`heroku-community/apt`](https://elements.heroku.com/buildpacks/heroku/heroku-buildpack-apt) as buildpack **#1** (before Ruby) so the Aptfile packages install on the dyno. Station cards are **not** stored in Redis (they filled a 250MB instance); `/og/gauges/:site_number.png` rasterizes on the origin and is Cloudflare-cached (`s-maxage=3600`). Tip/flood syncs purge `og` / `gauge:{site}` tags. The default OG PNG is still Redis-cached.
 - Redis TLS: Sidekiq, cache, and Action Cable use `ssl_params.verify_mode = VERIFY_NONE` for Heroku self-signed `rediss://` certs
@@ -128,3 +130,4 @@ Set in `.env`:
 - Map may be empty until catalog sync lands locations.
 - Temperature is stored in °C; UI defaults to °F via a preference cookie.
 - Local PostGIS is optional; nearby stations use haversine precompute, map bbox uses lat/lon indexes.
+- On-stream upstream/downstream neighbors are precomputed from the public USGS NLDI API (no API key). After a catalog sync, or `bin/rails nldi:refresh` (optional `STATE=wa`, `FORCE=1`), gauge pages show a timeline above Nearby. Demo seed wires a 5-station chain offline (`99000096`–`990000100`).

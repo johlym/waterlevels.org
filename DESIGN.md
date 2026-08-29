@@ -32,8 +32,8 @@ These principles explain *why* the code is shaped the way it is. New work should
 - **Data:** PostgreSQL (no PostGIS — lat/lon B-tree indexes + haversine precompute), Redis (cache store, Sidekiq broker, locks, circuit breaker).
 - **Background:** Sidekiq 8 + sidekiq-scheduler.
 - **View layer:** ViewComponent (sidecar), Propshaft, Hotwired Turbo + Stimulus.
-- **Frontend build:** esbuild (JS, ESM bundle) + Tailwind CSS v4 CLI, output to `app/assets/builds`.
-- **Client libraries:** Leaflet + markercluster (map), Chart.js (hydrographs).
+- **Frontend build:** esbuild (JS, ESM bundle) + Tailwind CSS v4 CLI, output to `app/assets/builds`. The map build also emits a bundled `maplibre-gl-worker.js` so MapLibre can parse vector tiles (Propshaft-digested; URL passed via `data-map-maplibre-worker-url-value`).
+- **Client libraries:** Leaflet + markercluster + MapLibre GL via `@maplibre/maplibre-gl-leaflet` (CARTO Dark Matter vector basemap; `CARTO_API_KEY` stamped as `key` on style/tile requests), Chart.js (hydrographs).
 - **HTTP:** Faraday (+ faraday-retry) for USGS/NWPS/Turnstile.
 - **Mail/anti-spam:** bento-actionmailer + premailer-rails; invisible_captcha + Cloudflare Turnstile.
 
@@ -77,7 +77,7 @@ New public URLs should be slug-based, lowercase, and get a canonical form + `Cac
 
 Design the schema so the hot read paths (map viewport, state listing, gauge snapshot) need no aggregation.
 
-- **`monitoring_locations`** — the central entity. Identity/geo columns plus **denormalized latest values** (`has_water_level/discharge/temperature`, `latest_water_level_value/unit/parameter_code`, `latest_discharge_value/unit`, `latest_temperature_c`, `latest_observed_at`, `latest_approval_status`), NWPS flood columns (`flood_stage_*`, `flood_category`, `nwps_*`), and `nearby_station_ids` (jsonb). Indexed for map (`(latitude, longitude)`), listing (`(state_code, county_name, name)`), partial flags, and `flood_category`.
+- **`monitoring_locations`** — the central entity. Identity/geo columns plus **denormalized latest values** (`has_water_level/discharge/temperature`, `latest_water_level_value/unit/parameter_code`, `latest_discharge_value/unit`, `latest_temperature_c`, `latest_observed_at`, `latest_approval_status`), NWPS flood columns (`flood_stage_*`, `flood_category`, `nwps_*`), `nearby_station_ids` (jsonb), and on-stream `upstream_station_ids` / `downstream_station_ids` (jsonb, closest-first, at most 2) plus `network_synced_at`. Indexed for map (`(latitude, longitude)`), listing (`(state_code, county_name, name)`), partial flags, and `flood_category`.
 - **`time_series`** — per-parameter series metadata for a location. `measurement_kind ∈ {water_level, discharge, temperature}`, `selected_for_display` gate, `primary_series`.
 - **Observation tables**, all FK → `time_series`, all upserted on natural keys:
   - `latest_observations` — one row per series (unique `time_series_id`).
@@ -96,9 +96,9 @@ Design the schema so the hot read paths (map viewport, state listing, gauge snap
 
 External data flows in through namespaced clients → sync objects → Sidekiq jobs, with rake tasks as manual entrypoints.
 
-- **Clients:** `Usgs::Client` (OGC API, optional `X-Api-Key`, GeoJSON `next` link pagination) and `Nwps::Client` (gauge lookup by site number). Both pace requests via `*_REQUEST_PAUSE_MS`. Tip/catalog traffic uses `Usgs::Client.for_tip` (`USGS_API_KEY`); history backfill uses `Usgs::Client.for_history(:continuous|:daily|:peaks)`, which pins `USGS_API_HISTORY_CONTINUOUS_KEY` / `_DAILY_KEY` / `_PEAKS_KEY` (falls back to `USGS_API_KEY` when a purpose key is unset).
+- **Clients:** `Usgs::Client` (OGC API, optional `X-Api-Key`, GeoJSON `next` link pagination), `Nwps::Client` (gauge lookup by site number), and `Nldi::Client` (public Network Linked Data Index; no API key). USGS/NWPS/NLDI pace requests via `*_REQUEST_PAUSE_MS`. Tip/catalog traffic uses `Usgs::Client.for_tip` (`USGS_API_KEY`); history backfill uses `Usgs::Client.for_history(:continuous|:daily|:peaks)`, which pins `USGS_API_HISTORY_CONTINUOUS_KEY` / `_DAILY_KEY` / `_PEAKS_KEY` (falls back to `USGS_API_KEY` when a purpose key is unset).
 - **Sync objects (`app/models/*_sync.rb`, `history_ingestion.rb`, `display_series_selection.rb`):**
-  - `StationCatalogSync` (weekly / bootstrap) — discover active continuous water-body sites, filter via `Usgs::SiteTypes`, upsert series + latest, select display series, prune inactive, warm caches.
+  - `StationCatalogSync` (weekly / bootstrap) — discover active continuous water-body sites, filter via `Usgs::SiteTypes`, upsert series + latest, select display series, prune inactive, refresh nearby + on-stream network neighbors (`NetworkStations` via NLDI), warm caches.
   - `LatestObservationSync` (hourly) — refresh `selected_for_display` series, denormalize location columns, warm caches. Enqueues `IvRepairJob` when a new tip jumps more than `CONTINUOUS_GAP_THRESHOLD` past the previous continuous tip on an anchored series.
   - IV repair lanes — tip/tip-adjacent on `USGS_API_HISTORY_IVREPAIR_KEY` (`IvRepairJob` / `IvRepairBatchJob`); deeper interior scars across `CONTINUOUS_RETENTION` on `USGS_API_HISTORY_IVREPAIR2_KEY` (`IvRepairScarJob` / `IvRepairScarBatchJob`), using denorm `continuous_max_gap_seconds`.
   - `FloodStageSyncJob` (hourly at `:30`, opposing latest tip near `:00`) — one job loops every state with ≥30s between states. Each state does **one** NWPS list GET scoped to that state's padded bbox, refreshes flood categories, prioritizes detail-matching for unlinked action+ gauges (LID → usgsId → site), then spends a small budget on threshold discovery. `FloodStageSyncLock` prevents overlapping runs. Also runs at the end of each `BootstrapStateJob`.
@@ -127,7 +127,7 @@ Caching is layered; keep all three layers consistent when adding a surface.
 ## 9. Frontend
 
 - **Build:** esbuild bundles `app/javascript/*.*` to an ESM bundle; Tailwind v4 CLI builds CSS. `Procfile.dev` runs both in `--watch` alongside Rails; production builds the assets ahead of Propshaft serving.
-- **Behavior:** progressive enhancement with Turbo + Stimulus. Notable controllers: `map` (Leaflet + clustering + bbox fetch + search/geolocation + layer filters + stations-in-view list), `hydrograph` (Chart.js dual-axis chart, range tabs, history table, CSV export), `parameter-toggle`, `temperature-unit` (cookie + `PUT /temperature_unit`), `state-directory`, `station-search` (combobox), `mobile-nav`, `dialog`, `faq`.
+- **Behavior:** progressive enhancement with Turbo + Stimulus. Notable controllers: `map` (Leaflet + MapLibre CARTO Dark Matter vector basemap + clustering + bbox fetch + search/geolocation + layer filters + stations-in-view list), `hydrograph` (Chart.js dual-axis chart, range tabs, history table, CSV export), `parameter-toggle`, `temperature-unit` (cookie + `PUT /temperature_unit`), `state-directory`, `station-search` (combobox), `mobile-nav`, `dialog`, `faq`.
 - **Chart data:** the gauge view passes an observations URL; `hydrograph_controller` fetches `/api/gauges/:id/observations` per measurement. `HydrographSeries` returns `{ kind, label, range, unit, parameter_code, points:[{t,v}], peaks:[…] }`, using continuous points for `24h/7d/30d` and daily points for `1y`.
 - **Units:** temperature converts to °F/°C client-side based on the `temperature_unit` cookie (default °F).
 - **Accessibility:** every public HTML surface keeps a skip link → `#main`, a `<main id="main">` landmark, visible `:focus-visible` outlines, and `prefers-reduced-motion` reductions. Interactive patterns (search combobox, measurement tabs, mobile nav, FAQ, dialogs, form errors) must preserve the ARIA wiring CI asserts. See §15 and [`doc/accessibility.md`](doc/accessibility.md).

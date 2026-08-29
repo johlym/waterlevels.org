@@ -241,6 +241,52 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'data-temp-c="12.8"'
   end
 
+  test "on-stream timeline renders upstream and downstream neighbors" do
+    up = create(
+      :monitoring_location,
+      site_number: "00000888",
+      usgs_monitoring_location_id: "USGS-00000888",
+      name: "Upstream Fork near Town",
+      slug: "upstream-fork-near-town",
+      latitude: 47.52,
+      longitude: -121.80,
+      has_discharge: true,
+      latest_discharge_value: 640.0,
+      latest_discharge_unit: "ft3/s",
+      latest_observed_at: 20.minutes.ago
+    )
+    down = create(
+      :monitoring_location,
+      site_number: "00000777",
+      usgs_monitoring_location_id: "USGS-00000777",
+      name: "Downstream Fork near Town",
+      slug: "downstream-fork-near-town",
+      latitude: 47.48,
+      longitude: -121.82,
+      has_water_level: true,
+      latest_water_level_value: 5.5,
+      latest_water_level_unit: "ft",
+      latest_observed_at: 20.minutes.ago
+    )
+    @location.update!(upstream_station_ids: [ up.id ], downstream_station_ids: [ down.id ])
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_includes response.body, "On this stream"
+    assert_includes response.body, "This station"
+    assert_includes response.body, "Upstream Fork Near Town"
+    assert_includes response.body, "Downstream Fork Near Town"
+    assert_includes response.body, "aria-current=\"page\""
+    assert_includes response.body, "network-timeline"
+  end
+
+  test "hides the on-stream timeline when both sides are empty" do
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_not_includes response.body, "On this stream"
+    assert_not_includes response.body, "network-timeline"
+  end
+
   test "map stations include station time zone fields" do
     @location.update!(time_zone: "CST", state_code: "tx", state_name: "Texas", latitude: 30.27, longitude: -97.74)
 

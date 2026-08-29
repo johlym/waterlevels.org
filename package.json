@@ -5,17 +5,19 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "esbuild app/javascript/*.* --bundle --sourcemap --format=esm --outdir=app/assets/builds --public-path=/assets",
+    "build": "esbuild app/javascript/*.* --bundle --sourcemap --format=esm --outdir=app/assets/builds --public-path=/assets && esbuild node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs --bundle --format=esm --outfile=app/assets/builds/maplibre-gl-worker.js",
     "build:css": "npx @tailwindcss/cli -i ./app/assets/stylesheets/application.tailwind.css -o ./app/assets/builds/application.css --minify",
     "test:js": "node --test test/javascript/**/*.js"
   },
   "dependencies": {
     "@hotwired/stimulus": "^3.2.2",
     "@hotwired/turbo-rails": "^8.0.23",
+    "@maplibre/maplibre-gl-leaflet": "^0.1.4",
     "chart.js": "^4.5.1",
     "esbuild": "^0.28.1",
     "leaflet": "^1.9.4",
-    "leaflet.markercluster": "^1.5.3"
+    "leaflet.markercluster": "^1.5.3",
+    "maplibre-gl": "^6.6.0"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.3",

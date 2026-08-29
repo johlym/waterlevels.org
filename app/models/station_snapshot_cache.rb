@@ -1,5 +1,5 @@
 class StationSnapshotCache
-  PREFIX = "station_snapshot:v11".freeze
+  PREFIX = "station_snapshot:v12".freeze
   TTL = 2.hours
   MILES_PER_KM = 0.621371
 
@@ -104,7 +104,9 @@ class StationSnapshotCache
       extremes[kind] = m[:extremes]
     end
 
-    nearby = nearby_payload(location)
+    neighbor_cards = neighbor_cards_for(location)
+    nearby = neighbor_cards[:nearby]
+    network = { upstream: neighbor_cards[:upstream], downstream: neighbor_cards[:downstream] }
     latest_observed_at = latest_observed_at_for(measurements, location)
 
     {
@@ -138,6 +140,7 @@ class StationSnapshotCache
       trends: trends,
       extremes: extremes,
       nearby: nearby,
+      network: network,
       usgs_url: "https://waterdata.usgs.gov/monitoring-location/#{location.usgs_monitoring_location_id}/",
       agency_name: location.agency_code
     }
@@ -295,37 +298,50 @@ class StationSnapshotCache
     { "water_level" => 0, "discharge" => 1, "temperature" => 2 }[kind] || 9
   end
 
-  def self.nearby_payload(location)
-    ids = Array(location.nearby_station_ids)
-    return [] if ids.empty?
-
-    stations = MonitoringLocation.where(id: ids).index_by(&:id)
+  def self.neighbor_cards_for(location)
+    nearby_ids = Array(location.nearby_station_ids)
+    up_ids = Array(location.upstream_station_ids)
+    down_ids = Array(location.downstream_station_ids)
+    all_ids = (nearby_ids + up_ids + down_ids).uniq
+    stations = all_ids.empty? ? {} : MonitoringLocation.where(id: all_ids).index_by(&:id)
     origin_lat = location.latitude.to_f
     origin_lon = location.longitude.to_f
 
-    ids.filter_map do |id|
+    {
+      nearby: neighbor_cards_from(nearby_ids, stations, origin_lat, origin_lon),
+      upstream: neighbor_cards_from(up_ids, stations, origin_lat, origin_lon),
+      downstream: neighbor_cards_from(down_ids, stations, origin_lat, origin_lon)
+    }
+  end
+
+  def self.neighbor_cards_from(ids, stations, origin_lat, origin_lon)
+    Array(ids).filter_map do |id|
       n = stations[id]
       next unless n
 
-      distance_mi = NearbyStations.haversine_km(
-        origin_lat, origin_lon, n.latitude.to_f, n.longitude.to_f
-      ) * MILES_PER_KM
-
-      {
-        site_number: n.site_number,
-        name: n.display_name,
-        state_code: n.state_code,
-        slug: n.slug,
-        has_water_level: n.has_water_level,
-        has_discharge: n.has_discharge,
-        has_temperature: n.has_temperature,
-        path: "/gauges/#{n.path_state}/#{n.to_param}",
-        distance_mi: distance_mi.round(1),
-        stale: n.stale?,
-        latest_observed_at: n.latest_observed_at&.iso8601,
-        measurements: nearby_readings(n)
-      }
+      neighbor_card(n, origin_lat: origin_lat, origin_lon: origin_lon)
     end
+  end
+
+  def self.neighbor_card(n, origin_lat:, origin_lon:)
+    distance_mi = NearbyStations.haversine_km(
+      origin_lat, origin_lon, n.latitude.to_f, n.longitude.to_f
+    ) * MILES_PER_KM
+
+    {
+      site_number: n.site_number,
+      name: n.display_name,
+      state_code: n.state_code,
+      slug: n.slug,
+      has_water_level: n.has_water_level,
+      has_discharge: n.has_discharge,
+      has_temperature: n.has_temperature,
+      path: "/gauges/#{n.path_state}/#{n.to_param}",
+      distance_mi: distance_mi.round(1),
+      stale: n.stale?,
+      latest_observed_at: n.latest_observed_at&.iso8601,
+      measurements: nearby_readings(n)
+    }
   end
 
   def self.nearby_readings(location)
@@ -361,5 +377,6 @@ class StationSnapshotCache
   end
 
   private_class_method :measurement_payload, :denormalized_measurements, :kind_order,
-                       :nearby_payload, :nearby_readings
+                       :neighbor_cards_for, :neighbor_cards_from, :neighbor_card,
+                       :nearby_readings
 end
