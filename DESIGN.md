@@ -32,7 +32,7 @@ These principles explain *why* the code is shaped the way it is. New work should
 - **Data:** PostgreSQL (no PostGIS — lat/lon B-tree indexes + haversine precompute), Redis (cache store, Sidekiq broker, locks, circuit breaker).
 - **Background:** Sidekiq 8 + sidekiq-scheduler.
 - **View layer:** ViewComponent (sidecar), Propshaft, Hotwired Turbo + Stimulus.
-- **Frontend build:** esbuild (JS, ESM bundle) + Tailwind CSS v4 CLI, output to `app/assets/builds`.
+- **Frontend build:** esbuild (JS, ESM bundle) + Tailwind CSS v4 CLI, output to `app/assets/builds`. The map build also emits a bundled `maplibre-gl-worker.js` so MapLibre can parse vector tiles (Propshaft-digested; URL passed via `data-map-maplibre-worker-url-value`).
 - **Client libraries:** Leaflet + markercluster + MapLibre GL via `@maplibre/maplibre-gl-leaflet` (CARTO Dark Matter vector basemap; `CARTO_API_KEY` stamped as `key` on style/tile requests), Chart.js (hydrographs).
 - **HTTP:** Faraday (+ faraday-retry) for USGS/NWPS/Turnstile.
 - **Mail/anti-spam:** bento-actionmailer + premailer-rails; invisible_captcha + Cloudflare Turnstile.

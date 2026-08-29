@@ -24,4 +24,11 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
   ensure
     previous.nil? ? ENV.delete("CARTO_API_KEY") : ENV["CARTO_API_KEY"] = previous
   end
+
+  test "exposes the MapLibre worker asset URL" do
+    get map_path
+
+    assert_response :success
+    assert_match(/data-map-maplibre-worker-url-value="[^"]*maplibre-gl-worker[^"]*\.js"/, response.body)
+  end
 end

@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 import L from "leaflet"
 import "leaflet.markercluster"
+import { setWorkerUrl } from "maplibre-gl"
 import maplibreGL from "@maplibre/maplibre-gl-leaflet"
 import { firstPartyApiFetch } from "../lib/api"
 import { CARTO_ATTRIBUTION, cartoStyleUrl, cartoTransformRequest } from "../lib/carto_basemap"
@@ -43,7 +44,8 @@ export default class extends Controller {
     privacyUrl: String,
     termsUrl: String,
     year: Number,
-    cartoApiKey: String
+    cartoApiKey: String,
+    maplibreWorkerUrl: String
   }
 
   static DEFAULT_VIEW = { lat: 39.5, lon: -98.35, zoom: 5 }
@@ -62,6 +64,8 @@ export default class extends Controller {
       water_level: true,
       temperature: true
     }
+
+    if (this.maplibreWorkerUrlValue) setWorkerUrl(this.maplibreWorkerUrlValue)
 
     const initial = this.initialView()
     this.map = L.map(this.canvasTarget, {

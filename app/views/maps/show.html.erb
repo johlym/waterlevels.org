@@ -11,6 +11,7 @@
   data-map-terms-url-value="<%= terms_path %>"
   data-map-year-value="<%= Time.current.year %>"
   data-map-carto-api-key-value="<%= ENV.fetch("CARTO_API_KEY", "") %>"
+  data-map-maplibre-worker-url-value="<%= asset_path("maplibre-gl-worker.js") %>"
 >
   <%= render Navigation::BarComponent.new(map_controls: true) %>
 
