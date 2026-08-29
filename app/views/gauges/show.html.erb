@@ -216,6 +216,43 @@
       <div class="measurements-table" data-hydrograph-target="history"></div>
     </section>
 
+    <%
+      network = @snapshot[:network] || @snapshot["network"] || {}
+      upstream = Array(network[:upstream] || network["upstream"])
+      downstream = Array(network[:downstream] || network["downstream"])
+      current_node = {
+        site_number: @snapshot[:site_number],
+        name: location_name,
+        stale: @snapshot[:stale],
+        measurements: measurements
+      }
+    %>
+    <% if upstream.any? || downstream.any? %>
+      <section class="section-block" aria-labelledby="network-heading">
+        <div class="section-head">
+          <div>
+            <h2 id="network-heading">On this stream</h2>
+            <p class="aside">Stations upstream and downstream on the same waterway</p>
+          </div>
+        </div>
+        <ol role="list" class="network-timeline">
+          <% upstream.reverse_each do |n| %>
+            <li>
+              <%= render "gauges/network_node", node: n, direction: "upstream" %>
+            </li>
+          <% end %>
+          <li>
+            <%= render "gauges/network_node", node: current_node, current: true %>
+          </li>
+          <% downstream.each do |n| %>
+            <li>
+              <%= render "gauges/network_node", node: n, direction: "downstream" %>
+            </li>
+          <% end %>
+        </ol>
+      </section>
+    <% end %>
+
     <% nearby = Array(@snapshot[:nearby]) %>
     <% if nearby.any? %>
       <section class="section-block" aria-labelledby="nearby-heading">

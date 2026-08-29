@@ -1,0 +1,71 @@
+<%
+  current = local_assigns.fetch(:current, false)
+  direction = local_assigns[:direction]
+  stale = node[:stale] || node["stale"]
+  site = node[:site_number] || node["site_number"]
+  name = node[:name] || node["name"]
+  readings = Array(node[:measurements] || node["measurements"])
+  reading = readings.find { |r| (r[:value] || r["value"]).present? }
+  classes = [ "network-node" ]
+  classes << "current" if current
+  classes << "offline" if stale && !current
+  inner = capture do
+%>
+    <div class="node-meta">
+      <% if current %>
+        <span class="node-dir">This station</span>
+      <% elsif direction == "upstream" %>
+        <span class="node-dir">Upstream</span>
+      <% else %>
+        <span class="node-dir">Downstream</span>
+      <% end %>
+      <% if stale %>
+        <span class="status offline">
+          <span class="dot" aria-hidden="true"></span>
+          Offline
+        </span>
+      <% else %>
+        <span class="status active">
+          <span class="dot" aria-hidden="true"></span>
+          Active
+        </span>
+      <% end %>
+    </div>
+    <h3 class="name-scroll">
+      <span><%= name %></span>
+    </h3>
+    <p class="site-id">ID: <%= site %></p>
+    <% if reading %>
+      <%
+        kind = reading[:kind] || reading["kind"]
+        label = reading[:label] || reading["label"]
+        value = reading[:value] || reading["value"]
+        unit = display_unit(reading[:unit] || reading["unit"])
+        precision = (reading[:precision] || reading["precision"]) || 2
+      %>
+      <p class="node-reading">
+        <% if kind == "temperature" %>
+          <span
+            data-temperature-unit-target="display"
+            data-temp-c="<%= value %>"
+            data-temp-prefix="Temp: "
+          ></span>
+        <% else %>
+          <%= label %>:
+          <%= display_gauge_value(value, precision: precision) %>
+          <%= unit %>
+        <% end %>
+      </p>
+    <% end %>
+<%
+  end
+%>
+<% if current %>
+  <div class="<%= classes.join(" ") %>" aria-current="page">
+    <%= inner %>
+  </div>
+<% else %>
+  <%= link_to node[:path] || node["path"], class: classes.join(" ") do %>
+    <%= inner %>
+  <% end %>
+<% end %>

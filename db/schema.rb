@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_18_220000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -97,6 +97,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_220000) do
     t.string "county_name"
     t.datetime "created_at", null: false
     t.string "display_name", null: false
+    t.jsonb "downstream_station_ids", default: [], null: false
     t.decimal "drainage_area", precision: 12, scale: 3
     t.string "flood_category"
     t.datetime "flood_category_observed_at"
@@ -121,6 +122,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_220000) do
     t.datetime "metadata_synced_at"
     t.string "name", null: false
     t.jsonb "nearby_station_ids", default: [], null: false
+    t.datetime "network_synced_at"
     t.string "nwps_lid"
     t.boolean "nwps_matched", default: false, null: false
     t.datetime "nwps_synced_at"
@@ -133,6 +135,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_220000) do
     t.string "state_name"
     t.string "time_zone"
     t.datetime "updated_at", null: false
+    t.jsonb "upstream_station_ids", default: [], null: false
     t.string "usgs_monitoring_location_id", null: false
     t.index ["active", "latest_observed_at"], name: "index_monitoring_locations_on_active_and_latest_observed_at"
     t.index ["flood_category"], name: "index_monitoring_locations_on_flood_category"

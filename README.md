@@ -39,6 +39,8 @@ Hourly `LatestObservationSyncJob` keeps readings fresh near `:00`. `FloodStageSy
 ```bash
 STATE=wa bin/rails usgs:purge ALL=1   # wipe a bad/partial import
 STATE=wa bin/rails usgs:bootstrap
+# On-stream neighbors (also runs at the end of catalog sync). FORCE=1 recomputes fresh rows.
+STATE=wa bin/rails nldi:refresh
 ```
 
 Optional history backfill after bootstrap:
@@ -128,3 +130,4 @@ Set in `.env`:
 - Map may be empty until catalog sync lands locations.
 - Temperature is stored in °C; UI defaults to °F via a preference cookie.
 - Local PostGIS is optional; nearby stations use haversine precompute, map bbox uses lat/lon indexes.
+- On-stream upstream/downstream neighbors are precomputed from the public USGS NLDI API (no API key). After a catalog sync, or `bin/rails nldi:refresh` (optional `STATE=wa`, `FORCE=1`), gauge pages show a timeline above Nearby. Demo seed wires a 5-station chain offline (`99000096`–`990000100`).
