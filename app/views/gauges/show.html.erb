@@ -354,6 +354,8 @@
     <% end %>
 
     <% if AlertsConfig.enabled? %>
+      <% site_key = ENV.fetch("TURNSTILE_SITE_KEY", Contact::FormComponent::SITE_KEY) %>
+      <% turnstile_required = ENV["TURNSTILE_SECRET"].present? %>
       <section class="section-block gauge-alerts-cta" aria-labelledby="alerts-cta-heading">
         <div class="section-head">
           <div>
@@ -392,6 +394,16 @@
             </label>
           </div>
 
+          <% if turnstile_required %>
+            <div
+              class="cf-turnstile turnstile"
+              data-sitekey="<%= site_key %>"
+              data-theme="dark"
+              data-action="subscription-gauge-signup"
+              aria-label="Bot check"
+            ></div>
+          <% end %>
+
           <%= submit_tag "Subscribe to alerts", class: "submit" %>
           <p class="aside">
             Or <%= link_to "open the subscriptions page", subscriptions_path(monitoring_location_id: @location.id), class: "text-link" %>.
@@ -399,6 +411,9 @@
           </p>
         <% end %>
       </section>
+      <% if turnstile_required %>
+        <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+      <% end %>
     <% end %>
 
     <p class="usgs-note">

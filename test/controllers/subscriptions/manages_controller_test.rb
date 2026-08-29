@@ -27,6 +27,12 @@ module Subscriptions
       assert_includes response.body, @subscriber.email
       assert_includes response.body, @location.display_name
       assert_includes response.body, "Flood category changes"
+      assert_includes response.body, "state-intro"
+      assert_includes response.body, "btn-secondary"
+      # Nested forms break Save preferences — Remove must not use button_to inside the form.
+      assert_select "form form", count: 0
+      assert_includes response.body, "Remove station"
+      assert_match(/data-turbo-method=["']delete["']/, response.body)
     end
 
     test "update preferences and rules" do
