@@ -8,23 +8,22 @@ class NetworkStations
   DOWNSTREAM = "DM"
 
   def self.refresh(scope = MonitoringLocation.all, client: Nldi::Client.new, force: false)
-    locations = scope.is_a?(Array) ? scope : scope.to_a
-    return 0 if locations.empty?
+    rows = location_rows(scope)
+    return 0 if rows.empty?
 
-    id_by_usgs = MonitoringLocation.pluck(:usgs_monitoring_location_id, :id).to_h
-    latlon_by_id = MonitoringLocation.pluck(:id, :latitude, :longitude)
-      .to_h { |id, lat, lon| [ id, [ lat.to_f, lon.to_f ] ] }
+    id_by_usgs, latlon_by_id = catalog_indexes
     catalog_ids = id_by_usgs.values.to_set
+    # NLDI HTTP can sit idle for minutes (timeouts / pacing). Do not pin a
+    # checkout across that I/O — hosted Postgres will close the socket.
+    release_db_connection!
 
     refreshed = 0
-    locations.each do |location|
-      next unless force || stale?(location, catalog_ids)
+    rows.each do |id, usgs_id, synced_at, up_ids, down_ids|
+      next unless force || stale_row?(synced_at, up_ids, down_ids, catalog_ids)
 
-      refresh_one(
-        location,
-        client: client,
-        id_by_usgs: id_by_usgs,
-        latlon_by_id: latlon_by_id
+      persist_network!(
+        id,
+        *neighbors_both_ways(usgs_id, client: client, id_by_usgs: id_by_usgs, latlon_by_id: latlon_by_id)
       )
       refreshed += 1
     end
@@ -32,56 +31,122 @@ class NetworkStations
   end
 
   def self.refresh_one(location, client: Nldi::Client.new, id_by_usgs: nil, latlon_by_id: nil)
-    id_by_usgs ||= MonitoringLocation.pluck(:usgs_monitoring_location_id, :id).to_h
-    latlon_by_id ||= MonitoringLocation.pluck(:id, :latitude, :longitude)
-      .to_h { |id, lat, lon| [ id, [ lat.to_f, lon.to_f ] ] }
+    unless id_by_usgs && latlon_by_id
+      id_by_usgs, latlon_by_id = catalog_indexes
+    end
+    release_db_connection!
 
-    upstream = neighbors_for(
-      location,
-      mode: UPSTREAM,
-      client: client,
-      id_by_usgs: id_by_usgs,
-      latlon_by_id: latlon_by_id
+    persist_network!(
+      location.id,
+      *neighbors_both_ways(
+        location.usgs_monitoring_location_id,
+        client: client,
+        id_by_usgs: id_by_usgs,
+        latlon_by_id: latlon_by_id
+      )
     )
-    downstream = neighbors_for(
-      location,
-      mode: DOWNSTREAM,
-      client: client,
-      id_by_usgs: id_by_usgs,
-      latlon_by_id: latlon_by_id
-    )
-
-    location.update_columns(
-      upstream_station_ids: upstream,
-      downstream_station_ids: downstream,
-      network_synced_at: Time.current,
-      updated_at: Time.current
-    )
-    [ upstream, downstream ]
   end
 
   def self.stale?(location, catalog_ids)
-    return true if location.network_synced_at.blank?
-    return true if location.network_synced_at < FRESH_AFTER.ago
-
-    stored = Array(location.upstream_station_ids) + Array(location.downstream_station_ids)
-    stored.any? { |id| !catalog_ids.include?(id) }
+    stale_row?(
+      location.network_synced_at,
+      location.upstream_station_ids,
+      location.downstream_station_ids,
+      catalog_ids
+    )
   end
 
-  def self.neighbors_for(location, mode:, client:, id_by_usgs:, latlon_by_id:)
+  def self.location_rows(scope)
+    if scope.is_a?(Array)
+      scope.map do |location|
+        [
+          location.id,
+          location.usgs_monitoring_location_id,
+          location.network_synced_at,
+          location.upstream_station_ids,
+          location.downstream_station_ids
+        ]
+      end
+    else
+      scope.pluck(
+        :id,
+        :usgs_monitoring_location_id,
+        :network_synced_at,
+        :upstream_station_ids,
+        :downstream_station_ids
+      )
+    end
+  end
+  private_class_method :location_rows
+
+  def self.catalog_indexes
+    id_by_usgs = {}
+    latlon_by_id = {}
+    MonitoringLocation.pluck(:id, :usgs_monitoring_location_id, :latitude, :longitude).each do |id, usgs_id, lat, lon|
+      id_by_usgs[usgs_id] = id
+      latlon_by_id[id] = [ lat.to_f, lon.to_f ]
+    end
+    [ id_by_usgs, latlon_by_id ]
+  end
+  private_class_method :catalog_indexes
+
+  def self.stale_row?(synced_at, up_ids, down_ids, catalog_ids)
+    return true if synced_at.blank?
+    return true if synced_at < FRESH_AFTER.ago
+
+    stored = Array(up_ids) + Array(down_ids)
+    stored.any? { |id| !catalog_ids.include?(id) }
+  end
+  private_class_method :stale_row?
+
+  def self.neighbors_both_ways(usgs_id, client:, id_by_usgs:, latlon_by_id:)
+    [
+      neighbors_for(usgs_id, mode: UPSTREAM, client: client, id_by_usgs: id_by_usgs, latlon_by_id: latlon_by_id),
+      neighbors_for(usgs_id, mode: DOWNSTREAM, client: client, id_by_usgs: id_by_usgs, latlon_by_id: latlon_by_id)
+    ]
+  end
+  private_class_method :neighbors_both_ways
+
+  def self.persist_network!(id, upstream, downstream)
+    with_db_connection do
+      MonitoringLocation.where(id: id).update_all(
+        upstream_station_ids: upstream,
+        downstream_station_ids: downstream,
+        network_synced_at: Time.current,
+        updated_at: Time.current
+      )
+    end
+    [ upstream, downstream ]
+  end
+  private_class_method :persist_network!
+
+  def self.release_db_connection!
+    ActiveRecord::Base.connection_pool.release_connection
+  end
+  private_class_method :release_db_connection!
+
+  def self.with_db_connection
+    ActiveRecord::Base.connection_pool.with_connection(prevent_permanent_checkout: true) do |conn|
+      conn.verify!
+      yield
+    end
+  end
+  private_class_method :with_db_connection
+
+  def self.neighbors_for(usgs_id, mode:, client:, id_by_usgs:, latlon_by_id:)
     sites = client.navigate_sites(
-      location.usgs_monitoring_location_id,
+      usgs_id,
       mode: mode,
       distance_km: DISTANCE_KM
     )
     return [] if sites.empty?
 
-    origin = origin_feature(sites, location.usgs_monitoring_location_id)
-    candidates = catalog_candidates(sites, location, id_by_usgs, origin, mode)
+    origin = origin_feature(sites, usgs_id)
+    candidates = catalog_candidates(sites, usgs_id, id_by_usgs, origin, mode)
     return [] if candidates.empty?
 
     flowlines = client.navigate_flowlines(
-      location.usgs_monitoring_location_id,
+      usgs_id,
       mode: mode,
       distance_km: DISTANCE_KM
     )
@@ -107,13 +172,13 @@ class NetworkStations
   end
   private_class_method :origin_feature
 
-  def self.catalog_candidates(sites, location, id_by_usgs, origin, mode)
+  def self.catalog_candidates(sites, origin_usgs_id, id_by_usgs, origin, mode)
     origin_comid = comid_for(origin)
     origin_measure = measure_for(origin)
 
     sites.filter_map do |feature|
       usgs_id = feature_identifier(feature)
-      next if usgs_id.blank? || usgs_id == location.usgs_monitoring_location_id
+      next if usgs_id.blank? || usgs_id == origin_usgs_id.to_s
 
       db_id = id_by_usgs[usgs_id]
       next unless db_id

@@ -104,8 +104,9 @@ class StationSnapshotCache
       extremes[kind] = m[:extremes]
     end
 
-    nearby = nearby_payload(location)
-    network = network_payload(location)
+    neighbor_cards = neighbor_cards_for(location)
+    nearby = neighbor_cards[:nearby]
+    network = { upstream: neighbor_cards[:upstream], downstream: neighbor_cards[:downstream] }
     latest_observed_at = latest_observed_at_for(measurements, location)
 
     {
@@ -297,26 +298,24 @@ class StationSnapshotCache
     { "water_level" => 0, "discharge" => 1, "temperature" => 2 }[kind] || 9
   end
 
-  def self.nearby_payload(location)
-    neighbor_list(location, location.nearby_station_ids)
-  end
-
-  def self.network_payload(location)
-    {
-      upstream: neighbor_list(location, location.upstream_station_ids),
-      downstream: neighbor_list(location, location.downstream_station_ids)
-    }
-  end
-
-  def self.neighbor_list(location, ids)
-    ids = Array(ids)
-    return [] if ids.empty?
-
-    stations = MonitoringLocation.where(id: ids).index_by(&:id)
+  def self.neighbor_cards_for(location)
+    nearby_ids = Array(location.nearby_station_ids)
+    up_ids = Array(location.upstream_station_ids)
+    down_ids = Array(location.downstream_station_ids)
+    all_ids = (nearby_ids + up_ids + down_ids).uniq
+    stations = all_ids.empty? ? {} : MonitoringLocation.where(id: all_ids).index_by(&:id)
     origin_lat = location.latitude.to_f
     origin_lon = location.longitude.to_f
 
-    ids.filter_map do |id|
+    {
+      nearby: neighbor_cards_from(nearby_ids, stations, origin_lat, origin_lon),
+      upstream: neighbor_cards_from(up_ids, stations, origin_lat, origin_lon),
+      downstream: neighbor_cards_from(down_ids, stations, origin_lat, origin_lon)
+    }
+  end
+
+  def self.neighbor_cards_from(ids, stations, origin_lat, origin_lon)
+    Array(ids).filter_map do |id|
       n = stations[id]
       next unless n
 
@@ -378,6 +377,6 @@ class StationSnapshotCache
   end
 
   private_class_method :measurement_payload, :denormalized_measurements, :kind_order,
-                       :nearby_payload, :network_payload, :neighbor_list, :neighbor_card,
+                       :neighbor_cards_for, :neighbor_cards_from, :neighbor_card,
                        :nearby_readings
 end

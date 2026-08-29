@@ -250,4 +250,34 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
     assert_equal "00000013", network[:downstream].first[:site_number]
     assert_equal "water_level", network[:downstream].first[:measurements].first[:kind]
   end
+
+  test "loads nearby and network neighbor cards in one query" do
+    origin = create(:monitoring_location, site_number: "00000021", usgs_monitoring_location_id: "USGS-00000021")
+    nearby = create(:monitoring_location, site_number: "00000022", usgs_monitoring_location_id: "USGS-00000022")
+    up = create(:monitoring_location, site_number: "00000023", usgs_monitoring_location_id: "USGS-00000023")
+    down = create(:monitoring_location, site_number: "00000024", usgs_monitoring_location_id: "USGS-00000024")
+    origin.update!(
+      nearby_station_ids: [ nearby.id ],
+      upstream_station_ids: [ up.id ],
+      downstream_station_ids: [ down.id ]
+    )
+
+    sql = []
+    callback = lambda do |_name, _start, _finish, _id, payload|
+      next if payload[:cached]
+      next if payload[:name] == "SCHEMA"
+
+      sql << payload[:sql].to_s
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      payload = StationSnapshotCache.warm(origin.reload)
+      assert_equal 1, payload[:nearby].size
+      assert_equal 1, payload[:network][:upstream].size
+      assert_equal 1, payload[:network][:downstream].size
+    end
+
+    neighbor_lookups = sql.count { |q| q.include?("FROM \"monitoring_locations\"") && q.include?("\"id\" IN") }
+    assert_equal 1, neighbor_lookups
+  end
 end
