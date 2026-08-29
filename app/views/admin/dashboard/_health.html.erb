@@ -88,7 +88,7 @@
           <p class="hint queues">
             <% stats[:sidekiq][:queues].each do |name, size| %>
               <% workers = stats[:sidekiq].dig(:workers_by_queue, name).to_i %>
-              <span class="<%= "alert" if %w[iv_repair iv_repair_scar].include?(name.to_s) && size.to_i.positive? && workers.zero? %>">
+              <span class="<%= "alert" if %w[iv_repair iv_repair_scar notifications].include?(name.to_s) && size.to_i.positive? && workers.zero? %>">
                 <%= name %>: <%= number_with_delimiter(size) %>
                 (<%= workers %> worker<%= workers == 1 ? "" : "s" %>)
               </span>
@@ -109,6 +109,15 @@
           <p class="hint alert">
             <code>iv_repair_scar</code> has <%= number_with_delimiter(scar_depth) %> queued job(s)
             but no process is listening — scale <code>iv_repair_scar_worker</code>.
+          </p>
+        <% end %>
+        <% notifications_depth = stats[:sidekiq][:notifications_queue_depth].to_i %>
+        <% notifications_workers = stats[:sidekiq][:notifications_workers].to_i %>
+        <% if notifications_depth.positive? && notifications_workers.zero? %>
+          <p class="hint alert">
+            <code>notifications</code> has <%= number_with_delimiter(notifications_depth) %> queued job(s)
+            but no process is listening — scale <code>notifications_worker</code>
+            (<code>heroku ps:scale notifications_worker=1</code>).
           </p>
         <% end %>
       <% end %>

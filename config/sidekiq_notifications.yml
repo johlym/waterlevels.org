@@ -1,5 +1,8 @@
 # notifications_worker: email alert evaluation + delivery (queue: notifications).
 # Concurrency 1 keeps digests / per-subscriber sends from racing on eco dynos.
+# Scale on Heroku: heroku ps:scale notifications_worker=1 -a <app>
+# Jobs: AlertEvaluationJob, AlertDeliveryJob, AlertDigestSchedulerJob,
+# AlertQuietScanJob, and AlertMailer deliver_later (verify / manage-link).
 :concurrency: 1
 :queues:
   - notifications

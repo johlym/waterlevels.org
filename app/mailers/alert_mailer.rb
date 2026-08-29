@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class AlertMailer < ApplicationMailer
+  # Verify / manage-link use deliver_later — keep them on notifications_worker
+  # with AlertDeliveryJob instead of the orphaned default `mailers` queue.
+  self.deliver_later_queue_name = :notifications
+
   before_action :assign_common_params
 
   # Double opt-in confirmation after signup.

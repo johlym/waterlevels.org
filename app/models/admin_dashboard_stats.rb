@@ -801,7 +801,9 @@ class AdminDashboardStats
       iv_repair_queue_depth: queues["iv_repair"].to_i,
       iv_repair_workers: workers_by_queue["iv_repair"].to_i,
       iv_repair_scar_queue_depth: queues["iv_repair_scar"].to_i,
-      iv_repair_scar_workers: workers_by_queue["iv_repair_scar"].to_i
+      iv_repair_scar_workers: workers_by_queue["iv_repair_scar"].to_i,
+      notifications_queue_depth: queues["notifications"].to_i,
+      notifications_workers: workers_by_queue["notifications"].to_i
     }
   rescue StandardError => e
     { error: e.message }
