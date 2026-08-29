@@ -211,4 +211,43 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
     assert_equal 4.25, readings[1][:value]
     assert_equal 12.8, readings[2][:value]
   end
+
+  test "network payload includes upstream and downstream catalog neighbors" do
+    origin = create(:monitoring_location, site_number: "00000011", usgs_monitoring_location_id: "USGS-00000011")
+    up = create(
+      :monitoring_location,
+      site_number: "00000012",
+      usgs_monitoring_location_id: "USGS-00000012",
+      name: "Upstream Creek near Town",
+      slug: "upstream-creek-near-town",
+      latitude: 47.52,
+      longitude: -121.80,
+      has_discharge: true,
+      latest_discharge_value: 800.0,
+      latest_discharge_unit: "ft3/s"
+    )
+    down = create(
+      :monitoring_location,
+      site_number: "00000013",
+      usgs_monitoring_location_id: "USGS-00000013",
+      name: "Downstream Creek near Town",
+      slug: "downstream-creek-near-town",
+      latitude: 47.48,
+      longitude: -121.82,
+      has_water_level: true,
+      latest_water_level_value: 3.1,
+      latest_water_level_unit: "ft"
+    )
+    origin.update!(upstream_station_ids: [ up.id ], downstream_station_ids: [ down.id ])
+
+    payload = StationSnapshotCache.warm(origin.reload)
+    network = payload[:network]
+
+    assert_equal 1, network[:upstream].size
+    assert_equal "00000012", network[:upstream].first[:site_number]
+    assert_equal "discharge", network[:upstream].first[:measurements].first[:kind]
+    assert_equal 1, network[:downstream].size
+    assert_equal "00000013", network[:downstream].first[:site_number]
+    assert_equal "water_level", network[:downstream].first[:measurements].first[:kind]
+  end
 end

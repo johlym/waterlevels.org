@@ -143,6 +143,9 @@ module DemoStateSeed
         has_discharge: true,
         has_temperature: true,
         nearby_station_ids: [],
+        upstream_station_ids: [],
+        downstream_station_ids: [],
+        network_synced_at: now,
         nwps_matched: nwps_station?(n),
         flood_category: flood_category_for(n),
         flood_stage_action: nwps_station?(n) ? FLOOD_DEMO_STAGES[:action] : nil,
@@ -356,13 +359,39 @@ module DemoStateSeed
   def finalize!(locations)
     MonitoringLocation.where(id: locations.map(&:id)).includes(time_series: :latest_observation).find_each do |location|
       DisplaySeriesSelection.apply!(location)
-      StationSnapshotCache.warm(location)
     end
 
     NearbyStations.refresh_all
+    wire_network_timeline!(locations)
+
+    MonitoringLocation.where(id: locations.map(&:id)).includes(time_series: :latest_observation).find_each do |location|
+      StationSnapshotCache.warm(location)
+    end
+
     StateListingCache.warm(STATE_CODE)
     AlertsListingCache.warm
     SiteStats.warm!
+  end
+
+  # Offline 5-station mainstem so the gauge-page timeline is visible without NLDI.
+  # Closest-first: site 98 shows 97+96 upstream and 99+100 downstream.
+  NETWORK_CHAIN = (96..100).freeze
+
+  def wire_network_timeline!(locations)
+    by_n = locations.index_by { |loc| loc.site_number.to_i - SITE_NUMBER_BASE }
+    NETWORK_CHAIN.each do |n|
+      location = by_n[n]
+      next unless location
+
+      upstream_ns = [ n - 1, n - 2 ].select { |other| NETWORK_CHAIN.cover?(other) }
+      downstream_ns = [ n + 1, n + 2 ].select { |other| NETWORK_CHAIN.cover?(other) }
+      location.update_columns(
+        upstream_station_ids: upstream_ns.filter_map { |other| by_n[other]&.id },
+        downstream_station_ids: downstream_ns.filter_map { |other| by_n[other]&.id },
+        network_synced_at: Time.current,
+        updated_at: Time.current
+      )
+    end
   end
 end
 

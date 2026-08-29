@@ -1555,6 +1555,88 @@ body.dialog-open {
   }
 }
 
+.network-timeline {
+  @apply relative mt-4 flex list-none flex-col gap-0 p-0 sm:flex-row sm:items-stretch sm:gap-8;
+
+  > li {
+    @apply relative flex min-w-0 flex-1 flex-col;
+  }
+
+  > li:not(:last-child)::after {
+    content: "";
+    @apply mx-auto block h-6 w-px bg-zinc-700 sm:absolute sm:top-1/2 sm:right-0 sm:left-auto sm:h-px sm:w-8 sm:translate-x-full sm:-translate-y-1/2;
+  }
+
+  .network-node {
+    @apply flex h-full flex-col rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-4 no-underline transition-all;
+
+    &.current {
+      @apply border-cyan-500/40 bg-cyan-500/10;
+    }
+
+    &:not(.current):hover {
+      @apply border-cyan-500/30 bg-zinc-900/80;
+    }
+
+    .node-meta {
+      @apply mb-2 flex items-center justify-between gap-2;
+    }
+
+    .node-dir {
+      @apply text-[0.65rem] font-medium uppercase tracking-wide text-zinc-400;
+    }
+
+    &.current .node-dir {
+      @apply text-cyan-400;
+    }
+
+    .status {
+      @apply inline-flex items-center gap-1.5 text-xs;
+
+      .dot {
+        @apply size-2 rounded-full;
+      }
+
+      &.active {
+        @apply text-emerald-400;
+
+        .dot {
+          @apply bg-emerald-400;
+        }
+      }
+
+      &.offline {
+        @apply text-zinc-400;
+
+        .dot {
+          @apply bg-zinc-500;
+        }
+      }
+    }
+
+    .name-scroll {
+      @apply mb-1 overflow-hidden whitespace-nowrap font-display text-sm font-semibold text-white;
+      container-type: inline-size;
+
+      span {
+        @apply inline-block max-w-none;
+      }
+    }
+
+    &:hover:not(.current) .name-scroll {
+      @apply text-cyan-400;
+    }
+
+    .site-id {
+      @apply mb-2 text-xs text-zinc-400;
+    }
+
+    .node-reading {
+      @apply mt-auto text-xs text-zinc-300;
+    }
+  }
+}
+
 .usgs-note {
   @apply mt-12 text-base text-zinc-400 sm:text-sm;
 

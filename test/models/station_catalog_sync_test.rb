@@ -1,6 +1,11 @@
 require "test_helper"
 
 class StationCatalogSyncTest < ActiveSupport::TestCase
+  setup do
+    stub_request(:get, %r{\Ahttps://api\.water\.usgs\.gov/nldi/})
+      .to_return(status: 404, body: "", headers: { "Content-Type" => "application/json" })
+  end
+
   test "national sync skips unsupported USGS state FIPS without aborting" do
     # FIPS 95 is in USGS's Canadian province range (90–98). A national catalog
     # pull surfaces these sites via latest-continuous; we must skip them rather
