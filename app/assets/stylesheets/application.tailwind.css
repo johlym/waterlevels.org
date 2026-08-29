@@ -1583,7 +1583,7 @@ body.dialog-open {
     }
 
     .node-dir {
-      @apply text-[0.65rem] font-medium uppercase tracking-wide text-zinc-500;
+      @apply text-[0.65rem] font-medium uppercase tracking-wide text-zinc-400;
     }
 
     &.current .node-dir {
