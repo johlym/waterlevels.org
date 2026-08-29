@@ -146,6 +146,24 @@ class NetworkStationsTest < ActiveSupport::TestCase
     assert_empty @origin.reload.upstream_station_ids
   end
 
+  test "does not hold a database checkout across NLDI HTTP" do
+    client = FakeNldi.new(
+      sites: {
+        "UM" => um_sites,
+        "DM" => []
+      },
+      flowlines: {
+        "UM" => um_flowlines,
+        "DM" => []
+      }
+    )
+
+    NetworkStations.refresh_one(@origin, client: client)
+
+    assert_operator client.http_calls, :>=, 2
+    assert_empty client.checked_out_during_http
+  end
+
   test "force refreshes a still-fresh location" do
     @origin.update!(
       upstream_station_ids: [ @far_earlier.id ],
@@ -165,12 +183,17 @@ class NetworkStationsTest < ActiveSupport::TestCase
   private
 
   class FakeNldi
+    attr_reader :http_calls, :checked_out_during_http
+
     def initialize(sites:, flowlines:)
       @sites = sites
       @flowlines = flowlines
+      @http_calls = 0
+      @checked_out_during_http = []
     end
 
     def navigate_sites(_usgs_id, mode:, distance_km:)
+      record_http!("sites/#{mode}")
       value = @sites.fetch(mode)
       raise "unexpected NLDI sites call" if value == :should_not_run
 
@@ -178,7 +201,17 @@ class NetworkStationsTest < ActiveSupport::TestCase
     end
 
     def navigate_flowlines(_usgs_id, mode:, distance_km:)
+      record_http!("flowlines/#{mode}")
       @flowlines.fetch(mode, [])
+    end
+
+    private
+
+    def record_http!(label)
+      @http_calls += 1
+      return unless ActiveRecord::Base.connection_pool.active_connection?
+
+      @checked_out_during_http << label
     end
   end
 
