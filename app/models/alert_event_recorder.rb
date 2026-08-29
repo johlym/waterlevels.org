@@ -5,6 +5,8 @@
 class AlertEventRecorder
   FLOOD_KIND = "flood_category_change"
   READING_KIND = "reading_change"
+  QUIET_KIND = "quiet_station"
+  RESUME_KIND = "resume_station"
 
   class << self
     def flood_category_change!(location:, from:, to:, observed_at:)
@@ -45,6 +47,38 @@ class AlertEventRecorder
           "observed_at" => at.iso8601
         },
         dedupe_key: "reading:#{location.id}:#{param}:#{at.to_i}"
+      )
+      enqueue_evaluation!(location) if event
+      event
+    end
+
+    def quiet_station!(location:, observed_at:, at: Time.current)
+      tip_i = observed_at&.to_i || 0
+      event = AlertEvent.record!(
+        location: location,
+        kind: QUIET_KIND,
+        occurred_at: at,
+        payload: {
+          "latest_observed_at" => observed_at&.iso8601,
+          "detected_at" => at.iso8601
+        },
+        dedupe_key: "quiet:#{location.id}:#{tip_i}:#{at.to_date}"
+      )
+      enqueue_evaluation!(location) if event
+      event
+    end
+
+    def resume_station!(location:, observed_at:, at: Time.current)
+      tip_i = observed_at&.to_i || 0
+      event = AlertEvent.record!(
+        location: location,
+        kind: RESUME_KIND,
+        occurred_at: at,
+        payload: {
+          "latest_observed_at" => observed_at&.iso8601,
+          "detected_at" => at.iso8601
+        },
+        dedupe_key: "resume:#{location.id}:#{tip_i}"
       )
       enqueue_evaluation!(location) if event
       event

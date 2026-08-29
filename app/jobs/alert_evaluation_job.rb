@@ -41,12 +41,23 @@ class AlertEvaluationJob < ApplicationJob
         next if already_queued?(watch.subscriber, event, rule)
         next unless Alerts::FloodEvaluator.matches?(rule: rule, event: event)
         next if rule.in_cooldown?
+        next if watch.subscriber.in_quiet_hours?
 
         enqueue_delivery!(watch.subscriber, event, rule, "flood_category_change")
         rule.mark_fired!
       end
     when AlertEventRecorder::READING_KIND
       evaluate_reading_rules!(event, watch, location)
+    when AlertEventRecorder::QUIET_KIND, AlertEventRecorder::RESUME_KIND
+      watch.alert_rules.enabled.of_kind("quiet_station").find_each do |rule|
+        next if already_queued?(watch.subscriber, event, rule)
+        next if rule.in_cooldown?
+        next if watch.subscriber.in_quiet_hours?
+
+        action = event.kind == AlertEventRecorder::QUIET_KIND ? "quiet_station" : "quiet_station"
+        enqueue_delivery!(watch.subscriber, event, rule, action)
+        rule.mark_fired!
+      end
     end
   end
 

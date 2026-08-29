@@ -101,7 +101,16 @@ class SubscriptionsController < ApplicationController
       return render :new, status: :unprocessable_content
     end
 
-    watch = subscriber.station_watches.find_or_create_by!(monitoring_location: location)
+    watch = subscriber.station_watches.find_by(monitoring_location: location)
+    if watch.nil?
+      max_watches = ENV.fetch("ALERTS_MAX_WATCHES", "25").to_i
+      if max_watches.positive? && subscriber.station_watches.count >= max_watches
+        @monitoring_location = location
+        flash.now[:alert] = "This address already watches the maximum of #{max_watches} stations. Remove one from your manage link first."
+        return render :new, status: :unprocessable_content
+      end
+      watch = subscriber.station_watches.create!(monitoring_location: location)
+    end
     watch.ensure_default_rules!
 
     if subscriber.verified?

@@ -237,6 +237,8 @@
               stale = n[:stale] || n["stale"]
               distance = n[:distance_mi] || n["distance_mi"]
               site = n[:site_number] || n["site_number"]
+              flood_category = n[:flood_category] || n["flood_category"]
+              flood_watch = %w[action minor moderate major].include?(flood_category.to_s)
               readings = Array(n[:measurements] || n["measurements"])
               # Fallback for snapshots cached before multi-metric nearby readings.
               if readings.empty?
@@ -245,12 +247,17 @@
               end
             %>
             <li>
-              <%= link_to n[:path] || n["path"], class: "nearby-card" do %>
+              <%= link_to n[:path] || n["path"], class: "nearby-card#{" nearby-card--watch" if flood_watch}" do %>
                 <div class="card-top">
                   <% if stale %>
                     <span class="status offline">
                       <span class="dot" aria-hidden="true"></span>
                       Offline
+                    </span>
+                  <% elsif flood_watch %>
+                    <span class="status watch">
+                      <span class="dot" aria-hidden="true"></span>
+                      <%= flood_category.to_s.titleize %>
                     </span>
                   <% else %>
                     <span class="status active">

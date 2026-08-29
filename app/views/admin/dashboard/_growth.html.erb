@@ -91,4 +91,32 @@
       <% end %>
     </ul>
   </div>
+
+  <% alerts = stats[:email_alerts] || {} %>
+  <div class="freshness-panel" style="margin-top: 1.5rem">
+    <h3>Email alerts</h3>
+    <% if alerts[:enabled] %>
+      <div class="stats-grid">
+        <article>
+          <p class="value"><%= number_with_delimiter(alerts[:subscribers_verified]) %></p>
+          <p class="label">Verified subscribers</p>
+        </article>
+        <article>
+          <p class="value"><%= number_with_delimiter(alerts[:watches]) %></p>
+          <p class="label">Station watches</p>
+        </article>
+        <article>
+          <p class="value"><%= number_with_delimiter(alerts[:deliveries_sent_24h]) %></p>
+          <p class="label">Deliveries sent (24h)</p>
+          <p class="hint">
+            Failed <%= number_with_delimiter(alerts[:deliveries_failed_24h]) %>
+            · skipped <%= number_with_delimiter(alerts[:deliveries_skipped_24h]) %>
+            · events <%= number_with_delimiter(alerts[:events_24h]) %>
+          </p>
+        </article>
+      </div>
+    <% else %>
+      <p class="hint">Disabled (`ALERTS_ENABLED` off). Set env to enable subscription surfaces and jobs.</p>
+    <% end %>
+  </div>
 </section>

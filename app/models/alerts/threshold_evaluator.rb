@@ -8,6 +8,10 @@ module Alerts
       "discharge" => "discharge"
     }.freeze
 
+    # Tips older than this are too stale to fire threshold emails (stricter than
+    # map offline which uses MonitoringLocation::STALE_AFTER = 1.week).
+    STALE_TIP_AFTER = 6.hours
+
     def initialize(rule:, location:, at: Time.current)
       @rule = rule
       @location = location
@@ -17,6 +21,7 @@ module Alerts
     def should_fire?
       return false unless @rule.enabled?
       return false if @rule.in_cooldown?(@at)
+      return false if tip_stale?
 
       series = series_for_parameter
       return false if series.blank?
@@ -33,6 +38,12 @@ module Alerts
     end
 
     private
+
+    def tip_stale?
+      observed_at = @location.latest_observed_at
+      observed_at ||= series_for_parameter&.latest_observation&.observed_at
+      observed_at.blank? || observed_at < STALE_TIP_AFTER.before(@at)
+    end
 
     def parameter
       @rule.param("parameter", "water_level").to_s

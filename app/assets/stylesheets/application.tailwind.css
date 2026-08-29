@@ -1464,6 +1464,11 @@ body.dialog-open {
   .nearby-card {
     @apply flex h-full flex-col rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5 no-underline transition-all hover:border-cyan-500/30 hover:bg-zinc-900/80;
 
+    &.nearby-card--watch {
+      @apply border-amber-500/50 bg-amber-950/20 shadow-[0_0_0_1px_rgba(245,158,11,0.15)];
+      animation: nearby-watch-pulse 2.4s ease-in-out infinite;
+    }
+
     .card-top {
       @apply mb-3 flex items-center justify-between gap-3;
     }
@@ -1480,6 +1485,14 @@ body.dialog-open {
 
         .dot {
           @apply bg-emerald-400;
+        }
+      }
+
+      &.watch {
+        @apply font-medium text-amber-300;
+
+        .dot {
+          @apply bg-amber-400;
         }
       }
 
@@ -2700,6 +2713,17 @@ body.dialog-open {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes nearby-watch-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.15);
+  }
+
+  50% {
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.28);
   }
 }
 
