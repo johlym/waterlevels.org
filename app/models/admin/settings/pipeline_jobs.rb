@@ -15,6 +15,11 @@ module Admin
             label: "Weekly catalog sync",
             description: "When off, StationCatalogSyncJob skips its Sunday national catalog refresh."
 
+          boolean :nldi_refresh_enabled,
+            default: true,
+            label: "On-stream network refresh",
+            description: "When off, NetworkRefreshBatchJob skips NLDI neighbor fills."
+
           boolean :flood_stage_sync_enabled,
             default: true,
             label: "Flood stage sync",
@@ -53,7 +58,7 @@ module Admin
           boolean :sunday_catalog_pause_enabled,
             default: true,
             label: "Sunday catalog pause",
-            description: "When on (default), history backfill and IV repair lanes pause on Sundays so the catalog sync can use the USGS budget."
+            description: "When on (default), history backfill, IV repair, and NLDI network refresh pause on Sundays so the catalog sync can use the budget."
         end
       end
     end

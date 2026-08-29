@@ -7,12 +7,13 @@ class NetworkStations
   UPSTREAM = "UM"
   DOWNSTREAM = "DM"
 
-  def self.refresh(scope = MonitoringLocation.all, client: Nldi::Client.new, force: false)
+  def self.refresh(scope = MonitoringLocation.all, client: Nldi::Client.new, force: false, limit: nil)
     rows = location_rows(scope)
     return 0 if rows.empty?
 
     id_by_usgs, latlon_by_id = catalog_indexes
     catalog_ids = id_by_usgs.values.to_set
+    budget = limit_budget(limit)
     # NLDI HTTP can sit idle for minutes (timeouts / pacing). Do not pin a
     # checkout across that I/O — hosted Postgres will close the socket.
     release_db_connection!
@@ -21,11 +22,9 @@ class NetworkStations
     rows.each do |id, usgs_id, synced_at, up_ids, down_ids|
       next unless force || stale_row?(synced_at, up_ids, down_ids, catalog_ids)
 
-      persist_network!(
-        id,
-        *neighbors_both_ways(usgs_id, client: client, id_by_usgs: id_by_usgs, latlon_by_id: latlon_by_id)
-      )
+      refresh_row!(id, usgs_id, client: client, id_by_usgs: id_by_usgs, latlon_by_id: latlon_by_id)
       refreshed += 1
+      break if budget && refreshed >= budget
     end
     refreshed
   end
@@ -58,7 +57,7 @@ class NetworkStations
 
   def self.location_rows(scope)
     if scope.is_a?(Array)
-      scope.map do |location|
+      scope.sort_by(&:id).map do |location|
         [
           location.id,
           location.usgs_monitoring_location_id,
@@ -68,7 +67,7 @@ class NetworkStations
         ]
       end
     else
-      scope.pluck(
+      scope.except(:order).order(:id).pluck(
         :id,
         :usgs_monitoring_location_id,
         :network_synced_at,
@@ -78,6 +77,30 @@ class NetworkStations
     end
   end
   private_class_method :location_rows
+
+  def self.limit_budget(limit)
+    return if limit.nil?
+
+    budget = limit.to_i
+    budget.positive? ? budget : nil
+  end
+  private_class_method :limit_budget
+
+  def self.refresh_row!(id, usgs_id, client:, id_by_usgs:, latlon_by_id:)
+    persist_network!(
+      id,
+      *neighbors_both_ways(usgs_id, client: client, id_by_usgs: id_by_usgs, latlon_by_id: latlon_by_id)
+    )
+  rescue Nldi::Client::Error, Faraday::Error => e
+    # One failed station must not abort the rest of a national pass. Stamp empty
+    # so the next tick advances; Faraday already retried transients.
+    Rails.logger.warn(
+      "NetworkStations NLDI failed id=#{id} usgs_id=#{usgs_id} " \
+      "#{e.class}: #{e.message}"
+    )
+    persist_network!(id, [], [])
+  end
+  private_class_method :refresh_row!
 
   def self.catalog_indexes
     id_by_usgs = {}

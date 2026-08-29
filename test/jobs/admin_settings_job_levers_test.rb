@@ -19,6 +19,11 @@ class AdminSettingsJobLeversTest < ActiveSupport::TestCase
     assert_equal 0, HistoryBackfillBatchJob.perform_now
   end
 
+  test "NetworkRefreshBatchJob skips when disabled" do
+    AppConfig.write!(:nldi_refresh_enabled, false)
+    assert_equal 0, NetworkRefreshBatchJob.perform_now
+  end
+
   test "Sunday pause respects admin lever" do
     sunday = Time.utc(2026, 8, 9, 12) # Sunday
     assert HistoryBackfillJob.paused_for_catalog_sync?(sunday)

@@ -164,6 +164,42 @@ class NetworkStationsTest < ActiveSupport::TestCase
     assert_empty client.checked_out_during_http
   end
 
+  test "limit refreshes a prefix and a later call resumes" do
+    client = FakeNldi.new(
+      sites: { "UM" => [], "DM" => [] },
+      flowlines: { "UM" => [], "DM" => [] }
+    )
+    first, second = [ @origin, @near_later ].sort_by(&:id)
+
+    refreshed = NetworkStations.refresh([ first, second ], client: client, limit: 1)
+
+    assert_equal 1, refreshed
+    assert first.reload.network_synced_at.present?
+    assert_nil second.reload.network_synced_at
+
+    refreshed = NetworkStations.refresh([ first, second ], client: client, limit: 1)
+
+    assert_equal 1, refreshed
+    assert second.reload.network_synced_at.present?
+  end
+
+  test "continues past an NLDI error and stamps the failed station" do
+    client = FakeNldi.new(
+      sites: { "UM" => [], "DM" => [] },
+      flowlines: { "UM" => [], "DM" => [] }
+    )
+    client.fail_usgs_ids << @origin.usgs_monitoring_location_id
+
+    refreshed = NetworkStations.refresh([ @origin, @near_later ], client: client)
+
+    assert_equal 2, refreshed
+    @origin.reload
+    @near_later.reload
+    assert_empty @origin.upstream_station_ids
+    assert @origin.network_synced_at.present?
+    assert @near_later.network_synced_at.present?
+  end
+
   test "force refreshes a still-fresh location" do
     @origin.update!(
       upstream_station_ids: [ @far_earlier.id ],
@@ -183,16 +219,19 @@ class NetworkStationsTest < ActiveSupport::TestCase
   private
 
   class FakeNldi
-    attr_reader :http_calls, :checked_out_during_http
+    attr_reader :http_calls, :checked_out_during_http, :fail_usgs_ids
 
     def initialize(sites:, flowlines:)
       @sites = sites
       @flowlines = flowlines
       @http_calls = 0
       @checked_out_during_http = []
+      @fail_usgs_ids = []
     end
 
-    def navigate_sites(_usgs_id, mode:, distance_km:)
+    def navigate_sites(usgs_id, mode:, distance_km:)
+      raise Nldi::Client::Error, "forced failure" if @fail_usgs_ids.include?(usgs_id)
+
       record_http!("sites/#{mode}")
       value = @sites.fetch(mode)
       raise "unexpected NLDI sites call" if value == :should_not_run
