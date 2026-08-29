@@ -14,6 +14,13 @@ class Alerts::PriorLookupTest < ActiveSupport::TestCase
 
   test "returns most recent continuous value at or before cutoff" do
     prior = Alerts::PriorLookup.value_for(@series, hours: 3, at: @now)
+    # cutoff = now - 3h; points at 6h-ago and 2h-ago → only 6h-ago qualifies
+    assert_in_delta 8.0, prior.to_f, 0.001
+  end
+
+  test "prefers nearer prior inside a longer window" do
+    prior = Alerts::PriorLookup.value_for(@series, hours: 1, at: @now)
+    # cutoff = now - 1h; both 6h-ago and 2h-ago qualify → pick nearer (2h)
     assert_in_delta 9.5, prior.to_f, 0.001
   end
 

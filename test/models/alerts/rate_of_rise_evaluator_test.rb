@@ -17,7 +17,7 @@ class Alerts::RateOfRiseEvaluatorTest < ActiveSupport::TestCase
     ContinuousObservation.create!(time_series: @series, observed_at: 3.hours.before(@now), value: 10.0)
     ContinuousObservation.create!(time_series: @series, observed_at: @now, value: 12.0)
 
-    @watch = create(:station_watch, subscriber: create(:subscriber), monitoring_location: @location)
+    @watch = create(:station_watch, subscriber: create(:subscriber, :verified), monitoring_location: @location)
     @rule = create(
       :alert_rule,
       station_watch: @watch,

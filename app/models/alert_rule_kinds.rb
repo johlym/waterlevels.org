@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class AlertRuleKinds
+module AlertRuleKinds
   V1 = %w[flood_category_change threshold digest].freeze
   PHASE_F = %w[rate_of_rise in_range quiet_station approaching_stage].freeze
   ALL = (V1 + PHASE_F).freeze

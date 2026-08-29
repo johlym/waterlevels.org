@@ -5,7 +5,7 @@ require "test_helper"
 class Alerts::FloodEvaluatorTest < ActiveSupport::TestCase
   setup do
     @location = create(:monitoring_location)
-    @subscriber = create(:subscriber)
+    @subscriber = create(:subscriber, :verified)
     @watch = create(:station_watch, subscriber: @subscriber, monitoring_location: @location)
     @rule = create(
       :alert_rule,

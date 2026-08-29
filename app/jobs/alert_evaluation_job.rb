@@ -58,8 +58,8 @@ class AlertEvaluationJob < ApplicationJob
       next if already_queued?(watch.subscriber, event, rule)
       next unless Alerts::ThresholdEvaluator.new(rule: rule, location: location).should_fire?
 
-      enqueue_delivery!(watch.subscriber, event, rule, "threshold")
-      rule.mark_fired!
+        enqueue_delivery!(watch.subscriber, event, rule, "threshold_crossed")
+        rule.mark_fired!
     end
 
     watch.alert_rules.enabled.of_kind("rate_of_rise").find_each do |rule|

@@ -9,7 +9,7 @@ class AlertEvaluationJobTest < ActiveSupport::TestCase
     @previous_alerts = ENV["ALERTS_ENABLED"]
     ENV["ALERTS_ENABLED"] = "1"
     @location = create(:monitoring_location, flood_category: "minor")
-    @subscriber = create(:subscriber)
+    @subscriber = create(:subscriber, :verified)
     @watch = create(:station_watch, subscriber: @subscriber, monitoring_location: @location)
     @event = create(
       :alert_event,

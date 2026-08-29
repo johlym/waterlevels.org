@@ -13,7 +13,7 @@ class Alerts::ThresholdEvaluatorTest < ActiveSupport::TestCase
       unit_of_measure: "ft",
       synced_at: Time.current
     )
-    @subscriber = create(:subscriber)
+    @subscriber = create(:subscriber, :verified)
     @watch = create(:station_watch, subscriber: @subscriber, monitoring_location: @location)
     @rule = create(
       :alert_rule,

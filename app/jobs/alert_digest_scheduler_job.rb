@@ -14,7 +14,7 @@ class AlertDigestSchedulerJob < ApplicationJob
 
       delivery = AlertDelivery.create!(
         subscriber: subscriber,
-        mailer_action: "digest",
+        mailer_action: "daily_digest",
         status: "queued",
         metadata: { "snapshot" => snapshot }
       )

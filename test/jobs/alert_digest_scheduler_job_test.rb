@@ -16,6 +16,7 @@ class AlertDigestSchedulerJobTest < ActiveSupport::TestCase
     )
     @subscriber = create(
       :subscriber,
+      :verified,
       time_zone: "America/New_York",
       digest_hour: 7,
       digest_minute: 0,
@@ -40,7 +41,7 @@ class AlertDigestSchedulerJobTest < ActiveSupport::TestCase
     end
 
     delivery = AlertDelivery.last
-    assert_equal "digest", delivery.mailer_action
+    assert_equal "daily_digest", delivery.mailer_action
     assert delivery.metadata["snapshot"].present?
     assert_equal Time.find_zone("America/New_York").local(2026, 8, 29).to_date,
                  @subscriber.reload.digest_last_sent_on

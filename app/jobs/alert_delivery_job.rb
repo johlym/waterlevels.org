@@ -17,7 +17,7 @@ class AlertDeliveryJob < ApplicationJob
     end
 
     # Digests ignore quiet hours; immediate alerts are suppressed.
-    if delivery.mailer_action != "digest" && subscriber.in_quiet_hours?
+    if delivery.mailer_action != "daily_digest" && subscriber.in_quiet_hours?
       delivery.update!(status: "skipped", metadata: delivery.metadata.merge("reason" => "quiet_hours"))
       return
     end
@@ -35,24 +35,53 @@ class AlertDeliveryJob < ApplicationJob
   private
 
   def send_mail!(delivery, subscriber)
-    mailer = AlertMailer.with(
+    event = delivery.alert_event
+    rule = delivery.alert_rule
+    watch = rule&.station_watch
+    location = event&.monitoring_location || watch&.monitoring_location
+    manage_token = subscriber.manage_token!
+    unsubscribe_token = subscriber.issue_token!(purpose: "unsubscribe", expires_at: 2.years.from_now)
+
+    base = {
       subscriber: subscriber,
+      station_watch: watch,
+      location: location,
+      manage_token: manage_token,
+      unsubscribe_token: unsubscribe_token,
       alert_delivery: delivery,
-      alert_event: delivery.alert_event,
-      alert_rule: delivery.alert_rule
-    )
+      alert_event: event,
+      alert_rule: rule
+    }
 
     case delivery.mailer_action
     when "flood_category_change"
-      mailer.flood_category_change.deliver_now
-    when "threshold"
-      mailer.threshold.deliver_now
+      payload = event&.payload || {}
+      AlertMailer.with(
+        **base,
+        from_category: payload["from"],
+        to_category: payload["to"],
+        observed_at: payload["observed_at"]
+      ).flood_category_change.deliver_now
+    when "threshold", "threshold_crossed"
+      payload = event&.payload || {}
+      AlertMailer.with(
+        **base,
+        parameter: payload["parameter"] || rule&.param("parameter"),
+        value: payload["to"],
+        op: rule&.param("op"),
+        threshold: rule&.param("value"),
+        unit: payload["unit"],
+        observed_at: payload["observed_at"]
+      ).threshold_crossed.deliver_now
     when "rate_of_rise"
-      mailer.rate_of_rise.deliver_now
+      AlertMailer.with(**base).rate_of_rise.deliver_now
     when "in_range"
-      mailer.in_range.deliver_now
-    when "digest"
-      mailer.digest.deliver_now
+      AlertMailer.with(**base).in_range.deliver_now
+    when "digest", "daily_digest"
+      snapshots = delivery.metadata.dig("snapshot", "stations") ||
+        delivery.metadata.dig("snapshot", :stations) ||
+        []
+      AlertMailer.with(**base, snapshots: snapshots).daily_digest.deliver_now
     else
       raise ArgumentError, "unknown mailer_action=#{delivery.mailer_action}"
     end

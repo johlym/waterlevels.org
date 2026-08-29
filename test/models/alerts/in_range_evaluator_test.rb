@@ -19,7 +19,7 @@ class Alerts::InRangeEvaluatorTest < ActiveSupport::TestCase
       unit_of_measure: "ft3/s",
       synced_at: Time.current
     )
-    @watch = create(:station_watch, subscriber: create(:subscriber), monitoring_location: @location)
+    @watch = create(:station_watch, subscriber: create(:subscriber, :verified), monitoring_location: @location)
     @rule = create(
       :alert_rule,
       station_watch: @watch,

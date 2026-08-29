@@ -19,7 +19,7 @@ class Alerts::DigestBuilderTest < ActiveSupport::TestCase
       observed_at: 24.hours.before(@location.latest_observed_at),
       value: 10.0
     )
-    @subscriber = create(:subscriber)
+    @subscriber = create(:subscriber, :verified)
     @watch = create(:station_watch, subscriber: @subscriber, monitoring_location: @location, label: "Home gauge")
   end
 
