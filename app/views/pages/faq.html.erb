@@ -21,7 +21,7 @@
         <span class="accent">questions</span>
       </h1>
       <p class="lede">
-        What WaterLevels.org is, where USGS readings and NWS flood data come from, how often they update, and what common hydrology terms mean on the map, alerts list, and station pages.
+        What WaterLevels.org is, where USGS readings and NWS flood data come from, how often they update, and what common hydrology terms mean on the map, flood alerts list, and station pages.
       </p>
     </div>
   </section>
@@ -100,13 +100,13 @@
             <%= render "pages/faq_item", question: "What is WaterLevels.org?", id: "what-is" do %>
               <p>
                 WaterLevels.org is an independent site that maps USGS water-monitoring locations and presents streamflow, water level (gage height), and water temperature in a browsable map, state directories, and station detail pages. When a National Weather Service forecast point is linked to a gauge, we also show flood categories and stage thresholds—including on the
-                <%= link_to "alerts list", alerts_path %>.
+                <%= link_to "flood alerts list", alerts_path %>.
               </p>
             <% end %>
 
             <%= render "pages/faq_item", question: "Is WaterLevels.org free?", id: "is-free" do %>
               <p>
-                Yes. The map, state listings, alerts list, station pages, charts, and CSV exports on gauge pages are free to use. Optional email alerts for stations you watch are also free. There are no paid tiers.
+                Yes. The map, state listings, flood alerts list, station pages, charts, and CSV exports on gauge pages are free to use. Optional email alerts for stations you watch are also free. There are no paid tiers.
               </p>
             <% end %>
 
@@ -240,11 +240,11 @@
               </p>
             <% end %>
 
-            <%= render "pages/faq_item", question: "What is the alerts list?", id: "alerts-list" do %>
+            <%= render "pages/faq_item", question: "What is the flood alerts list?", id: "alerts-list" do %>
               <p>
                 The
-                <%= link_to "alerts page", alerts_path %>
-                lists USGS stations that currently have an NWS flood category of action stage or higher, grouped by state. It uses the same NWPS categories and stage thresholds shown on the map and station pages, with filters for flood stage and measurement type.
+                <%= link_to "Flood Alerts page", alerts_path %>
+                lists USGS stations that currently have an NWS flood category of action stage or higher, grouped by state. It uses the same NWPS categories and stage thresholds shown on the map and station pages, with filters for flood stage and measurement type. It is a public national list — separate from optional email alerts you can request for stations you watch.
               </p>
             <% end %>
 

@@ -19,10 +19,10 @@
     <div class="subscriptions-manage">
       <div class="manage-status">
         <% if @subscriber.paused? %>
-          <p class="aside">Alerts are <span class="emphasis">paused</span>.</p>
+          <p class="aside">Email alerts are <span class="emphasis">paused</span>.</p>
           <%= button_to "Resume alerts", subscriptions_manage_unpause_path(token: @manage_token), method: :post, class: "btn-secondary" %>
         <% else %>
-          <p class="aside">Alerts are active<%= " (pending email confirmation)" unless @subscriber.verified? %>.</p>
+          <p class="aside">Email alerts are active<%= " (pending email confirmation)" unless @subscriber.verified? %>.</p>
           <%= button_to "Pause all alerts", subscriptions_manage_pause_path(token: @manage_token), method: :post, class: "btn-secondary" %>
         <% end %>
       </div>

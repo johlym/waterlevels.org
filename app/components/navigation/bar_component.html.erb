@@ -11,7 +11,7 @@
 
     <nav class="desktop-nav" aria-label="Primary">
       <%= link_to "Map", map_path, class: "nav-link", **nav_link_attrs(map_path) %>
-      <%= link_to "Alerts", alerts_path, class: "nav-link", **nav_link_attrs(alerts_path) %>
+      <%= link_to "Flood Alerts", alerts_path, class: "nav-link", **nav_link_attrs(alerts_path) %>
       <%= link_to "About", about_path, class: "nav-link", **nav_link_attrs(about_path) %>
       <%= link_to "FAQ", faq_path, class: "nav-link", **nav_link_attrs(faq_path) %>
       <%= link_to "Contact", contact_path, class: "nav-link", **nav_link_attrs(contact_path) %>
@@ -54,7 +54,7 @@
   <div class="mobile-panel" id="mobile-primary-nav" data-mobile-nav-target="panel">
     <nav aria-label="Mobile primary">
       <%= link_to "Map", map_path, class: "nav-link", data: { action: "mobile-nav#close" }, **nav_link_attrs(map_path) %>
-      <%= link_to "Alerts", alerts_path, class: "nav-link", data: { action: "mobile-nav#close" }, **nav_link_attrs(alerts_path) %>
+      <%= link_to "Flood Alerts", alerts_path, class: "nav-link", data: { action: "mobile-nav#close" }, **nav_link_attrs(alerts_path) %>
       <%= link_to "About", about_path, class: "nav-link", data: { action: "mobile-nav#close" }, **nav_link_attrs(about_path) %>
       <%= link_to "FAQ", faq_path, class: "nav-link", data: { action: "mobile-nav#close" }, **nav_link_attrs(faq_path) %>
       <%= link_to "Contact", contact_path, class: "nav-link", data: { action: "mobile-nav#close" }, **nav_link_attrs(contact_path) %>

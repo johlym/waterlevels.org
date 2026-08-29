@@ -16,14 +16,14 @@
           <span class="dot" aria-hidden="true"></span>
           National Flood Alerts
         </span>
-        <h1>Stations With Active Alerts</h1>
+        <h1>Stations with active flood alerts</h1>
         <p>
-          Monitoring locations currently at NWS action stage or above, grouped by state with streamflow, stage height, and temperature metrics.
+          Monitoring locations currently at NWS action stage or above, grouped by state with streamflow, stage height, and temperature metrics. This list is not the same as optional email alerts you can set for a station.
         </p>
       </div>
       <div class="stats">
         <div class="stat">
-          <div class="label">Alert Stations</div>
+          <div class="label">Flood alert stations</div>
           <div class="value<%= " alert" if total_count.to_i.positive? %>"><%= number_with_delimiter(total_count) %></div>
         </div>
         <div class="divider" aria-hidden="true"></div>

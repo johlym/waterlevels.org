@@ -31,7 +31,7 @@
           (OGC API–Features services operated by the USGS). Site identity, coordinates, and official station pages are likewise USGS products.
         </p>
         <p>
-          Flood categories (action, minor, moderate, major) and stage thresholds, when shown on the map, alerts list, and station pages, come from the National Weather Service
+          Flood categories (action, minor, moderate, major) and stage thresholds, when shown on the map, Flood Alerts list, and station pages, come from the National Weather Service
           <a href="https://water.noaa.gov/" rel="noopener noreferrer" target="_blank">National Water Prediction Service (NWPS)</a>
           via the
           <a href="https://api.water.noaa.gov/nwps/v1/docs/" rel="noopener noreferrer" target="_blank">NWPS API</a>.
@@ -70,7 +70,7 @@
           <li>Discovers active sites from USGS <code>latest-continuous</code> feeds for the parameter codes above.</li>
           <li>Stores monitoring-location metadata (name, site number, coordinates, state/county when provided) and selected time-series metadata.</li>
           <li>Caches the latest observation for map popups and station “current conditions.”</li>
-          <li>Syncs NWPS flood categories and stage thresholds for matched gauges and surfaces them on the map, alerts list, and station pages.</li>
+          <li>Syncs NWPS flood categories and stage thresholds for matched gauges and surfaces them on the map, Flood Alerts list, and station pages.</li>
           <li>Backfills short continuous history (and related daily/peak series where available) so station graphs and tables can render without calling USGS on every page view.</li>
           <li>Serves highly cached HTML and JSON responses so the site stays fast; cached pages can lag behind the live USGS and NWPS feeds by design.</li>
         </ul>
