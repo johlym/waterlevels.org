@@ -1,7 +1,9 @@
 import { Controller } from "@hotwired/stimulus"
 import L from "leaflet"
 import "leaflet.markercluster"
+import maplibreGL from "@maplibre/maplibre-gl-leaflet"
 import { firstPartyApiFetch } from "../lib/api"
+import { CARTO_ATTRIBUTION, cartoStyleUrl, cartoTransformRequest } from "../lib/carto_basemap"
 import { geolocationErrorMessage } from "../lib/geolocation_errors"
 import { formatGaugeValue } from "../lib/gauge_value"
 import {
@@ -40,7 +42,8 @@ export default class extends Controller {
     searchUrl: String,
     privacyUrl: String,
     termsUrl: String,
-    year: Number
+    year: Number,
+    cartoApiKey: String
   }
 
   static DEFAULT_VIEW = { lat: 39.5, lon: -98.35, zoom: 5 }
@@ -61,7 +64,12 @@ export default class extends Controller {
     }
 
     const initial = this.initialView()
-    this.map = L.map(this.canvasTarget, { zoomControl: false, attributionControl: false }).setView(initial.center, initial.zoom)
+    this.map = L.map(this.canvasTarget, {
+      zoomControl: false,
+      attributionControl: false,
+      maxBounds: [[-85.05112878, -180], [85.05112878, 180]],
+      maxBoundsViscosity: 1
+    }).setView(initial.center, initial.zoom)
     this.canvasTarget.setAttribute("role", "img")
     this.canvasTarget.setAttribute(
       "aria-label",
@@ -71,8 +79,11 @@ export default class extends Controller {
       position: "bottomleft",
       prefix: this.attributionPrefix()
     }).addTo(this.map)
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    this.map.attributionControl.addAttribution(CARTO_ATTRIBUTION)
+    maplibreGL({
+      style: cartoStyleUrl(this.cartoApiKeyValue),
+      transformRequest: cartoTransformRequest(this.cartoApiKeyValue),
+      attributionControl: false,
       maxZoom: this.constructor.MAX_ZOOM
     }).addTo(this.map)
 

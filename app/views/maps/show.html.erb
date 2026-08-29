@@ -10,6 +10,7 @@
   data-map-privacy-url-value="<%= privacy_path %>"
   data-map-terms-url-value="<%= terms_path %>"
   data-map-year-value="<%= Time.current.year %>"
+  data-map-carto-api-key-value="<%= ENV.fetch("CARTO_API_KEY", "") %>"
 >
   <%= render Navigation::BarComponent.new(map_controls: true) %>
 
