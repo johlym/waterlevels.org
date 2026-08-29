@@ -5,7 +5,8 @@
   site = node[:site_number] || node["site_number"]
   name = node[:name] || node["name"]
   readings = Array(node[:measurements] || node["measurements"])
-  reading = readings.find { |r| (r[:value] || r["value"]).present? }
+  reading = readings.find { |r| (r[:kind] || r["kind"]) == "discharge" && (r[:value] || r["value"]).present? } ||
+            readings.find { |r| (r[:value] || r["value"]).present? }
   classes = [ "network-node" ]
   classes << "current" if current
   classes << "offline" if stale && !current
