@@ -1146,10 +1146,6 @@ body.dialog-open {
     }
   }
 
-  .title-row {
-    @apply flex flex-wrap items-start justify-between gap-4;
-  }
-
   .identity {
     @apply flex items-start gap-4;
 
@@ -1172,14 +1168,22 @@ body.dialog-open {
     .meta {
       @apply mt-1 text-pretty text-base text-zinc-400 sm:text-sm;
     }
+  }
+}
 
-    .gauge-cta {
-      @apply mt-3;
+.gauge-split {
+  @apply mt-6;
+}
 
-      .toolbar-btn {
-        @apply no-underline;
-      }
-    }
+.gauge-split--pair {
+  @apply grid grid-cols-1 items-start gap-4 lg:grid-cols-2;
+
+  .gauge-alert-card {
+    @apply mt-0 min-w-0;
+  }
+
+  .station-meta {
+    @apply min-w-0;
   }
 }
 
@@ -3008,7 +3012,7 @@ td.status .status-pill {
   }
 
   .gauge-alert-row {
-    @apply flex flex-col gap-3 sm:flex-row sm:items-end;
+    @apply flex flex-col flex-wrap gap-3 sm:flex-row sm:items-end;
 
     .field {
       @apply min-w-0 flex-1;
