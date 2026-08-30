@@ -1,148 +1,48 @@
-<% content_for :title, "Email alerts | WaterLevels.org" %>
-<% content_for :meta_description, "Optional email alerts for USGS gauges you watch on WaterLevels.org. Confirm by email, manage preferences, and unsubscribe anytime." %>
+<% content_for :title, "Manage email subscriptions | WaterLevels.org" %>
+<% content_for :meta_description, "Request a private link to manage WaterLevels.org email alert preferences or unsubscribe." %>
 <% site_key = ENV.fetch("TURNSTILE_SITE_KEY", Contact::FormComponent::SITE_KEY) %>
 <% turnstile_required = ENV["TURNSTILE_SECRET"].present? %>
 
 <div class="app-shell">
   <%= render Navigation::BarComponent.new %>
 
-  <main id="main">
-    <section class="contact-hero subscriptions-hero">
-      <div class="glow" aria-hidden="true"></div>
-      <div class="inner">
-        <div class="intro">
-          <div>
-            <div class="eyebrow">
-              <span class="pulse" aria-hidden="true">
-                <span class="ring"></span>
-                <span class="core"></span>
-              </span>
-              Optional email alerts
-            </div>
-            <h1>
-              Watch a gauge by
-              <span class="accent">email</span>
-            </h1>
-            <p class="lede">
-              Get flood-category changes, optional thresholds, and a daily digest for stations you choose.
-              Browse the map without an account — alerts are optional and free.
-            </p>
-          </div>
-          <div class="meta">
-            <div class="meta-row">
-              <div class="icon" aria-hidden="true">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z"></path>
-                </svg>
-              </div>
-              <div>
-                <p class="label">Not official warnings</p>
-                <p class="value">
-                  Alert emails are informational. For NWS watches and warnings, use
-                  <a href="https://water.noaa.gov/" rel="noopener noreferrer" target="_blank">water.noaa.gov</a>.
-                </p>
-              </div>
-            </div>
-          </div>
+  <main id="main" class="page-main narrow">
+    <div class="subscriptions-box">
+      <% if flash[:notice].present? %>
+        <div class="flash notice" role="status"><%= flash[:notice] %></div>
+      <% end %>
+      <% if flash[:alert].present? %>
+        <div class="flash alert" role="alert"><%= flash[:alert] %></div>
+      <% end %>
+
+      <h1 class="subscriptions-form-title">Manage Your Email Subscriptions</h1>
+      <p class="aside subscriptions-lead">
+        Already subscribed? Enter your email and we’ll send a private link to update preferences or unsubscribe.
+        To watch a new station, open its gauge page and use <span class="emphasis">Get email alerts</span>.
+      </p>
+
+      <%= form_with url: subscriptions_path, method: :post, class: "contact-form", data: { turbo: false }, html: { id: "subscription-manage-link-form" } do %>
+        <%= invisible_captcha :subtitle %>
+        <%= hidden_field_tag :intent, "manage_link" %>
+
+        <div class="field">
+          <label for="manage-link-email">Email address</label>
+          <%= email_field_tag :email, @email, id: "manage-link-email", required: true, autocomplete: "email", placeholder: "you@example.com" %>
         </div>
 
-        <div class="form-panel">
-          <div class="card">
-            <% if flash[:notice].present? %>
-              <div class="flash notice" role="status"><%= flash[:notice] %></div>
-            <% end %>
-            <% if flash[:alert].present? %>
-              <div class="flash alert" role="alert"><%= flash[:alert] %></div>
-            <% end %>
+        <% if turnstile_required %>
+          <div
+            class="cf-turnstile turnstile"
+            data-sitekey="<%= site_key %>"
+            data-theme="dark"
+            data-action="subscription-manage-link"
+            aria-label="Bot check"
+          ></div>
+        <% end %>
 
-            <% if @monitoring_location %>
-              <h2 class="subscriptions-form-title">Get alerts for this station</h2>
-              <p class="aside subscriptions-station">
-                <%= @monitoring_location.display_name %>
-                <span class="muted">· Site <%= @monitoring_location.site_number %></span>
-              </p>
-
-              <%= form_with url: subscriptions_path, method: :post, class: "contact-form", data: { turbo: false }, html: { id: "subscription-signup-form" } do %>
-                <%= invisible_captcha :subtitle %>
-                <%= hidden_field_tag :monitoring_location_id, @monitoring_location.id %>
-
-                <div class="field">
-                  <label for="subscription-email">Email address</label>
-                  <%= email_field_tag :email, @email, id: "subscription-email", required: true, autocomplete: "email", placeholder: "you@example.com" %>
-                </div>
-
-                <div
-                  class="field"
-                  data-controller="subscription-timezone"
-                >
-                  <label>Time zone <span class="muted">(for digest timing)</span></label>
-                  <p class="aside">
-                    Detected: <span data-subscription-timezone-target="label">America/New_York</span>
-                    <button type="button" class="text-link" data-subscription-timezone-target="changeButton" data-action="subscription-timezone#showSelect">Change</button>
-                  </p>
-                  <%= hidden_field_tag :time_zone, @time_zone, data: { subscription_timezone_target: "hidden" } %>
-                  <%= select_tag :time_zone_select,
-                        options_for_select(SubscriberTimeZones.options_for_select(extra_iana: @time_zone), @time_zone),
-                        id: "subscription-time-zone-select",
-                        hidden: true,
-                        data: {
-                          subscription_timezone_target: "select",
-                          action: "change->subscription-timezone#selectChanged"
-                        } %>
-                </div>
-
-                <div class="field checkbox-field">
-                  <label class="checkbox-label">
-                    <%= check_box_tag :digest_enabled, "1", @digest_enabled, id: "subscription-digest" %>
-                    Include this station in my daily digest
-                  </label>
-                </div>
-
-                <% if turnstile_required %>
-                  <div
-                    class="cf-turnstile turnstile"
-                    data-sitekey="<%= site_key %>"
-                    data-theme="dark"
-                    data-action="subscription-signup"
-                    aria-label="Bot check"
-                  ></div>
-                <% end %>
-
-                <%= submit_tag "Subscribe", class: "submit" %>
-              <% end %>
-            <% else %>
-              <h2 class="subscriptions-form-title">Request your manage link</h2>
-              <p class="aside">
-                Already subscribed? Enter your email and we’ll send a private link to update preferences or unsubscribe.
-                To watch a new station, open its gauge page and use <span class="emphasis">Get email alerts</span>.
-              </p>
-
-              <%= form_with url: subscriptions_path, method: :post, class: "contact-form", data: { turbo: false }, html: { id: "subscription-manage-link-form" } do %>
-                <%= invisible_captcha :subtitle %>
-                <%= hidden_field_tag :intent, "manage_link" %>
-
-                <div class="field">
-                  <label for="manage-link-email">Email address</label>
-                  <%= email_field_tag :email, @email, id: "manage-link-email", required: true, autocomplete: "email", placeholder: "you@example.com" %>
-                </div>
-
-                <% if turnstile_required %>
-                  <div
-                    class="cf-turnstile turnstile"
-                    data-sitekey="<%= site_key %>"
-                    data-theme="dark"
-                    data-action="subscription-manage-link"
-                    aria-label="Bot check"
-                  ></div>
-                <% end %>
-
-                <%= submit_tag "Email me a manage link", class: "submit" %>
-              <% end %>
-            <% end %>
-          </div>
-        </div>
-      </div>
-    </section>
+        <%= submit_tag "Email me a manage link", class: "submit" %>
+      <% end %>
+    </div>
   </main>
 
   <%= render Footer::ThinComponent.new %>

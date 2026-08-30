@@ -2920,6 +2920,26 @@ td.status .status-pill {
   @apply mb-2 font-display text-xl font-semibold text-white;
 }
 
+.subscriptions-lead {
+  @apply mb-6 mt-0 text-pretty text-base text-zinc-400;
+}
+
+.subscriptions-box {
+  @apply w-full rounded-2xl border border-zinc-800 bg-zinc-900/40 p-8 backdrop-blur-xl md:p-10;
+
+  .flash {
+    @apply mb-6;
+  }
+
+  .subscriptions-form-title {
+    @apply font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl;
+  }
+
+  .emphasis {
+    @apply font-medium text-zinc-200;
+  }
+}
+
 .subscriptions-station {
   @apply mb-6;
 }
@@ -2999,6 +3019,10 @@ td.status .status-pill {
     p {
       @apply mt-1 text-sm text-zinc-400;
     }
+  }
+
+  .flash {
+    @apply mt-4;
   }
 
   .gauge-alert-form {

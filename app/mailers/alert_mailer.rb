@@ -13,7 +13,20 @@ class AlertMailer < ApplicationMailer
     mail(to: @subscriber.email, subject: "Confirm your WaterLevels.org email alerts")
   end
 
-  # “Here’s your manage link” after verified signup or manage-link request.
+  # Station signup receipt: confirm (when needed), undo this watch, plus manage.
+  def subscription_confirmation
+    @verify_url = subscriptions_verify_url(token: params[:token]) if params[:token].present?
+    @station_name = @location&.display_name.presence || "this station"
+    @station_url = gauge_url_for(@location)
+    subject = if @verify_url
+      "Confirm your subscription to #{@station_name}"
+    else
+      "You’re subscribed to #{@station_name}"
+    end
+    mail(to: @subscriber.email, subject: subject)
+  end
+
+  # “Here’s your manage link” after email verification or manage-link request.
   def manage_link
     @manage_url = subscriptions_manage_url(token: params[:token])
     mail(to: @subscriber.email, subject: "Your WaterLevels.org alert preferences")

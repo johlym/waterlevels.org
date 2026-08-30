@@ -26,10 +26,7 @@ class SubscriptionsController < ApplicationController
   skip_forgery_protection only: :create
 
   def new
-    @monitoring_location = find_optional_location
     @email = params[:email].to_s
-    @time_zone = SubscriberTimeZones.normalize(params[:time_zone])
-    @digest_enabled = params[:digest_enabled] != "0"
   end
 
   def create
@@ -74,16 +71,14 @@ class SubscriptionsController < ApplicationController
   end
 
   def signup_watch
-    unless turnstile_ok?
-      @monitoring_location = find_optional_location
-      flash.now[:alert] = "Please complete the bot check and try again."
+    location = MonitoringLocation.find_by(id: params[:monitoring_location_id])
+    if location.nil?
+      flash.now[:alert] = "Open a station page to subscribe. This page is only for managing existing alerts."
       return render :new, status: :unprocessable_content
     end
 
-    location = MonitoringLocation.find_by(id: params[:monitoring_location_id])
-    if location.nil?
-      flash.now[:alert] = "Choose a monitoring station to watch."
-      return render :new, status: :unprocessable_content
+    unless turnstile_ok?
+      return redirect_to_gauge_signup(location, signup: "bot")
     end
 
     email = params[:email].to_s.strip.downcase
@@ -102,41 +97,23 @@ class SubscriptionsController < ApplicationController
     end
 
     unless subscriber.save
-      @monitoring_location = location
-      flash.now[:alert] = subscriber.errors.full_messages.to_sentence.presence || "Could not save subscription."
-      return render :new, status: :unprocessable_content
+      return redirect_to_gauge_signup(location, signup: "invalid")
     end
 
     watch = subscriber.station_watches.find_by(monitoring_location: location)
     if watch.nil?
       max_watches = ENV.fetch("ALERTS_MAX_WATCHES", "25").to_i
       if max_watches.positive? && subscriber.station_watches.count >= max_watches
-        @monitoring_location = location
-        flash.now[:alert] = "This address already watches the maximum of #{max_watches} stations. Remove one from your manage link first."
-        return render :new, status: :unprocessable_content
+        return redirect_to_gauge_signup(location, signup: "max")
       end
       watch = subscriber.station_watches.create!(monitoring_location: location)
     end
     watch.ensure_default_rules!
 
-    if subscriber.verified?
-      raw = subscriber.manage_token!
-      AlertMailer.with(
-        subscriber: subscriber,
-        token: raw,
-        manage_token: raw,
-        station_watch: watch,
-        location: location
-      ).manage_link.deliver_later
-      redirect_to subscriptions_path(monitoring_location_id: location.id),
-                  notice: "You’re subscribed. Check your email for a link to manage alerts."
-    else
-      raw = subscriber.issue_token!(purpose: "verify", expires_at: 48.hours.from_now)
-      AlertMailer.with(subscriber: subscriber, token: raw, station_watch: watch, location: location)
-        .verify_email.deliver_later
-      redirect_to subscriptions_path(monitoring_location_id: location.id),
-                  notice: "Check your email to confirm your address and finish setup."
-    end
+    deliver_subscription_confirmation!(subscriber, watch, location)
+
+    signup_key = subscriber.verified? ? "subscribed" : "sent"
+    redirect_to_gauge_signup(location, signup: signup_key)
   end
 
   def find_optional_location
@@ -144,6 +121,29 @@ class SubscriptionsController < ApplicationController
     return if id.blank?
 
     MonitoringLocation.find_by(id: id)
+  end
+
+  def redirect_to_gauge_signup(location, signup:)
+    redirect_to gauge_path(
+      state: location.path_state,
+      site_number_slug: location.to_param,
+      signup: signup
+    )
+  end
+
+  def deliver_subscription_confirmation!(subscriber, watch, location)
+    manage = subscriber.manage_token!
+    unsub = subscriber.issue_token!(purpose: "unsubscribe", expires_at: 30.days.from_now)
+    verify = subscriber.verified? ? nil : subscriber.issue_token!(purpose: "verify", expires_at: 48.hours.from_now)
+
+    AlertMailer.with(
+      subscriber: subscriber,
+      token: verify,
+      manage_token: manage,
+      unsubscribe_token: unsub,
+      station_watch: watch,
+      location: location
+    ).subscription_confirmation.deliver_later
   end
 
   def turnstile_ok?
@@ -156,7 +156,12 @@ class SubscriptionsController < ApplicationController
   end
 
   def spam_detected
-    redirect_to subscriptions_path, notice: "Thanks — check your email if a confirmation is needed."
+    location = find_optional_location
+    if location
+      redirect_to_gauge_signup(location, signup: "sent")
+    else
+      redirect_to subscriptions_path, notice: "If that address is subscribed, a manage link is on its way."
+    end
   end
 
   # The gem has no per-action spinner flag. Session spinner values from the

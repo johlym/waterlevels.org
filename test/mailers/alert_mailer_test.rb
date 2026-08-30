@@ -25,6 +25,48 @@ class AlertMailerTest < ActionMailer::TestCase
     assert_match(/informational only/i, email.html_part.body.to_s)
   end
 
+  test "subscription_confirmation for unverified signup includes confirm, undo, and manage" do
+    raw_verify = @subscriber.issue_token!(purpose: "verify", expires_at: 48.hours.from_now)
+    email = AlertMailer.with(
+      subscriber: @subscriber,
+      token: raw_verify,
+      manage_token: @manage,
+      unsubscribe_token: @unsub,
+      station_watch: @watch,
+      location: @location
+    ).subscription_confirmation
+
+    assert_emails 1 do
+      email.deliver_now
+    end
+
+    html = email.html_part.body.to_s
+    assert_match(/Confirm your subscription/, email.subject)
+    assert_match(/Cedar River/, email.subject)
+    assert_match(%r{/subscriptions/verify/}, html)
+    assert_match(/Undo this subscription/i, html)
+    assert_match(%r{/subscriptions/unsubscribe/}, html)
+    assert_match(/manage all of your alerts/i, html)
+    assert_match(%r{/subscriptions/manage/}, html)
+    assert_match(%r{/gauges/}, html)
+  end
+
+  test "subscription_confirmation for verified signup highlights undo not manage-only" do
+    email = AlertMailer.with(
+      subscriber: @subscriber,
+      manage_token: @manage,
+      unsubscribe_token: @unsub,
+      station_watch: @watch,
+      location: @location
+    ).subscription_confirmation
+
+    html = email.html_part.body.to_s
+    assert_match(/You’re subscribed/, email.subject)
+    assert_no_match(%r{/subscriptions/verify/}, html)
+    assert_match(/Undo this subscription/i, html)
+    assert_match(/manage all of your alerts/i, html)
+  end
+
   test "manage_link" do
     email = AlertMailer.with(
       subscriber: @subscriber,

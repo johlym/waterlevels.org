@@ -25,7 +25,13 @@ class GaugesController < ApplicationController
       "app.iv_repair_enqueued" => iv_repair_enqueued,
       "app.iv_scar_enqueued" => iv_scar_enqueued
     )
-    cache_public!(tags: [ "gauge:#{@location.site_number}" ])
+    @signup_notice = GaugeSignupFeedback.notice_for(params[:signup])
+    @signup_alert = GaugeSignupFeedback.alert_for(params[:signup])
+    if @signup_notice.present? || @signup_alert.present?
+      cache_private!
+    else
+      cache_public!(tags: [ "gauge:#{@location.site_number}" ])
+    end
   end
 
   private
@@ -47,6 +53,13 @@ class GaugesController < ApplicationController
     expected = "/gauges/#{location.path_state}/#{location.to_param}"
     return if request.path == expected
 
-    redirect_to expected, status: :moved_permanently
+    redirect_to(
+      gauge_path(
+        state: location.path_state,
+        site_number_slug: location.to_param,
+        signup: GaugeSignupFeedback.normalize(params[:signup])
+      ),
+      status: :moved_permanently
+    )
   end
 end

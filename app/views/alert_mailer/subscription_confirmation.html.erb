@@ -1,0 +1,32 @@
+<p>Hi,</p>
+<p>
+  You signed up for WaterLevels.org email alerts for
+  <% if @station_url.present? && @location.present? %>
+    <a href="<%= @station_url %>"><%= @station_name %></a>.
+  <% else %>
+    <%= @station_name %>.
+  <% end %>
+</p>
+<% if @verify_url.present? %>
+  <p>Confirm your email to start receiving them:</p>
+  <p>
+    <a href="<%= @verify_url %>">Confirm this subscription</a>
+  </p>
+  <p style="font-size:13px;color:#71717a;">
+    This confirmation link expires in 48 hours.
+  </p>
+<% else %>
+  <p>You’re all set. We’ll email you when this station meets your alert rules.</p>
+<% end %>
+<% if @unsubscribe_watch_url.present? %>
+  <p>
+    Didn’t mean to subscribe?
+    <a href="<%= @unsubscribe_watch_url %>">Undo this subscription</a>
+  </p>
+<% end %>
+<% if @manage_url.present? %>
+  <p style="font-size:13px;color:#71717a;">
+    You can also <a href="<%= @manage_url %>">manage all of your alerts</a>.
+  </p>
+<% end %>
+<%= render "footer" %>

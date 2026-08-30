@@ -108,6 +108,24 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "signup query shows confirmation flash and skips public cache" do
+    previous = ENV["ALERTS_ENABLED"]
+    ENV["ALERTS_ENABLED"] = "1"
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}", params: { signup: "sent" }
+    assert_response :success
+    assert_includes response.body, "Check your email to confirm this subscription"
+    assert_includes response.body, "link to undo"
+    assert_includes response.headers["Cache-Control"], "no-store"
+    assert_nil response.headers["Cloudflare-CDN-Cache-Control"]
+  ensure
+    if previous.nil?
+      ENV.delete("ALERTS_ENABLED")
+    else
+      ENV["ALERTS_ENABLED"] = previous
+    end
+  end
+
   test "alert signup does not write a session cookie when captcha checks are on" do
     previous = ENV["ALERTS_ENABLED"]
     previous_timestamp = InvisibleCaptcha.timestamp_enabled

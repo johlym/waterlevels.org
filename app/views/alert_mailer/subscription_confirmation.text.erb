@@ -1,0 +1,28 @@
+Hi,
+
+You signed up for WaterLevels.org email alerts for <%= @station_name %>.
+<% if @station_url.present? %>
+Station page: <%= @station_url %>
+<% end %>
+<% if @verify_url.present? %>
+
+Confirm your email to start receiving them:
+<%= @verify_url %>
+
+This confirmation link expires in 48 hours.
+<% else %>
+
+You’re all set. We’ll email you when this station meets your alert rules.
+<% end %>
+<% if @unsubscribe_watch_url.present? %>
+
+Didn’t mean to subscribe? Undo this subscription:
+<%= @unsubscribe_watch_url %>
+<% end %>
+<% if @manage_url.present? %>
+
+You can also manage all of your alerts:
+<%= @manage_url %>
+<% end %>
+
+<%= render "footer" %>
