@@ -26,7 +26,8 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
 
     get "/gauges/#{@location.state_code}/#{@location.to_param}"
     assert_response :success
-    assert_includes response.body, "Example River Near Town"
+    assert_includes response.body, "<h1>Example River Near Town</h1>"
+    assert_not_includes response.body, "M17.657 16.657"
     assert_includes response.body, "Gage height"
     assert_includes response.body, "role=\"tablist\""
     assert_includes response.body, ">King<"

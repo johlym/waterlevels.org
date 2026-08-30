@@ -55,40 +55,32 @@
       </nav>
 
       <div class="identity">
-        <div class="icon" aria-hidden="true">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
-          </svg>
+        <div class="badges">
+          <% if @snapshot[:stale] %>
+            <span class="badge warn">Stale — older than 1 week</span>
+          <% else %>
+            <span class="badge live"><span class="dot" aria-hidden="true"></span> Active</span>
+          <% end %>
+          <% flood_category = @snapshot[:flood_category] || @snapshot["flood_category"] %>
+          <% flood_label = @snapshot[:flood_category_label] || @snapshot["flood_category_label"] %>
+          <% if flood_category.present? %>
+            <span class="badge flood-<%= flood_category.to_s.tr('_', '-') %>">
+              <%= annotate_glossary_terms(flood_label.presence || flood_category.to_s.humanize) %>
+            </span>
+          <% else %>
+            <span class="badge muted">No flood stage data</span>
+          <% end %>
+          <span class="badge muted">USGS</span>
         </div>
-        <div>
-          <div class="badges">
-            <% if @snapshot[:stale] %>
-              <span class="badge warn">Stale — older than 1 week</span>
-            <% else %>
-              <span class="badge live"><span class="dot" aria-hidden="true"></span> Active</span>
-            <% end %>
-            <% flood_category = @snapshot[:flood_category] || @snapshot["flood_category"] %>
-            <% flood_label = @snapshot[:flood_category_label] || @snapshot["flood_category_label"] %>
-            <% if flood_category.present? %>
-              <span class="badge flood-<%= flood_category.to_s.tr('_', '-') %>">
-                <%= annotate_glossary_terms(flood_label.presence || flood_category.to_s.humanize) %>
-              </span>
-            <% else %>
-              <span class="badge muted">No flood stage data</span>
-            <% end %>
-            <span class="badge muted">USGS</span>
-          </div>
-          <h1><%= location_name %></h1>
-          <p class="meta">
-            Updated <%= display_timestamp(@snapshot[:latest_observed_at], time_zone: @snapshot[:time_zone_identifier] || @snapshot[:time_zone], state_code: @snapshot[:state_code]) %>
-            <% approval = measurements.dig(0, :approval_status) || measurements.dig(0, "approval_status") %>
-            <% if approval.present? %>
-              · <%= annotate_glossary_terms(approval) %>
-            <% end %>
-            · Site <%= @snapshot[:site_number] %>
-          </p>
-        </div>
+        <h1><%= location_name %></h1>
+        <p class="meta">
+          Updated <%= display_timestamp(@snapshot[:latest_observed_at], time_zone: @snapshot[:time_zone_identifier] || @snapshot[:time_zone], state_code: @snapshot[:state_code]) %>
+          <% approval = measurements.dig(0, :approval_status) || measurements.dig(0, "approval_status") %>
+          <% if approval.present? %>
+            · <%= annotate_glossary_terms(approval) %>
+          <% end %>
+          · Site <%= @snapshot[:site_number] %>
+        </p>
       </div>
     </header>
 
