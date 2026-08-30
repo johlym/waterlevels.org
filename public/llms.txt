@@ -14,7 +14,7 @@ This is not an official USGS or NWS website.
 - /about — project mission
 - /disclosures — data sources, caching, and limitations
 - /faq — frequently asked questions
-- /privacy, /terms, /contact
+- /privacy, /terms, /aup, /contact
 
 ## Data and APIs
 

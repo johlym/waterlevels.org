@@ -11,6 +11,7 @@ class AccessibilitySmokeTest < ActionDispatch::IntegrationTest
       disclosures_path,
       privacy_path,
       terms_path,
+      aup_path,
       alerts_path
     ].each do |path|
       get path

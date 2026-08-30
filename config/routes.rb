@@ -24,7 +24,7 @@ Rails.application.routes.draw do
   get "/gauges/:site_number", to: "gauges#show", as: :gauge_short, constraints: { site_number: /\d+/ }
 
   get "/pages/:id", to: "pages#show", as: :page
-  %w[about disclosures faq privacy terms].each do |page|
+  %w[about aup disclosures faq privacy terms].each do |page|
     get "/#{page}", to: "pages#show", id: page, as: page
   end
 
