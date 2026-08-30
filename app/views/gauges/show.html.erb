@@ -55,14 +55,16 @@
       </nav>
 
       <div class="identity">
-        <div class="badges">
-          <% if @snapshot[:stale] %>
-            <span class="badge warn">Stale — older than 1 week</span>
-          <% else %>
-            <span class="badge live"><span class="dot" aria-hidden="true"></span> Active</span>
-          <% end %>
-          <% flood_category = @snapshot[:flood_category] || @snapshot["flood_category"] %>
-          <% flood_label = @snapshot[:flood_category_label] || @snapshot["flood_category_label"] %>
+        <h1><%= location_name %></h1>
+      </div>
+    </header>
+
+    <div class="gauge-split<%= " gauge-split--pair" if AlertsConfig.enabled? %>">
+      <aside class="station-meta">
+        <% flood_category = @snapshot[:flood_category] || @snapshot["flood_category"] %>
+        <% flood_label = @snapshot[:flood_category_label] || @snapshot["flood_category_label"] %>
+        <% approval = measurements.dig(0, :approval_status) || measurements.dig(0, "approval_status") %>
+        <div class="meta-status">
           <% if flood_category.present? %>
             <span class="badge flood-<%= flood_category.to_s.tr('_', '-') %>">
               <%= annotate_glossary_terms(flood_label.presence || flood_category.to_s.humanize) %>
@@ -70,22 +72,10 @@
           <% else %>
             <span class="badge muted">No flood stage data</span>
           <% end %>
-          <span class="badge muted">USGS</span>
-        </div>
-        <h1><%= location_name %></h1>
-        <p class="meta">
-          Updated <%= display_timestamp(@snapshot[:latest_observed_at], time_zone: @snapshot[:time_zone_identifier] || @snapshot[:time_zone], state_code: @snapshot[:state_code]) %>
-          <% approval = measurements.dig(0, :approval_status) || measurements.dig(0, "approval_status") %>
           <% if approval.present? %>
-            · <%= annotate_glossary_terms(approval) %>
+            <span class="badge muted"><%= annotate_glossary_terms(approval) %></span>
           <% end %>
-          · Site <%= @snapshot[:site_number] %>
-        </p>
-      </div>
-    </header>
-
-    <div class="gauge-split<%= " gauge-split--pair" if AlertsConfig.enabled? %>">
-      <aside class="station-meta">
+        </div>
         <div class="meta-grid">
           <div>
             <p class="label">Station ID</p>

@@ -39,6 +39,20 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'class="term-tip"'
     assert_includes response.body, ">Provisional<span"
     assert_includes response.body, "not finished review"
+    header_html = response.body[/<header class="gauge-header">.*?<\/header>/m]
+    meta_html = response.body[/<aside class="station-meta">.*?<\/aside>/m]
+    assert header_html
+    assert meta_html
+    assert_includes header_html, "<h1>Example River Near Town</h1>"
+    assert_not_includes header_html, "Updated "
+    assert_not_includes header_html, "Provisional"
+    assert_not_includes header_html, "No flood stage data"
+    assert_not_includes header_html, 'class="badges"'
+    assert_includes meta_html, 'class="meta-status"'
+    assert_includes meta_html, "No flood stage data"
+    assert_includes meta_html, ">Provisional<span"
+    assert_includes meta_html, "Last updated"
+    assert_includes meta_html, "August 1, 2026 at 09:30:00 PM PDT"
     assert_includes response.headers["Cache-Tag"], "gauge:#{@location.site_number}"
     assert_includes response.headers["Cache-Control"], "max-age=60"
     assert_not_includes response.headers["Cache-Control"], "stale-while-revalidate"
@@ -154,6 +168,15 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "data-hydrograph-flood-stages-value"
     assert_includes response.body, "&quot;minor&quot;:10.0"
     assert_not_includes response.body, "No flood stage data"
+    header_html = response.body[/<header class="gauge-header">.*?<\/header>/m]
+    meta_html = response.body[/<aside class="station-meta">.*?<\/aside>/m]
+    assert header_html
+    assert meta_html
+    assert_not_includes header_html, "badge flood-minor"
+    assert_not_includes header_html, "Minor Flooding"
+    assert_includes meta_html, "badge flood-minor"
+    assert_includes meta_html, "Minor Flooding"
+    assert_includes meta_html, "NWS flood stages"
   end
 
   test "shows history callout when full-year daily history is missing" do

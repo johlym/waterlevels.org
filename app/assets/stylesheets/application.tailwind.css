@@ -1147,16 +1147,8 @@ body.dialog-open {
   }
 
   .identity {
-    .badges {
-      @apply mb-2 flex flex-wrap items-center gap-3;
-    }
-
     h1 {
       @apply text-balance font-display text-3xl font-semibold tracking-tight text-white;
-    }
-
-    .meta {
-      @apply mt-1 text-pretty text-base text-zinc-400 sm:text-sm;
     }
   }
 }
@@ -1219,6 +1211,10 @@ body.dialog-open {
 
 .station-meta {
   @apply rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5;
+
+  .meta-status {
+    @apply mb-4 flex flex-wrap items-center gap-2;
+  }
 
   .meta-grid {
     @apply grid grid-cols-2 gap-4 text-sm;
