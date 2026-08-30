@@ -1,4 +1,5 @@
 require "test_helper"
+require "stringio"
 
 class NetworkRefreshBatchJobTest < ActiveSupport::TestCase
   setup do
@@ -17,6 +18,22 @@ class NetworkRefreshBatchJobTest < ActiveSupport::TestCase
 
     assert first.reload.network_synced_at.present?
     assert_nil second.reload.network_synced_at
+  end
+
+  test "emits SyncProgress lines for the batch" do
+    create(:monitoring_location, site_number: "40000010", usgs_monitoring_location_id: "USGS-40000010")
+    io = StringIO.new
+    progress = SyncProgress.new("NetworkRefreshBatchJob", io: io, logger: nil, every: 1)
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      assert_equal 1, NetworkRefreshBatchJob.perform_now(1, progress: progress)
+    end
+
+    output = io.string
+    assert_match(/NetworkRefreshBatchJob: starting/, output)
+    assert_match(/pending=1 limit=1/, output)
+    assert_match(/usgs_id=USGS-40000010 upstream=0 downstream=0 refreshed=1\/1/, output)
+    assert_match(/refreshed=1 budget=1/, output)
   end
 
   test "skips on Sunday when catalog pause is enabled" do

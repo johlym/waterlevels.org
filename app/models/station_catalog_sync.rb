@@ -93,7 +93,7 @@ class StationCatalogSync
     NearbyStations.refresh_all
     progress&.step("refreshing network stations")
     network_batch = AppConfig.integer(:nldi_refresh_batch)
-    network_refreshed = NetworkStations.refresh(location_scope, limit: network_batch)
+    network_refreshed = NetworkStations.refresh(location_scope, limit: network_batch, progress: progress)
     progress&.step("network stations refreshed=#{network_refreshed} batch=#{network_batch}")
     NetworkRefreshBatchJob.perform_later
     progress&.step("warming state listing caches")
