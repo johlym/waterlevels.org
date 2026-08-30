@@ -3,7 +3,10 @@
 class SubscriptionsController < ApplicationController
   include AlertsFeatureGate
 
-  invisible_captcha only: :create, honeypot: :subtitle, on_spam: :spam_detected
+  invisible_captcha only: :create,
+                    honeypot: :subtitle,
+                    on_spam: :spam_detected,
+                    timestamp_enabled: false
 
   RATE_LIMIT_STORE = ActiveSupport::Cache::MemoryStore.new
   RATE_LIMIT_TO = 20
@@ -17,8 +20,9 @@ class SubscriptionsController < ApplicationController
              store: (Rails.env.test? ? RATE_LIMIT_STORE : Rails.cache)
 
   # Gauge pages are edge-cached without a Rails session, so embedded signup
-  # forms cannot carry a valid CSRF token. Create is protected by honeypot,
-  # optional Turnstile, and IP rate limiting instead.
+  # forms cannot carry a valid CSRF token or Invisible Captcha's session
+  # timestamp/spinner. Create is protected by honeypot, optional Turnstile,
+  # and IP rate limiting instead.
   skip_forgery_protection only: :create
 
   def new
@@ -153,5 +157,12 @@ class SubscriptionsController < ApplicationController
 
   def spam_detected
     redirect_to subscriptions_path, notice: "Thanks — check your email if a confirmation is needed."
+  end
+
+  # The gem has no per-action spinner flag. Session spinner values from the
+  # cookieless station form never survive to this POST, so a mismatch would
+  # treat every legitimate signup as spam.
+  def spinner_spam?
+    false
   end
 end
