@@ -130,4 +130,46 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to subscriptions_path
   end
+
+  test "create after unsubscribe-all re-enables flood and digest rules" do
+    subscriber = create(:subscriber, :verified, email: "back.again@example.com")
+    watch = create(:station_watch, subscriber: subscriber, monitoring_location: @location)
+    subscriber.unsubscribe_all!
+
+    flood = watch.rule_for("flood_category_change")
+    digest = watch.rule_for("digest")
+    assert_not flood.enabled?
+    assert_not digest.enabled?
+    assert_not subscriber.reload.digest_enabled?
+
+    post subscriptions_path, params: {
+      email: subscriber.email,
+      monitoring_location_id: @location.id,
+      time_zone: "America/Los_Angeles",
+      digest_enabled: "1"
+    }
+
+    assert_redirected_to subscriptions_path(monitoring_location_id: @location.id)
+    subscriber.reload
+    assert_not subscriber.unsubscribed?
+    assert_not subscriber.verified?
+    assert subscriber.digest_enabled?
+    assert flood.reload.enabled?
+    assert digest.reload.enabled?
+  end
+
+  test "create does not re-enable rules the subscriber turned off" do
+    subscriber = create(:subscriber, :verified, email: "opted.out@example.com")
+    watch = create(:station_watch, subscriber: subscriber, monitoring_location: @location)
+    watch.rule_for("flood_category_change").update!(enabled: false)
+
+    post subscriptions_path, params: {
+      email: subscriber.email,
+      monitoring_location_id: @location.id,
+      time_zone: "America/New_York"
+    }
+
+    assert_redirected_to subscriptions_path(monitoring_location_id: @location.id)
+    assert_not watch.rule_for("flood_category_change").reload.enabled?
+  end
 end

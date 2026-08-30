@@ -16,6 +16,14 @@ class StationWatch < ApplicationRecord
     end
   end
 
+  # unsubscribe_all! disables existing rules. find_or_create_by! is a no-op for
+  # those rows, so a later signup for the same station must turn defaults back on.
+  def reactivate_defaults!(digest: true)
+    ensure_default_rules!
+    rule_for("flood_category_change")&.update!(enabled: true)
+    rule_for("digest")&.update!(enabled: digest)
+  end
+
   def rule_for(kind)
     alert_rules.find_by(kind: kind)
   end
