@@ -1212,10 +1212,6 @@ body.dialog-open {
 .station-meta {
   @apply rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5;
 
-  .meta-status {
-    @apply mb-4 flex flex-wrap items-center gap-2;
-  }
-
   .meta-grid {
     @apply grid grid-cols-2 gap-4 text-sm;
   }

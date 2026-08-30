@@ -48,8 +48,11 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes header_html, "Provisional"
     assert_not_includes header_html, "No flood stage data"
     assert_not_includes header_html, 'class="badges"'
-    assert_includes meta_html, 'class="meta-status"'
+    assert_not_includes meta_html, 'class="meta-status"'
+    assert_not_includes meta_html, 'class="badge'
+    assert_includes meta_html, "Flood category"
     assert_includes meta_html, "No flood stage data"
+    assert_includes meta_html, "Data status"
     assert_includes meta_html, ">Provisional<span"
     assert_includes meta_html, "Last updated"
     assert_includes meta_html, "August 1, 2026 at 09:30:00 PM PDT"
@@ -162,7 +165,8 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     get "/gauges/#{@location.state_code}/#{@location.to_param}"
     assert_response :success
     assert_includes response.body, "Minor Flooding"
-    assert_includes response.body, "badge flood-minor"
+    assert_includes response.body, "Flood category"
+    assert_not_includes response.body, "badge flood-minor"
     assert_includes response.body, "NWS flood stages"
     assert_includes response.body, "Action 5 ft"
     assert_includes response.body, "data-hydrograph-flood-stages-value"
@@ -172,9 +176,9 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     meta_html = response.body[/<aside class="station-meta">.*?<\/aside>/m]
     assert header_html
     assert meta_html
-    assert_not_includes header_html, "badge flood-minor"
     assert_not_includes header_html, "Minor Flooding"
-    assert_includes meta_html, "badge flood-minor"
+    assert_not_includes header_html, "Flood category"
+    assert_includes meta_html, "Flood category"
     assert_includes meta_html, "Minor Flooding"
     assert_includes meta_html, "NWS flood stages"
   end
