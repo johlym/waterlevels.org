@@ -7,13 +7,19 @@ class NetworkStations
   UPSTREAM = "UM"
   DOWNSTREAM = "DM"
 
-  def self.refresh(scope = MonitoringLocation.all, client: Nldi::Client.new, force: false, limit: nil)
+  def self.refresh(scope = MonitoringLocation.all, client: Nldi::Client.new, force: false, limit: nil, progress: nil)
     rows = location_rows(scope)
     return 0 if rows.empty?
 
     id_by_usgs, latlon_by_id = catalog_indexes
     catalog_ids = id_by_usgs.values.to_set
     budget = limit_budget(limit)
+    pending = rows.count do |_id, _usgs_id, synced_at, up_ids, down_ids|
+      force || stale_row?(synced_at, up_ids, down_ids, catalog_ids)
+    end
+    progress&.step(
+      "locations=#{rows.size} pending=#{pending}#{" limit=#{budget}" if budget}"
+    )
     # NLDI HTTP can sit idle for minutes (timeouts / pacing). Do not pin a
     # checkout across that I/O — hosted Postgres will close the socket.
     release_db_connection!
@@ -22,8 +28,14 @@ class NetworkStations
     rows.each do |id, usgs_id, synced_at, up_ids, down_ids|
       next unless force || stale_row?(synced_at, up_ids, down_ids, catalog_ids)
 
-      refresh_row!(id, usgs_id, client: client, id_by_usgs: id_by_usgs, latlon_by_id: latlon_by_id)
+      upstream, downstream = refresh_row!(
+        id, usgs_id, client: client, id_by_usgs: id_by_usgs, latlon_by_id: latlon_by_id
+      )
       refreshed += 1
+      progress&.step(
+        "usgs_id=#{usgs_id} upstream=#{upstream.size} downstream=#{downstream.size} " \
+        "refreshed=#{refreshed}/#{budget || pending}"
+      )
       break if budget && refreshed >= budget
     end
     refreshed

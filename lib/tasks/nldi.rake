@@ -14,7 +14,7 @@ namespace :nldi do
       "force=#{force}#{" limit=#{limit}" if limit}"
     )
 
-    refreshed = NetworkStations.refresh(scope, force: force, limit: limit)
+    refreshed = NetworkStations.refresh(scope, force: force, limit: limit, progress: progress)
     progress.finish("refreshed=#{refreshed} locations=#{total}")
   end
 end

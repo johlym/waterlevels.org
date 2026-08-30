@@ -1,7 +1,7 @@
 class NetworkRefreshBatchJob < ApplicationJob
   queue_as :sync
 
-  def perform(limit = nil)
+  def perform(limit = nil, progress: nil)
     Telemetry.in_root_span(
       "job.network_refresh_batch",
       attributes: { "app.operation" => "job.network_refresh_batch" }
@@ -27,9 +27,14 @@ class NetworkRefreshBatchJob < ApplicationJob
         return 0
       end
 
-      refreshed = NetworkStations.refresh(MonitoringLocation.order(:id), limit: budget)
+      progress ||= SyncProgress.new("NetworkRefreshBatchJob", io: nil, every: 1)
+      refreshed = NetworkStations.refresh(
+        MonitoringLocation.order(:id),
+        limit: budget,
+        progress: progress
+      )
       Telemetry.add_attributes("app.batch_size" => refreshed, "app.limit" => budget)
-      Rails.logger.info("NetworkRefreshBatchJob refreshed=#{refreshed} budget=#{budget}")
+      progress.finish("refreshed=#{refreshed} budget=#{budget}")
       refreshed
     end
   end

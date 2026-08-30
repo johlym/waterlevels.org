@@ -1,4 +1,5 @@
 require "test_helper"
+require "stringio"
 
 class NetworkStationsTest < ActiveSupport::TestCase
   setup do
@@ -144,6 +145,27 @@ class NetworkStationsTest < ActiveSupport::TestCase
 
     assert_equal 1, refreshed
     assert_empty @origin.reload.upstream_station_ids
+  end
+
+  test "reports pending and per-station neighbor counts on progress" do
+    io = StringIO.new
+    progress = SyncProgress.new("nldi", io: io, logger: nil, every: 1)
+    client = FakeNldi.new(
+      sites: {
+        "UM" => um_sites,
+        "DM" => []
+      },
+      flowlines: {
+        "UM" => um_flowlines,
+        "DM" => []
+      }
+    )
+
+    NetworkStations.refresh([ @origin ], client: client, progress: progress)
+
+    output = io.string
+    assert_match(/nldi: locations=1 pending=1/, output)
+    assert_match(/usgs_id=#{@origin.usgs_monitoring_location_id} upstream=2 downstream=0 refreshed=1\/1/, output)
   end
 
   test "does not hold a database checkout across NLDI HTTP" do
