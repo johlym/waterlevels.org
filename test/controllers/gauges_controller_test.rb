@@ -58,6 +58,8 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'id="alerts-cta"'
     assert_includes response.body, "Get email alerts"
     assert_includes response.body, 'href="#alerts-cta"'
+    assert_includes response.body, ">Manage email alerts</a>"
+    assert_not_includes response.body, "open the subscriptions page"
     alerts_at = response.body.index('id="alerts-cta"')
     chart_at = response.body.index("Historical trends")
     assert alerts_at

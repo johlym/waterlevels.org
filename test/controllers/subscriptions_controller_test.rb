@@ -31,6 +31,7 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
     get subscriptions_path
     assert_response :success
     assert_includes response.body, "Request your manage link"
+    assert_includes response.body, ">Manage Email Alerts</a>"
     assert_includes response.headers["Cache-Control"], "no-store"
     assert_includes response.headers["Set-Cookie"].to_s, "_waterlevels_session"
   ensure

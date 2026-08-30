@@ -51,7 +51,8 @@
     <% end %>
 
     <p class="aside">
-      Or <%= link_to "open the subscriptions page", subscriptions_path(monitoring_location_id: @location.id), class: "text-link" %>.
+      Already watching?
+      <%= link_to "Manage email alerts", subscriptions_path, class: "text-link" %>.
       Informational only — not NWS warnings.
     </p>
   <% end %>

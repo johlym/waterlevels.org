@@ -16,6 +16,9 @@
       <%= link_to "FAQ", faq_path, class: "nav-link", **nav_link_attrs(faq_path) %>
       <%= link_to "Contact", contact_path, class: "nav-link", **nav_link_attrs(contact_path) %>
       <%= link_to "Data", disclosures_path, class: "nav-link", **nav_link_attrs(disclosures_path) %>
+      <% if AlertsConfig.enabled? %>
+        <%= link_to "Manage Email Alerts", subscriptions_path, class: "nav-link", **nav_link_attrs(subscriptions_path) %>
+      <% end %>
     </nav>
 
     <div class="header-actions">
@@ -59,6 +62,9 @@
       <%= link_to "FAQ", faq_path, class: "nav-link", data: { action: "mobile-nav#close" }, **nav_link_attrs(faq_path) %>
       <%= link_to "Contact", contact_path, class: "nav-link", data: { action: "mobile-nav#close" }, **nav_link_attrs(contact_path) %>
       <%= link_to "Data", disclosures_path, class: "nav-link", data: { action: "mobile-nav#close" }, **nav_link_attrs(disclosures_path) %>
+      <% if AlertsConfig.enabled? %>
+        <%= link_to "Manage Email Alerts", subscriptions_path, class: "nav-link", data: { action: "mobile-nav#close" }, **nav_link_attrs(subscriptions_path) %>
+      <% end %>
     </nav>
   </div>
 </header>
