@@ -1477,47 +1477,6 @@ body.dialog-open {
   }
 }
 
-.stream-hop {
-  @apply mt-8 grid gap-3 sm:grid-cols-3;
-}
-
-.hop {
-  @apply flex min-w-0 flex-col gap-1 rounded-xl border border-zinc-800/80 bg-zinc-900/50 px-4 py-3 no-underline transition-all;
-
-  &.hop-up,
-  &.hop-down {
-    @apply hover:border-cyan-500/30 hover:bg-zinc-900/80;
-  }
-
-  &.hop-here {
-    @apply border-cyan-500/40 bg-cyan-500/10;
-  }
-
-  &.hop-empty {
-    @apply opacity-60;
-  }
-}
-
-.hop-kicker {
-  @apply inline-flex items-center gap-1 text-[0.65rem] font-medium uppercase tracking-wide text-zinc-400;
-
-  svg {
-    @apply size-3.5;
-  }
-}
-
-.hop-here .hop-kicker {
-  @apply text-cyan-400;
-}
-
-.hop-name {
-  @apply truncate font-display text-sm font-semibold text-white;
-}
-
-a.hop:hover .hop-name {
-  @apply text-cyan-400;
-}
-
 .related-columns {
   @apply grid gap-6 lg:grid-cols-2;
 }

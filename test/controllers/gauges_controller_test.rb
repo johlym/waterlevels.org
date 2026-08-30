@@ -306,16 +306,15 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Upstream Fork Near Town"
     assert_includes response.body, "Downstream Fork Near Town"
     assert_includes response.body, "aria-current=\"page\""
-    assert_includes response.body, "stream-hop"
     assert_includes response.body, "Related stations"
     assert_includes response.body, "related-list"
+    assert_not_includes response.body, "stream-hop"
   end
 
   test "hides the on-stream timeline when both sides are empty" do
     get "/gauges/#{@location.state_code}/#{@location.to_param}"
     assert_response :success
     assert_not_includes response.body, "On this stream"
-    assert_not_includes response.body, "stream-hop"
     assert_not_includes response.body, "Related stations"
   end
 

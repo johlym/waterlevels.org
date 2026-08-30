@@ -24,12 +24,4 @@ class GaugesHelperTest < ActionView::TestCase
     refute related_station_watch?("no_flooding")
     refute related_station_watch?(nil)
   end
-
-  test "nearest_stream_neighbor returns the first catalog neighbor" do
-    nearest = { site_number: "1" }
-    farther = { site_number: "2" }
-
-    assert_equal nearest, nearest_stream_neighbor([ nearest, farther ])
-    assert_nil nearest_stream_neighbor([])
-  end
 end

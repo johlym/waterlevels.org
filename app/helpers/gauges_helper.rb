@@ -25,8 +25,4 @@ module GaugesHelper
     primary = node[:primary] || node["primary"]
     primary.present? ? [ primary ] : []
   end
-
-  def nearest_stream_neighbor(nodes)
-    Array(nodes).first
-  end
 end

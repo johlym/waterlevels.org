@@ -147,13 +147,6 @@
 
     <%= render Gauges::MeasurementsComponent.new(measurements: measurements) %>
 
-    <% if upstream.any? || downstream.any? %>
-      <%= render "gauges/stream_hop",
-            upstream: nearest_stream_neighbor(upstream),
-            downstream: nearest_stream_neighbor(downstream),
-            current_name: location_name %>
-    <% end %>
-
     <% if AlertsConfig.enabled? %>
       <%= render "gauges/alert_signup" %>
     <% end %>
