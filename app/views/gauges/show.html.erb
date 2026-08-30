@@ -54,102 +54,97 @@
         </ol>
       </nav>
 
-      <div class="title-row">
-        <div class="identity">
-          <div class="icon" aria-hidden="true">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
-            </svg>
-          </div>
-          <div>
-            <div class="badges">
-              <% if @snapshot[:stale] %>
-                <span class="badge warn">Stale — older than 1 week</span>
-              <% else %>
-                <span class="badge live"><span class="dot" aria-hidden="true"></span> Active</span>
-              <% end %>
-              <% flood_category = @snapshot[:flood_category] || @snapshot["flood_category"] %>
-              <% flood_label = @snapshot[:flood_category_label] || @snapshot["flood_category_label"] %>
-              <% if flood_category.present? %>
-                <span class="badge flood-<%= flood_category.to_s.tr('_', '-') %>">
-                  <%= annotate_glossary_terms(flood_label.presence || flood_category.to_s.humanize) %>
-                </span>
-              <% else %>
-                <span class="badge muted">No flood stage data</span>
-              <% end %>
-              <span class="badge muted">USGS</span>
-            </div>
-            <h1><%= location_name %></h1>
-            <p class="meta">
-              Updated <%= display_timestamp(@snapshot[:latest_observed_at], time_zone: @snapshot[:time_zone_identifier] || @snapshot[:time_zone], state_code: @snapshot[:state_code]) %>
-              <% approval = measurements.dig(0, :approval_status) || measurements.dig(0, "approval_status") %>
-              <% if approval.present? %>
-                · <%= annotate_glossary_terms(approval) %>
-              <% end %>
-              · Site <%= @snapshot[:site_number] %>
-            </p>
-            <% if AlertsConfig.enabled? %>
-              <p class="gauge-cta">
-                <%= link_to "Get email alerts", "#alerts-cta", class: "toolbar-btn" %>
-              </p>
-            <% end %>
-          </div>
+      <div class="identity">
+        <div class="icon" aria-hidden="true">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          </svg>
         </div>
-
-        <aside class="station-meta">
-          <div class="meta-grid">
-            <div>
-              <p class="label">Station ID</p>
-              <p class="value"><%= @snapshot[:site_number] %></p>
-            </div>
-            <div>
-              <p class="label">Coordinates</p>
-              <p class="value">
-                <% lat = @snapshot[:latitude].to_f %>
-                <% lon = @snapshot[:longitude].to_f %>
-                <%= number_with_precision(lat.abs, precision: 4) %>° <%= lat >= 0 ? "N" : "S" %>,
-                <%= number_with_precision(lon.abs, precision: 4) %>° <%= lon >= 0 ? "E" : "W" %>
-              </p>
-            </div>
-            <% if @snapshot[:county_name].present? %>
-              <div>
-                <p class="label">County</p>
-                <p class="value"><%= display_county_name(@snapshot[:county_name]) %></p>
-              </div>
+        <div>
+          <div class="badges">
+            <% if @snapshot[:stale] %>
+              <span class="badge warn">Stale — older than 1 week</span>
+            <% else %>
+              <span class="badge live"><span class="dot" aria-hidden="true"></span> Active</span>
             <% end %>
-            <div>
-              <p class="label">Last updated</p>
-              <p class="value"><%= display_timestamp(@snapshot[:latest_observed_at], time_zone: @snapshot[:time_zone_identifier] || @snapshot[:time_zone], state_code: @snapshot[:state_code]) %></p>
-            </div>
-            <% stages = @snapshot[:flood_stages] || @snapshot["flood_stages"] || {} %>
-            <% action_ft = stages[:action] || stages["action"] %>
-            <% minor_ft = stages[:minor] || stages["minor"] %>
-            <% moderate_ft = stages[:moderate] || stages["moderate"] %>
-            <% major_ft = stages[:major] || stages["major"] %>
-            <% if action_ft.present? || minor_ft.present? || moderate_ft.present? || major_ft.present? %>
-              <div class="span-2">
-                <p class="label">NWS flood stages</p>
-                <p class="value flood-stages">
-                  <% bits = [] %>
-                  <% bits << "Action #{display_gauge_value(action_ft)} ft" if action_ft.present? %>
-                  <% bits << "Minor #{display_gauge_value(minor_ft)} ft" if minor_ft.present? %>
-                  <% bits << "Mod #{display_gauge_value(moderate_ft)} ft" if moderate_ft.present? %>
-                  <% bits << "Major #{display_gauge_value(major_ft)} ft" if major_ft.present? %>
-                  <%= bits.join(" · ") %>
-                </p>
-              </div>
+            <% flood_category = @snapshot[:flood_category] || @snapshot["flood_category"] %>
+            <% flood_label = @snapshot[:flood_category_label] || @snapshot["flood_category_label"] %>
+            <% if flood_category.present? %>
+              <span class="badge flood-<%= flood_category.to_s.tr('_', '-') %>">
+                <%= annotate_glossary_terms(flood_label.presence || flood_category.to_s.humanize) %>
+              </span>
+            <% else %>
+              <span class="badge muted">No flood stage data</span>
             <% end %>
+            <span class="badge muted">USGS</span>
           </div>
-        </aside>
+          <h1><%= location_name %></h1>
+          <p class="meta">
+            Updated <%= display_timestamp(@snapshot[:latest_observed_at], time_zone: @snapshot[:time_zone_identifier] || @snapshot[:time_zone], state_code: @snapshot[:state_code]) %>
+            <% approval = measurements.dig(0, :approval_status) || measurements.dig(0, "approval_status") %>
+            <% if approval.present? %>
+              · <%= annotate_glossary_terms(approval) %>
+            <% end %>
+            · Site <%= @snapshot[:site_number] %>
+          </p>
+        </div>
       </div>
     </header>
 
-    <%= render Gauges::MeasurementsComponent.new(measurements: measurements) %>
+    <div class="gauge-split<%= " gauge-split--pair" if AlertsConfig.enabled? %>">
+      <aside class="station-meta">
+        <div class="meta-grid">
+          <div>
+            <p class="label">Station ID</p>
+            <p class="value"><%= @snapshot[:site_number] %></p>
+          </div>
+          <div>
+            <p class="label">Coordinates</p>
+            <p class="value">
+              <% lat = @snapshot[:latitude].to_f %>
+              <% lon = @snapshot[:longitude].to_f %>
+              <%= number_with_precision(lat.abs, precision: 4) %>° <%= lat >= 0 ? "N" : "S" %>,
+              <%= number_with_precision(lon.abs, precision: 4) %>° <%= lon >= 0 ? "E" : "W" %>
+            </p>
+          </div>
+          <% if @snapshot[:county_name].present? %>
+            <div>
+              <p class="label">County</p>
+              <p class="value"><%= display_county_name(@snapshot[:county_name]) %></p>
+            </div>
+          <% end %>
+          <div>
+            <p class="label">Last updated</p>
+            <p class="value"><%= display_timestamp(@snapshot[:latest_observed_at], time_zone: @snapshot[:time_zone_identifier] || @snapshot[:time_zone], state_code: @snapshot[:state_code]) %></p>
+          </div>
+          <% stages = @snapshot[:flood_stages] || @snapshot["flood_stages"] || {} %>
+          <% action_ft = stages[:action] || stages["action"] %>
+          <% minor_ft = stages[:minor] || stages["minor"] %>
+          <% moderate_ft = stages[:moderate] || stages["moderate"] %>
+          <% major_ft = stages[:major] || stages["major"] %>
+          <% if action_ft.present? || minor_ft.present? || moderate_ft.present? || major_ft.present? %>
+            <div class="span-2">
+              <p class="label">NWS flood stages</p>
+              <p class="value flood-stages">
+                <% bits = [] %>
+                <% bits << "Action #{display_gauge_value(action_ft)} ft" if action_ft.present? %>
+                <% bits << "Minor #{display_gauge_value(minor_ft)} ft" if minor_ft.present? %>
+                <% bits << "Mod #{display_gauge_value(moderate_ft)} ft" if moderate_ft.present? %>
+                <% bits << "Major #{display_gauge_value(major_ft)} ft" if major_ft.present? %>
+                <%= bits.join(" · ") %>
+              </p>
+            </div>
+          <% end %>
+        </div>
+      </aside>
 
-    <% if AlertsConfig.enabled? %>
-      <%= render "gauges/alert_signup" %>
-    <% end %>
+      <% if AlertsConfig.enabled? %>
+        <%= render "gauges/alert_signup" %>
+      <% end %>
+    </div>
+
+    <%= render Gauges::MeasurementsComponent.new(measurements: measurements) %>
 
     <section id="graph-panel" class="section-block" aria-labelledby="graph-heading">
       <div class="section-head">

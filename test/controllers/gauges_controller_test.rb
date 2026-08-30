@@ -47,23 +47,35 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'data-hydrograph-view-param="table"'
     assert_includes response.body, 'data-hydrograph-target="tableView"'
     assert_not_includes response.body, "Hourly measurements"
+    assert_includes response.body, 'class="station-meta"'
+    assert_not_includes response.body, "gauge-split--pair"
+    assert_not_includes response.body, 'id="alerts-cta"'
+    assert_not_includes response.body, 'href="#alerts-cta"'
   end
 
-  test "email alert signup sits above the trend chart when alerts are enabled" do
+  test "email alert signup sits beside station metadata above the trend chart" do
     previous = ENV["ALERTS_ENABLED"]
     ENV["ALERTS_ENABLED"] = "1"
 
     get "/gauges/#{@location.state_code}/#{@location.to_param}"
     assert_response :success
+    assert_includes response.body, "gauge-split--pair"
     assert_includes response.body, 'id="alerts-cta"'
     assert_includes response.body, "Get email alerts"
-    assert_includes response.body, 'href="#alerts-cta"'
+    assert_not_includes response.body, 'href="#alerts-cta"'
+    assert_not_includes response.body, "gauge-cta"
     assert_includes response.body, ">Manage email alerts</a>"
     assert_not_includes response.body, "open the subscriptions page"
+    title_at = response.body.index("Example River Near Town")
+    meta_at = response.body.index('class="station-meta"')
     alerts_at = response.body.index('id="alerts-cta"')
     chart_at = response.body.index("Historical trends")
+    assert title_at
+    assert meta_at
     assert alerts_at
     assert chart_at
+    assert_operator title_at, :<, meta_at
+    assert_operator meta_at, :<, alerts_at
     assert_operator alerts_at, :<, chart_at
   ensure
     if previous.nil?
