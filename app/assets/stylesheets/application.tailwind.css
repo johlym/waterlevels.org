@@ -1166,14 +1166,14 @@ body.dialog-open {
 }
 
 .gauge-split--pair {
-  @apply grid grid-cols-1 items-start gap-4 lg:grid-cols-2;
+  @apply grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2;
 
   .gauge-alert-card {
-    @apply mt-0 min-w-0;
+    @apply mt-0 flex h-full min-w-0 flex-col;
   }
 
   .station-meta {
-    @apply min-w-0;
+    @apply h-full min-w-0;
   }
 }
 
