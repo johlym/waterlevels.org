@@ -3,6 +3,18 @@
 <% content_for :meta_description, "Current water level, flow, and temperature for #{location_name} from USGS monitoring data." %>
 <% content_for :og_image_path, og_station_path(@snapshot[:site_number]) %>
 <% measurements = Array(@snapshot[:measurements]) %>
+<%
+  network = @snapshot[:network] || @snapshot["network"] || {}
+  upstream = Array(network[:upstream] || network["upstream"])
+  downstream = Array(network[:downstream] || network["downstream"])
+  nearby = Array(@snapshot[:nearby])
+  current_node = {
+    site_number: @snapshot[:site_number],
+    name: location_name,
+    stale: @snapshot[:stale],
+    measurements: measurements
+  }
+%>
 
 <div
   class="app-shell"
@@ -42,110 +54,124 @@
         </ol>
       </nav>
 
-      <div class="title-row">
-        <div class="identity">
-          <div class="icon" aria-hidden="true">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
-            </svg>
-          </div>
-          <div>
-            <div class="badges">
-              <% if @snapshot[:stale] %>
-                <span class="badge warn">Stale — older than 1 week</span>
-              <% else %>
-                <span class="badge live"><span class="dot" aria-hidden="true"></span> Active</span>
-              <% end %>
-              <% flood_category = @snapshot[:flood_category] || @snapshot["flood_category"] %>
-              <% flood_label = @snapshot[:flood_category_label] || @snapshot["flood_category_label"] %>
-              <% if flood_category.present? %>
-                <span class="badge flood-<%= flood_category.to_s.tr('_', '-') %>">
-                  <%= annotate_glossary_terms(flood_label.presence || flood_category.to_s.humanize) %>
-                </span>
-              <% else %>
-                <span class="badge muted">No flood stage data</span>
-              <% end %>
-              <span class="badge muted">USGS</span>
-            </div>
-            <h1><%= location_name %></h1>
-            <p class="meta">
-              Updated <%= display_timestamp(@snapshot[:latest_observed_at], time_zone: @snapshot[:time_zone_identifier] || @snapshot[:time_zone], state_code: @snapshot[:state_code]) %>
-              <% approval = measurements.dig(0, :approval_status) || measurements.dig(0, "approval_status") %>
-              <% if approval.present? %>
-                · <%= annotate_glossary_terms(approval) %>
-              <% end %>
-              · Site <%= @snapshot[:site_number] %>
-            </p>
-          </div>
-        </div>
-
-        <aside class="station-meta">
-          <div class="meta-grid">
-            <div>
-              <p class="label">Station ID</p>
-              <p class="value"><%= @snapshot[:site_number] %></p>
-            </div>
-            <div>
-              <p class="label">Coordinates</p>
-              <p class="value">
-                <% lat = @snapshot[:latitude].to_f %>
-                <% lon = @snapshot[:longitude].to_f %>
-                <%= number_with_precision(lat.abs, precision: 4) %>° <%= lat >= 0 ? "N" : "S" %>,
-                <%= number_with_precision(lon.abs, precision: 4) %>° <%= lon >= 0 ? "E" : "W" %>
-              </p>
-            </div>
-            <% if @snapshot[:county_name].present? %>
-              <div>
-                <p class="label">County</p>
-                <p class="value"><%= display_county_name(@snapshot[:county_name]) %></p>
-              </div>
-            <% end %>
-            <div>
-              <p class="label">Last updated</p>
-              <p class="value"><%= display_timestamp(@snapshot[:latest_observed_at], time_zone: @snapshot[:time_zone_identifier] || @snapshot[:time_zone], state_code: @snapshot[:state_code]) %></p>
-            </div>
-            <% stages = @snapshot[:flood_stages] || @snapshot["flood_stages"] || {} %>
-            <% action_ft = stages[:action] || stages["action"] %>
-            <% minor_ft = stages[:minor] || stages["minor"] %>
-            <% moderate_ft = stages[:moderate] || stages["moderate"] %>
-            <% major_ft = stages[:major] || stages["major"] %>
-            <% if action_ft.present? || minor_ft.present? || moderate_ft.present? || major_ft.present? %>
-              <div class="span-2">
-                <p class="label">NWS flood stages</p>
-                <p class="value flood-stages">
-                  <% bits = [] %>
-                  <% bits << "Action #{display_gauge_value(action_ft)} ft" if action_ft.present? %>
-                  <% bits << "Minor #{display_gauge_value(minor_ft)} ft" if minor_ft.present? %>
-                  <% bits << "Mod #{display_gauge_value(moderate_ft)} ft" if moderate_ft.present? %>
-                  <% bits << "Major #{display_gauge_value(major_ft)} ft" if major_ft.present? %>
-                  <%= bits.join(" · ") %>
-                </p>
-              </div>
-            <% end %>
-          </div>
-        </aside>
+      <div class="identity">
+        <h1><%= location_name %></h1>
       </div>
     </header>
+
+    <div class="gauge-split<%= " gauge-split--pair" if AlertsConfig.enabled? %>">
+      <aside class="station-meta">
+        <% flood_category = @snapshot[:flood_category] || @snapshot["flood_category"] %>
+        <% flood_label = @snapshot[:flood_category_label] || @snapshot["flood_category_label"] %>
+        <% approval = measurements.dig(0, :approval_status) || measurements.dig(0, "approval_status") %>
+        <div class="meta-grid">
+          <div>
+            <p class="label">Flood category</p>
+            <p class="value">
+              <% if flood_category.present? %>
+                <%= annotate_glossary_terms(flood_label.presence || flood_category.to_s.humanize) %>
+              <% else %>
+                No flood stage data
+              <% end %>
+            </p>
+          </div>
+          <% if approval.present? %>
+            <div>
+              <p class="label">Data status</p>
+              <p class="value"><%= annotate_glossary_terms(approval) %></p>
+            </div>
+          <% end %>
+          <div>
+            <p class="label">Station ID</p>
+            <p class="value"><%= @snapshot[:site_number] %></p>
+          </div>
+          <div>
+            <p class="label">Coordinates</p>
+            <p class="value">
+              <% lat = @snapshot[:latitude].to_f %>
+              <% lon = @snapshot[:longitude].to_f %>
+              <%= number_with_precision(lat.abs, precision: 4) %>° <%= lat >= 0 ? "N" : "S" %>,
+              <%= number_with_precision(lon.abs, precision: 4) %>° <%= lon >= 0 ? "E" : "W" %>
+            </p>
+          </div>
+          <% if @snapshot[:county_name].present? %>
+            <div>
+              <p class="label">County</p>
+              <p class="value"><%= display_county_name(@snapshot[:county_name]) %></p>
+            </div>
+          <% end %>
+          <div>
+            <p class="label">Last updated</p>
+            <p class="value"><%= display_timestamp(@snapshot[:latest_observed_at], time_zone: @snapshot[:time_zone_identifier] || @snapshot[:time_zone], state_code: @snapshot[:state_code]) %></p>
+          </div>
+          <% stages = @snapshot[:flood_stages] || @snapshot["flood_stages"] || {} %>
+          <% action_ft = stages[:action] || stages["action"] %>
+          <% minor_ft = stages[:minor] || stages["minor"] %>
+          <% moderate_ft = stages[:moderate] || stages["moderate"] %>
+          <% major_ft = stages[:major] || stages["major"] %>
+          <% if action_ft.present? || minor_ft.present? || moderate_ft.present? || major_ft.present? %>
+            <div class="span-2">
+              <p class="label">NWS flood stages</p>
+              <p class="value flood-stages">
+                <% bits = [] %>
+                <% bits << "Action #{display_gauge_value(action_ft)} ft" if action_ft.present? %>
+                <% bits << "Minor #{display_gauge_value(minor_ft)} ft" if minor_ft.present? %>
+                <% bits << "Mod #{display_gauge_value(moderate_ft)} ft" if moderate_ft.present? %>
+                <% bits << "Major #{display_gauge_value(major_ft)} ft" if major_ft.present? %>
+                <%= bits.join(" · ") %>
+              </p>
+            </div>
+          <% end %>
+        </div>
+      </aside>
+
+      <% if AlertsConfig.enabled? %>
+        <%= render "gauges/alert_signup" %>
+      <% end %>
+    </div>
 
     <%= render Gauges::MeasurementsComponent.new(measurements: measurements) %>
 
     <section id="graph-panel" class="section-block" aria-labelledby="graph-heading">
       <div class="section-head">
         <h2 id="graph-heading">Historical trends</h2>
-        <div class="segmented" role="group" aria-label="Time range">
-          <% ranges = %w[24h 7d 30d 1y]
-             ranges << "3y" if @location.has_deep_history?
-             range_labels = { "7d" => "7 Days", "30d" => "30 Days", "1y" => "1 Year", "3y" => "3 Years" } %>
-          <% ranges.each do |range| %>
+        <div class="history-controls">
+          <div class="segmented" role="group" aria-label="Time range">
+            <% ranges = %w[24h 7d 30d 1y]
+               ranges << "3y" if @location.has_deep_history?
+               range_labels = { "7d" => "7 Days", "30d" => "30 Days", "1y" => "1 Year", "3y" => "3 Years" } %>
+            <% ranges.each do |range| %>
+              <button
+                type="button"
+                data-action="hydrograph#setRange"
+                data-hydrograph-range-param="<%= range %>"
+                data-hydrograph-target="rangeButton"
+                aria-pressed="<%= range == "7d" %>"
+              ><%= range_labels.fetch(range, range) %></button>
+            <% end %>
+          </div>
+          <div class="segmented" role="group" aria-label="History view">
             <button
               type="button"
-              data-action="hydrograph#setRange"
-              data-hydrograph-range-param="<%= range %>"
-              data-hydrograph-target="rangeButton"
-              aria-pressed="<%= range == "7d" %>"
-            ><%= range_labels.fetch(range, range) %></button>
-          <% end %>
+              data-action="hydrograph#setView"
+              data-hydrograph-view-param="chart"
+              data-hydrograph-target="viewButton"
+              aria-pressed="true"
+            >Chart</button>
+            <button
+              type="button"
+              data-action="hydrograph#setView"
+              data-hydrograph-view-param="table"
+              data-hydrograph-target="viewButton"
+              aria-pressed="false"
+            >Table</button>
+          </div>
+          <button type="button" class="toolbar-btn" data-action="hydrograph#exportCsv">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+            </svg>
+            Export CSV
+          </button>
         </div>
       </div>
       <% if @location.missing_year_history? %>
@@ -177,26 +203,21 @@
           </p>
         </div>
       <% end %>
-      <div class="chart-panel">
-        <div class="pad">
-          <div class="chart-legend" data-hydrograph-target="legend"></div>
-          <div class="canvas-wrap">
-            <canvas data-hydrograph-target="canvas" role="img" aria-label="Station trend chart. Use the hourly measurements table below for accessible data."></canvas>
+      <div data-hydrograph-target="chartView">
+        <div class="chart-panel">
+          <div class="pad">
+            <div class="chart-legend" data-hydrograph-target="legend"></div>
+            <div class="canvas-wrap">
+              <canvas data-hydrograph-target="canvas" role="img" aria-label="Station trend chart. Switch to the Table view for accessible hourly readings."></canvas>
+            </div>
+            <p class="aside estimated-footnote" data-hydrograph-target="estimatedNote" hidden>
+              Estimated daily mean from continuous data (USGS daily unavailable).
+            </p>
+            <div class="period-stats" data-hydrograph-target="stats"></div>
           </div>
-          <p class="aside estimated-footnote" data-hydrograph-target="estimatedNote" hidden>
-            Estimated daily mean from continuous data (USGS daily unavailable).
-          </p>
-          <div class="period-stats" data-hydrograph-target="stats"></div>
         </div>
       </div>
-    </section>
-
-    <section class="section-block" aria-labelledby="history-heading">
-      <div class="section-head">
-        <div>
-          <h2 id="history-heading">Hourly measurements</h2>
-          <p class="aside">Detailed readings by hour, organized by day</p>
-        </div>
+      <div id="history-panel" data-hydrograph-target="tableView" hidden>
         <div class="history-toolbar">
           <label class="sr-only" for="history-day-select">Day</label>
           <select
@@ -205,216 +226,16 @@
             data-hydrograph-target="daySelect"
             data-action="change->hydrograph#selectDay"
           ></select>
-          <button type="button" class="toolbar-btn" data-action="hydrograph#exportCsv">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-            </svg>
-            Export CSV
-          </button>
         </div>
+        <div class="measurements-table" data-hydrograph-target="history"></div>
       </div>
-      <div class="measurements-table" data-hydrograph-target="history"></div>
     </section>
 
-    <%
-      network = @snapshot[:network] || @snapshot["network"] || {}
-      upstream = Array(network[:upstream] || network["upstream"])
-      downstream = Array(network[:downstream] || network["downstream"])
-      current_node = {
-        site_number: @snapshot[:site_number],
-        name: location_name,
-        stale: @snapshot[:stale],
-        measurements: measurements
-      }
-    %>
-    <% if upstream.any? || downstream.any? %>
-      <section class="section-block" aria-labelledby="network-heading">
-        <div class="section-head">
-          <div>
-            <h2 id="network-heading">On this stream</h2>
-            <p class="aside">Stations upstream and downstream on the same waterway</p>
-          </div>
-        </div>
-        <ol role="list" class="network-timeline">
-          <% upstream.reverse_each do |n| %>
-            <li>
-              <%= render "gauges/network_node", node: n, direction: "upstream" %>
-            </li>
-          <% end %>
-          <li>
-            <%= render "gauges/network_node", node: current_node, current: true %>
-          </li>
-          <% downstream.each do |n| %>
-            <li>
-              <%= render "gauges/network_node", node: n, direction: "downstream" %>
-            </li>
-          <% end %>
-        </ol>
-      </section>
-    <% end %>
-
-    <% nearby = Array(@snapshot[:nearby]) %>
-    <% if nearby.any? %>
-      <section class="section-block" aria-labelledby="nearby-heading">
-        <div class="section-head">
-          <div>
-            <h2 id="nearby-heading">Nearby stations</h2>
-            <p class="aside">Other monitoring locations nearby</p>
-          </div>
-          <%= link_to root_path, class: "section-link" do %>
-            View all on map
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
-            </svg>
-          <% end %>
-        </div>
-        <ul role="list" class="nearby-grid">
-          <% nearby.each do |n| %>
-            <%
-              stale = n[:stale] || n["stale"]
-              distance = n[:distance_mi] || n["distance_mi"]
-              site = n[:site_number] || n["site_number"]
-              flood_category = n[:flood_category] || n["flood_category"]
-              flood_watch = %w[action minor moderate major].include?(flood_category.to_s)
-              readings = Array(n[:measurements] || n["measurements"])
-              # Fallback for snapshots cached before multi-metric nearby readings.
-              if readings.empty?
-                primary = n[:primary] || n["primary"]
-                readings = primary.present? ? [ primary ] : []
-              end
-            %>
-            <li>
-              <%= link_to n[:path] || n["path"], class: "nearby-card#{" nearby-card--watch" if flood_watch}" do %>
-                <div class="card-top">
-                  <% if stale %>
-                    <span class="status offline">
-                      <span class="dot" aria-hidden="true"></span>
-                      Offline
-                    </span>
-                  <% elsif flood_watch %>
-                    <span class="status watch">
-                      <span class="dot" aria-hidden="true"></span>
-                      <%= flood_category.to_s.titleize %>
-                    </span>
-                  <% else %>
-                    <span class="status active">
-                      <span class="dot" aria-hidden="true"></span>
-                      Active
-                    </span>
-                  <% end %>
-                  <% if distance.present? %>
-                    <span class="distance"><%= number_with_precision(distance, precision: 1) %> mi</span>
-                  <% end %>
-                </div>
-                <h3 class="name-scroll">
-                  <span><%= n[:name] || n["name"] %></span>
-                </h3>
-                <p class="site-id">ID: <%= site %></p>
-                <div class="card-foot">
-                  <% if readings.any? %>
-                    <div class="readings">
-                      <% readings.each do |reading| %>
-                        <%
-                          kind = reading[:kind] || reading["kind"]
-                          label = reading[:label] || reading["label"]
-                          value = reading[:value] || reading["value"]
-                          unit = display_unit(reading[:unit] || reading["unit"])
-                          precision = (reading[:precision] || reading["precision"]) || 2
-                          next if value.blank?
-                        %>
-                        <% if kind == "temperature" %>
-                          <span
-                            data-temperature-unit-target="display"
-                            data-temp-c="<%= value %>"
-                            data-temp-prefix="Temp: "
-                          ></span>
-                        <% else %>
-                          <span>
-                            <%= label %>:
-                            <%= display_gauge_value(value, precision: precision) %>
-                            <%= unit %>
-                          </span>
-                        <% end %>
-                      <% end %>
-                    </div>
-                  <% elsif stale && (n[:latest_observed_at] || n["latest_observed_at"]).blank? %>
-                    <span class="muted">No recent data</span>
-                  <% else %>
-                    <span class="muted">View station</span>
-                  <% end %>
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                  </svg>
-                </div>
-              <% end %>
-            </li>
-          <% end %>
-        </ul>
-      </section>
-    <% end %>
-
-    <% if AlertsConfig.enabled? %>
-      <% site_key = ENV.fetch("TURNSTILE_SITE_KEY", Contact::FormComponent::SITE_KEY) %>
-      <% turnstile_required = ENV["TURNSTILE_SECRET"].present? %>
-      <section class="section-block gauge-alerts-cta" aria-labelledby="alerts-cta-heading">
-        <div class="section-head">
-          <div>
-            <h2 id="alerts-cta-heading">Get email alerts</h2>
-            <p class="aside">Optional flood-category and threshold emails for this station. Confirm by email; unsubscribe anytime.</p>
-          </div>
-        </div>
-
-        <%= form_with url: subscriptions_path, method: :post, class: "contact-form gauge-alert-form", data: { turbo: false, controller: "subscription-timezone" } do %>
-          <%= invisible_captcha :subtitle %>
-          <%= hidden_field_tag :monitoring_location_id, @location.id %>
-          <%= hidden_field_tag :time_zone, "", data: { subscription_timezone_target: "hidden" } %>
-
-          <div class="field">
-            <label for="gauge-alert-email">Email address</label>
-            <%= email_field_tag :email, nil, id: "gauge-alert-email", required: true, autocomplete: "email", placeholder: "you@example.com" %>
-          </div>
-
-          <p class="aside">
-            Time zone: <span data-subscription-timezone-target="label">detecting…</span>
-            <button type="button" class="text-link" data-subscription-timezone-target="changeButton" data-action="subscription-timezone#showSelect">Change</button>
-          </p>
-          <%= select_tag :time_zone_select,
-                options_for_select(SubscriberTimeZones.options_for_select),
-                id: "gauge-alert-time-zone",
-                hidden: true,
-                data: {
-                  subscription_timezone_target: "select",
-                  action: "change->subscription-timezone#selectChanged"
-                } %>
-
-          <div class="field checkbox-field">
-            <label class="checkbox-label">
-              <%= check_box_tag :digest_enabled, "1", true, id: "gauge-alert-digest" %>
-              Include in daily digest
-            </label>
-          </div>
-
-          <% if turnstile_required %>
-            <div
-              class="cf-turnstile turnstile"
-              data-sitekey="<%= site_key %>"
-              data-theme="dark"
-              data-action="subscription-gauge-signup"
-              aria-label="Bot check"
-            ></div>
-          <% end %>
-
-          <%= submit_tag "Subscribe to alerts", class: "submit" %>
-          <p class="aside">
-            Or <%= link_to "open the subscriptions page", subscriptions_path(monitoring_location_id: @location.id), class: "text-link" %>.
-            Informational only — not NWS warnings.
-          </p>
-        <% end %>
-      </section>
-      <% if turnstile_required %>
-        <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-      <% end %>
-    <% end %>
+    <%= render "gauges/related_stations",
+          upstream: upstream,
+          downstream: downstream,
+          nearby: nearby,
+          current_node: current_node %>
 
     <p class="usgs-note">
       Data courtesy of the <%= link_to "U.S. Geological Survey", @snapshot[:usgs_url], rel: "noopener noreferrer", target: "_blank" %><% if @snapshot[:agency_credit].present? %> and <%= @snapshot[:agency_credit] %><% end %>.

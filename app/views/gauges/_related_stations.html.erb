@@ -1,0 +1,60 @@
+<%
+  upstream = Array(local_assigns[:upstream])
+  downstream = Array(local_assigns[:downstream])
+  nearby = Array(local_assigns[:nearby])
+  current_node = local_assigns[:current_node]
+  has_stream = upstream.any? || downstream.any?
+  has_nearby = nearby.any?
+%>
+<% if has_stream || has_nearby %>
+  <section class="section-block related-stations" aria-labelledby="related-heading">
+    <div class="section-head">
+      <div>
+        <h2 id="related-heading">Related stations</h2>
+        <p class="aside">Jump upstream, downstream, or to another nearby gauge</p>
+      </div>
+      <%= link_to root_path, class: "section-link" do %>
+        View all on map
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+        </svg>
+      <% end %>
+    </div>
+
+    <div class="related-columns<%= " related-columns--single" unless has_stream && has_nearby %>">
+      <% if has_stream %>
+        <div class="related-column">
+          <h3 id="network-heading">On this stream</h3>
+          <ul role="list" class="related-list">
+            <% upstream.reverse_each do |node| %>
+              <li>
+                <%= render "gauges/related_row", node: node, direction: "upstream" %>
+              </li>
+            <% end %>
+            <li>
+              <%= render "gauges/related_row", node: current_node, current: true %>
+            </li>
+            <% downstream.each do |node| %>
+              <li>
+                <%= render "gauges/related_row", node: node, direction: "downstream" %>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+
+      <% if has_nearby %>
+        <div class="related-column">
+          <h3 id="nearby-heading">Nearby stations</h3>
+          <ul role="list" class="related-list">
+            <% nearby.each do |node| %>
+              <li>
+                <%= render "gauges/related_row", node: node, show_distance: true %>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+    </div>
+  </section>
+<% end %>

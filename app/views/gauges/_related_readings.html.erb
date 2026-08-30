@@ -1,0 +1,34 @@
+<% readings = Array(local_assigns[:readings]) %>
+<% stale = local_assigns[:stale] %>
+<% observed_at = local_assigns[:observed_at] %>
+<% if readings.any? %>
+  <div class="related-readings">
+    <% readings.each do |reading| %>
+      <%
+        kind = reading[:kind] || reading["kind"]
+        label = reading[:label] || reading["label"]
+        value = reading[:value] || reading["value"]
+        unit = display_unit(reading[:unit] || reading["unit"])
+        precision = (reading[:precision] || reading["precision"]) || 2
+        next if value.blank?
+      %>
+      <% if kind == "temperature" %>
+        <span
+          data-temperature-unit-target="display"
+          data-temp-c="<%= value %>"
+          data-temp-prefix="Temp: "
+        ></span>
+      <% else %>
+        <span>
+          <%= label %>:
+          <%= display_gauge_value(value, precision: precision) %>
+          <%= unit %>
+        </span>
+      <% end %>
+    <% end %>
+  </div>
+<% elsif stale && observed_at.blank? %>
+  <span class="muted">No recent data</span>
+<% else %>
+  <span class="muted">View station</span>
+<% end %>

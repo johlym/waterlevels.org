@@ -67,6 +67,33 @@ class AccessibilitySmokeTest < ActionDispatch::IntegrationTest
     assert_match(%r{aria-current="page"[^>]*>About</a>}, response.body)
   end
 
+  test "nav omits manage email alerts when the feature is off" do
+    get about_path
+    assert_response :success
+    assert_not_includes response.body, "Manage Email Alerts"
+  end
+
+  test "nav ends with manage email alerts when the feature is on" do
+    previous = ENV["ALERTS_ENABLED"]
+    ENV["ALERTS_ENABLED"] = "1"
+
+    get about_path
+    assert_response :success
+    assert_includes response.body, ">Manage Email Alerts</a>"
+    assert_includes response.body, "href=\"#{subscriptions_path}\""
+    data_at = response.body.index(">Data</a>")
+    manage_at = response.body.index(">Manage Email Alerts</a>")
+    assert data_at
+    assert manage_at
+    assert_operator data_at, :<, manage_at
+  ensure
+    if previous
+      ENV["ALERTS_ENABLED"] = previous
+    else
+      ENV.delete("ALERTS_ENABLED")
+    end
+  end
+
   test "contact field errors are associated for assistive tech" do
     post contact_path, params: {
       contact_message: {
