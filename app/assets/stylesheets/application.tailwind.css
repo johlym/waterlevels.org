@@ -838,6 +838,14 @@
     @apply font-display text-xl font-semibold text-white;
   }
 
+  h3 {
+    @apply pt-4 font-display text-lg font-semibold text-white;
+  }
+
+  h4 {
+    @apply pt-2 font-display text-base font-semibold text-zinc-200;
+  }
+
   a {
     @apply font-medium text-cyan-400 underline transition-colors hover:text-cyan-300;
   }
@@ -849,6 +857,10 @@
 
   ul {
     @apply list-disc space-y-2 pl-5;
+  }
+
+  ol {
+    @apply list-decimal space-y-2 pl-5;
   }
 
   code {

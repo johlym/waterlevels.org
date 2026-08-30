@@ -3,7 +3,7 @@ require "cgi"
 class Sitemap
   PREFIX = "sitemap:v1".freeze
   TTL = 24.hours
-  STATIC_PATHS = %w[/ /map /alerts /about /disclosures /faq /privacy /terms].freeze
+  STATIC_PATHS = %w[/ /map /alerts /about /disclosures /faq /privacy /terms /aup].freeze
   SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9".freeze
 
   class << self

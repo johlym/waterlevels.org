@@ -20,5 +20,6 @@ class AgentDiscoveryTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "https://api.waterdata.usgs.gov/"
     assert_includes response.body, "https://api.water.noaa.gov/nwps/v1/docs/"
     assert_includes response.body, "/.well-known/api-catalog"
+    assert_includes response.body, "/aup"
   end
 end
