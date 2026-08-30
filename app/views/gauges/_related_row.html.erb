@@ -1,0 +1,66 @@
+<%
+  fields = related_station_fields(node)
+  current = local_assigns.fetch(:current, false)
+  direction = local_assigns[:direction]
+  show_distance = local_assigns.fetch(:show_distance, false)
+  watch = related_station_watch?(fields[:flood_category])
+  classes = [ "related-row" ]
+  classes << "current" if current
+  classes << "watch" if watch && !current
+  classes << "offline" if fields[:stale] && !current
+  inner = capture do
+%>
+  <div class="related-main">
+    <div class="related-meta">
+      <% if current %>
+        <span class="related-dir">This station</span>
+      <% elsif direction == "upstream" %>
+        <span class="related-dir">Upstream</span>
+      <% elsif direction == "downstream" %>
+        <span class="related-dir">Downstream</span>
+      <% end %>
+      <% if fields[:stale] %>
+        <span class="status offline">
+          <span class="dot" aria-hidden="true"></span>
+          Offline
+        </span>
+      <% elsif watch %>
+        <span class="status watch">
+          <span class="dot" aria-hidden="true"></span>
+          <%= fields[:flood_category].to_s.titleize %>
+        </span>
+      <% else %>
+        <span class="status active">
+          <span class="dot" aria-hidden="true"></span>
+          Active
+        </span>
+      <% end %>
+      <% if show_distance && fields[:distance].present? %>
+        <span class="distance"><%= number_with_precision(fields[:distance], precision: 1) %> mi</span>
+      <% end %>
+    </div>
+    <p class="related-name" title="<%= fields[:name] %>"><%= fields[:name] %></p>
+  </div>
+  <div class="related-side">
+    <%= render "gauges/related_readings",
+          readings: fields[:readings],
+          stale: fields[:stale],
+          observed_at: fields[:observed_at] %>
+    <% unless current %>
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+      </svg>
+    <% end %>
+  </div>
+<%
+  end
+%>
+<% if current %>
+  <div class="<%= classes.join(" ") %>" aria-current="page">
+    <%= inner %>
+  </div>
+<% else %>
+  <%= link_to fields[:path], class: classes.join(" ") do %>
+    <%= inner %>
+  <% end %>
+<% end %>

@@ -43,6 +43,32 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.headers["Cache-Control"], "stale-while-revalidate"
     assert_includes response.headers["Cloudflare-CDN-Cache-Control"], "stale-while-revalidate=86400"
     assert_includes response.body, 'name="turbo-cache-control" content="no-cache"'
+    assert_includes response.body, 'data-hydrograph-view-param="chart"'
+    assert_includes response.body, 'data-hydrograph-view-param="table"'
+    assert_includes response.body, 'data-hydrograph-target="tableView"'
+    assert_not_includes response.body, "Hourly measurements"
+  end
+
+  test "email alert signup sits above the trend chart when alerts are enabled" do
+    previous = ENV["ALERTS_ENABLED"]
+    ENV["ALERTS_ENABLED"] = "1"
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_includes response.body, 'id="alerts-cta"'
+    assert_includes response.body, "Get email alerts"
+    assert_includes response.body, 'href="#alerts-cta"'
+    alerts_at = response.body.index('id="alerts-cta"')
+    chart_at = response.body.index("Historical trends")
+    assert alerts_at
+    assert chart_at
+    assert_operator alerts_at, :<, chart_at
+  ensure
+    if previous.nil?
+      ENV.delete("ALERTS_ENABLED")
+    else
+      ENV["ALERTS_ENABLED"] = previous
+    end
   end
 
   test "measurement labels include glossary tooltips for datum terms" do
@@ -225,13 +251,15 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
       latest_water_level_value: 4.25,
       latest_water_level_unit: "ft",
       latest_temperature_c: 12.8,
-      latest_observed_at: 30.minutes.ago
+      latest_observed_at: 30.minutes.ago,
+      flood_category: "minor"
     )
     @location.update!(nearby_station_ids: [ neighbor.id ])
 
     get "/gauges/#{@location.state_code}/#{@location.to_param}"
     assert_response :success
     assert_includes response.body, "Nearby stations"
+    assert_includes response.body, "Related stations"
     assert_includes response.body, "Neighbor Creek Near Town"
     assert_includes response.body, "Flow:"
     assert_includes response.body, "1,250"
@@ -239,6 +267,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "4.25"
     assert_includes response.body, 'data-temp-prefix="Temp: "'
     assert_includes response.body, 'data-temp-c="12.8"'
+    assert_includes response.body, "related-row watch"
   end
 
   test "on-stream timeline renders upstream and downstream neighbors" do
@@ -277,14 +306,17 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Upstream Fork Near Town"
     assert_includes response.body, "Downstream Fork Near Town"
     assert_includes response.body, "aria-current=\"page\""
-    assert_includes response.body, "network-timeline"
+    assert_includes response.body, "stream-hop"
+    assert_includes response.body, "Related stations"
+    assert_includes response.body, "related-list"
   end
 
   test "hides the on-stream timeline when both sides are empty" do
     get "/gauges/#{@location.state_code}/#{@location.to_param}"
     assert_response :success
     assert_not_includes response.body, "On this stream"
-    assert_not_includes response.body, "network-timeline"
+    assert_not_includes response.body, "stream-hop"
+    assert_not_includes response.body, "Related stations"
   end
 
   test "map stations include station time zone fields" do

@@ -40,7 +40,18 @@ const FLOOD_STAGE_LABELS = {
 const FLOOD_STAGE_ORDER = ["action", "minor", "moderate", "major"]
 
 export default class extends Controller {
-  static targets = ["canvas", "history", "rangeButton", "legend", "stats", "daySelect", "estimatedNote"]
+  static targets = [
+    "canvas",
+    "history",
+    "rangeButton",
+    "legend",
+    "stats",
+    "daySelect",
+    "estimatedNote",
+    "chartView",
+    "tableView",
+    "viewButton"
+  ]
   static values = {
     url: String,
     measurements: Array,
@@ -54,8 +65,10 @@ export default class extends Controller {
     this.kind = first.kind
     this.parameterCode = first.parameter_code
     this.range = "7d"
+    this.view = "chart"
     this.selectedDayKey = null
     this.seriesByKey = {}
+    this.syncView()
     this.load()
     this.element.addEventListener("parameter-toggle:changed", (event) => {
       this.kind = event.detail.kind
@@ -82,6 +95,25 @@ export default class extends Controller {
     if (!this.hasDaySelectTarget) return
     this.selectedDayKey = this.daySelectTarget.value
     this.renderHistory()
+  }
+
+  setView(event) {
+    const view = event.params.view
+    if (!view || view === this.view) return
+
+    this.view = view
+    this.syncView()
+    if (this.view === "chart" && this.primarySeries()) this.renderChart()
+  }
+
+  syncView() {
+    const table = this.view === "table"
+    if (this.hasChartViewTarget) this.chartViewTarget.hidden = table
+    if (this.hasTableViewTarget) this.tableViewTarget.hidden = !table
+    this.viewButtonTargets.forEach((button) => {
+      const selected = button.dataset.hydrographViewParam === this.view
+      button.setAttribute("aria-pressed", selected ? "true" : "false")
+    })
   }
 
   exportCsv() {
@@ -144,7 +176,7 @@ export default class extends Controller {
     this.renderLegend()
     this.renderStats(primary.points || [])
     this.renderEstimatedNote(primary.points || [])
-    this.renderChart()
+    if (this.view === "chart") this.renderChart()
     this.renderDaySelect()
     this.renderHistory()
   }
@@ -158,7 +190,7 @@ export default class extends Controller {
     const unitSuffix = unit ? ` in ${unit}` : ""
     this.canvasTarget.setAttribute(
       "aria-label",
-      `Trend chart for ${label}${unitSuffix} over ${range}. Use the hourly measurements table below for the same data.`
+      `Trend chart for ${label}${unitSuffix} over ${range}. Switch to the Table view for accessible hourly readings.`
     )
   }
 

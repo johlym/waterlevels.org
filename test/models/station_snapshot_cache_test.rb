@@ -197,13 +197,16 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
       latest_water_level_value: 4.25,
       latest_water_level_unit: "ft",
       latest_temperature_c: 12.8,
-      latest_observed_at: 30.minutes.ago
+      latest_observed_at: 30.minutes.ago,
+      flood_category: "minor"
     )
     origin.update!(nearby_station_ids: [ neighbor.id ])
 
     payload = StationSnapshotCache.warm(origin.reload)
     nearby = payload[:nearby]
     assert_equal 1, nearby.size
+    assert_equal "minor", nearby.first[:flood_category]
+    assert_equal "Minor Flooding", nearby.first[:flood_category_label]
 
     readings = nearby.first[:measurements]
     assert_equal %w[ discharge water_level temperature ], readings.map { |r| r[:kind] }

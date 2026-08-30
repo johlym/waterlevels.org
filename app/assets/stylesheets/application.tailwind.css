@@ -1172,6 +1172,14 @@ body.dialog-open {
     .meta {
       @apply mt-1 text-pretty text-base text-zinc-400 sm:text-sm;
     }
+
+    .gauge-cta {
+      @apply mt-3;
+
+      .toolbar-btn {
+        @apply no-underline;
+      }
+    }
   }
 }
 
@@ -1268,8 +1276,12 @@ body.dialog-open {
     }
   }
 
+  .history-controls {
+    @apply flex flex-wrap items-center justify-end gap-3;
+  }
+
   .history-toolbar {
-    @apply flex flex-wrap items-center gap-3;
+    @apply mb-4 flex flex-wrap items-center gap-3;
   }
 
   .history-callout {
@@ -1397,7 +1409,7 @@ body.dialog-open {
   }
 
   .scroll {
-    @apply overflow-x-auto;
+    @apply max-h-[28rem] overflow-auto;
   }
 
   table {
@@ -1465,199 +1477,159 @@ body.dialog-open {
   }
 }
 
-.nearby-grid {
-  @apply mt-4 grid list-none gap-4 p-0 sm:grid-cols-2 lg:grid-cols-4;
+.stream-hop {
+  @apply mt-8 grid gap-3 sm:grid-cols-3;
+}
 
-  > li {
-    @apply h-full;
+.hop {
+  @apply flex min-w-0 flex-col gap-1 rounded-xl border border-zinc-800/80 bg-zinc-900/50 px-4 py-3 no-underline transition-all;
+
+  &.hop-up,
+  &.hop-down {
+    @apply hover:border-cyan-500/30 hover:bg-zinc-900/80;
   }
 
-  .nearby-card {
-    @apply flex h-full flex-col rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5 no-underline transition-all hover:border-cyan-500/30 hover:bg-zinc-900/80;
+  &.hop-here {
+    @apply border-cyan-500/40 bg-cyan-500/10;
+  }
 
-    &.nearby-card--watch {
-      @apply border-amber-500/50 bg-amber-950/20 shadow-[0_0_0_1px_rgba(245,158,11,0.15)];
-      animation: nearby-watch-pulse 2.4s ease-in-out infinite;
-    }
-
-    .card-top {
-      @apply mb-3 flex items-center justify-between gap-3;
-    }
-
-    .status {
-      @apply inline-flex items-center gap-1.5 text-xs;
-
-      .dot {
-        @apply size-2 rounded-full;
-      }
-
-      &.active {
-        @apply text-emerald-400;
-
-        .dot {
-          @apply bg-emerald-400;
-        }
-      }
-
-      &.watch {
-        @apply font-medium text-amber-300;
-
-        .dot {
-          @apply bg-amber-400;
-        }
-      }
-
-      &.offline {
-        @apply text-zinc-400;
-
-        .dot {
-          @apply bg-zinc-500;
-        }
-      }
-    }
-
-    .distance {
-      @apply text-xs text-zinc-400;
-    }
-
-    .name-scroll {
-      @apply mb-1 overflow-hidden whitespace-nowrap font-display text-sm font-semibold text-white;
-      container-type: inline-size;
-
-      span {
-        @apply inline-block max-w-none transition-colors;
-        transition-property: transform, color;
-        transition-duration: 0.2s, 0.15s;
-        transition-timing-function: linear, ease;
-      }
-    }
-
-    &:hover .name-scroll {
-      @apply text-cyan-400;
-
-      span {
-        transform: translateX(min(0px, calc(100cqi - 100%)));
-        transition-duration: 1.333s, 0.15s;
-      }
-    }
-
-    &:not(:hover) .name-scroll span {
-      transform: translateX(0);
-      transition-duration: 0.45s, 0.15s;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .name-scroll span {
-        transition: color 0.15s ease !important;
-        transform: none !important;
-      }
-    }
-
-    .site-id {
-      @apply mb-3 text-xs text-zinc-400;
-    }
-
-    .card-foot {
-      @apply mt-auto flex items-end justify-between gap-2 pt-3 text-xs text-zinc-400;
-
-      .readings {
-        @apply flex min-w-0 flex-col gap-1;
-      }
-
-      .muted {
-        @apply text-zinc-400;
-      }
-
-      svg {
-        @apply size-4 shrink-0 text-zinc-400 transition-colors;
-      }
-    }
-
-    &:hover .card-foot svg {
-      @apply text-cyan-400;
-    }
+  &.hop-empty {
+    @apply opacity-60;
   }
 }
 
-.network-timeline {
-  @apply relative mt-4 flex list-none flex-col gap-0 p-0 sm:flex-row sm:items-stretch sm:gap-8;
+.hop-kicker {
+  @apply inline-flex items-center gap-1 text-[0.65rem] font-medium uppercase tracking-wide text-zinc-400;
 
-  > li {
-    @apply relative flex min-w-0 flex-1 flex-col;
+  svg {
+    @apply size-3.5;
+  }
+}
+
+.hop-here .hop-kicker {
+  @apply text-cyan-400;
+}
+
+.hop-name {
+  @apply truncate font-display text-sm font-semibold text-white;
+}
+
+a.hop:hover .hop-name {
+  @apply text-cyan-400;
+}
+
+.related-columns {
+  @apply grid gap-6 lg:grid-cols-2;
+}
+
+.related-columns--single {
+  @apply lg:grid-cols-1;
+}
+
+.related-column {
+  h3 {
+    @apply mb-3 font-display text-sm font-semibold text-zinc-300;
+  }
+}
+
+.related-list {
+  @apply m-0 flex list-none flex-col gap-2 p-0;
+}
+
+.related-row {
+  @apply flex items-center justify-between gap-4 rounded-xl border border-zinc-800/80 bg-zinc-900/50 px-4 py-3 no-underline transition-all;
+
+  &.current {
+    @apply border-cyan-500/40 bg-cyan-500/10;
   }
 
-  > li:not(:last-child)::after {
-    content: "";
-    @apply mx-auto block h-6 w-px bg-zinc-700 sm:absolute sm:top-1/2 sm:right-0 sm:left-auto sm:h-px sm:w-8 sm:translate-x-full sm:-translate-y-1/2;
+  &:not(.current):hover {
+    @apply border-cyan-500/30 bg-zinc-900/80;
   }
 
-  .network-node {
-    @apply flex h-full flex-col rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-4 no-underline transition-all;
+  &.watch {
+    @apply border-amber-500/50 bg-amber-950/20;
+    animation: nearby-watch-pulse 2.4s ease-in-out infinite;
+  }
 
-    &.current {
-      @apply border-cyan-500/40 bg-cyan-500/10;
+  .related-main {
+    @apply min-w-0;
+  }
+
+  .related-meta {
+    @apply mb-1 flex flex-wrap items-center gap-2;
+  }
+
+  .related-dir {
+    @apply text-[0.65rem] font-medium uppercase tracking-wide text-zinc-400;
+  }
+
+  &.current .related-dir {
+    @apply text-cyan-400;
+  }
+
+  .status {
+    @apply inline-flex items-center gap-1.5 text-xs;
+
+    .dot {
+      @apply size-2 rounded-full;
     }
 
-    &:not(.current):hover {
-      @apply border-cyan-500/30 bg-zinc-900/80;
-    }
-
-    .node-meta {
-      @apply mb-2 flex items-center justify-between gap-2;
-    }
-
-    .node-dir {
-      @apply text-[0.65rem] font-medium uppercase tracking-wide text-zinc-400;
-    }
-
-    &.current .node-dir {
-      @apply text-cyan-400;
-    }
-
-    .status {
-      @apply inline-flex items-center gap-1.5 text-xs;
+    &.active {
+      @apply text-emerald-400;
 
       .dot {
-        @apply size-2 rounded-full;
-      }
-
-      &.active {
-        @apply text-emerald-400;
-
-        .dot {
-          @apply bg-emerald-400;
-        }
-      }
-
-      &.offline {
-        @apply text-zinc-400;
-
-        .dot {
-          @apply bg-zinc-500;
-        }
+        @apply bg-emerald-400;
       }
     }
 
-    .name-scroll {
-      @apply mb-1 overflow-hidden whitespace-nowrap font-display text-sm font-semibold text-white;
-      container-type: inline-size;
+    &.watch {
+      @apply font-medium text-amber-300;
 
-      span {
-        @apply inline-block max-w-none;
+      .dot {
+        @apply bg-amber-400;
       }
     }
 
-    &:hover:not(.current) .name-scroll {
-      @apply text-cyan-400;
-    }
+    &.offline {
+      @apply text-zinc-400;
 
-    .site-id {
-      @apply mb-2 text-xs text-zinc-400;
+      .dot {
+        @apply bg-zinc-500;
+      }
     }
+  }
 
-    .node-reading {
-      @apply mt-auto text-xs text-zinc-300;
+  .distance {
+    @apply text-xs text-zinc-400;
+  }
+
+  .related-name {
+    @apply truncate font-display text-sm font-semibold text-white;
+  }
+
+  &:hover:not(.current) .related-name {
+    @apply text-cyan-400;
+  }
+
+  .related-side {
+    @apply flex shrink-0 items-center gap-3 text-xs text-zinc-400;
+
+    svg {
+      @apply size-4 shrink-0 text-zinc-400 transition-colors;
     }
+  }
+
+  &:hover:not(.current) .related-side svg {
+    @apply text-cyan-400;
+  }
+
+  .related-readings {
+    @apply flex flex-col items-end gap-0.5 text-right;
+  }
+
+  .muted {
+    @apply text-zinc-400;
   }
 }
 
@@ -3059,13 +3031,41 @@ td.status .status-pill {
   @apply cursor-pointer border-0 bg-transparent p-0 text-sm font-medium text-rose-400 underline transition-colors hover:text-rose-300;
 }
 
-.gauge-alerts-cta {
-  .gauge-alert-form {
-    @apply mt-4 max-w-lg rounded-xl border border-zinc-800 bg-zinc-900/40 p-5;
+.gauge-alert-card {
+  @apply mt-8 scroll-mt-24 rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5;
+
+  .gauge-alert-copy {
+    h2 {
+      @apply font-display text-lg font-semibold text-white;
+    }
+
+    p {
+      @apply mt-1 text-sm text-zinc-400;
+    }
   }
 
-  .submit {
-    @apply mt-2;
+  .gauge-alert-form {
+    @apply mt-4 space-y-4;
+  }
+
+  .gauge-alert-row {
+    @apply flex flex-col gap-3 sm:flex-row sm:items-end;
+
+    .field {
+      @apply min-w-0 flex-1;
+    }
+
+    .submit {
+      @apply mt-0 w-full shrink-0 px-6 py-0 sm:h-11 sm:w-auto;
+    }
+  }
+
+  .gauge-alert-extras {
+    @apply flex flex-wrap items-center gap-x-5 gap-y-2;
+
+    .aside {
+      @apply m-0;
+    }
   }
 }
 
