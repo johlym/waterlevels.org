@@ -269,7 +269,7 @@
 }
 
 .page-main {
-  @apply mx-auto w-full max-w-screen-2xl flex-1 px-6 py-10;
+  @apply mx-auto w-full max-w-7xl flex-1 px-6 py-10;
 
   &.narrow {
     @apply max-w-3xl py-12;
@@ -723,7 +723,7 @@
   }
 
   .inner {
-    @apply relative mx-auto max-w-screen-2xl px-6;
+    @apply relative mx-auto max-w-7xl px-6;
   }
 
   .eyebrow {
@@ -755,7 +755,7 @@
   }
 
   .inner {
-    @apply relative mx-auto grid max-w-screen-2xl gap-16 px-6 lg:grid-cols-12;
+    @apply relative mx-auto grid max-w-7xl gap-16 px-6 lg:grid-cols-12;
   }
 
   .intro {
