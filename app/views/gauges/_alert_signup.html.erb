@@ -7,7 +7,12 @@
   </div>
 
   <%= form_with url: subscriptions_path, method: :post, class: "contact-form gauge-alert-form", data: { turbo: false, controller: "subscription-timezone" } do %>
-    <%= invisible_captcha :subtitle %>
+    <%# Honeypot only. `invisible_captcha` writes session timestamp/spinner and
+        would force a session cookie (CDN BYPASS) on this cookieless page. %>
+    <div hidden>
+      <label for="gauge-alert-subtitle">If you are a human, ignore this field</label>
+      <%= text_field_tag :subtitle, nil, id: "gauge-alert-subtitle", autocomplete: "off", tabindex: -1 %>
+    </div>
     <%= hidden_field_tag :monitoring_location_id, @location.id %>
     <%= hidden_field_tag :time_zone, "", data: { subscription_timezone_target: "hidden" } %>
 

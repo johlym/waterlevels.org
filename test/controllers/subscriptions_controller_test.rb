@@ -119,6 +119,45 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "create from gauge page succeeds without captcha session" do
+    with_invisible_captcha_session_checks do
+      gauge_url = gauge_url(state: @location.path_state, site_number_slug: @location.to_param)
+
+      assert_enqueued_emails 1 do
+        post subscriptions_path,
+             params: {
+               email: "from.gauge@example.com",
+               monitoring_location_id: @location.id,
+               time_zone: "America/Los_Angeles",
+               digest_enabled: "1",
+               spinner: "stale-cached-spinner"
+             },
+             headers: { "HTTP_REFERER" => gauge_url }
+      end
+
+      assert_redirected_to subscriptions_path(monitoring_location_id: @location.id)
+      assert_not_equal gauge_url, response.redirect_url
+      assert Subscriber.exists?(email: "from.gauge@example.com")
+    end
+  end
+
+  test "create honeypot still blocks when captcha session checks are on" do
+    with_invisible_captcha_session_checks do
+      assert_no_enqueued_emails do
+        post subscriptions_path,
+             params: {
+               email: "bot@example.com",
+               monitoring_location_id: @location.id,
+               subtitle: "filled-by-bot"
+             },
+             headers: { "HTTP_REFERER" => gauge_url(state: @location.path_state, site_number_slug: @location.to_param) }
+      end
+
+      assert_redirected_to subscriptions_path
+      assert_not Subscriber.exists?(email: "bot@example.com")
+    end
+  end
+
   test "create manage_link intent emails existing subscriber" do
     subscriber = create(:subscriber, :verified, email: "manage.me@example.com")
 
@@ -130,5 +169,18 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_redirected_to subscriptions_path
+  end
+
+  private
+
+  def with_invisible_captcha_session_checks
+    previous_timestamp = InvisibleCaptcha.timestamp_enabled
+    previous_spinner = InvisibleCaptcha.spinner_enabled
+    InvisibleCaptcha.timestamp_enabled = true
+    InvisibleCaptcha.spinner_enabled = true
+    yield
+  ensure
+    InvisibleCaptcha.timestamp_enabled = previous_timestamp
+    InvisibleCaptcha.spinner_enabled = previous_spinner
   end
 end
