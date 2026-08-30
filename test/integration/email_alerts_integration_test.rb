@@ -33,7 +33,11 @@ class EmailAlertsIntegrationTest < ActionDispatch::IntegrationTest
         digest_enabled: "1"
       }
     end
-    assert_redirected_to subscriptions_path(monitoring_location_id: @location.id)
+    assert_redirected_to gauge_path(
+      state: @location.path_state,
+      site_number_slug: @location.to_param,
+      signup: "sent"
+    )
 
     subscriber = Subscriber.find_by!(email: "paddler@example.com")
     refute subscriber.verified?

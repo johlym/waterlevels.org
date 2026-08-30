@@ -30,22 +30,25 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
     ActionController::Base.allow_forgery_protection = true
     get subscriptions_path
     assert_response :success
-    assert_includes response.body, "Request your manage link"
+    assert_includes response.body, "Manage Your Email Subscriptions"
     assert_includes response.body, ">Manage Email Alerts</a>"
+    assert_not_includes response.body, "Watch a gauge by"
+    assert_not_includes response.body, "Get alerts for this station"
     assert_includes response.headers["Cache-Control"], "no-store"
     assert_includes response.headers["Set-Cookie"].to_s, "_waterlevels_session"
   ensure
     ActionController::Base.allow_forgery_protection = previous
   end
 
-  test "new with monitoring_location_id shows signup form" do
+  test "new ignores monitoring_location_id and stays on the manage-link form" do
     get subscriptions_path, params: { monitoring_location_id: @location.id }
     assert_response :success
-    assert_includes response.body, "Get alerts for this station"
-    assert_includes response.body, @location.display_name
+    assert_includes response.body, "Manage Your Email Subscriptions"
+    assert_not_includes response.body, "Get alerts for this station"
+    assert_not_includes response.body, @location.display_name
   end
 
-  test "create signs up unverified subscriber and sends verify email" do
+  test "create signs up unverified subscriber and sends confirmation email" do
     assert_enqueued_emails 1 do
       post subscriptions_path, params: {
         email: "new.watcher@example.com",
@@ -55,15 +58,16 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
       }
     end
 
-    assert_redirected_to subscriptions_path(monitoring_location_id: @location.id)
+    assert_redirected_to gauge_signup_path("sent")
     subscriber = Subscriber.find_by!(email: "new.watcher@example.com")
     assert_not subscriber.verified?
     assert_equal "America/Los_Angeles", subscriber.time_zone
     assert subscriber.station_watches.exists?(monitoring_location_id: @location.id)
     assert_equal 1, subscriber.subscriber_tokens.where(purpose: "verify").count
+    assert subscriber.subscriber_tokens.exists?(purpose: "unsubscribe")
   end
 
-  test "create for verified subscriber sends manage link" do
+  test "create for verified subscriber sends confirmation instead of manage-only email" do
     subscriber = create(:subscriber, :verified, email: "verified@example.com")
 
     assert_enqueued_emails 1 do
@@ -74,7 +78,7 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
       }
     end
 
-    assert_redirected_to subscriptions_path(monitoring_location_id: @location.id)
+    assert_redirected_to gauge_signup_path("subscribed")
     assert subscriber.station_watches.exists?(monitoring_location_id: @location.id)
   end
 
@@ -92,7 +96,7 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
       time_zone: "America/Los_Angeles"
     }
 
-    assert_redirected_to subscriptions_path(monitoring_location_id: @location.id)
+    assert_redirected_to gauge_signup_path("subscribed")
     assert_equal "America/Los_Angeles", subscriber.reload.time_zone
   end
 
@@ -135,8 +139,7 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
              headers: { "HTTP_REFERER" => gauge_url }
       end
 
-      assert_redirected_to subscriptions_path(monitoring_location_id: @location.id)
-      assert_not_equal gauge_url, response.redirect_url
+      assert_redirected_to gauge_signup_path("sent")
       assert Subscriber.exists?(email: "from.gauge@example.com")
     end
   end
@@ -153,7 +156,7 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
              headers: { "HTTP_REFERER" => gauge_url(state: @location.path_state, site_number_slug: @location.to_param) }
       end
 
-      assert_redirected_to subscriptions_path
+      assert_redirected_to gauge_signup_path("sent")
       assert_not Subscriber.exists?(email: "bot@example.com")
     end
   end
@@ -172,6 +175,10 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def gauge_signup_path(signup)
+    gauge_path(state: @location.path_state, site_number_slug: @location.to_param, signup: signup)
+  end
 
   def with_invisible_captcha_session_checks
     previous_timestamp = InvisibleCaptcha.timestamp_enabled

@@ -6,6 +6,13 @@
     <p>Optional flood-category and threshold emails for this station. Confirm by email; unsubscribe anytime.</p>
   </div>
 
+  <% if @signup_notice.present? %>
+    <div class="flash notice" role="status"><%= @signup_notice %></div>
+  <% end %>
+  <% if @signup_alert.present? %>
+    <div class="flash alert" role="alert"><%= @signup_alert %></div>
+  <% end %>
+
   <%= form_with url: subscriptions_path, method: :post, class: "contact-form gauge-alert-form", data: { turbo: false, controller: "subscription-timezone" } do %>
     <%# Honeypot only. `invisible_captcha` writes session timestamp/spinner and
         would force a session cookie (CDN BYPASS) on this cookieless page. %>
