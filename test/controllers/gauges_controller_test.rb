@@ -95,7 +95,34 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_operator title_at, :<, meta_at
     assert_operator meta_at, :<, alerts_at
     assert_operator alerts_at, :<, chart_at
+    assert_includes response.body, 'action="/subscriptions"'
+    assert_includes response.body, 'method="post"'
+    assert_includes response.body, 'name="subtitle"'
+    assert_not_includes response.body, 'name="spinner"'
+    assert_nil response.headers["Set-Cookie"]
   ensure
+    if previous.nil?
+      ENV.delete("ALERTS_ENABLED")
+    else
+      ENV["ALERTS_ENABLED"] = previous
+    end
+  end
+
+  test "alert signup does not write a session cookie when captcha checks are on" do
+    previous = ENV["ALERTS_ENABLED"]
+    previous_timestamp = InvisibleCaptcha.timestamp_enabled
+    previous_spinner = InvisibleCaptcha.spinner_enabled
+    ENV["ALERTS_ENABLED"] = "1"
+    InvisibleCaptcha.timestamp_enabled = true
+    InvisibleCaptcha.spinner_enabled = true
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_includes response.body, 'id="alerts-cta"'
+    assert_nil response.headers["Set-Cookie"]
+  ensure
+    InvisibleCaptcha.timestamp_enabled = previous_timestamp
+    InvisibleCaptcha.spinner_enabled = previous_spinner
     if previous.nil?
       ENV.delete("ALERTS_ENABLED")
     else
