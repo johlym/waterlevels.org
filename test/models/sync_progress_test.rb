@@ -40,6 +40,29 @@ class SyncProgressTest < ActiveSupport::TestCase
     assert_match(/FloodStageSyncJob: phase=list_refresh/, io.string)
   end
 
+  test "omitting io logs once through the logger" do
+    log_io = StringIO.new
+    logger = ActiveSupport::Logger.new(log_io)
+    stdout = StringIO.new
+    original = $stdout
+    $stdout = stdout
+    begin
+      progress = SyncProgress.new("nldi:refresh", logger: logger, every: 1)
+      progress.step("usgs_id=USGS-02290940 upstream=0 downstream=0 refreshed=86/14998")
+    ensure
+      $stdout = original
+    end
+
+    assert_empty stdout.string
+    lines = log_io.string.lines.map(&:strip).reject(&:blank?)
+    assert_equal 2, lines.size
+    data = JSON.parse(lines.last)
+    assert_equal "sync.progress", data["event"]
+    assert_equal "nldi:refresh", data["job"]
+    assert_equal "USGS-02290940", data["usgs_id"]
+    assert_equal 0, data["upstream"]
+  end
+
   test "logger lines accept structured kwargs" do
     io = StringIO.new
     log_io = StringIO.new
