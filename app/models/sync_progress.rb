@@ -1,5 +1,8 @@
 class SyncProgress
-  def initialize(label, io: $stdout, logger: Rails.logger, every: 100)
+  # io defaults to nil: Rails.logger already goes to stdout on Heroku, and
+  # AppLogging always emits a JSON line. Passing $stdout (or a StringIO in
+  # tests) is only for a local human stream that is not also drained.
+  def initialize(label, io: nil, logger: Rails.logger, every: 100)
     @label = label
     @io = io
     @logger = logger
@@ -55,7 +58,6 @@ class SyncProgress
 
   def say(message = nil, **fields)
     human = human_line(message, fields)
-    # Human rake/console stream keeps the classic labeled lines.
     @io&.puts("[#{Time.current.strftime("%H:%M:%S")}] #{@label}: #{human}")
     @io&.flush
 
