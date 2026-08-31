@@ -1,5 +1,5 @@
 class StationSnapshotCache
-  PREFIX = "station_snapshot:v13".freeze
+  PREFIX = "station_snapshot:v14".freeze
   TTL = 2.hours
   MILES_PER_KM = 0.621371
 
@@ -9,6 +9,17 @@ class StationSnapshotCache
 
   def self.clear!
     Rails.cache.delete_matched("#{PREFIX}:*") if Rails.cache.respond_to?(:delete_matched)
+  end
+
+  def self.clear_for(location)
+    Rails.cache.delete(key_for(location))
+  end
+
+  def self.clear_for_id(id)
+    site_number = MonitoringLocation.where(id: id).pick(:site_number)
+    return if site_number.blank?
+
+    Rails.cache.delete("#{PREFIX}:#{site_number}")
   end
 
   def self.read(location)
@@ -55,8 +66,9 @@ class StationSnapshotCache
   end
 
   # Rebuild when empty, when selected series and cached measurement cards diverge
-  # (reselect added/removed a kind, e.g. discontinued temperature), or when a
-  # newer datapoint exists than the cached "last updated" timestamp.
+  # (reselect added/removed a kind, e.g. discontinued temperature), when on-stream
+  # neighbor ids changed, or when a newer datapoint exists than the cached
+  # "last updated" timestamp.
   def self.stale_snapshot?(cached, location)
     measurements = Array(cached[:measurements])
     selected = location.time_series.selected
@@ -64,6 +76,8 @@ class StationSnapshotCache
     return true if selected_count.positive? && measurements.size < selected_count
     # Deselected params (discontinued tip) must drop off cards/table columns.
     return true if measurements.size > selected_count
+
+    return true if network_mismatch?(cached, location)
 
     newest_datapoint = newest_collected_at(location)
     if newest_datapoint.present?
@@ -78,7 +92,15 @@ class StationSnapshotCache
 
     location.has_water_level? || location.has_discharge? || location.has_temperature?
   end
-  private_class_method :stale_snapshot?
+
+  def self.network_mismatch?(cached, location)
+    network = cached[:network] || cached["network"] || {}
+    cached_up = Array(network[:upstream] || network["upstream"]).size
+    cached_down = Array(network[:downstream] || network["downstream"]).size
+    cached_up != Array(location.upstream_station_ids).size ||
+      cached_down != Array(location.downstream_station_ids).size
+  end
+  private_class_method :stale_snapshot?, :network_mismatch?
 
   def self.build_payload(location)
     selected = location.time_series.selected

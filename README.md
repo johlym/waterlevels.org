@@ -131,4 +131,4 @@ Set in `.env`:
 - Map may be empty until catalog sync lands locations.
 - Temperature is stored in °C; UI defaults to °F via a preference cookie.
 - Local PostGIS is optional; nearby stations use haversine precompute, map bbox uses lat/lon indexes.
-- On-stream upstream/downstream neighbors are precomputed from the public USGS NLDI API (no API key). Catalog sync refreshes one `NLDI_REFRESH_BATCH`, then `NetworkRefreshBatchJob` drains unsynced rows (Mon–Sat). One-off: `bin/rails nldi:refresh` (optional `STATE=wa`, `FORCE=1`, `LIMIT=50`). Re-runs skip a fresh `network_synced_at`. Demo seed wires a 5-station chain offline (`99000096`–`990000100`).
+- On-stream upstream/downstream neighbors are precomputed from the public USGS NLDI API (no API key). Catalog sync refreshes one `NLDI_REFRESH_BATCH`, then `NetworkRefreshBatchJob` drains unsynced rows (Mon–Sat). One-off: `bin/rails nldi:refresh` (optional `STATE=wa`, `FORCE=1`, `LIMIT=50`). Re-runs skip stations that already have neighbor ids and a fresh `network_synced_at`; empty graphs stay pending so a failed first pass can retry. Demo seed wires a 5-station chain offline (`99000096`–`990000100`).
