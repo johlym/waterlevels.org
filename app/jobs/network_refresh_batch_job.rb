@@ -20,6 +20,11 @@ class NetworkRefreshBatchJob < ApplicationJob
         Telemetry.add_attributes("app.skip_reason" => "db_read_only_circuit")
         raise DatabaseReadOnlyError, "database read-only circuit open"
       end
+      if Nldi::RateLimitCircuit.open?
+        Telemetry.add_attributes("app.skip_reason" => "nldi_rate_limit")
+        Rails.logger.info("NetworkRefreshBatchJob skipped: NLDI rate limit circuit open")
+        return 0
+      end
 
       budget = station_budget(limit)
       if budget <= 0

@@ -22,6 +22,10 @@ class NetworkStations
     progress&.step(
       "locations=#{rows.size} pending=#{pending}#{" limit=#{budget}" if budget}"
     )
+    if Nldi::RateLimitCircuit.open?
+      progress&.step("rate_limited circuit_open")
+      return 0
+    end
     # NLDI HTTP can sit idle for minutes (timeouts / pacing). Do not pin a
     # checkout across that I/O — hosted Postgres will close the socket.
     release_db_connection!
@@ -33,6 +37,10 @@ class NetworkStations
       result = refresh_row!(
         id, usgs_id, client: client, id_by_usgs: id_by_usgs, latlon_by_id: latlon_by_id
       )
+      if result == :rate_limited
+        progress&.step("rate_limited refreshed=#{refreshed} attempted=#{attempted}")
+        break
+      end
       unless result
         progress&.step("usgs_id=#{usgs_id} error=1 attempted=#{attempted}")
         break if budget && attempted >= budget
@@ -112,6 +120,8 @@ class NetworkStations
       id,
       *neighbors_both_ways(usgs_id, client: client, id_by_usgs: id_by_usgs, latlon_by_id: latlon_by_id)
     )
+  rescue Nldi::Client::RateLimitError
+    :rate_limited
   rescue Nldi::Client::Error, Faraday::Error => e
     # Do not stamp an empty graph — that made the row look fresh for 7 days and
     # froze pending=0 after a failed national pass.

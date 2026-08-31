@@ -46,6 +46,25 @@ module Nldi
       assert_equal [ 0.05 ], slept
     end
 
+    test "429 trips the NLDI circuit and does not retry" do
+      stub_request(:get, %r{\Ahttps://api\.water\.usgs\.gov/nldi/})
+        .to_return(
+          status: 429,
+          body: { error: { code: "OVER_RATE_LIMIT", message: "You have exceeded your rate limit." } }.to_json,
+          headers: { "Content-Type" => "application/json" }
+        )
+
+      assert_raises(Client::RateLimitError) do
+        Client.new(request_pause_ms: 0).navigate_sites("USGS-03343400", mode: "UM", distance_km: 80)
+      end
+      assert RateLimitCircuit.open?
+      assert_raises(Client::RateLimitError) do
+        Client.new(request_pause_ms: 0).navigate_sites("USGS-03343400", mode: "DM", distance_km: 80)
+      end
+    ensure
+      RateLimitCircuit.clear!
+    end
+
     test "does not send an API key on flowline navigation" do
       stub_request(:get, %r{\Ahttps://api\.water\.usgs\.gov/nldi/linked-data/nwissite/USGS-12113000/navigation/DM/flowlines})
         .with { |request| assert_nil request.headers["X-Api-Key"]; true }

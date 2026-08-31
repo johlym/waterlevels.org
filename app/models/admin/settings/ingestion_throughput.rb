@@ -78,12 +78,12 @@ module Admin
             description: "Sleep between USGS API pages/requests to stay under rate limits."
 
           integer :nldi_request_pause_ms,
-            default: 100,
+            default: 10_000,
             env: "NLDI_REQUEST_PAUSE_MS",
             min: 0,
             max: 60_000,
             label: "NLDI request pause (ms)",
-            description: "Sleep between NLDI navigation requests when refreshing on-stream neighbors. NLDI is unauthenticated and does not use USGS_API_KEY."
+            description: "Sleep between NLDI navigation requests. Navigation is ~400 req/hr per client (then ~1/10s). Default 10000ms stays under that. NLDI is unauthenticated and does not use USGS_API_KEY."
 
           integer :nldi_refresh_batch,
             default: 50,

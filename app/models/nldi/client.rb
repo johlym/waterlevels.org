@@ -7,6 +7,7 @@ module Nldi
     BASE_URL = "https://api.water.usgs.gov/nldi/".freeze
 
     Error = Class.new(StandardError)
+    RateLimitError = Class.new(Error)
 
     def initialize(connection: nil, request_pause_ms: nil)
       @request_pause_ms = request_pause_ms.nil? ? default_request_pause_ms : request_pause_ms.to_i
@@ -43,6 +44,10 @@ module Nldi
           "app.path" => path
         }
       ) do
+        if RateLimitCircuit.open?
+          raise RateLimitError, "NLDI rate limit circuit open"
+        end
+
         pause_between_requests!
         response = @connection.get(path) do |req|
           req.params.update(stringify_params(params))
@@ -50,7 +55,8 @@ module Nldi
         end
         Telemetry.add_attributes(
           "http.response.status_code" => response.status,
-          "app.found" => response.status != 404
+          "app.found" => response.status != 404,
+          "app.rate_limit_remaining" => response.headers["X-RateLimit-Remaining"]
         )
         return [] if response.status == 404
 
@@ -87,6 +93,7 @@ module Nldi
           interval_randomness: 0.5,
           backoff_factor: 2,
           max_interval: 60,
+          # Do not retry 429 — navigation is ~400/hr; retries empty the window.
           retry_statuses: [ 500, 502, 503, 504 ]
         f.options.timeout = 60
         f.options.open_timeout = 10
@@ -100,6 +107,10 @@ module Nldi
     end
 
     def handle_response(response)
+      if response.status == 429
+        RateLimitCircuit.open!
+        raise RateLimitError, "NLDI rate limited"
+      end
       unless response.success?
         raise Error, "NLDI #{response.status}: #{response.body}"
       end

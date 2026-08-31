@@ -228,6 +228,20 @@ class NetworkStationsTest < ActiveSupport::TestCase
     assert second.reload.network_synced_at.present?
   end
 
+  test "stops the pass when NLDI is rate limited" do
+    client = FakeNldi.new(
+      sites: { "UM" => [], "DM" => [] },
+      flowlines: { "UM" => [], "DM" => [] }
+    )
+    client.rate_limit_usgs_ids << @origin.usgs_monitoring_location_id
+
+    refreshed = NetworkStations.refresh([ @origin, @near_later ], client: client)
+
+    assert_equal 0, refreshed
+    assert_nil @origin.reload.network_synced_at
+    assert_nil @near_later.reload.network_synced_at
+  end
+
   test "continues past an NLDI error without stamping the failed station" do
     client = FakeNldi.new(
       sites: { "UM" => [], "DM" => [] },
@@ -263,7 +277,7 @@ class NetworkStationsTest < ActiveSupport::TestCase
   private
 
   class FakeNldi
-    attr_reader :http_calls, :checked_out_during_http, :fail_usgs_ids
+    attr_reader :http_calls, :checked_out_during_http, :fail_usgs_ids, :rate_limit_usgs_ids
 
     def initialize(sites:, flowlines:)
       @sites = sites
@@ -271,9 +285,11 @@ class NetworkStationsTest < ActiveSupport::TestCase
       @http_calls = 0
       @checked_out_during_http = []
       @fail_usgs_ids = []
+      @rate_limit_usgs_ids = []
     end
 
     def navigate_sites(usgs_id, mode:, distance_km:)
+      raise Nldi::Client::RateLimitError, "NLDI rate limited" if @rate_limit_usgs_ids.include?(usgs_id)
       raise Nldi::Client::Error, "forced failure" if @fail_usgs_ids.include?(usgs_id)
 
       record_http!("sites/#{mode}")

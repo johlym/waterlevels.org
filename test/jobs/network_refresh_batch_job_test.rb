@@ -36,6 +36,17 @@ class NetworkRefreshBatchJobTest < ActiveSupport::TestCase
     assert_match(/refreshed=1 budget=1/, output)
   end
 
+  test "skips when the NLDI rate limit circuit is open" do
+    create(:monitoring_location, site_number: "40000004", usgs_monitoring_location_id: "USGS-40000004")
+    Nldi::RateLimitCircuit.open!(ttl: 5.minutes)
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      assert_equal 0, NetworkRefreshBatchJob.perform_now(10)
+    end
+  ensure
+    Nldi::RateLimitCircuit.clear!
+  end
+
   test "skips on Sunday when catalog pause is enabled" do
     create(:monitoring_location, site_number: "40000003", usgs_monitoring_location_id: "USGS-40000003")
 
