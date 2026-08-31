@@ -38,6 +38,8 @@ class Subscriber < ApplicationRecord
     verified? && !unsubscribed? && !paused?
   end
 
+  after_commit :reset_watched_locations_cache, on: %i[create update]
+
   def verify!
     update!(verified_at: Time.current) unless verified?
   end
@@ -120,5 +122,9 @@ class Subscriber < ApplicationRecord
 
   def normalize_time_zone
     self.time_zone = SubscriberTimeZones.normalize(time_zone)
+  end
+
+  def reset_watched_locations_cache
+    Alerts::WatchedLocations.reset!
   end
 end

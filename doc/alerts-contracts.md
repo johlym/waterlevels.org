@@ -119,4 +119,5 @@ Schema names, rule kinds, and event payloads locked for parallel implementation.
 ## Sidekiq
 
 - Queue: `notifications`
-- Jobs: `AlertEvaluationJob`, `AlertDeliveryJob`, `AlertDigestSchedulerJob` (cron `*/15`)
+- Jobs: `AlertEvaluationBatchJob` (debounced drain of `AlertEvaluationEnqueueBuffer`), `AlertEvaluationJob` (per-location eval, invoked by batch), `AlertDeliveryJob`, `AlertDigestSchedulerJob` (cron `*/15`)
+- Tip/flood sync records `alert_events` for all stations but only **watched** locations enter the evaluation buffer (`Alerts::WatchedLocations`). Multiple events for the same station coalesce to one batch flush (~90s debounce).
