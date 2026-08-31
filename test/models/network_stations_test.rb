@@ -117,6 +117,29 @@ class NetworkStationsTest < ActiveSupport::TestCase
     assert @origin.network_synced_at.present?
   end
 
+  test "retries a stamped row that still has empty neighbor lists" do
+    @origin.update!(
+      upstream_station_ids: [],
+      downstream_station_ids: [],
+      network_synced_at: 1.hour.ago
+    )
+    client = FakeNldi.new(
+      sites: {
+        "UM" => um_sites,
+        "DM" => []
+      },
+      flowlines: {
+        "UM" => um_flowlines,
+        "DM" => []
+      }
+    )
+
+    refreshed = NetworkStations.refresh([ @origin ], client: client)
+
+    assert_equal 1, refreshed
+    assert_equal [ @far_earlier.id, @near_later.id ], @origin.reload.upstream_station_ids
+  end
+
   test "skips locations whose network graph is still fresh" do
     @origin.update!(
       upstream_station_ids: [ @far_earlier.id ],
@@ -205,7 +228,7 @@ class NetworkStationsTest < ActiveSupport::TestCase
     assert second.reload.network_synced_at.present?
   end
 
-  test "continues past an NLDI error and stamps the failed station" do
+  test "continues past an NLDI error without stamping the failed station" do
     client = FakeNldi.new(
       sites: { "UM" => [], "DM" => [] },
       flowlines: { "UM" => [], "DM" => [] }
@@ -214,11 +237,10 @@ class NetworkStationsTest < ActiveSupport::TestCase
 
     refreshed = NetworkStations.refresh([ @origin, @near_later ], client: client)
 
-    assert_equal 2, refreshed
+    assert_equal 1, refreshed
     @origin.reload
     @near_later.reload
-    assert_empty @origin.upstream_station_ids
-    assert @origin.network_synced_at.present?
+    assert_nil @origin.network_synced_at
     assert @near_later.network_synced_at.present?
   end
 

@@ -283,4 +283,15 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
     neighbor_lookups = sql.count { |q| q.include?("FROM \"monitoring_locations\"") && q.include?("\"id\" IN") }
     assert_equal 1, neighbor_lookups
   end
+
+  test "fetch rebuilds when on-stream neighbor ids are persisted after a warm" do
+    origin = create(:monitoring_location, site_number: "00000031", usgs_monitoring_location_id: "USGS-00000031")
+    up = create(:monitoring_location, site_number: "00000032", usgs_monitoring_location_id: "USGS-00000032")
+    StationSnapshotCache.warm(origin.reload)
+    origin.update!(upstream_station_ids: [ up.id ], network_synced_at: Time.current)
+
+    payload = StationSnapshotCache.fetch(origin.reload)
+    assert_equal 1, payload[:network][:upstream].size
+    assert_equal "00000032", payload[:network][:upstream].first[:site_number]
+  end
 end

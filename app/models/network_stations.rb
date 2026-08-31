@@ -14,9 +14,11 @@ class NetworkStations
     id_by_usgs, latlon_by_id = catalog_indexes
     catalog_ids = id_by_usgs.values.to_set
     budget = limit_budget(limit)
-    pending = rows.count do |_id, _usgs_id, synced_at, up_ids, down_ids|
+    work = rows.select do |_id, _usgs_id, synced_at, up_ids, down_ids|
       force || stale_row?(synced_at, up_ids, down_ids, catalog_ids)
     end
+    work.sort_by! { |id, _usgs_id, synced_at, _up, _down| [ synced_at ? 1 : 0, synced_at || Time.at(0), id ] }
+    pending = work.size
     progress&.step(
       "locations=#{rows.size} pending=#{pending}#{" limit=#{budget}" if budget}"
     )
@@ -25,18 +27,25 @@ class NetworkStations
     release_db_connection!
 
     refreshed = 0
-    rows.each do |id, usgs_id, synced_at, up_ids, down_ids|
-      next unless force || stale_row?(synced_at, up_ids, down_ids, catalog_ids)
-
-      upstream, downstream = refresh_row!(
+    attempted = 0
+    work.each do |id, usgs_id, _synced_at, _up_ids, _down_ids|
+      attempted += 1
+      result = refresh_row!(
         id, usgs_id, client: client, id_by_usgs: id_by_usgs, latlon_by_id: latlon_by_id
       )
+      unless result
+        progress&.step("usgs_id=#{usgs_id} error=1 attempted=#{attempted}")
+        break if budget && attempted >= budget
+        next
+      end
+
+      upstream, downstream = result
       refreshed += 1
       progress&.step(
         "usgs_id=#{usgs_id} upstream=#{upstream.size} downstream=#{downstream.size} " \
         "refreshed=#{refreshed}/#{budget || pending}"
       )
-      break if budget && refreshed >= budget
+      break if budget && attempted >= budget
     end
     refreshed
   end
@@ -104,13 +113,13 @@ class NetworkStations
       *neighbors_both_ways(usgs_id, client: client, id_by_usgs: id_by_usgs, latlon_by_id: latlon_by_id)
     )
   rescue Nldi::Client::Error, Faraday::Error => e
-    # One failed station must not abort the rest of a national pass. Stamp empty
-    # so the next tick advances; Faraday already retried transients.
+    # Do not stamp an empty graph — that made the row look fresh for 7 days and
+    # froze pending=0 after a failed national pass.
     Rails.logger.warn(
       "NetworkStations NLDI failed id=#{id} usgs_id=#{usgs_id} " \
       "#{e.class}: #{e.message}"
     )
-    persist_network!(id, [], [])
+    nil
   end
   private_class_method :refresh_row!
 
@@ -118,19 +127,34 @@ class NetworkStations
     id_by_usgs = {}
     latlon_by_id = {}
     MonitoringLocation.pluck(:id, :usgs_monitoring_location_id, :latitude, :longitude).each do |id, usgs_id, lat, lon|
-      id_by_usgs[usgs_id] = id
+      index_usgs_id!(id_by_usgs, usgs_id, id)
       latlon_by_id[id] = [ lat.to_f, lon.to_f ]
     end
     [ id_by_usgs, latlon_by_id ]
   end
   private_class_method :catalog_indexes
 
+  def self.index_usgs_id!(hash, usgs_id, id)
+    raw = usgs_id.to_s
+    hash[raw] = id
+    if raw.start_with?("USGS-")
+      hash[raw.delete_prefix("USGS-")] = id
+    else
+      hash["USGS-#{raw}"] = id
+    end
+  end
+  private_class_method :index_usgs_id!
+
   def self.stale_row?(synced_at, up_ids, down_ids, catalog_ids)
     return true if synced_at.blank?
-    return true if synced_at < FRESH_AFTER.ago
 
     stored = Array(up_ids) + Array(down_ids)
-    stored.any? { |id| !catalog_ids.include?(id) }
+    # Empty lists are not "we know the connections" — a failed/partial pass
+    # stamped [] + network_synced_at and then skipped the real graph forever.
+    return true if stored.empty?
+    return true if synced_at < FRESH_AFTER.ago
+
+    stored.any? { |id| !catalog_ids.include?(id) && !catalog_ids.include?(id.to_i) }
   end
   private_class_method :stale_row?
 
@@ -150,6 +174,7 @@ class NetworkStations
         network_synced_at: Time.current,
         updated_at: Time.current
       )
+      StationSnapshotCache.clear_for_id(id)
     end
     [ upstream, downstream ]
   end
@@ -215,7 +240,7 @@ class NetworkStations
       usgs_id = feature_identifier(feature)
       next if usgs_id.blank? || usgs_id == origin_usgs_id.to_s
 
-      db_id = id_by_usgs[usgs_id]
+      db_id = id_by_usgs[usgs_id] || id_by_usgs[usgs_id.delete_prefix("USGS-")] || id_by_usgs["USGS-#{usgs_id}"]
       next unless db_id
 
       comid = comid_for(feature)

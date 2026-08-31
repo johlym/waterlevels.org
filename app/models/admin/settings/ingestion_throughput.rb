@@ -91,7 +91,7 @@ module Admin
             min: 0,
             max: 5_000,
             label: "NLDI refresh batch",
-            description: "Stations to refresh per NetworkRefreshBatchJob tick (and per catalog-sync kickoff). Set 0 to pause the batch job. Re-runs skip rows with a fresh network_synced_at."
+            description: "Stations to refresh per NetworkRefreshBatchJob tick (and per catalog-sync kickoff). Set 0 to pause the batch job. Re-runs skip rows that already have neighbor ids and a fresh network_synced_at; empty graphs stay pending."
 
           integer :nwps_request_pause_ms,
             default: 30_000,
