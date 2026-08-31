@@ -3,8 +3,15 @@ require "stringio"
 
 class NetworkRefreshBatchJobTest < ActiveSupport::TestCase
   setup do
+    @previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
     stub_request(:get, %r{\Ahttps://api\.water\.usgs\.gov/nldi/})
       .to_return(status: 404, body: "", headers: { "Content-Type" => "application/json" })
+  end
+
+  teardown do
+    Nldi::RateLimitCircuit.clear!
+    Rails.cache = @previous_cache
   end
 
   test "refreshes a limited batch of unsynced stations" do
@@ -43,8 +50,6 @@ class NetworkRefreshBatchJobTest < ActiveSupport::TestCase
     travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
       assert_equal 0, NetworkRefreshBatchJob.perform_now(10)
     end
-  ensure
-    Nldi::RateLimitCircuit.clear!
   end
 
   test "skips on Sunday when catalog pause is enabled" do

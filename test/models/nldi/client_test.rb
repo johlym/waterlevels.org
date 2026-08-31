@@ -2,6 +2,16 @@ require "test_helper"
 
 module Nldi
   class ClientTest < ActiveSupport::TestCase
+    setup do
+      @previous_cache = Rails.cache
+      Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    end
+
+    teardown do
+      RateLimitCircuit.clear!
+      Rails.cache = @previous_cache
+    end
+
     test "requests navigation sites without an API key" do
       stub_request(:get, %r{\Ahttps://api\.water\.usgs\.gov/nldi/linked-data/nwissite/USGS-12113000/navigation/UM/nwissite})
         .with { |request|
@@ -47,7 +57,7 @@ module Nldi
     end
 
     test "429 trips the NLDI circuit and does not retry" do
-      stub_request(:get, %r{\Ahttps://api\.water\.usgs\.gov/nldi/})
+      stub = stub_request(:get, %r{\Ahttps://api\.water\.usgs\.gov/nldi/})
         .to_return(
           status: 429,
           body: { error: { code: "OVER_RATE_LIMIT", message: "You have exceeded your rate limit." } }.to_json,
@@ -58,11 +68,12 @@ module Nldi
         Client.new(request_pause_ms: 0).navigate_sites("USGS-03343400", mode: "UM", distance_km: 80)
       end
       assert RateLimitCircuit.open?
+      assert_requested(stub, times: 1)
+
       assert_raises(Client::RateLimitError) do
         Client.new(request_pause_ms: 0).navigate_sites("USGS-03343400", mode: "DM", distance_km: 80)
       end
-    ensure
-      RateLimitCircuit.clear!
+      assert_requested(stub, times: 1)
     end
 
     test "does not send an API key on flowline navigation" do

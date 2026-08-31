@@ -242,6 +242,25 @@ class NetworkStationsTest < ActiveSupport::TestCase
     assert_nil @near_later.reload.network_synced_at
   end
 
+  test "skips remaining work when the NLDI circuit is already open" do
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    Nldi::RateLimitCircuit.open!(ttl: 1.minute)
+    client = FakeNldi.new(
+      sites: { "UM" => [], "DM" => [] },
+      flowlines: { "UM" => [], "DM" => [] }
+    )
+
+    refreshed = NetworkStations.refresh([ @origin, @near_later ], client: client)
+
+    assert_equal 0, refreshed
+    assert_equal 0, client.http_calls
+    assert_nil @origin.reload.network_synced_at
+  ensure
+    Nldi::RateLimitCircuit.clear!
+    Rails.cache = previous_cache
+  end
+
   test "continues past an NLDI error without stamping the failed station" do
     client = FakeNldi.new(
       sites: { "UM" => [], "DM" => [] },

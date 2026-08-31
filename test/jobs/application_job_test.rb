@@ -9,6 +9,12 @@ class ApplicationJobTest < ActiveSupport::TestCase
     end
   end
 
+  class NldiRateLimitProbeJob < ApplicationJob
+    def perform
+      raise Nldi::Client::RateLimitError, "probe"
+    end
+  end
+
   class ReadOnlyProbeJob < ApplicationJob
     def perform
       begin
@@ -37,6 +43,12 @@ class ApplicationJobTest < ActiveSupport::TestCase
   test "discards USGS rate limit errors without re-enqueueing" do
     assert_no_enqueued_jobs only: RateLimitProbeJob do
       RateLimitProbeJob.perform_now
+    end
+  end
+
+  test "discards NLDI rate limit errors without re-enqueueing" do
+    assert_no_enqueued_jobs only: NldiRateLimitProbeJob do
+      NldiRateLimitProbeJob.perform_now
     end
   end
 
