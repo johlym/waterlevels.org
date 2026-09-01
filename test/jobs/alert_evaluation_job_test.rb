@@ -54,4 +54,22 @@ class AlertEvaluationJobTest < ActiveSupport::TestCase
       AlertEvaluationJob.perform_now(@location.id)
     end
   end
+
+  test "evaluates flood events whose NWPS validTime is older than the pending window" do
+    @event.update!(occurred_at: 6.hours.ago)
+
+    assert_enqueued_with(job: AlertDeliveryJob) do
+      AlertEvaluationJob.perform_now(@location.id)
+    end
+    assert_equal @event.id, AlertDelivery.last.alert_event_id
+  end
+
+  test "evaluates a targeted event even when it was recorded before the pending window" do
+    @event.update_columns(occurred_at: 6.hours.ago, created_at: 3.hours.ago)
+
+    assert_enqueued_with(job: AlertDeliveryJob) do
+      AlertEvaluationJob.perform_now(@location.id, @event.id)
+    end
+    assert_equal @event.id, AlertDelivery.last.alert_event_id
+  end
 end

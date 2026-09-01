@@ -22,7 +22,8 @@ class AlertEventRecorderTest < ActiveSupport::TestCase
   test "records flood category change and enqueues evaluation" do
     at = Time.zone.parse("2026-08-29T12:00:00Z")
 
-    assert_enqueued_with(job: AlertEvaluationJob, args: [ @location.id ]) do
+    event = nil
+    assert_enqueued_jobs 1, only: AlertEvaluationJob do
       event = AlertEventRecorder.flood_category_change!(
         location: @location,
         from: "no_flooding",
@@ -33,6 +34,7 @@ class AlertEventRecorderTest < ActiveSupport::TestCase
       assert_equal "flood:#{@location.id}:no_flooding:major:#{at.to_i}", event.dedupe_key
       assert_equal "major", event.payload["to"]
     end
+    assert_enqueued_with(job: AlertEvaluationJob, args: [ @location.id, event.id ])
   end
 
   test "skips flood record when from and to normalize equal" do

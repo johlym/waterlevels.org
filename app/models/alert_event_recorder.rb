@@ -26,7 +26,7 @@ class AlertEventRecorder
         },
         dedupe_key: "flood:#{location.id}:#{from_n}:#{to_n}:#{at.to_i}"
       )
-      enqueue_evaluation!(location) if event
+      enqueue_evaluation!(location, event) if event
       event
     end
 
@@ -48,7 +48,7 @@ class AlertEventRecorder
         },
         dedupe_key: "reading:#{location.id}:#{param}:#{at.to_i}"
       )
-      enqueue_evaluation!(location) if event
+      enqueue_evaluation!(location, event) if event
       event
     end
 
@@ -64,7 +64,7 @@ class AlertEventRecorder
         },
         dedupe_key: "quiet:#{location.id}:#{tip_i}:#{at.to_date}"
       )
-      enqueue_evaluation!(location) if event
+      enqueue_evaluation!(location, event) if event
       event
     end
 
@@ -80,16 +80,16 @@ class AlertEventRecorder
         },
         dedupe_key: "resume:#{location.id}:#{tip_i}"
       )
-      enqueue_evaluation!(location) if event
+      enqueue_evaluation!(location, event) if event
       event
     end
 
     private
 
-    def enqueue_evaluation!(location)
+    def enqueue_evaluation!(location, event)
       return unless AlertsConfig.enabled?
 
-      AlertEvaluationJob.perform_later(location.id)
+      AlertEvaluationJob.perform_later(location.id, event.id)
     end
 
     def normalize_flood(value)
