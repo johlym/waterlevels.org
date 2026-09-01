@@ -3,19 +3,20 @@
 class AlertEvaluationJob < ApplicationJob
   queue_as :notifications
 
-  # Look back for events that may not yet have deliveries for matching rules.
+  # Look back for events recorded recently that may not yet have deliveries.
+  # Use created_at (when we persisted the event), not occurred_at (NWPS/USGS
+  # observation time). FloodStageSync stamps occurred_at from status validTime,
+  # which is routinely older than 2 hours on the hourly sync — filtering on
+  # that dropped live flood/threshold emails.
   PENDING_WINDOW = 2.hours
 
-  def perform(location_id)
+  def perform(location_id, event_id = nil)
     return unless AlertsConfig.enabled?
 
     location = MonitoringLocation.find_by(id: location_id)
     return unless location
 
-    events = AlertEvent
-      .where(monitoring_location_id: location.id)
-      .where(occurred_at: PENDING_WINDOW.ago..)
-      .order(:occurred_at)
+    events = pending_events_for(location, event_id)
 
     watches = StationWatch
       .joins(:subscriber)
@@ -94,6 +95,13 @@ class AlertEvaluationJob < ApplicationJob
       enqueue_delivery!(watch.subscriber, event, rule, "in_range")
       rule.mark_fired!
     end
+  end
+
+  def pending_events_for(location, event_id)
+    scope = AlertEvent.where(monitoring_location_id: location.id)
+    recent = scope.where(created_at: PENDING_WINDOW.ago..)
+    relation = event_id.present? ? recent.or(scope.where(id: event_id)) : recent
+    relation.order(:occurred_at)
   end
 
   def parameter_matches?(rule, event)
