@@ -8,8 +8,18 @@ class AlertRule < ApplicationRecord
   scope :enabled, -> { where(enabled: true) }
   scope :of_kind, ->(kind) { where(kind: kind) }
 
+  # Threshold-style rules default to 6 hours so a still-true condition
+  # does not re-mail every tip. Flood category changes are discrete
+  # events (action → minor → major); a shared default muted escalations
+  # for the rest of a rising-flood window.
+  THRESHOLD_COOLDOWN_KINDS = %w[threshold rate_of_rise in_range].freeze
+  DEFAULT_THRESHOLD_COOLDOWN_MINUTES = 360
+
   def cooldown_minutes
-    (params["cooldown_minutes"] || 360).to_i
+    explicit = params["cooldown_minutes"]
+    return explicit.to_i unless explicit.nil?
+
+    THRESHOLD_COOLDOWN_KINDS.include?(kind) ? DEFAULT_THRESHOLD_COOLDOWN_MINUTES : 0
   end
 
   def in_cooldown?(at = Time.current)
