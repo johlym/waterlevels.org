@@ -54,4 +54,24 @@ class AlertEvaluationJobTest < ActiveSupport::TestCase
       AlertEvaluationJob.perform_now(@location.id)
     end
   end
+
+  test "still mails a flood escalation after a recent earlier-stage alert" do
+    assert_difference("AlertDelivery.count", 1) do
+      AlertEvaluationJob.perform_now(@location.id)
+    end
+
+    create(
+      :alert_event,
+      monitoring_location: @location,
+      kind: "flood_category_change",
+      occurred_at: 2.minutes.ago,
+      payload: { "from" => "minor", "to" => "major", "observed_at" => 2.minutes.ago.iso8601 }
+    )
+
+    assert_difference("AlertDelivery.count", 1) do
+      AlertEvaluationJob.perform_now(@location.id)
+    end
+
+    assert_equal [ "minor", "major" ], AlertDelivery.order(:id).last(2).map { |d| d.alert_event.payload["to"] }
+  end
 end
