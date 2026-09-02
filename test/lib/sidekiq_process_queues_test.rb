@@ -69,6 +69,7 @@ class SidekiqProcessQueuesTest < ActiveSupport::TestCase
   test "alert jobs and digest cron use the notifications queue" do
     assert_equal "notifications", AlertDeliveryJob.new.queue_name
     assert_equal "notifications", AlertEvaluationJob.new.queue_name
+    assert_equal "notifications", AlertEvaluationBatchJob.new.queue_name
     assert_equal "notifications", AlertDigestSchedulerJob.new.queue_name
     assert_equal "notifications", AlertQuietScanJob.new.queue_name
 

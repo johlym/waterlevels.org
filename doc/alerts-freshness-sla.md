@@ -19,6 +19,10 @@
 4. **No targeted faster tip sync for watched stations in v1.** Revisit only if
    open rates / support tickets show hourly lag is a product problem
    (`HISTORY` / tip budget permitting).
+5. **Evaluation enqueue is filtered and batched.** `AlertEventRecorder` skips
+   stations with no active watches and coalesces the rest into
+   `AlertEvaluationBatchJob` (~90s debounce) instead of one Sidekiq job per tip
+   refresh during national sync.
 
 ## Operator notes
 - Enable product with `ALERTS_ENABLED=1`.
