@@ -9,6 +9,7 @@ class AlertEventRecorderTest < ActiveSupport::TestCase
     @location = create(:monitoring_location)
     @previous_alerts = ENV["ALERTS_ENABLED"]
     ENV["ALERTS_ENABLED"] = "1"
+    AlertEvaluationEnqueueBuffer.backend = AlertEvaluationEnqueueBuffer::MemoryBackend.new
   end
 
   teardown do
@@ -17,12 +18,14 @@ class AlertEventRecorderTest < ActiveSupport::TestCase
     else
       ENV.delete("ALERTS_ENABLED")
     end
+    AlertEvaluationEnqueueBuffer.reset!
   end
 
   test "records flood category change and enqueues evaluation" do
     at = Time.zone.parse("2026-08-29T12:00:00Z")
+    create(:station_watch, subscriber: create(:subscriber, :verified), monitoring_location: @location)
 
-    assert_enqueued_with(job: AlertEvaluationJob, args: [ @location.id ]) do
+    assert_enqueued_with(job: AlertEvaluationBatchJob) do
       event = AlertEventRecorder.flood_category_change!(
         location: @location,
         from: "no_flooding",
@@ -33,6 +36,7 @@ class AlertEventRecorderTest < ActiveSupport::TestCase
       assert_equal "flood:#{@location.id}:no_flooding:major:#{at.to_i}", event.dedupe_key
       assert_equal "major", event.payload["to"]
     end
+    assert_includes AlertEvaluationEnqueueBuffer.backend.drain, @location.id
   end
 
   test "skips flood record when from and to normalize equal" do
@@ -88,7 +92,8 @@ class AlertEventRecorderTest < ActiveSupport::TestCase
 
   test "does not enqueue evaluation when alerts disabled" do
     ENV["ALERTS_ENABLED"] = "0"
-    assert_no_enqueued_jobs(only: AlertEvaluationJob) do
+    create(:station_watch, subscriber: create(:subscriber, :verified), monitoring_location: @location)
+    assert_no_enqueued_jobs(only: AlertEvaluationBatchJob) do
       AlertEventRecorder.flood_category_change!(
         location: @location,
         from: "action",
@@ -97,5 +102,17 @@ class AlertEventRecorderTest < ActiveSupport::TestCase
       )
     end
     assert_equal 1, AlertEvent.count
+  end
+
+  test "does not enqueue evaluation when location has no active watches" do
+    assert_no_enqueued_jobs(only: AlertEvaluationBatchJob) do
+      AlertEventRecorder.flood_category_change!(
+        location: @location,
+        from: "action",
+        to: "major",
+        observed_at: Time.current
+      )
+    end
+    assert_empty AlertEvaluationEnqueueBuffer.backend.drain
   end
 end

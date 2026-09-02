@@ -8,6 +8,7 @@ class EmailAlertsIntegrationTest < ActionDispatch::IntegrationTest
   setup do
     @previous = ENV["ALERTS_ENABLED"]
     ENV["ALERTS_ENABLED"] = "1"
+    AlertEvaluationEnqueueBuffer.backend = AlertEvaluationEnqueueBuffer::MemoryBackend.new
     @location = create(
       :monitoring_location,
       flood_category: "no_flooding",
@@ -22,6 +23,7 @@ class EmailAlertsIntegrationTest < ActionDispatch::IntegrationTest
     else
       ENV["ALERTS_ENABLED"] = @previous
     end
+    AlertEvaluationEnqueueBuffer.reset!
   end
 
   test "signup verify manage flood delivery flow" do
@@ -68,7 +70,8 @@ class EmailAlertsIntegrationTest < ActionDispatch::IntegrationTest
     )
     assert event
 
-    perform_enqueued_jobs only: AlertEvaluationJob
+    travel 91.seconds
+    perform_enqueued_jobs only: AlertEvaluationBatchJob
     delivery = AlertDelivery.find_by(subscriber: subscriber, mailer_action: "flood_category_change")
     assert delivery, "expected flood delivery to be queued"
 

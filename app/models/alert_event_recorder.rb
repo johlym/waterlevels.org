@@ -88,8 +88,10 @@ class AlertEventRecorder
 
     def enqueue_evaluation!(location)
       return unless AlertsConfig.enabled?
+      return unless Alerts::WatchedLocations.include?(location.id)
 
-      AlertEvaluationJob.perform_later(location.id)
+      AlertEvaluationEnqueueBuffer.add(location.id)
+      AlertEvaluationEnqueueBuffer.schedule_flush!
     end
 
     def normalize_flood(value)
