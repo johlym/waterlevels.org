@@ -34,6 +34,8 @@ bin/rails usgs:enqueue_bootstrap
 
 Hourly `LatestObservationSyncJob` keeps readings fresh near `:00`. `FloodStageSyncJob` runs at `:30` and loops every state in one job with ≥30s between states (one NWPS list GET per state bbox, category refresh, unlinked action+ linking, small detail-GET budget). `STATE=wa bin/rails nwps:sync_flood_stages` or `bin/rails nwps:enqueue_sync`. Bootstrap also runs flood sync per state. Hourly `HistoryBackfillBatchJob` fills gap-aware continuous history (up to ~35 days) and year daily history into R2 in batches (gauge page views also enqueue a station when charts are empty). Prefer this over a national one-off `usgs:bootstrap` on a small dyno.
 
+Sunday `StationCatalogSyncJob` (03:00 UTC on `sync`) checkpoints finished parameter codes in Redis (`catalog:sync_checkpoint:{national|wa|…}`, 7-day TTL). A dyno kill or retry resumes that Sunday-week fingerprint and skips completed codes instead of re-paging `latest-continuous` from the start. The in-flight code is always re-done. Display-series selection runs on just-touched locations during the loop so gauge hydrographs keep loading mid-job. Weekly upserts refresh USGS identity fields but leave `slug` / `active` / `created_at` and `selected_for_display` alone. History backfill is off on Sunday so catalog can use the tip key.
+
 ### Local / single-state
 
 ```bash
@@ -111,7 +113,7 @@ bin/rails test
 - Redis TLS: Sidekiq, cache, and Action Cable use `ssl_params.verify_mode = VERIFY_NONE` for Heroku self-signed `rediss://` certs
 - After deploy: `heroku run bin/rails usgs:enqueue_bootstrap -a <app>`
 - Optional: `MALLOC_ARENA_MAX=2` if worker RSS climbs
-- Put Cloudflare in front; honor `Cache-Control` / `Cache-Tag` from the app. Use a Cache Rule (Eligible for cache + Origin Cache Control) for public HTML; bypass `/contact`, `/admin`, and `/api/*`. Public pages skip the Rails session cookie so HTML is not forced to `BYPASS`.
+- Put Cloudflare in front; honor `Cache-Control` / `Cache-Tag` from the app. Use a Cache Rule (Eligible for cache + Origin Cache Control) for public HTML; bypass `/contact`, `/subscriptions`, `/admin`, and `/api/*`. Public pages skip the Rails session cookie so HTML is not forced to `BYPASS`.
 - Internal `/api/*` JSON is first-party-only (`X-WaterLevels-Client: web` + same-origin browser context), returns `private, no-store`, and is cached in Redis via `ApiResponseCache` (invalidated when syncs bump generation counters).
 - Optional ops dashboard at `/admin` when `DASHBOARD_PW` is set (session login at `/admin/login`). Returns 404 when the env var is unset. Login attempts are rate-limited (Rails `rate_limit`, 10 per 3 minutes per IP). Sidekiq Web is at `/admin/sidekiq` behind the same session. Inventory / growth 24h–7d numbers come from Postgres `admin_counters` (`AdminDashboardCountersJob` every 10 min) — do not `COUNT(*)` `continuous_observations` on the request. Sidekiq stats, USGS circuits, and the tip-freshness histogram stay live.
 - **Cold first request:** Eco/Hobby web dynos sleep when idle; the next hit waits for Puma/Rails boot (often multi-second). Prefer an always-on web dyno, or ping `/up` every few minutes. Puma also warms DB/Redis/`SiteStats` on boot so a post-sleep origin render is cheaper once the process is up.
@@ -126,9 +128,24 @@ Set in `.env`:
 - `CONTACT_TO_EMAIL` / `MAIL_FROM`
 - `BENTO_SITE_UUID`, `BENTO_PUBLISHABLE_KEY`, `BENTO_SECRET_KEY` (Action Mailer via `bento-actionmailer` + `premailer-rails`)
 
+## Email alerts (operator)
+
+Gauge-page signup, double opt-in, flood/threshold emails, and daily digests. Off by default. Contracts and SLA: [`doc/alerts-contracts.md`](doc/alerts-contracts.md), [`doc/alerts-freshness-sla.md`](doc/alerts-freshness-sla.md).
+
+| Step | What to set |
+| ---- | ----------- |
+| Product flag | `ALERTS_ENABLED=1` (also `true` / `yes` / `on`) |
+| Mail | `BENTO_*` + `MAIL_FROM` (same Bento keys as contact) |
+| Abuse cap | `ALERTS_MAX_WATCHES` (default `25`) |
+| Worker | `heroku ps:scale notifications_worker=1` — digest/quiet cron ticks enqueue on `notifications` even when the flag is off |
+
+When the flag is off: CTAs hide, `/subscriptions*` returns **404**, evaluation/delivery jobs no-op. `AlertEventRecorder` still writes `alert_events` from tip/flood sync. Scale the worker before flipping the flag or the queue backs up. `/admin` health warns when `notifications` has depth and zero workers.
+
+Signup posts from the edge-cached gauge page (no CSRF; honeypot + optional Turnstile + 20/hr IP limit). Unverified subscribers never enter `Alerts::WatchedLocations`. Default watch rules are flood + digest; threshold is created disabled and must be turned on in the manage UI.
+
 ## Notes
 
 - Map may be empty until catalog sync lands locations.
 - Temperature is stored in °C; UI defaults to °F via a preference cookie.
 - Local PostGIS is optional; nearby stations use haversine precompute, map bbox uses lat/lon indexes.
-- On-stream upstream/downstream neighbors are precomputed from the public USGS NLDI API (no API key). Catalog sync refreshes one `NLDI_REFRESH_BATCH`, then `NetworkRefreshBatchJob` drains unsynced rows (Mon–Sat). One-off: `bin/rails nldi:refresh` (optional `STATE=wa`, `FORCE=1`, `LIMIT=50`). Re-runs skip stations that already have neighbor ids and a fresh `network_synced_at`; empty graphs stay pending so a failed first pass can retry. Demo seed wires a 5-station chain offline (`99000096`–`990000100`).
+- On-stream upstream/downstream neighbors are precomputed from the public USGS NLDI API (no API key). Catalog sync refreshes one `NLDI_REFRESH_BATCH`, then `NetworkRefreshBatchJob` drains unsynced rows (Mon–Sat). One-off: `bin/rails nldi:refresh` (optional `STATE=wa`, `FORCE=1`, `LIMIT=50`). `NetworkStations.stale_row?` keeps a station pending when `network_synced_at` is blank (HTTP failure), the stored neighbor lists are empty (including a stamped `[]` from a 404/partial pass), the stamp is older than 7 days (`FRESH_AFTER`), or a stored neighbor id left the catalog. Non-empty graphs with a fresh stamp and valid ids are skipped. Demo seed wires a 5-station chain offline (`99000096`–`990000100`).
