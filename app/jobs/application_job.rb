@@ -17,6 +17,11 @@ class ApplicationJob < ActiveJob::Base
       "Discarded #{job.class.name} job_id=#{job.job_id} after USGS rate limit: #{error.message}"
     )
   end
+  discard_on Nldi::Client::RateLimitError do |job, error|
+    Rails.logger.warn(
+      "Discarded #{job.class.name} job_id=#{job.job_id} after NLDI rate limit: #{error.message}"
+    )
+  end
 
   # Heroku Postgres upgrades (and similar) flip the primary read-only for a few
   # minutes. Sidekiq's default 25-attempt exponential backoff would otherwise
