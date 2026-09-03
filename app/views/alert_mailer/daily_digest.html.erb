@@ -14,10 +14,10 @@
         url = snap[:url] || snap["url"]
         site = snap[:site_number] || snap["site_number"]
       %>
-      <li style="margin-bottom:12px;">
+      <li class="digest-item">
         <strong><%= name %></strong>
         <% if site.present? %>
-          <span style="color:#71717a;">(<%= site %>)</span>
+          <span class="digest-meta">(<%= site %>)</span>
         <% end %>
         <% if category.present? %>
           — flood: <%= category.to_s.tr("_", " ") %>

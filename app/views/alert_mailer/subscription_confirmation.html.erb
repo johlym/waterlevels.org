@@ -12,7 +12,7 @@
   <p>
     <a href="<%= @verify_url %>">Confirm this subscription</a>
   </p>
-  <p style="font-size:13px;color:#71717a;">
+  <p class="muted">
     This confirmation link expires in 48 hours.
   </p>
 <% else %>
@@ -25,7 +25,7 @@
   </p>
 <% end %>
 <% if @manage_url.present? %>
-  <p style="font-size:13px;color:#71717a;">
+  <p class="muted">
     You can also <a href="<%= @manage_url %>">manage all of your alerts</a>.
   </p>
 <% end %>

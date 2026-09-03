@@ -2,25 +2,25 @@
   Shared HTML footer for alert emails.
   Expects: @manage_url, @unsubscribe_all_url, optional @unsubscribe_watch_url / @station_watch
 %>
-<hr style="border:none;border-top:1px solid #e4e4e7;margin:24px 0;">
-<p style="font-size:13px;line-height:1.5;color:#71717a;">
+<hr class="email-divider">
+<p class="muted">
   These messages are <strong>informational only</strong>. They are not National Weather Service
   watches, warnings, or official flood alerts. For official forecasts and warnings, use
-  <a href="https://water.noaa.gov/" style="color:#0891b2;">water.noaa.gov</a>
+  <a href="https://water.noaa.gov/">water.noaa.gov</a>
   and your local NWS products.
 </p>
-<p style="font-size:13px;line-height:1.5;color:#71717a;">
+<p class="muted">
   <% if @manage_url.present? %>
-    <a href="<%= @manage_url %>" style="color:#0891b2;">Manage preferences</a>
+    <a href="<%= @manage_url %>">Manage preferences</a>
   <% end %>
   <% if @unsubscribe_all_url.present? %>
     <% if @manage_url.present? %> · <% end %>
-    <a href="<%= @unsubscribe_all_url %>" style="color:#0891b2;">Unsubscribe from all alerts</a>
+    <a href="<%= @unsubscribe_all_url %>">Unsubscribe from all alerts</a>
   <% end %>
   <% if @unsubscribe_watch_url.present? && @station_watch.present? %>
-    · <a href="<%= @unsubscribe_watch_url %>" style="color:#0891b2;">Unsubscribe from this station</a>
+    · <a href="<%= @unsubscribe_watch_url %>">Unsubscribe from this station</a>
   <% end %>
 </p>
-<p style="font-size:12px;line-height:1.4;color:#a1a1aa;">
+<p class="muted-small">
   WaterLevels.org · Bytoro LLC
 </p>
