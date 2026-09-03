@@ -3,6 +3,7 @@
 require "test_helper"
 
 class AlertMailerTest < ActionMailer::TestCase
+  include MailerHtmlAssertions
   setup do
     @subscriber = create(:subscriber, :verified, email: "alerts@example.com")
     @location = create(:monitoring_location, name: "Cedar River near Renton")
@@ -144,5 +145,68 @@ class AlertMailerTest < ActionMailer::TestCase
 
     assert_match(/digest/i, email.subject)
     assert_match(/5\.2/, email.html_part.body.to_s)
+  end
+
+  test "html templates are self-contained and use shared mailer styles" do
+    raw = @subscriber.issue_token!(purpose: "verify", expires_at: 48.hours.from_now)
+    emails = [
+      AlertMailer.with(subscriber: @subscriber, token: raw).verify_email,
+      AlertMailer.with(
+        subscriber: @subscriber,
+        token: raw,
+        manage_token: @manage,
+        unsubscribe_token: @unsub,
+        station_watch: @watch,
+        location: @location
+      ).subscription_confirmation,
+      AlertMailer.with(
+        subscriber: @subscriber,
+        token: @manage,
+        manage_token: @manage,
+        unsubscribe_token: @unsub
+      ).manage_link,
+      AlertMailer.with(
+        subscriber: @subscriber,
+        station_watch: @watch,
+        location: @location,
+        from_category: "no_flooding",
+        to_category: "minor",
+        observed_at: "2026-08-29 12:00 UTC",
+        manage_token: @manage,
+        unsubscribe_token: @unsub
+      ).flood_category_change,
+      AlertMailer.with(
+        subscriber: @subscriber,
+        station_watch: @watch,
+        location: @location,
+        parameter: "water_level",
+        op: "above",
+        value: 12.4,
+        threshold: 12.0,
+        unit: "ft",
+        manage_token: @manage,
+        unsubscribe_token: @unsub
+      ).threshold_crossed,
+      AlertMailer.with(
+        subscriber: @subscriber,
+        snapshots: [
+          { name: @location.display_name, flood_category: "action", water_level: "5.2 ft", url: "https://example.com/g" }
+        ],
+        manage_token: @manage,
+        unsubscribe_token: @unsub
+      ).daily_digest
+    ]
+
+    emails.each do |email|
+      html = email.html_part.body.to_s
+      assert_self_contained_mailer_html!(html)
+      assert_match(/font-family: -apple-system/, html)
+      assert_match(/\.muted \{/, html)
+      assert_match(/color: #0891b2/, html)
+      # Instruct Bento not to inject open pixels / rewrite links (see mailer layout).
+      assert_match(/disable_open/, html)
+      assert_match(/disable_click/, html)
+      assert_match(/disable_utms/, html)
+    end
   end
 end
