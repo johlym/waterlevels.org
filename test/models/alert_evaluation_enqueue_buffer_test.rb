@@ -33,4 +33,20 @@ class AlertEvaluationEnqueueBufferTest < ActiveSupport::TestCase
     assert AlertEvaluationEnqueueBuffer.schedule_flush!(delay: 0)
     assert_enqueued_jobs 2, only: AlertEvaluationBatchJob
   end
+
+  test "members and remove leave unprocessed ids in the buffer" do
+    AlertEvaluationEnqueueBuffer.add(1)
+    AlertEvaluationEnqueueBuffer.add(2)
+
+    assert_equal [ 1, 2 ].sort, AlertEvaluationEnqueueBuffer.members.sort
+    assert AlertEvaluationEnqueueBuffer.any?
+
+    AlertEvaluationEnqueueBuffer.remove(1)
+    assert_equal [ 2 ], AlertEvaluationEnqueueBuffer.members
+    assert AlertEvaluationEnqueueBuffer.any?
+
+    AlertEvaluationEnqueueBuffer.remove(2)
+    assert_empty AlertEvaluationEnqueueBuffer.members
+    refute AlertEvaluationEnqueueBuffer.any?
+  end
 end
