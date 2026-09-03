@@ -11,8 +11,10 @@
    `continuous_observations` when a tip refresh produces a `reading_change`
    event — not on a separate 15-minute poll of every watched station.
 2. **Stale tips do not fire threshold alerts.** If `latest_observed_at` is older
-   than `MonitoringLocation::STALE_AFTER`, `Alerts::ThresholdEvaluator` returns
-   false. Digests still list the station with a stale flag.
+   than `Alerts::ThresholdEvaluator::STALE_TIP_AFTER` (**6 hours**), the
+   evaluator returns false. This is tighter than the map “Active” window
+   (`MonitoringLocation::STALE_AFTER` = 1 week). Digests still list the station
+   with a stale flag.
 3. **Flood category emails follow NWPS list freshness.** Categories older than
    `FloodStageSync::STALE_ALERT_AFTER` (24h) are reset to `no_flooding` by sync;
    that transition emits an all-clear event like any other category change.

@@ -133,8 +133,15 @@ Fallback if `app.page` is missing on older traffic: GROUP BY `http.route` (Rails
 | Backfill planner | `job.history_backfill_batch` |
 | Day-31 handoff + retention | `daily_archive.retention` + `app.usgs_ensured` / `app.derived` / `app.retrying` / `app.gaps_alerted` / `app.iv_deleted` / `app.iv_prune_blocked` / `app.vacuumed` |
 | Leftover daily drain | `daily_archive.drain` + `app.daily_deleted` / `app.vacuumed` |
-| Tip / catalog / flood sync | `latest.sync`, `catalog.sync`, `flood.sync` |
+| Tip / catalog / flood sync | `latest.sync`, `catalog.sync`, `flood.sync` (`app.catalog_resumed`, `app.completed_parameter_codes`) |
+| Empty hydrograph (station has tips/`has_*` but no series) | `hydrograph.build` + `app.series_found=false`; logs `event=hydrograph.empty` |
 | Page latency | request root + `app.page` |
+
+Sunday catalog resume (should be `true` only after a mid-job kill):
+
+**VISUALIZE** `COUNT`  
+**WHERE** `name = catalog.sync` **AND** `app.catalog_resumed = true`  
+**TIME RANGE** last 14d
 
 ### Day-31 handoff / gap alerts
 

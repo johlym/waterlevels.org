@@ -1,15 +1,23 @@
-# Email Alerts — Shared Contracts (Wave 0)
+# Email Alerts — As-built contracts
 
-Schema names, rule kinds, and event payloads locked for parallel implementation.
-`ALERTS_ENABLED` defaults off; flip only at Wave 4 ship.
+Shipped with #242 (schema, signup, evaluation, digests), #247 (`notifications_worker`), and #258 (batched evaluation). Operator runbook: [`README.md`](../README.md#email-alerts-operator). Tip SLA: [`alerts-freshness-sla.md`](alerts-freshness-sla.md).
+
+`ALERTS_ENABLED` still defaults **off**. Flip only after `notifications_worker` is scaled.
 
 ## Feature flag
 
-- Env: `ALERTS_ENABLED` — truthy values: `1`, `true`, `yes`, `on`
-- Helper: `AlertsConfig.enabled?`
-- When false: hide CTAs, skip evaluation/delivery jobs, 404 subscription routes (or redirect home)
+- Env: `ALERTS_ENABLED` — truthy values: `1`, `true`, `yes`, `on` (case-insensitive)
+- Helper: `AlertsConfig.enabled?` / `.disabled?` (`app/models/alerts_config.rb`)
+- When false:
+  - Hide CTAs (gauge signup, nav, map)
+  - Subscription routes return **404** (`AlertsFeatureGate`) — not a home redirect
+  - Evaluation, delivery, digest, and quiet-scan jobs no-op immediately
+  - `AlertEventRecorder` **still writes** `alert_events` from tip/flood sync
+  - Scheduler on `worker` still enqueues digest (`*/15`) and quiet scan (`10 * * * *`) onto `notifications`
 
 ## Tables
+
+Schema from `db/migrate/20260829050000_create_email_alerts_schema.rb` — Wave 0 column names shipped unchanged.
 
 ### `subscribers`
 | Column | Type | Notes |
@@ -48,7 +56,7 @@ Schema names, rule kinds, and event payloads locked for parallel implementation.
 | Column | Type | Notes |
 |--------|------|-------|
 | monitoring_location_id | fk | |
-| kind | string | `flood_category_change`, `reading_change`, … |
+| kind | string | `flood_category_change`, `reading_change`, `quiet_station`, `resume_station` |
 | occurred_at | datetime | |
 | payload | jsonb | |
 | dedupe_key | string, unique | idempotency |
@@ -70,13 +78,24 @@ Schema names, rule kinds, and event payloads locked for parallel implementation.
 | subscriber_id | fk | |
 | purpose | string | `manage`, `verify`, `unsubscribe` |
 | token_digest | string, unique | SHA256 of raw token |
-| expires_at | datetime | manage tokens long-lived; verify short |
-| used_at | datetime | |
+| expires_at | datetime | `verify` 48h; `manage` 2y (rotated); `unsubscribe` 30d (signup) or 2y (alert mail) |
+| used_at | datetime | set on unsubscribe |
 
 ## Rule kinds
 
-**v1:** `flood_category_change`, `threshold`, `digest`  
-**Reserved (Phase F):** `rate_of_rise`, `in_range`, `quiet_station`, `approaching_stage`
+Registry: `app/models/alert_rule_kinds.rb`. New watches get flood + digest via `StationWatch#ensure_default_rules!`. Threshold is created **disabled** from the manage UI.
+
+| Kind | Evaluator | Manage UI | Delivery |
+|------|-----------|-----------|----------|
+| `flood_category_change` | `Alerts::FloodEvaluator` | Yes | `AlertMailer#flood_category_change` |
+| `threshold` | `Alerts::ThresholdEvaluator` | Yes | `AlertMailer#threshold_crossed` |
+| `digest` | `Alerts::DigestBuilder` (scheduler) | Yes (include toggle) | `AlertMailer#daily_digest` |
+| `rate_of_rise` | `Alerts::RateOfRiseEvaluator` | No | Mailer stub (`stub_phase_f!`) |
+| `in_range` | `Alerts::InRangeEvaluator` | No | Mailer stub |
+| `quiet_station` | Event from `AlertQuietScanJob` | No | **Do not enable** — `AlertDeliveryJob` has no case |
+| `approaching_stage` | None | No | No |
+
+`Subscriber.active` / `Alerts::WatchedLocations` require verified + not unsubscribed + not paused. Quiet-hours columns exist; there is no manage UI for them. `AlertMailer#verify_email` is unused — signup sends `subscription_confirmation`.
 
 ### Params shapes
 
@@ -90,12 +109,14 @@ Schema names, rule kinds, and event payloads locked for parallel implementation.
 // flood_category_change
 { "notify_clear": true, "min_severity": "action" }
 
-// rate_of_rise (Phase F)
+// rate_of_rise (Phase F — evaluator only)
 { "parameter": "water_level", "window_hours": 3, "delta": 1.5, "cooldown_minutes": 360 }
 
-// in_range (Phase F)
+// in_range (Phase F — evaluator only)
 { "parameter": "discharge", "min": 800, "max": 2000, "on": "enter"|"leave"|"both" }
 ```
+
+Flood `min_severity` ranks: `no_flooding` < `action` < `minor` < `moderate` < `major`.
 
 ## Event payloads
 
@@ -109,15 +130,25 @@ Schema names, rule kinds, and event payloads locked for parallel implementation.
 
 ## Routes (not under `/alerts`)
 
+404 when `AlertsConfig.disabled?`. Session-backed except the gauge-page POST (honeypot + Turnstile + 20/hr IP).
+
 - `GET /subscriptions` — request manage link
-- `POST /subscriptions` — create/verify watch signup
+- `POST /subscriptions` — gauge signup **or** manage-link request (`intent=manage_link`)
 - `GET /subscriptions/verify/:token`
 - `GET /subscriptions/manage/:token`
 - `PATCH /subscriptions/manage/:token`
+- `DELETE /subscriptions/manage/:token/watches/:id`
+- `POST /subscriptions/manage/:token/pause` / `…/unpause`
 - `GET|POST /subscriptions/unsubscribe/:token`
 
 ## Sidekiq
 
-- Queue: `notifications`
-- Jobs: `AlertEvaluationBatchJob` (debounced drain of `AlertEvaluationEnqueueBuffer`), `AlertEvaluationJob` (per-location eval, invoked by batch), `AlertDeliveryJob`, `AlertDigestSchedulerJob` (cron `*/15`)
-- Tip/flood sync records `alert_events` for all stations but only **watched** locations enter the evaluation buffer (`Alerts::WatchedLocations`). Multiple events for the same station coalesce to one batch flush (~90s debounce).
+- Queue: `notifications` → `notifications_worker` (`config/sidekiq_notifications.yml`, concurrency 1)
+- Scheduler stays on `worker` (`config/sidekiq.yml`)
+- Jobs:
+  - `AlertEvaluationBatchJob` — drains `AlertEvaluationEnqueueBuffer` (`FLUSH_DELAY` = 90s). No flag check; buffer scheduling is gated.
+  - `AlertEvaluationJob` — per-location eval (`PENDING_WINDOW` = 2h)
+  - `AlertDeliveryJob` — flood/threshold/digest (skips inactive / quiet hours except digest)
+  - `AlertDigestSchedulerJob` — cron `*/15`
+  - `AlertQuietScanJob` — cron `10 * * * *` (6h quiet threshold)
+- Tip/flood sync records `alert_events` for all stations but only **watched** locations enter the evaluation buffer (`Alerts::WatchedLocations`, 5 min cache). Multiple events for the same station coalesce to one batch flush.
