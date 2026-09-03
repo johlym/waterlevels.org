@@ -29,6 +29,21 @@ class AlertEvaluationEnqueueBuffer
       end
     end
 
+    def members
+      @mutex.synchronize { @location_ids.to_a }
+    end
+
+    def remove(location_id)
+      id = normalize(location_id)
+      return if id.nil?
+
+      @mutex.synchronize { @location_ids.delete(id) }
+    end
+
+    def any?
+      @mutex.synchronize { @location_ids.any? }
+    end
+
     def schedule_flush?(delay)
       @mutex.synchronize do
         return false if @flush_scheduled
@@ -75,6 +90,23 @@ class AlertEvaluationEnqueueBuffer
       ids
     end
 
+    def members
+      redis.smembers(KEY).map(&:to_i).select(&:positive?)
+    rescue Redis::CommandError
+      []
+    end
+
+    def remove(location_id)
+      id = normalize(location_id)
+      return if id.nil?
+
+      redis.srem(KEY, id)
+    end
+
+    def any?
+      redis.scard(KEY).to_i.positive?
+    end
+
     def schedule_flush?(delay)
       !!redis.set(FLUSH_LOCK_KEY, "1", nx: true, ex: [ delay.to_i, 1 ].max)
     end
@@ -111,6 +143,18 @@ class AlertEvaluationEnqueueBuffer
 
     def drain
       backend.drain
+    end
+
+    def members
+      backend.members
+    end
+
+    def remove(location_id)
+      backend.remove(location_id)
+    end
+
+    def any?
+      backend.any?
     end
 
     def schedule_flush!(delay: FLUSH_DELAY)
