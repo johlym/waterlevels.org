@@ -203,6 +203,10 @@ class AlertMailerTest < ActionMailer::TestCase
       assert_match(/font-family: -apple-system/, html)
       assert_match(/\.muted \{/, html)
       assert_match(/color: #0891b2/, html)
+      # Instruct Bento not to inject open pixels / rewrite links (see mailer layout).
+      assert_match(/disable_open/, html)
+      assert_match(/disable_click/, html)
+      assert_match(/disable_utms/, html)
     end
   end
 end

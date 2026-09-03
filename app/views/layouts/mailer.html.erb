@@ -62,6 +62,13 @@
   </head>
 
   <body>
+    <%# Bento Liquid: strip open-pixel / click-proxy / UTM rewriting on send.
+        Without these, Bento injects a remote open.gif (kodama.*) that triggers
+        iOS Mail "Load Remote Content", and rewrites links with tracking params.
+        Kept inside an HTML comment so any filter echo stays invisible. %>
+    <!-- {{ "true" | disable_open }}{{ "true" | disable_click }}{{ "true" | disable_utms }} -->
     <%= yield %>
   </body>
 </html>
+
+

@@ -7,7 +7,10 @@ module MailerHtmlAssertions
     /<img\b[^>]+src=["']https?:\/\//i,
     /fonts\.googleapis\.com/i,
     /fonts\.gstatic\.com/i,
-    /\bcdn\./i
+    /\bcdn\./i,
+    %r{proxy/tracking/emails/}i,
+    %r{kodama\.}i,
+    %r{open\.gif}i
   ].freeze
 
   def assert_self_contained_mailer_html!(html)

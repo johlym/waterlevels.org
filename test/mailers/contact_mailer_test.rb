@@ -24,5 +24,8 @@ class ContactMailerTest < ActionMailer::TestCase
     assert_match(/ada@example\.com/, html)
     assert_match(/Testing the form/, html)
     assert_match(/Sent via the WaterLevels.org contact form/, html)
+    assert_match(/disable_open/, html)
+    assert_match(/disable_click/, html)
+    assert_match(/disable_utms/, html)
   end
 end
