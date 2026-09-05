@@ -14,7 +14,7 @@ No watched stations to report right now.
   url = snap[:url] || snap["url"]
   site = snap[:site_number] || snap["site_number"]
 %>
-- <%= name %><% if site.present? %> (site <%= site %>)<% end %><% if category.present? %> — flood: <%= category.to_s.tr("_", " ") %><% end %><% if level.present? %> — gage height: <%= level %><%= " #{level_unit}" if level_unit.present? %><% end %><% if discharge.present? %> — discharge: <%= discharge %><%= " #{discharge_unit}" if discharge_unit.present? %><% end %>
+- <%= name %><% if site.present? %> (site <%= site %>)<% end %><% if level.present? %> — gage height: <%= level %><%= " #{level_unit}" if level_unit.present? %><% end %><% if discharge.present? %> — discharge: <%= discharge %><%= " #{discharge_unit}" if discharge_unit.present? %><% end %><% if category.present? %> — flood: <%= category.to_s.tr("_", " ") %><% end %>
 <% if url.present? %>  <%= url %>
 <% end %>
 

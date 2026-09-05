@@ -144,6 +144,8 @@ class AlertMailerTest < ActionMailer::TestCase
           flood_category: "action",
           water_level: "5.2",
           water_level_unit: "ft",
+          discharge: "120",
+          discharge_unit: "ft3/s",
           url: url
         }
       ],
@@ -161,6 +163,9 @@ class AlertMailerTest < ActionMailer::TestCase
     assert_match(/5\.2/, html)
     assert_match(%r{<a href="#{Regexp.escape(url)}"[^>]*>[^<]*Cedar River}, html)
     assert_no_match(/Open station/i, html)
+    # Readings first, flood status last.
+    assert_match(/gage height:.*discharge:.*flood:/m, html)
+    assert_match(/gage height:.*discharge:.*flood:/m, text)
     # Zero-width spaces break phone auto-linking; contiguous digit run must not appear.
     assert_includes html, "\u200B"
     assert_no_match(/\(#{Regexp.escape(site)}\)/, html)
