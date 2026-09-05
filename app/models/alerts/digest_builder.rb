@@ -86,4 +86,3 @@ module Alerts
     end
   end
 end
-

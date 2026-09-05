@@ -17,4 +17,3 @@ class ApplicationMailer < ActionMailer::Base
     ActionView::Base.annotate_rendered_view_with_filenames = previous
   end
 end
-
