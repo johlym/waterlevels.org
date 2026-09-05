@@ -105,6 +105,7 @@ class AlertMailerTest < ActionMailer::TestCase
     assert_match(/minor/, body)
     assert_match(/Unsubscribe from this station/i, body)
     assert_match(%r{/gauges/}, body)
+    assert_match(%r{<a href="[^"]+/gauges/[^"]+"[^>]*>[^<]*Cedar River}, body)
   end
 
   test "threshold_crossed" do
@@ -125,15 +126,26 @@ class AlertMailerTest < ActionMailer::TestCase
       email.deliver_now
     end
 
-    assert_match(/12\.4/, email.html_part.body.to_s)
-    assert_match(/above/, email.html_part.body.to_s)
+    body = email.html_part.body.to_s
+    assert_match(/12\.4/, body)
+    assert_match(/above/, body)
+    assert_match(%r{<a href="[^"]+/gauges/[^"]+"[^>]*>[^<]*Cedar River}, body)
   end
 
-  test "daily_digest" do
+  test "daily_digest links station names and soft-breaks site numbers" do
+    site = @location.site_number
+    url = "https://example.com/gauges/wa/#{@location.to_param}"
     email = AlertMailer.with(
       subscriber: @subscriber,
       snapshots: [
-        { name: @location.display_name, flood_category: "action", water_level: "5.2 ft", url: "https://example.com/g" }
+        {
+          name: @location.display_name,
+          site_number: site,
+          flood_category: "action",
+          water_level: "5.2",
+          water_level_unit: "ft",
+          url: url
+        }
       ],
       manage_token: @manage,
       unsubscribe_token: @unsub
@@ -143,8 +155,17 @@ class AlertMailerTest < ActionMailer::TestCase
       email.deliver_now
     end
 
+    html = email.html_part.body.to_s
+    text = email.text_part.body.to_s
     assert_match(/digest/i, email.subject)
-    assert_match(/5\.2/, email.html_part.body.to_s)
+    assert_match(/5\.2/, html)
+    assert_match(%r{<a href="#{Regexp.escape(url)}"[^>]*>[^<]*Cedar River}, html)
+    assert_no_match(/Open station/i, html)
+    # Zero-width spaces break phone auto-linking; contiguous digit run must not appear.
+    assert_includes html, "\u200B"
+    assert_no_match(/\(#{Regexp.escape(site)}\)/, html)
+    assert_match(/site #{Regexp.escape(site)}/, text)
+    assert_match(url, text)
   end
 
   test "html templates are self-contained and use shared mailer styles" do
@@ -190,7 +211,13 @@ class AlertMailerTest < ActionMailer::TestCase
       AlertMailer.with(
         subscriber: @subscriber,
         snapshots: [
-          { name: @location.display_name, flood_category: "action", water_level: "5.2 ft", url: "https://example.com/g" }
+          {
+            name: @location.display_name,
+            site_number: @location.site_number,
+            flood_category: "action",
+            water_level: "5.2 ft",
+            url: "https://example.com/g"
+          }
         ],
         manage_token: @manage,
         unsubscribe_token: @unsub
@@ -203,10 +230,15 @@ class AlertMailerTest < ActionMailer::TestCase
       assert_match(/font-family: -apple-system/, html)
       assert_match(/\.muted \{/, html)
       assert_match(/color: #0891b2/, html)
+      assert_match(/format-detection/, html)
+      assert_match(/telephone=no/, html)
       # Instruct Bento not to inject open pixels / rewrite links (see mailer layout).
       assert_match(/disable_open/, html)
       assert_match(/disable_click/, html)
       assert_match(/disable_utms/, html)
+      # Prefer a hidden element over an HTML comment so Bento Liquid cannot leave "-->".
+      assert_match(/bento-flags/, html)
+      assert_no_match(/<!--\s*\{\{\s*"true"\s*\|\s*disable_/, html)
     end
   end
 end

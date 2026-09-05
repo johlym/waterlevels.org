@@ -1,7 +1,11 @@
 <% name = @location&.display_name.presence || "Station" %>
 <% param_label = (@parameter || "reading").to_s.tr("_", " ") %>
 <p>
-  <strong><%= name %></strong>: <%= param_label %>
+  <% if @station_url.present? %>
+    <strong><a href="<%= @station_url %>"><%= name %></a></strong>
+  <% else %>
+    <strong><%= name %></strong>
+  <% end %>: <%= param_label %>
   crossed <%= (@op || "above").to_s %>
   <strong><%= @threshold %><%= " #{@unit}" if @unit.present? %></strong>
   (observed <%= @value %><%= " #{@unit}" if @unit.present? %>)

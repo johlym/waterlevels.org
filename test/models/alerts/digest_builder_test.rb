@@ -31,6 +31,9 @@ class Alerts::DigestBuilderTest < ActiveSupport::TestCase
     station = snapshot[:stations].first
     assert_equal @location.id, station[:monitoring_location_id]
     assert_equal "Home gauge", station[:label]
+    assert_equal @location.site_number, station[:site_number]
+    assert_includes station[:url], "/gauges/"
+    assert_includes station[:url], @location.to_param
     assert_in_delta 11.2, station[:water_level].to_f, 0.001
     assert_in_delta 450, station[:discharge].to_f, 0.001
     assert_equal "action", station[:flood_category]

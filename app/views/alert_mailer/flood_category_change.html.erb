@@ -1,5 +1,12 @@
 <% name = @location&.display_name.presence || "Station" %>
-<p><strong><%= name %></strong> flood category changed.</p>
+<p>
+  <% if @station_url.present? %>
+    <strong><a href="<%= @station_url %>"><%= name %></a></strong>
+  <% else %>
+    <strong><%= name %></strong>
+  <% end %>
+  flood category changed.
+</p>
 <p>
   From <strong><%= (@from_category || "unknown").to_s.tr("_", " ") %></strong>
   to <strong><%= (@to_category || "unknown").to_s.tr("_", " ") %></strong>

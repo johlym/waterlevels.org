@@ -15,9 +15,13 @@
         site = snap[:site_number] || snap["site_number"]
       %>
       <li class="digest-item">
-        <strong><%= name %></strong>
+        <% if url.present? %>
+          <strong><a href="<%= url %>"><%= name %></a></strong>
+        <% else %>
+          <strong><%= name %></strong>
+        <% end %>
         <% if site.present? %>
-          <span class="digest-meta">(<%= site %>)</span>
+          <span class="digest-meta">(<%= email_site_number(site) %>)</span>
         <% end %>
         <% if category.present? %>
           — flood: <%= category.to_s.tr("_", " ") %>
@@ -27,9 +31,6 @@
         <% end %>
         <% if discharge.present? %>
           — discharge: <%= discharge %><%= " #{discharge_unit}" if discharge_unit.present? %>
-        <% end %>
-        <% if url.present? %>
-          <br><a href="<%= url %>">Open station</a>
         <% end %>
       </li>
     <% end %>
