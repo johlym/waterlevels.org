@@ -239,6 +239,8 @@ class AlertMailerTest < ActionMailer::TestCase
       # Prefer a hidden element over an HTML comment so Bento Liquid cannot leave "-->".
       assert_match(/bento-flags/, html)
       assert_no_match(/<!--\s*\{\{\s*"true"\s*\|\s*disable_/, html)
+      assert_no_match(/-->/, html)
+      assert_no_match(/BEGIN app\/views/, html)
     end
   end
 end
