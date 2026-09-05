@@ -166,6 +166,11 @@ class AlertMailerTest < ActionMailer::TestCase
     # Readings first, flood status last.
     assert_match(/gage height:.*discharge:.*flood:/m, html)
     assert_match(/gage height:.*discharge:.*flood:/m, text)
+    # USGS ft3/s is presented with a Unicode superscript.
+    assert_match(/ft³\/s/, html)
+    assert_match(/ft³\/s/, text)
+    assert_no_match(/ft3\/s/, html)
+    assert_no_match(/ft3\/s/, text)
     # Zero-width spaces break phone auto-linking; contiguous digit run must not appear.
     assert_includes html, "\u200B"
     assert_no_match(/\(#{Regexp.escape(site)}\)/, html)

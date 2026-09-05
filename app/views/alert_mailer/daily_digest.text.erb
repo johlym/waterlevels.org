@@ -8,9 +8,9 @@ No watched stations to report right now.
   name = snap[:name] || snap["name"] || "Station"
   category = snap[:flood_category_label] || snap["flood_category_label"] || snap[:flood_category] || snap["flood_category"]
   level = snap[:water_level] || snap["water_level"]
-  level_unit = snap[:water_level_unit] || snap["water_level_unit"]
+  level_unit = email_unit(snap[:water_level_unit] || snap["water_level_unit"])
   discharge = snap[:discharge] || snap["discharge"]
-  discharge_unit = snap[:discharge_unit] || snap["discharge_unit"]
+  discharge_unit = email_unit(snap[:discharge_unit] || snap["discharge_unit"])
   url = snap[:url] || snap["url"]
   site = snap[:site_number] || snap["site_number"]
 %>

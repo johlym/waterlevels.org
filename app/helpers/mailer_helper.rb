@@ -9,4 +9,9 @@ module MailerHelper
 
     digits.scan(/.{1,4}/).join("\u200B")
   end
+
+  # e.g. "ft3/s" / "ft^3/s" → "ft³/s" (Unicode superscript, email-safe).
+  def email_unit(unit)
+    UnitLabel.format(unit)
+  end
 end

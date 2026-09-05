@@ -15,4 +15,11 @@ class MailerHelperTest < ActionView::TestCase
     assert_equal "", email_site_number(nil)
     assert_equal "", email_site_number("")
   end
+
+  test "email_unit formats cubic feet with superscript" do
+    assert_equal "ft³/s", email_unit("ft3/s")
+    assert_equal "ft³/s", email_unit("ft^3/s")
+    assert_equal "ft", email_unit("ft")
+    assert_nil email_unit(nil)
+  end
 end
