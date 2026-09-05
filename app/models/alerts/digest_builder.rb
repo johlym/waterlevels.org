@@ -57,6 +57,7 @@ module Alerts
         name: location.display_name.presence || location.name,
         label: label,
         state_code: location.state_code,
+        url: gauge_url_for(location),
         water_level: cast(location.latest_water_level_value),
         water_level_unit: location.latest_water_level_unit,
         discharge: cast(location.latest_discharge_value),
@@ -67,6 +68,15 @@ module Alerts
         stale: location.stale?,
         latest_observed_at: location.latest_observed_at&.iso8601
       }
+    end
+
+    def gauge_url_for(location)
+      opts = Rails.application.config.action_mailer.default_url_options || {}
+      Rails.application.routes.url_helpers.gauge_url(
+        state: location.path_state,
+        site_number_slug: location.to_param,
+        **opts
+      )
     end
 
     def cast(value)

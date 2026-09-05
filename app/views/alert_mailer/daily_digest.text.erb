@@ -6,12 +6,15 @@ No watched stations to report right now.
 <% @snapshots.each do |snap| %>
 <%
   name = snap[:name] || snap["name"] || "Station"
-  category = snap[:flood_category] || snap["flood_category"]
+  category = snap[:flood_category_label] || snap["flood_category_label"] || snap[:flood_category] || snap["flood_category"]
   level = snap[:water_level] || snap["water_level"]
+  level_unit = email_unit(snap[:water_level_unit] || snap["water_level_unit"])
   discharge = snap[:discharge] || snap["discharge"]
+  discharge_unit = email_unit(snap[:discharge_unit] || snap["discharge_unit"])
   url = snap[:url] || snap["url"]
+  site = snap[:site_number] || snap["site_number"]
 %>
-- <%= name %><% if category.present? %> — flood: <%= category.to_s.tr("_", " ") %><% end %><% if level.present? %> — gage height: <%= level %><% end %><% if discharge.present? %> — discharge: <%= discharge %><% end %>
+- <%= name %><% if site.present? %> (site <%= site %>)<% end %><% if level.present? %> — gage height: <%= level %><%= " #{level_unit}" if level_unit.present? %><% end %><% if discharge.present? %> — discharge: <%= discharge %><%= " #{discharge_unit}" if discharge_unit.present? %><% end %><% if category.present? %> — flood: <%= category.to_s.tr("_", " ") %><% end %>
 <% if url.present? %>  <%= url %>
 <% end %>
 

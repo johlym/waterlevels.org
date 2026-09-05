@@ -8,19 +8,20 @@
         name = snap[:name] || snap["name"] || "Station"
         category = snap[:flood_category_label] || snap["flood_category_label"] || snap[:flood_category] || snap["flood_category"]
         level = snap[:water_level] || snap["water_level"]
-        level_unit = snap[:water_level_unit] || snap["water_level_unit"]
+        level_unit = email_unit(snap[:water_level_unit] || snap["water_level_unit"])
         discharge = snap[:discharge] || snap["discharge"]
-        discharge_unit = snap[:discharge_unit] || snap["discharge_unit"]
+        discharge_unit = email_unit(snap[:discharge_unit] || snap["discharge_unit"])
         url = snap[:url] || snap["url"]
         site = snap[:site_number] || snap["site_number"]
       %>
       <li class="digest-item">
-        <strong><%= name %></strong>
-        <% if site.present? %>
-          <span class="digest-meta">(<%= site %>)</span>
+        <% if url.present? %>
+          <strong><a href="<%= url %>"><%= name %></a></strong>
+        <% else %>
+          <strong><%= name %></strong>
         <% end %>
-        <% if category.present? %>
-          — flood: <%= category.to_s.tr("_", " ") %>
+        <% if site.present? %>
+          <span class="digest-meta">(<%= email_site_number(site) %>)</span>
         <% end %>
         <% if level.present? %>
           — gage height: <%= level %><%= " #{level_unit}" if level_unit.present? %>
@@ -28,8 +29,8 @@
         <% if discharge.present? %>
           — discharge: <%= discharge %><%= " #{discharge_unit}" if discharge_unit.present? %>
         <% end %>
-        <% if url.present? %>
-          <br><a href="<%= url %>">Open station</a>
+        <% if category.present? %>
+          — flood: <%= category.to_s.tr("_", " ") %>
         <% end %>
       </li>
     <% end %>

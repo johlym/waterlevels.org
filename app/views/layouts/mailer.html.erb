@@ -3,6 +3,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="format-detection" content="telephone=no">
     <title>WaterLevels.org</title>
     <style>
       /* Self-contained email styles — no external fonts, stylesheets, or assets. */
@@ -22,6 +23,13 @@
 
       a {
         color: #0891b2;
+      }
+
+      /* If a client still auto-links site numbers as tel:, keep them looking plain. */
+      a[href^="tel:"] {
+        color: inherit;
+        text-decoration: none;
+        cursor: text;
       }
 
       strong {
@@ -58,6 +66,15 @@
       .digest-meta {
         color: #71717a;
       }
+
+      .bento-flags {
+        display: none !important;
+        max-height: 0;
+        overflow: hidden;
+        mso-hide: all;
+        font-size: 0;
+        line-height: 0;
+      }
     </style>
   </head>
 
@@ -65,10 +82,9 @@
     <%# Bento Liquid: strip open-pixel / click-proxy / UTM rewriting on send.
         Without these, Bento injects a remote open.gif (kodama.*) that triggers
         iOS Mail "Load Remote Content", and rewrites links with tracking params.
-        Kept inside an HTML comment so any filter echo stays invisible. %>
-    <!-- {{ "true" | disable_open }}{{ "true" | disable_click }}{{ "true" | disable_utms }} -->
+        Hidden element (not an HTML comment) so filter echoes stay invisible and
+        cannot leak a stray "-->" into the email body after Bento processes Liquid. %>
+    <div class="bento-flags" aria-hidden="true">{{ "true" | disable_open }}{{ "true" | disable_click }}{{ "true" | disable_utms }}</div>
     <%= yield %>
   </body>
 </html>
-
-
