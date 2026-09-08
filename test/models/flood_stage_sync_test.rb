@@ -241,6 +241,39 @@ class FloodStageSyncTest < ActiveSupport::TestCase
     assert_not_requested :get, "https://api.water.noaa.gov/nwps/v1/gauges/01646500"
   end
 
+  test "detail 404 on a matched site keeps the LID and live flood category" do
+    @location.update!(
+      nwps_lid: "BRKM2",
+      nwps_matched: true,
+      nwps_synced_at: 8.days.ago,
+      flood_category: "major",
+      flood_category_observed_at: 2.hours.ago,
+      flood_stage_action: 5,
+      flood_stage_minor: 10,
+      flood_stage_moderate: 12,
+      flood_stage_major: 14,
+      state_code: "wa"
+    )
+    @unmatched.update!(nwps_matched: false, nwps_synced_at: 1.day.ago)
+
+    stub_nwps_gauges(gauges: [])
+    stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges/BRKM2")
+      .to_return(status: 404, body: "{}")
+    stub_request(:get, "https://api.water.noaa.gov/nwps/v1/gauges/01646500")
+      .to_return(status: 404, body: "{}")
+
+    FloodStageSync.new(state: "wa").perform
+
+    @location.reload
+    assert @location.nwps_matched?
+    assert_equal "BRKM2", @location.nwps_lid
+    assert_equal "major", @location.flood_category
+    assert @location.flood_alert?
+    assert_in_delta 10.0, @location.flood_stage_minor, 0.001
+    assert @location.nwps_synced_at > 1.minute.ago
+    assert_not_requested :get, "https://api.water.noaa.gov/nwps/v1/gauges/01646500"
+  end
+
   test "list refresh skips write and snapshot warm when category is unchanged" do
     observed_at = Time.zone.parse("2026-08-03T04:15:00Z")
     @location.update!(
