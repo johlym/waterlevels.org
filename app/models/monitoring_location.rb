@@ -426,7 +426,24 @@ class MonitoringLocation < ApplicationRecord
     ids = Array(ids).compact.uniq
     return 0 if ids.empty?
 
+    # alert_events / station_watches FKs are RESTRICT. delete_all skips
+    # callbacks, so dependents must be removed here or Sunday catalog prune
+    # raises and aborts the rest of the national sync.
+    #
+    # Skip locations that still have station_watches — cascading those
+    # would drop subscriber flood-alert signups if prune is over-eager
+    # (empty USGS latest-continuous page). Unwatched flood history can go.
+    watched_ids = StationWatch.where(monitoring_location_id: ids).distinct.pluck(:monitoring_location_id)
+    ids -= watched_ids
+    return 0 if ids.empty?
+
     transaction do
+      event_ids = AlertEvent.where(monitoring_location_id: ids).pluck(:id)
+      if event_ids.any?
+        AlertDelivery.where(alert_event_id: event_ids).delete_all
+        AlertEvent.where(id: event_ids).delete_all
+      end
+
       ts_ids = TimeSeries.where(monitoring_location_id: ids).pluck(:id)
       if ts_ids.any?
         LatestObservation.where(time_series_id: ts_ids).delete_all
