@@ -584,4 +584,36 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     assert_not LatestObservation.exists?(time_series_id: series.id)
     assert_not MonitoringLocation.exists?(doomed.id)
   end
+
+  test "purge_ids! deletes unwatched flood history instead of aborting on alert FKs" do
+    doomed = create(:monitoring_location)
+    keep = create(:monitoring_location)
+    event = create(:alert_event, monitoring_location: doomed)
+    delivery = create(:alert_delivery, alert_event: event)
+    keep_event = create(:alert_event, monitoring_location: keep)
+
+    assert_equal 1, MonitoringLocation.purge_ids!([ doomed.id ])
+
+    assert_not MonitoringLocation.exists?(doomed.id)
+    assert_not AlertEvent.exists?(event.id)
+    assert_not AlertDelivery.exists?(delivery.id)
+    assert MonitoringLocation.exists?(keep.id)
+    assert AlertEvent.exists?(keep_event.id)
+  end
+
+  test "purge_ids! skips locations that still have station watches" do
+    watched = create(:monitoring_location)
+    unwatched = create(:monitoring_location)
+    watch = create(:station_watch, monitoring_location: watched)
+    event = create(:alert_event, monitoring_location: watched)
+    unwatched_event = create(:alert_event, monitoring_location: unwatched)
+
+    assert_equal 1, MonitoringLocation.purge_ids!([ watched.id, unwatched.id ])
+
+    assert MonitoringLocation.exists?(watched.id)
+    assert StationWatch.exists?(watch.id)
+    assert AlertEvent.exists?(event.id)
+    assert_not MonitoringLocation.exists?(unwatched.id)
+    assert_not AlertEvent.exists?(unwatched_event.id)
+  end
 end
