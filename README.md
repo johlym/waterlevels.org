@@ -111,10 +111,26 @@ bin/rails test
 - Redis TLS: Sidekiq, cache, and Action Cable use `ssl_params.verify_mode = VERIFY_NONE` for Heroku self-signed `rediss://` certs
 - After deploy: `heroku run bin/rails usgs:enqueue_bootstrap -a <app>`
 - Optional: `MALLOC_ARENA_MAX=2` if worker RSS climbs
-- Put Cloudflare in front; honor `Cache-Control` / `Cache-Tag` from the app. Use a Cache Rule (Eligible for cache + Origin Cache Control) for public HTML; bypass `/contact`, `/admin`, and `/api/*`. Public pages skip the Rails session cookie so HTML is not forced to `BYPASS`.
+- Put Cloudflare in front; honor `Cache-Control` / `Cache-Tag` from the app. Use a Cache Rule (Eligible for cache + Origin Cache Control) for public HTML; bypass `/contact`, `/admin`, `/subscriptions*`, and `/api/*`. Public pages skip the Rails session cookie so HTML is not forced to `BYPASS`.
 - Internal `/api/*` JSON is first-party-only (`X-WaterLevels-Client: web` + same-origin browser context), returns `private, no-store`, and is cached in Redis via `ApiResponseCache` (invalidated when syncs bump generation counters).
 - Optional ops dashboard at `/admin` when `DASHBOARD_PW` is set (session login at `/admin/login`). Returns 404 when the env var is unset. Login attempts are rate-limited (Rails `rate_limit`, 10 per 3 minutes per IP). Sidekiq Web is at `/admin/sidekiq` behind the same session. Inventory / growth 24h–7d numbers come from Postgres `admin_counters` (`AdminDashboardCountersJob` every 10 min) — do not `COUNT(*)` `continuous_observations` on the request. Sidekiq stats, USGS circuits, and the tip-freshness histogram stay live.
 - **Cold first request:** Eco/Hobby web dynos sleep when idle; the next hit waits for Puma/Rails boot (often multi-second). Prefer an always-on web dyno, or ping `/up` every few minutes. Puma also warms DB/Redis/`SiteStats` on boot so a post-sleep origin render is cheaper once the process is up.
+
+## Email alerts (operator)
+
+Product flag `ALERTS_ENABLED` defaults **off** (`AlertsConfig`). When off: CTAs hide, `/subscriptions*` is **404**, eval/delivery/digest/quiet jobs no-op. `AlertEventRecorder` still writes `alert_events`. Scale `notifications_worker` **before** flipping the flag — digest (`*/15`) and quiet-scan (`:10`) cron still enqueue onto `notifications` while the flag is off.
+
+```bash
+heroku ps:scale notifications_worker=1 -a <app>
+# then
+heroku config:set ALERTS_ENABLED=1 -a <app>
+```
+
+v1 UX: new watches get flood + digest. Threshold is created disabled on manage Save. Signup stays on the gauge page (`POST /subscriptions`, honeypot + optional Turnstile + 20/hr IP; CSRF skipped because the gauge HTML is cookieless). Double opt-in is `subscription_confirmation` (not unused `AlertMailer#verify_email`). Manage / pause / unsubscribe are token URLs.
+
+HTML mail is self-contained (layout CSS only). Bento open-pixel / click / UTM rewriting is disabled via hidden Liquid flags — do not move those filters into an HTML comment (Bento leaked `-->` into digest bodies). Station names link to the gauge page; USGS site numbers are zero-width-spaced so iOS Mail does not treat them as phone numbers. Digest rows are gage height, discharge, then flood.
+
+Phase F kinds (`rate_of_rise`, `in_range`, `quiet_station`) have evaluators. `quiet_station` delivery is broken (`AlertDeliveryJob` raises). Do not document or enable those kinds as shipped UX. As-built contracts: [`doc/alerts-contracts.md`](doc/alerts-contracts.md). Tip SLA: [`doc/alerts-freshness-sla.md`](doc/alerts-freshness-sla.md) (threshold stale tip is **6 hours**, not the map’s 1-week Active window).
 
 ## Contact form
 
@@ -131,4 +147,4 @@ Set in `.env`:
 - Map may be empty until catalog sync lands locations.
 - Temperature is stored in °C; UI defaults to °F via a preference cookie.
 - Local PostGIS is optional; nearby stations use haversine precompute, map bbox uses lat/lon indexes.
-- On-stream upstream/downstream neighbors are precomputed from the public USGS NLDI API (no API key). Navigation is ~400 req/hr per client; a 429 trips a circuit for the rest of the UTC hour. Catalog sync refreshes one `NLDI_REFRESH_BATCH`, then `NetworkRefreshBatchJob` drains unsynced rows (Mon–Sat). One-off: `bin/rails nldi:refresh` (optional `STATE=wa`, `FORCE=1`, `LIMIT=50`). Re-runs skip stations that already have neighbor ids and a fresh `network_synced_at`; empty graphs stay pending so a failed first pass can retry. Demo seed wires a 5-station chain offline (`99000096`–`990000100`).
+- On-stream upstream/downstream neighbors are precomputed from the public USGS NLDI API (no API key). Catalog sync refreshes one `NLDI_REFRESH_BATCH`, then `NetworkRefreshBatchJob` drains unsynced rows (Mon–Sat). One-off: `bin/rails nldi:refresh` (optional `STATE=wa`, `FORCE=1`, `LIMIT=50`). `NetworkStations.stale_row?` keeps a station pending when `network_synced_at` is blank (HTTP failure), the stored neighbor lists are empty (including a stamped `[]` from a 404/partial pass), the stamp is older than 7 days (`FRESH_AFTER`), or a stored neighbor id left the catalog. Non-empty graphs with a fresh stamp and valid ids are skipped. Demo seed wires a 5-station chain offline (`99000096`–`990000100`).
