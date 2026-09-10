@@ -1,5 +1,5 @@
 <% content_for :title, "FAQ | WaterLevels.org" %>
-<% content_for :meta_description, "Answers about WaterLevels.org: USGS observations, National Weather Service flood categories and stages, update frequency, and how to use the map, alerts, and station pages." %>
+<% content_for :meta_description, "Answers about WaterLevels.org: USGS observations, National Weather Service flood categories and stages, optional email alerts, update frequency, and how to use the map, alerts, and station pages." %>
 
 <div class="app-shell">
   <%= render Navigation::BarComponent.new %>
@@ -21,7 +21,7 @@
         <span class="accent">questions</span>
       </h1>
       <p class="lede">
-        What WaterLevels.org is, where USGS readings and NWS flood data come from, how often they update, and what common hydrology terms mean on the map, flood alerts list, and station pages.
+        What WaterLevels.org is, where USGS readings and NWS flood data come from, how often they update, how optional email alerts work, and what common hydrology terms mean on the map, flood alerts list, and station pages.
       </p>
     </div>
   </section>
@@ -62,6 +62,16 @@
               aria-current="false"
             >
               Map &amp; stations
+            </button>
+            <button
+              type="button"
+              class="category-btn"
+              data-faq-target="category"
+              data-faq-category-param="email"
+              data-action="faq#selectCategory"
+              aria-current="false"
+            >
+              Email Alerts
             </button>
             <button
               type="button"
@@ -126,7 +136,9 @@
 
             <%= render "pages/faq_item", question: "Do I need an account?", id: "account" do %>
               <p>
-                No. You can browse the map, directories, and station pages without signing in. Optional email alerts use a simple email confirmation (double opt-in) and a private manage link — not a password account. You can unsubscribe from any alert email or the preference page anytime. Flood-related emails are informational only; rely on the National Weather Service for watches and warnings.
+                No. You can browse the map, directories, and station pages without signing in. Optional email alerts use a simple email confirmation (double opt-in) and a private manage link — not a password account. You can unsubscribe from any alert email or the preference page anytime. See
+                <%= link_to "How do email alerts work?", "#{faq_path}#email-alerts" %>.
+                Flood-related emails are informational only; rely on the National Weather Service for watches and warnings.
               </p>
             <% end %>
           </div>
@@ -244,7 +256,9 @@
               <p>
                 The
                 <%= link_to "Flood Alerts page", alerts_path %>
-                lists USGS stations that currently have an NWS flood category of action stage or higher, grouped by state. It uses the same NWPS categories and stage thresholds shown on the map and station pages, with filters for flood stage and measurement type. It is a public national list — separate from optional email alerts you can request for stations you watch.
+                lists USGS stations that currently have an NWS flood category of action stage or higher, grouped by state. It uses the same NWPS categories and stage thresholds shown on the map and station pages, with filters for flood stage and measurement type. It is a public national list — separate from
+                <%= link_to "optional email alerts", "#{faq_path}#email-alerts" %>
+                you can request for stations you watch.
               </p>
             <% end %>
 
@@ -265,6 +279,102 @@
                 If it is an active USGS continuous site reporting parameters we already ingest, it should appear after catalog sync. If something is missing,
                 <%= link_to "contact us", contact_path %>
                 with the USGS site number. We can only surface stations with publicly available machine-readable USGS feeds that match our filters.
+              </p>
+            <% end %>
+          </div>
+        </section>
+
+        <section class="faq-section" data-faq-target="section" data-faq-category-param="email" hidden aria-labelledby="faq-email-heading">
+          <h2 id="faq-email-heading">Email Alerts</h2>
+          <div class="faq-list">
+            <%= render "pages/faq_item", question: "How do email alerts work?", id: "email-alerts" do %>
+              <p>
+                Optional emails for stations you watch. Sign up from a gauge page with your address, confirm the message we send, then we can notify you about flood-category changes, optional reading thresholds, and an optional daily digest. There is no password account — just a private manage link in your emails. Unsubscribe anytime.
+              </p>
+              <p>
+                Emails are informational only and can lag the live USGS or NWS feed. Rely on the National Weather Service for watches and warnings.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "How do I subscribe to a station?", id: "email-subscribe" do %>
+              <p>
+                Open a station page and use <span class="emphasis">Get email alerts</span>. Enter your email, leave <span class="emphasis">Include in daily digest</span> checked if you want that station in the digest, and choose Subscribe. Check your inbox (and spam) for a confirmation. That message includes a link to undo the station if you did not mean to sign up.
+              </p>
+              <p>
+                Confirmation links expire in 48 hours. You can watch more stations the same way — up to 25 per address.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "What kinds of emails can I get?", id: "email-kinds" do %>
+              <p>Depending on what you enable:</p>
+              <ul role="list">
+                <li><span class="emphasis">Confirmation</span> — after you subscribe, so we know the address is yours (and so you can undo that station)</li>
+                <li><span class="emphasis">Flood category changes</span> — when a watched station with an NWS flood match moves into action stage or a higher category, and again when it returns to no flooding (on by default)</li>
+                <li><span class="emphasis">Threshold alerts</span> — when water level or discharge crosses a value you set (off until you turn it on)</li>
+                <li><span class="emphasis">Daily digest</span> — a once-a-day snapshot of stations you include</li>
+                <li><span class="emphasis">Manage link</span> — when you request one from <%= link_to "Manage email alerts", subscriptions_path %></li>
+              </ul>
+              <p>
+                Stations without an NWS flood match still get digest and threshold emails if you enable those, but not flood-category emails.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "What is the daily digest?", id: "email-digest" do %>
+              <p>
+                A once-a-day email with the latest gage height, discharge, and flood category we have for each station you include. It sends around the hour you choose on the manage page, in your time zone (default 7:00). You can uncheck a station’s digest, turn the digest off for all emails, or skip it at signup.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "How do threshold alerts work?", id: "email-threshold" do %>
+              <p>
+                On the manage page, enable <span class="emphasis">Threshold alert</span> for a station, pick water level or discharge, above or below, and a value. We email when the latest reading crosses that line. Thresholds stay off until you turn them on, and they need a recent reading — stale data will not fire.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "How do I manage preferences or watch more stations?", id: "email-manage" do %>
+              <p>
+                Every confirmation and alert email includes a private manage link. You can also request a fresh link from
+                <%= link_to "Manage email alerts", subscriptions_path %>
+                (no password). There you can pause all emails, change digest timing and time zone, toggle flood / digest / threshold per station, or remove a station.
+              </p>
+              <p>
+                To watch a new station, open its gauge page and use <span class="emphasis">Get email alerts</span> again.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "How do I change my time zone or digest time?", id: "email-timezone" do %>
+              <p>
+                We detect your browser time zone when you first subscribe and use it for digest timing. Change the zone, digest hour, and digest minute anytime on the manage page under <span class="emphasis">Digest &amp; timezone</span>.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "How do I pause or unsubscribe?", id: "email-unsubscribe" do %>
+              <p>
+                Pause all alerts from the manage page without deleting your watches, then resume later. Remove one station from the same page, or use the unsubscribe links in any alert email — one station or everything. You can subscribe again from a gauge page later.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "I didn’t get an email / I lost my manage link", id: "email-missing" do %>
+              <p>
+                Confirm the address, then check spam or promotions. Request a manage link from
+                <%= link_to "Manage email alerts", subscriptions_path %>
+                — we only send one if that address is already subscribed. If a confirmation link expired, subscribe again from the station page.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "Are these official flood warnings?", id: "email-warnings" do %>
+              <p>
+                No. WaterLevels.org emails are informational only and are not watches, warnings, or emergency alerts. Confirm conditions against official NWS products on
+                <a href="https://water.noaa.gov/" rel="noopener noreferrer" target="_blank">water.noaa.gov</a>
+                and local emergency authorities when safety decisions matter. See also
+                <%= link_to "What flood data do you show?", "#{faq_path}#flood-data" %>.
+              </p>
+            <% end %>
+
+            <%= render "pages/faq_item", question: "How do you use my email address?", id: "email-privacy" do %>
+              <p>
+                Only to send the alerts you asked for and related messages (confirm, manage, unsubscribe). We do not sell it. Details are in the
+                <%= link_to "Privacy Policy", privacy_path %>.
               </p>
             <% end %>
           </div>

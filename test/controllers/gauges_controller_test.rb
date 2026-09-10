@@ -83,6 +83,8 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, 'href="#alerts-cta"'
     assert_not_includes response.body, "gauge-cta"
     assert_includes response.body, ">Manage email alerts</a>"
+    assert_includes response.body, ">How this works</a>"
+    assert_includes response.body, "#{faq_path}#email-alerts"
     assert_not_includes response.body, "open the subscriptions page"
     title_at = response.body.index("Example River Near Town")
     meta_at = response.body.index('class="station-meta"')

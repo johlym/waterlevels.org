@@ -3,7 +3,10 @@
 <section id="alerts-cta" class="gauge-alert-card" aria-labelledby="alerts-cta-heading">
   <div class="gauge-alert-copy">
     <h2 id="alerts-cta-heading">Get email alerts</h2>
-    <p>Optional flood-category and threshold emails for this station. Confirm by email; unsubscribe anytime.</p>
+    <p>
+      Optional flood-category and threshold emails for this station. Confirm by email; unsubscribe anytime.
+      (<%= link_to "How this works", "#{faq_path}#email-alerts", class: "text-link" %>)
+    </p>
   </div>
 
   <% if @signup_notice.present? %>
