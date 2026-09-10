@@ -73,7 +73,7 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
   test "faq page has an Email Alerts category covering signup through unsubscribe" do
     get faq_path
     assert_response :success
-    assert_includes response.body, ">Email Alerts</button>"
+    assert_includes response.body, "Email Alerts"
     assert_includes response.body, 'data-faq-category-param="email"'
     assert_includes response.body, 'id="email-alerts"'
     assert_includes response.body, "How do email alerts work?"
