@@ -130,6 +130,20 @@ module Admin
             :ok
           end
 
+          action :clear_pipeline_run_locks,
+            label: "Clear pipeline running locks",
+            description: "Release catalog, latest, flood, network-refresh, history-batch, and archive-export run locks after a killed job.",
+            danger: true,
+            confirm: "Clear pipeline running locks? Overlapping catalog/tip/flood/backfill/export work may start immediately." do
+            StationCatalogSyncLock.release!
+            LatestObservationSyncLock.release!
+            FloodStageSyncLock.release!
+            NetworkRefreshBatchLock.release!
+            HistoryBackfillBatchLock.release!
+            DailyArchiveExportLock.release!
+            :ok
+          end
+
           action :clear_admin_job_finish_keys,
             label: "Clear admin job-finish records",
             description: "Wipe AdminCounter rows that power the dashboard Jobs panel and IV candidate counts.",

@@ -24,5 +24,7 @@ class AdminDashboardCountersJob < ApplicationJob
       )
       aggregates
     end
+  ensure
+    AdminDashboardStats.clear_counters_enqueue_lock!
   end
 end

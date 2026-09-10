@@ -16,7 +16,15 @@ class BootstrapStateJob < ApplicationJob
     progress.step("latest")
     LatestObservationSync.new(state: state, progress: progress).perform
     progress.step("flood_stages")
-    FloodStageSync.new(state: state, progress: progress).perform
+    if FloodStageSyncLock.claim!
+      begin
+        FloodStageSync.new(state: state, progress: progress).perform
+      ensure
+        FloodStageSyncLock.release!
+      end
+    else
+      progress.step("skip flood already running (lock held)")
+    end
     progress.finish("state=#{state}")
   end
 end

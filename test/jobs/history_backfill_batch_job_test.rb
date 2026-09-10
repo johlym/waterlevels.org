@@ -216,6 +216,20 @@ class HistoryBackfillBatchJobTest < ActiveSupport::TestCase
     end
   end
 
+  test "skips when batch lock already held" do
+    needs = create(:monitoring_location, site_number: "30000030")
+    create(:time_series, monitoring_location: needs, selected_for_display: true)
+    assert HistoryBackfillBatchLock.claim!
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      assert_no_enqueued_jobs only: HistoryBackfillJob do
+        assert_equal 0, HistoryBackfillBatchJob.perform_now(10)
+      end
+    end
+
+    assert HistoryBackfillBatchLock.locked?
+  end
+
   private
 
   def with_env(vars)

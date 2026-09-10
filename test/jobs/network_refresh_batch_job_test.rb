@@ -59,4 +59,15 @@ class NetworkRefreshBatchJobTest < ActiveSupport::TestCase
       assert_equal 0, NetworkRefreshBatchJob.perform_now(10)
     end
   end
+
+  test "skips when batch lock already held" do
+    create(:monitoring_location, site_number: "40000005", usgs_monitoring_location_id: "USGS-40000005")
+    assert NetworkRefreshBatchLock.claim!
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      assert_equal 0, NetworkRefreshBatchJob.perform_now(10)
+    end
+
+    assert NetworkRefreshBatchLock.locked?
+  end
 end

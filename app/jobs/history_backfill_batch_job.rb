@@ -45,53 +45,66 @@ class HistoryBackfillBatchJob < ApplicationJob
         Rails.logger.info("HistoryBackfillBatchJob skipped: backfill queue still draining")
         return 0
       end
-
-      phase1_budget = phase1_station_budget(limit)
-      deep_budget = deep_station_budget
-      Rails.logger.info(
-        "HistoryBackfillBatchJob scanning candidates phase1_budget=#{phase1_budget} " \
-        "deep_budget=#{deep_budget} range=#{range}"
-      )
-
-      phase1_enqueued = timed_phase("phase1_scope_and_enqueue") do
-        enqueue_candidates(
-          build_phase1_scope,
-          range: range,
-          budget: phase1_budget
-        )
+      unless HistoryBackfillBatchLock.claim!
+        Telemetry.add_attributes("app.skip_reason" => "batch_lock_held")
+        Rails.logger.info("HistoryBackfillBatchJob skipped: batch lock held")
+        return 0
       end
 
-      deep_enqueued = timed_phase("deep_scope_and_enqueue") do
-        enqueue_candidates(
-          build_deep_scope,
-          range: HistoryIngestion::DEEP_RANGE,
-          budget: deep_budget
-        )
+      begin
+        enqueue_locked(limit, range)
+      ensure
+        HistoryBackfillBatchLock.release!
       end
-
-      total = phase1_enqueued + deep_enqueued
-      Telemetry.add_attributes(
-        "app.batch_size" => total,
-        "app.phase1_enqueued" => phase1_enqueued,
-        "app.deep_enqueued" => deep_enqueued,
-        "app.phase1_budget" => phase1_budget,
-        "app.deep_budget" => deep_budget,
-        "app.continuous_available" => Usgs::HistoryKeyPool.available?(:continuous),
-        "app.daily_available" => Usgs::HistoryKeyPool.available?(:daily),
-        "app.peaks_available" => Usgs::HistoryKeyPool.available?(:peaks)
-      )
-      Rails.logger.info(
-        "HistoryBackfillBatchJob enqueued=#{total} phase1_enqueued=#{phase1_enqueued} " \
-        "deep_enqueued=#{deep_enqueued} phase1_budget=#{phase1_budget} " \
-        "deep_budget=#{deep_budget} continuous=#{Usgs::HistoryKeyPool.available?(:continuous)} " \
-        "daily=#{Usgs::HistoryKeyPool.available?(:daily)} " \
-        "peaks=#{Usgs::HistoryKeyPool.available?(:peaks)} range=#{range}"
-      )
-      total
     end
   end
 
   private
+
+  def enqueue_locked(limit, range)
+    phase1_budget = phase1_station_budget(limit)
+    deep_budget = deep_station_budget
+    Rails.logger.info(
+      "HistoryBackfillBatchJob scanning candidates phase1_budget=#{phase1_budget} " \
+      "deep_budget=#{deep_budget} range=#{range}"
+    )
+
+    phase1_enqueued = timed_phase("phase1_scope_and_enqueue") do
+      enqueue_candidates(
+        build_phase1_scope,
+        range: range,
+        budget: phase1_budget
+      )
+    end
+
+    deep_enqueued = timed_phase("deep_scope_and_enqueue") do
+      enqueue_candidates(
+        build_deep_scope,
+        range: HistoryIngestion::DEEP_RANGE,
+        budget: deep_budget
+      )
+    end
+
+    total = phase1_enqueued + deep_enqueued
+    Telemetry.add_attributes(
+      "app.batch_size" => total,
+      "app.phase1_enqueued" => phase1_enqueued,
+      "app.deep_enqueued" => deep_enqueued,
+      "app.phase1_budget" => phase1_budget,
+      "app.deep_budget" => deep_budget,
+      "app.continuous_available" => Usgs::HistoryKeyPool.available?(:continuous),
+      "app.daily_available" => Usgs::HistoryKeyPool.available?(:daily),
+      "app.peaks_available" => Usgs::HistoryKeyPool.available?(:peaks)
+    )
+    Rails.logger.info(
+      "HistoryBackfillBatchJob enqueued=#{total} phase1_enqueued=#{phase1_enqueued} " \
+      "deep_enqueued=#{deep_enqueued} phase1_budget=#{phase1_budget} " \
+      "deep_budget=#{deep_budget} continuous=#{Usgs::HistoryKeyPool.available?(:continuous)} " \
+      "daily=#{Usgs::HistoryKeyPool.available?(:daily)} " \
+      "peaks=#{Usgs::HistoryKeyPool.available?(:peaks)} range=#{range}"
+    )
+    total
+  end
 
   def phase1_station_budget(limit)
     # Explicit perform(limit) stays an absolute station count (tests / one-offs).
