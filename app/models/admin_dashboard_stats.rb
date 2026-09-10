@@ -16,6 +16,8 @@
 require "set"
 
 class AdminDashboardStats
+  COUNTERS_ENQUEUE_KEY = "admin_dashboard_counters:enqueued"
+  COUNTERS_ENQUEUE_TTL = 15.minutes
   TIP_REFRESH_CACHE_KEY = "admin:last_tip_refresh".freeze
   JOB_CACHE_KEYS = {
     tip_refresh: TIP_REFRESH_CACHE_KEY,
@@ -218,11 +220,23 @@ class AdminDashboardStats
       unless AppConfig.boolean?(:admin_dashboard_counters_enabled)
         return
       end
+      unless Rails.cache.write(
+        COUNTERS_ENQUEUE_KEY,
+        true,
+        expires_in: COUNTERS_ENQUEUE_TTL,
+        unless_exist: true
+      )
+        return
+      end
 
       AdminDashboardCountersJob.perform_later
     rescue StandardError => e
       Rails.logger.warn("[AdminDashboardStats] schedule inventory refresh #{e.class}: #{e.message}")
       nil
+    end
+
+    def clear_counters_enqueue_lock!
+      Rails.cache.delete(COUNTERS_ENQUEUE_KEY)
     end
 
     def statement_timeout_ms

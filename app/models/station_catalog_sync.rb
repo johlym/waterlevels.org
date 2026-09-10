@@ -15,14 +15,26 @@ class StationCatalogSync
   end
 
   def perform
-    Telemetry.in_root_span(
-      "catalog.sync",
-      attributes: {
-        "app.operation" => "catalog.sync",
-        "app.state" => postal_code || "national"
-      }
-    ) do
-      perform_body
+    unless StationCatalogSyncLock.claim!
+      progress&.step("skip already running (lock held)")
+      Rails.logger.info(
+        "StationCatalogSync skipped: lock held state=#{postal_code || "national"}"
+      )
+      return false
+    end
+
+    begin
+      Telemetry.in_root_span(
+        "catalog.sync",
+        attributes: {
+          "app.operation" => "catalog.sync",
+          "app.state" => postal_code || "national"
+        }
+      ) do
+        perform_body
+      end
+    ensure
+      StationCatalogSyncLock.release!
     end
   end
 

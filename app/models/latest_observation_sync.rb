@@ -27,6 +27,24 @@ class LatestObservationSync
   end
 
   def perform
+    unless LatestObservationSyncLock.claim!
+      progress&.step("skip already running (lock held)")
+      Rails.logger.info(
+        "LatestObservationSync skipped: lock held state=#{postal_code || "national"}"
+      )
+      return false
+    end
+
+    begin
+      perform_locked
+    ensure
+      LatestObservationSyncLock.release!
+    end
+  end
+
+  private
+
+  def perform_locked
     Telemetry.in_root_span(
       "latest.sync",
       attributes: {
@@ -78,9 +96,6 @@ class LatestObservationSync
       true
     end
   end
-
-
-  private
 
   def sync_scoped!
     @selected_series_by_usgs_id = build_selected_series_index

@@ -58,4 +58,17 @@ class AdminSettingsJobLeversTest < ActiveSupport::TestCase
       AdminDashboardStats.schedule_inventory_refresh!
     end
   end
+
+  test "schedule_inventory_refresh! coalesces while a refresh is already queued" do
+    previous = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    begin
+      assert_enqueued_jobs 1, only: AdminDashboardCountersJob do
+        AdminDashboardStats.schedule_inventory_refresh!
+        AdminDashboardStats.schedule_inventory_refresh!
+      end
+    ensure
+      Rails.cache = previous
+    end
+  end
 end

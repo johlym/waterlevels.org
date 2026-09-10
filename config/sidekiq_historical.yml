@@ -1,6 +1,8 @@
 # historical_worker: history backfill batch/jobs + daily archive export
 # (queue: backfill). Tip IV repair → iv_repair_worker; scar IV → iv_repair_scar_worker.
-# 512MB eco dyno — single thread.
+# Concurrency 2 so a station backfill can run beside a batch scan / export.
+# HistoryBackfillBatchLock and DailyArchiveExportLock keep those singletons
+# from occupying both threads.
 :concurrency: 2
 :queues:
   - backfill

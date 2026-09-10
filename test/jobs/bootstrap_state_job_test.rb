@@ -65,5 +65,6 @@ class BootstrapStateJobTest < ActiveSupport::TestCase
     assert flood_at
     assert_operator catalog_at, :<, latest_at
     assert_operator latest_at, :<, flood_at
+    assert_includes source, "FloodStageSyncLock.claim!"
   end
 end

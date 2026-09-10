@@ -1,6 +1,9 @@
 class LatestObservationSyncJob < ApplicationJob
   queue_as :sync
 
+  # LatestObservationSync holds LatestObservationSyncLock for the whole run so
+  # two tip jobs cannot consume both sync_worker threads (concurrency 2).
+  #
   # National runs (state omitted) process one USPS state at a time inside
   # LatestObservationSync to keep the 512MB sync worker under the tip-index +
   # USGS page peak. Pass a state for bootstrap / targeted refresh.

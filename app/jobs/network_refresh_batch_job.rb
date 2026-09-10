@@ -32,15 +32,25 @@ class NetworkRefreshBatchJob < ApplicationJob
         return 0
       end
 
-      progress ||= SyncProgress.new("NetworkRefreshBatchJob", io: nil, every: 1)
-      refreshed = NetworkStations.refresh(
-        MonitoringLocation.order(:id),
-        limit: budget,
-        progress: progress
-      )
-      Telemetry.add_attributes("app.batch_size" => refreshed, "app.limit" => budget)
-      progress.finish("refreshed=#{refreshed} budget=#{budget}")
-      refreshed
+      unless NetworkRefreshBatchLock.claim!
+        Telemetry.add_attributes("app.skip_reason" => "batch_lock_held")
+        Rails.logger.info("NetworkRefreshBatchJob skipped: batch lock held")
+        return 0
+      end
+
+      begin
+        progress ||= SyncProgress.new("NetworkRefreshBatchJob", io: nil, every: 1)
+        refreshed = NetworkStations.refresh(
+          MonitoringLocation.order(:id),
+          limit: budget,
+          progress: progress
+        )
+        Telemetry.add_attributes("app.batch_size" => refreshed, "app.limit" => budget)
+        progress.finish("refreshed=#{refreshed} budget=#{budget}")
+        refreshed
+      ensure
+        NetworkRefreshBatchLock.release!
+      end
     end
   end
 
