@@ -21,6 +21,7 @@
       <%= text_field_tag :subtitle, nil, id: "gauge-alert-subtitle", autocomplete: "off", tabindex: -1 %>
     </div>
     <%= hidden_field_tag :monitoring_location_id, @location.id %>
+    <%# Detect IANA zone in the background. Time zone is editable on the manage page. %>
     <%= hidden_field_tag :time_zone, "", data: { subscription_timezone_target: "hidden" } %>
 
     <div class="gauge-alert-row">
@@ -38,19 +39,7 @@
           Include in daily digest
         </label>
       </div>
-      <p class="aside">
-        Time zone: <span data-subscription-timezone-target="label">detecting…</span>
-        <button type="button" class="text-link" data-subscription-timezone-target="changeButton" data-action="subscription-timezone#showSelect">Change</button>
-      </p>
     </div>
-    <%= select_tag :time_zone_select,
-          options_for_select(SubscriberTimeZones.options_for_select),
-          id: "gauge-alert-time-zone",
-          hidden: true,
-          data: {
-            subscription_timezone_target: "select",
-            action: "change->subscription-timezone#selectChanged"
-          } %>
 
     <% if turnstile_required %>
       <div

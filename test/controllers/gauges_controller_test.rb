@@ -98,6 +98,9 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'action="/subscriptions"'
     assert_includes response.body, 'method="post"'
     assert_includes response.body, 'name="subtitle"'
+    assert_includes response.body, 'name="time_zone"'
+    assert_not_includes response.body, "Time zone:"
+    assert_not_includes response.body, 'id="gauge-alert-time-zone"'
     assert_not_includes response.body, 'name="spinner"'
     assert_nil response.headers["Set-Cookie"]
   ensure

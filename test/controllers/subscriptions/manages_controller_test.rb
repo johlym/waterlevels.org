@@ -27,6 +27,8 @@ module Subscriptions
       assert_includes response.body, @subscriber.email
       assert_includes response.body, @location.display_name
       assert_includes response.body, "Flood category changes"
+      assert_includes response.body, "Time zone"
+      assert_includes response.body, "Digest &amp; timezone"
       assert_includes response.body, "state-intro"
       assert_includes response.body, "btn-secondary"
       # Nested forms break Save preferences — Remove must not use button_to inside the form.
