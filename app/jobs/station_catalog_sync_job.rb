@@ -1,6 +1,9 @@
 class StationCatalogSyncJob < ApplicationJob
   queue_as :sync
 
+  # StationCatalogSync holds StationCatalogSyncLock for the whole run so two
+  # catalog jobs cannot consume both sync_worker threads (concurrency 2).
+
   def perform(state = nil)
     unless AppConfig.boolean?(:station_catalog_sync_enabled)
       Rails.logger.info("StationCatalogSyncJob skipped: disabled by admin settings")

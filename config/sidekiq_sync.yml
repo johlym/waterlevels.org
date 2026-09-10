@@ -1,6 +1,7 @@
 # sync_worker: catalog, latest tip, flood, bootstrap (queue: sync).
 # Two threads so tip/catalog can proceed while FloodStageSyncJob paces states;
 # that job holds FloodStageSyncLock for the whole national loop.
+# StationCatalogSyncLock keeps a second catalog run from taking the other thread.
 :concurrency: 2
 :queues:
   - sync

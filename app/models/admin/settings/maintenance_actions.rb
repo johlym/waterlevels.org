@@ -121,6 +121,15 @@ module Admin
             :ok
           end
 
+          action :clear_catalog_sync_lock,
+            label: "Clear catalog sync running lock",
+            description: "Delete the StationCatalogSyncLock key. Use after a killed catalog job if the next run should start before the 8-hour safety TTL.",
+            danger: true,
+            confirm: "Clear the catalog sync running lock? A second catalog pass may start immediately." do
+            StationCatalogSyncLock.release!
+            :ok
+          end
+
           action :clear_admin_job_finish_keys,
             label: "Clear admin job-finish records",
             description: "Wipe AdminCounter rows that power the dashboard Jobs panel and IV candidate counts.",
