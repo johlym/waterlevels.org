@@ -70,6 +70,29 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, alerts_path
   end
 
+  test "faq page has an Email Alerts category covering signup through unsubscribe" do
+    get faq_path
+    assert_response :success
+    assert_includes response.body, "Email Alerts"
+    assert_includes response.body, 'data-faq-category-param="email"'
+    assert_includes response.body, 'id="email-alerts"'
+    assert_includes response.body, "How do email alerts work?"
+    assert_includes response.body, "How do I subscribe to a station?"
+    assert_includes response.body, "What kinds of emails can I get?"
+    assert_includes response.body, "What is the daily digest?"
+    assert_includes response.body, "How do threshold alerts work?"
+    assert_includes response.body, "How do I manage preferences or watch more stations?"
+    assert_includes response.body, "How do I change my time zone or digest time?"
+    assert_includes response.body, "How do I pause or unsubscribe?"
+    assert_includes response.body, "I didn’t get an email / I lost my manage link"
+    assert_includes response.body, "Are these official flood warnings?"
+    assert_includes response.body, "How do you use my email address?"
+    assert_includes response.body, subscriptions_path
+    assert_includes response.body, privacy_path
+    assert_includes response.body, 'id="email-timezone"'
+    assert_includes response.body, 'id="email-unsubscribe"'
+  end
+
   test "returns markdown for disclosures when agents request it" do
     get disclosures_path, headers: {
       "Accept" => "text/markdown",
