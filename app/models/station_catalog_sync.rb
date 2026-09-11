@@ -363,7 +363,18 @@ class StationCatalogSync
       .pluck(:usgs_time_series_id, :id, :unit_of_measure)
       .to_h { |usgs_id, id, unit| [ usgs_id, [ id, unit ] ] }
 
+    # Catalog paging for one parameter can take tens of minutes. Hourly tip
+    # sync uses a separate lock and is scheduled to overlap (Sunday 03:00
+    # catalog, :03 tip). Do not let this in-memory snapshot regress a newer
+    # LatestObservation the tip job already wrote — HistoryIngestion already
+    # guards the same way.
+    existing_observed_at = LatestObservation
+      .where(time_series_id: series_ids.values.map(&:first))
+      .pluck(:time_series_id, :observed_at)
+      .to_h
+
     count = 0
+    skipped_stale = 0
     continuous_tips = {}
     active_rows.each do |row|
       series_id, unit = series_ids[row[:time_series_id]]
@@ -375,21 +386,27 @@ class StationCatalogSync
         next
       end
 
-      LatestObservation.upsert(
-        {
-          time_series_id: series_id,
-          observed_at: observed_at,
-          value: row[:value],
-          unit_of_measure: row[:unit_of_measure] || unit,
-          approval_status: row[:approval_status],
-          qualifier: row[:qualifier],
-          source_last_modified_at: parse_time(row[:last_modified]),
-          synced_at: Time.current,
-          created_at: Time.current,
-          updated_at: Time.current
-        },
-        unique_by: :time_series_id
-      )
+      current_at = existing_observed_at[series_id]
+      if current_at && current_at.to_i >= observed_at.to_i
+        skipped_stale += 1
+      else
+        LatestObservation.upsert(
+          {
+            time_series_id: series_id,
+            observed_at: observed_at,
+            value: row[:value],
+            unit_of_measure: row[:unit_of_measure] || unit,
+            approval_status: row[:approval_status],
+            qualifier: row[:qualifier],
+            source_last_modified_at: parse_time(row[:last_modified]),
+            synced_at: Time.current,
+            created_at: Time.current,
+            updated_at: Time.current
+          },
+          unique_by: :time_series_id
+        )
+        existing_observed_at[series_id] = observed_at
+      end
       ContinuousObservation.upsert(
         {
           time_series_id: series_id,
@@ -407,7 +424,9 @@ class StationCatalogSync
       progress&.increment
     end
     TimeSeries.advance_continuous_tips!(continuous_tips)
-    progress&.step("latest observations upserted=#{count}")
+    progress&.step(
+      "latest observations upserted=#{count} skipped_stale=#{skipped_stale}"
+    )
   end
 
   def select_display_series(usgs_ids: nil)
