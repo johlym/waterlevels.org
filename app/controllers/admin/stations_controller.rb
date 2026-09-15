@@ -21,7 +21,9 @@ module Admin
         return
       end
 
-      @report = StationInspector.report(@location)
+      @report = AdminDashboardStats.with_statement_timeout(15_000) do
+        StationInspector.report(@location)
+      end
     end
   end
 end

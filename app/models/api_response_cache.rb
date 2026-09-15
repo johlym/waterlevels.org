@@ -98,8 +98,13 @@ class ApiResponseCache
   private_class_method :generation
 
   def self.bump!(scope)
-    current = generation(scope).to_i
-    Rails.cache.write(generation_key(scope), (current + 1).to_s, expires_in: GENERATION_TTL)
+    key = generation_key(scope)
+    incremented = Rails.cache.increment(key, 1, expires_in: GENERATION_TTL)
+    return if incremented
+
+    Rails.cache.write(key, "1", expires_in: GENERATION_TTL, unless_exist: true)
+    Rails.cache.increment(key, 1, expires_in: GENERATION_TTL) ||
+      Rails.cache.write(key, (generation(scope).to_i + 1).to_s, expires_in: GENERATION_TTL)
   end
   private_class_method :bump!
 

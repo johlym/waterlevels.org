@@ -1,10 +1,37 @@
 require "test_helper"
 
 class RedisConfigTest < ActiveSupport::TestCase
-  test "options include self-signed cert verify mode" do
-    opts = RedisConfig.options(default_url: "rediss://example.internal:6379")
-    assert_equal OpenSSL::SSL::VERIFY_NONE, opts[:ssl_params][:verify_mode]
-    assert_match %r{\Arediss://example\.internal:6379(?:/\d+)?\z}, opts[:url]
+  test "options verify Redis Cloud TLS certificates by default" do
+    previous = ENV.delete("REDIS_SSL_VERIFY")
+    begin
+      opts = RedisConfig.options(default_url: "rediss://example.internal:6379")
+      assert_equal OpenSSL::SSL::VERIFY_PEER, opts[:ssl_params][:verify_mode]
+      assert_match %r{\Arediss://example\.internal:6379(?:/\d+)?\z}, opts[:url]
+    ensure
+      ENV["REDIS_SSL_VERIFY"] = previous if previous
+    end
+  end
+
+  test "REDIS_SSL_VERIFY=none keeps VERIFY_NONE for self-signed hosts" do
+    previous = ENV["REDIS_SSL_VERIFY"]
+    ENV["REDIS_SSL_VERIFY"] = "none"
+    begin
+      opts = RedisConfig.options(default_url: "rediss://example.internal:6379")
+      assert_equal OpenSSL::SSL::VERIFY_NONE, opts[:ssl_params][:verify_mode]
+    ensure
+      previous ? ENV["REDIS_SSL_VERIFY"] = previous : ENV.delete("REDIS_SSL_VERIFY")
+    end
+  end
+
+  test "cache_options uses REDIS_CACHE_URL when set" do
+    previous = ENV["REDIS_CACHE_URL"]
+    ENV["REDIS_CACHE_URL"] = "rediss://cache.example:6379/0"
+    begin
+      opts = RedisConfig.cache_options
+      assert_includes opts[:url], "cache.example"
+    ensure
+      previous ? ENV["REDIS_CACHE_URL"] = previous : ENV.delete("REDIS_CACHE_URL")
+    end
   end
 
   test "defaults to local redis when REDIS_URL is unset" do

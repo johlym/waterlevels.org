@@ -145,10 +145,12 @@
 }
 
 .map-tools {
-  @apply pointer-events-auto absolute top-4 right-4 flex flex-col gap-2 sm:top-6 sm:right-6;
+  @apply pointer-events-auto absolute flex flex-col gap-2;
+  top: max(1rem, env(safe-area-inset-top, 0px));
+  right: max(1rem, env(safe-area-inset-right, 0px));
 
   button {
-    @apply flex size-10 cursor-pointer items-center justify-center rounded-lg border border-zinc-700/50 bg-zinc-900 text-zinc-300 shadow-lg shadow-black/40 transition-all hover:bg-zinc-800 hover:text-white active:scale-95;
+    @apply flex size-11 cursor-pointer items-center justify-center rounded-lg border border-zinc-700/50 bg-zinc-900 text-zinc-300 shadow-lg shadow-black/40 transition-all hover:bg-zinc-800 hover:text-white active:scale-95;
 
     svg {
       @apply size-5;
@@ -165,7 +167,9 @@
 }
 
 .map-legend {
-  @apply pointer-events-auto absolute right-4 bottom-4 w-[min(100%,16.5rem)] rounded-xl border border-zinc-700/50 bg-zinc-900 shadow-lg shadow-black/40 sm:right-6 sm:bottom-10;
+  @apply pointer-events-auto absolute w-[min(100%,16.5rem)] rounded-xl border border-zinc-700/50 bg-zinc-900 shadow-lg shadow-black/40;
+  right: max(1rem, env(safe-area-inset-right, 0px));
+  bottom: max(1rem, env(safe-area-inset-bottom, 0px));
 
   summary {
     @apply flex cursor-pointer list-none items-center gap-3 px-4 py-3 marker:content-none [&::-webkit-details-marker]:hidden;
@@ -1494,7 +1498,7 @@ body.dialog-open {
 }
 
 .related-row {
-  @apply flex items-center justify-between gap-4 rounded-xl border border-zinc-800/80 bg-zinc-900/50 px-4 py-3 no-underline transition-all;
+  @apply flex flex-col items-stretch gap-3 rounded-xl border border-zinc-800/80 bg-zinc-900/50 px-4 py-3 no-underline transition-all sm:flex-row sm:items-center sm:justify-between sm:gap-4;
 
   &.current {
     @apply border-cyan-500/40 bg-cyan-500/10;
@@ -1570,7 +1574,7 @@ body.dialog-open {
   }
 
   .related-side {
-    @apply flex shrink-0 items-center gap-3 text-xs text-zinc-400;
+    @apply flex shrink-0 items-center justify-between gap-3 text-xs text-zinc-400 sm:justify-start;
 
     svg {
       @apply size-4 shrink-0 text-zinc-400 transition-colors;

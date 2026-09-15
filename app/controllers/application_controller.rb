@@ -3,7 +3,7 @@ class ApplicationController < ActionController::Base
 
   # Only allow modern browsers supporting webp images, web push, badges, import maps, CSS nesting, and CSS :has.
   # Markdown-preferring agents are not browsers; skip the 406 gate so they can negotiate.
-  allow_browser versions: :modern, unless: :markdown_request?
+  allow_browser versions: :modern, unless: :skip_modern_browser_gate?
 
   # Public HTML is meant to be edge-cached. Loading the Rails session writes
   # `_waterlevels_session`, and Cloudflare treats Set-Cookie as BYPASS. Skip the
@@ -28,5 +28,9 @@ class ApplicationController < ActionController::Base
 
   def csrf_meta_tags_enabled?
     enable_session?
+  end
+
+  def skip_modern_browser_gate?
+    markdown_request? || is_a?(Admin::BaseController) || is_a?(Admin::SessionsController)
   end
 end
