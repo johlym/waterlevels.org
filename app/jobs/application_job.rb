@@ -3,11 +3,14 @@ class ApplicationJob < ActiveJob::Base
   # ActiveRecord::ReadOnlyError (which is about readonly *records*).
   class DatabaseReadOnlyError < StandardError; end
 
-  # Automatically retry jobs that encountered a deadlock
-  # retry_on ActiveRecord::Deadlocked
+  retry_on ActiveRecord::Deadlocked, wait: 5.seconds, attempts: 3
 
-  # Most jobs are safe to ignore if the underlying records are no longer available
-  # discard_on ActiveJob::DeserializationError
+  # Record gone (deleted location, purged delivery, etc.) — do not retry forever.
+  discard_on ActiveJob::DeserializationError do |job, error|
+    Rails.logger.warn(
+      "Discarded #{job.class.name} job_id=#{job.job_id} after deserialization: #{error.message}"
+    )
+  end
 
   # More specific handlers must be registered after broader ones (rescue_from order).
   retry_on Usgs::Client::Error, wait: 30.seconds, attempts: 5
