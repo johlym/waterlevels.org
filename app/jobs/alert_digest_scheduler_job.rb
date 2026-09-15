@@ -12,6 +12,11 @@ class AlertDigestSchedulerJob < ApplicationJob
       snapshot = Alerts::DigestBuilder.new(subscriber).build
       next if snapshot[:stations].blank?
 
+      next if subscriber.alert_deliveries.where(
+        mailer_action: "daily_digest",
+        status: %w[queued sending]
+      ).exists?
+
       delivery = AlertDelivery.create!(
         subscriber: subscriber,
         mailer_action: "daily_digest",
@@ -19,7 +24,6 @@ class AlertDigestSchedulerJob < ApplicationJob
         metadata: { "snapshot" => snapshot }
       )
       AlertDeliveryJob.perform_later(delivery.id)
-      subscriber.mark_digest_sent!
     end
   end
 end

@@ -68,6 +68,7 @@ export default class extends Controller {
     this.view = "chart"
     this.selectedDayKey = null
     this.seriesByKey = {}
+    this.loadRequestId = 0
     this.syncView()
     this.load()
     this.element.addEventListener("parameter-toggle:changed", (event) => {
@@ -147,16 +148,25 @@ export default class extends Controller {
     const measurements = this.uniqueMeasurements()
     if (!measurements.length) return
 
+    const requestId = ++this.loadRequestId
+    this.setLoadStatus("Loading observations…")
+
     const results = await Promise.all(
       measurements.map(async (measurement) => {
         const params = new URLSearchParams({ range: this.range })
         if (measurement.parameter_code) params.set("parameter_code", measurement.parameter_code)
         if (measurement.kind) params.set("kind", measurement.kind)
         const response = await firstPartyApiFetch(`${this.urlValue}?${params.toString()}`)
-        if (!response.ok) return null
+        if (!response.ok) return { error: true }
         return response.json()
       })
     )
+    if (requestId !== this.loadRequestId) return
+
+    if (results.some((result) => result?.error)) {
+      this.setLoadStatus("Couldn’t load this range. Try again.")
+      return
+    }
 
     this.seriesByKey = {}
     results.filter(Boolean).forEach((series) => {
@@ -167,9 +177,17 @@ export default class extends Controller {
     this.render()
   }
 
+  setLoadStatus(message) {
+    if (this.hasStatsTarget) this.statsTarget.innerHTML = `<p class="empty">${message}</p>`
+    if (this.hasHistoryTarget) this.historyTarget.innerHTML = `<p class="empty">${message}</p>`
+  }
+
   render() {
     const primary = this.primarySeries()
-    if (!primary) return
+    if (!primary) {
+      this.setLoadStatus(this.emptyRangeMessage())
+      return
+    }
 
     this.series = primary
     this.updateCanvasLabel(primary)
@@ -367,11 +385,6 @@ export default class extends Controller {
         <p class="label">Period average</p>
         <p class="value">${this.escapeHtml(this.displayValue(average, this.series.kind))} ${this.escapeHtml(unit || "")}</p>
         <p class="meta">Based on ${points.length} ${points.length === 1 ? "reading" : "readings"}</p>
-      </div>
-      <div>
-        <p class="label">Historical median</p>
-        <p class="value">—</p>
-        <p class="meta">Not available yet</p>
       </div>
     `
   }

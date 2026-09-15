@@ -22,6 +22,12 @@
     <a class="skip-link" href="#main">Skip to main content</a>
     <div class="app-shell">
       <%= render Navigation::AdminBarComponent.new(signed_in: Admin::Auth.signed_in?(session)) %>
+      <% if flash[:notice].present? %>
+        <p class="admin-flash admin-flash--notice" role="status"><%= flash[:notice] %></p>
+      <% end %>
+      <% if flash[:alert].present? %>
+        <p class="admin-flash admin-flash--alert" role="alert"><%= flash[:alert] %></p>
+      <% end %>
       <%= yield %>
       <%= render Footer::ThinComponent.new %>
     </div>

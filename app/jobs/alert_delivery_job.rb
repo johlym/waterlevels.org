@@ -3,12 +3,14 @@
 class AlertDeliveryJob < ApplicationJob
   queue_as :notifications
 
+  CLAIMABLE_STATUSES = %w[queued failed].freeze
+  STALE_SENDING_AFTER = 10.minutes
+
   def perform(delivery_id)
     return unless AlertsConfig.enabled?
 
-    delivery = AlertDelivery.find_by(id: delivery_id)
+    delivery = claim_delivery!(delivery_id)
     return unless delivery
-    return if delivery.status == "sent"
 
     subscriber = delivery.subscriber
     unless subscriber&.active_for_alerts?
@@ -24,6 +26,9 @@ class AlertDeliveryJob < ApplicationJob
 
     send_mail!(delivery, subscriber)
     delivery.update!(status: "sent", sent_at: Time.current)
+    if delivery.mailer_action == "daily_digest"
+      subscriber.mark_digest_sent!
+    end
   rescue StandardError => e
     delivery&.update!(
       status: "failed",
@@ -33,6 +38,20 @@ class AlertDeliveryJob < ApplicationJob
   end
 
   private
+
+  def claim_delivery!(delivery_id)
+    delivery = AlertDelivery.find_by(id: delivery_id)
+    return unless delivery
+    return if delivery.status == "sent" || delivery.status == "skipped"
+
+    stale_before = STALE_SENDING_AFTER.before(Time.current)
+    claimed = AlertDelivery.where(id: delivery.id, status: CLAIMABLE_STATUSES)
+      .or(AlertDelivery.where(id: delivery.id, status: "sending").where("updated_at < ?", stale_before))
+      .update_all(status: "sending", updated_at: Time.current)
+    return if claimed.zero?
+
+    delivery.reload
+  end
 
   def send_mail!(delivery, subscriber)
     event = delivery.alert_event
@@ -77,6 +96,8 @@ class AlertDeliveryJob < ApplicationJob
       AlertMailer.with(**base).rate_of_rise.deliver_now
     when "in_range"
       AlertMailer.with(**base).in_range.deliver_now
+    when "quiet_station"
+      AlertMailer.with(**base).quiet_station.deliver_now
     when "digest", "daily_digest"
       snapshots = delivery.metadata.dig("snapshot", "stations") ||
         delivery.metadata.dig("snapshot", :stations) ||

@@ -79,6 +79,29 @@ module ApplicationHelper
     GaugeValue.format(value, precision: precision)
   end
 
+  # Server-render a default temperature so no-JS / first paint is not blank.
+  # JS (temperature-unit controller) replaces this with the cookie preference.
+  def display_temperature_c(celsius, signed: false, hide_unit: false)
+    return if celsius.nil?
+
+    unit = cookies[:temperature_unit].to_s == "c" ? "c" : "f"
+    c = celsius.to_f
+    value = unit == "c" ? c : (c * 9.0 / 5.0 + 32.0)
+    formatted = format("%.1f", value)
+    formatted = "+#{formatted}" if signed && value.positive?
+    hide_unit ? formatted : "#{formatted} °#{unit == "c" ? "C" : "F"}"
+  end
+
+  def display_temperature_delta_c(delta_c)
+    return if delta_c.nil?
+
+    unit = cookies[:temperature_unit].to_s == "c" ? "c" : "f"
+    c = delta_c.to_f
+    value = unit == "c" ? c : (c * 9.0 / 5.0)
+    formatted = format("%+.1f", value)
+    "#{formatted} °#{unit == "c" ? "C" : "F"}"
+  end
+
   # e.g. +1,234.50 / -12
   def signed_number(value, precision:)
     return if value.nil?

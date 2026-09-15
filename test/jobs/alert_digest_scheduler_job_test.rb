@@ -43,8 +43,7 @@ class AlertDigestSchedulerJobTest < ActiveSupport::TestCase
     delivery = AlertDelivery.last
     assert_equal "daily_digest", delivery.mailer_action
     assert delivery.metadata["snapshot"].present?
-    assert_equal Time.find_zone("America/New_York").local(2026, 8, 29).to_date,
-                 @subscriber.reload.digest_last_sent_on
+    assert_nil @subscriber.reload.digest_last_sent_on
   end
 
   test "does not double-send same local day" do

@@ -15,13 +15,6 @@
     </div>
   </div>
 
-  <% if flash[:notice].present? %>
-    <p class="admin-settings-flash admin-settings-flash--notice" role="status"><%= flash[:notice] %></p>
-  <% end %>
-  <% if flash[:alert].present? %>
-    <p class="admin-settings-flash admin-settings-flash--alert" role="alert"><%= flash[:alert] %></p>
-  <% end %>
-
   <% @groups.each do |group| %>
     <section class="admin-stats admin-settings-group" id="<%= group.key %>" aria-labelledby="admin-settings-<%= group.key %>-heading">
       <div class="section-header">
@@ -103,6 +96,7 @@
                 <%= button_to action.label,
                       admin_maintenance_path(key: action.key),
                       method: :post,
+                      params: { confirm: action.key },
                       class: action.danger? ? "admin-settings-action admin-settings-action--danger" : "admin-settings-action",
                       form: { data: { turbo_confirm: action.confirm } } %>
               </div>

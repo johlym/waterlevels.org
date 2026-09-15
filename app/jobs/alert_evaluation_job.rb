@@ -121,5 +121,7 @@ class AlertEvaluationJob < ApplicationJob
       metadata: { "kind" => rule.kind }
     )
     AlertDeliveryJob.perform_later(delivery.id)
+  rescue ActiveRecord::RecordNotUnique
+    nil
   end
 end

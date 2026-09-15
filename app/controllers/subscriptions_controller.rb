@@ -147,7 +147,9 @@ class SubscriptionsController < ApplicationController
   end
 
   def turnstile_ok?
-    return true if ENV["TURNSTILE_SECRET"].blank?
+    if ENV["TURNSTILE_SECRET"].blank?
+      return !Rails.env.production?
+    end
 
     TurnstileVerification.new(
       token: params["cf-turnstile-response"],

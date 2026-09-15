@@ -29,4 +29,17 @@ class Admin::MaintenanceControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to admin_settings_path
     assert_equal "Unknown maintenance action.", flash[:alert]
   end
+
+  test "rejects danger actions without a matching confirm token" do
+    post admin_maintenance_path(key: "clear_usgs_rate_limit_circuits")
+    assert_redirected_to admin_settings_path(anchor: "maintenance")
+    assert_match(/Confirm/, flash[:alert].to_s)
+  end
+
+  test "runs a danger action when confirm matches the key" do
+    post admin_maintenance_path(key: "clear_usgs_rate_limit_circuits"),
+         params: { confirm: "clear_usgs_rate_limit_circuits" }
+    assert_redirected_to admin_settings_path(anchor: "maintenance")
+    assert_match(/completed/, flash[:notice].to_s)
+  end
 end
