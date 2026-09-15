@@ -86,7 +86,14 @@ class EdgeCacheInvalidation
 
   def flush_pending!
     tags = EdgeCachePurgeBuffer.drain
+    return :empty if tags.blank?
+
     purge!(tags)
+  rescue StandardError
+    # Drain already removed tags from the buffer; put them back so a Cloudflare
+    # blip does not permanently skip Cache-Tag purges for this flush.
+    EdgeCachePurgeBuffer.add(tags)
+    raise
   end
 
   def purge!(tags)

@@ -584,4 +584,21 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     assert_not LatestObservation.exists?(time_series_id: series.id)
     assert_not MonitoringLocation.exists?(doomed.id)
   end
+
+  test "purge_ids! clears alert watches, events, rules, and deliveries before locations" do
+    doomed = create(:monitoring_location, site_number: "30000004")
+    subscriber = create(:subscriber, :verified)
+    watch = create(:station_watch, subscriber: subscriber, monitoring_location: doomed)
+    rule = watch.alert_rules.first || create(:alert_rule, station_watch: watch)
+    event = create(:alert_event, monitoring_location: doomed)
+    delivery = create(:alert_delivery, subscriber: subscriber, alert_event: event, alert_rule: rule)
+
+    assert_equal 1, MonitoringLocation.purge_ids!([ doomed.id ])
+
+    assert_not MonitoringLocation.exists?(doomed.id)
+    assert_not StationWatch.exists?(watch.id)
+    assert_not AlertRule.exists?(rule.id)
+    assert_not AlertEvent.exists?(event.id)
+    assert_not AlertDelivery.exists?(delivery.id)
+  end
 end

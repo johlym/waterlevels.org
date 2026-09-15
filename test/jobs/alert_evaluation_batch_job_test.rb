@@ -41,4 +41,30 @@ class AlertEvaluationBatchJobTest < ActiveSupport::TestCase
     assert_empty AlertEvaluationEnqueueBuffer.drain
     assert_equal 1, AlertDelivery.count
   end
+
+  test "re-queues remaining location ids when evaluation fails mid-batch" do
+    second = create(:monitoring_location, flood_category: "action")
+    first_id = @location.id
+    second_id = second.id
+    AlertEvaluationEnqueueBuffer.add(first_id)
+    AlertEvaluationEnqueueBuffer.add(second_id)
+
+    calls = []
+    original = AlertEvaluationJob.method(:perform_now)
+    AlertEvaluationJob.define_singleton_method(:perform_now) do |id|
+      calls << id
+      raise "boom" if id == first_id
+    end
+
+    begin
+      assert_raises(RuntimeError) { AlertEvaluationBatchJob.perform_now }
+    ensure
+      AlertEvaluationJob.define_singleton_method(:perform_now, original)
+    end
+
+    assert_equal [ first_id ], calls
+    remaining = AlertEvaluationEnqueueBuffer.drain
+    assert_includes remaining, second_id
+    assert_includes remaining, first_id
+  end
 end

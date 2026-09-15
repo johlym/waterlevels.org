@@ -60,6 +60,24 @@ class Admin::SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Core stats"
   end
 
+  test "successful login rotates the session id to prevent fixation" do
+    ENV["DASHBOARD_PW"] = "secret-dashboard"
+
+    get admin_login_path
+    assert_response :success
+    pre_login_session = session.to_hash.dup
+
+    # Attacker-controlled fixation marker present before authentication.
+    session[:fixation_probe] = "planted"
+
+    post admin_login_path, params: { password: "secret-dashboard" }
+    assert_redirected_to admin_path
+
+    refute_equal pre_login_session, session.to_hash
+    assert_nil session[:fixation_probe]
+    assert Admin::Auth.signed_in?(session)
+  end
+
   test "rate limits repeated password attempts from the same IP" do
     ENV["DASHBOARD_PW"] = "secret-dashboard"
     limit = Admin::SessionsController::RATE_LIMIT_TO
