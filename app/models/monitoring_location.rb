@@ -427,6 +427,8 @@ class MonitoringLocation < ApplicationRecord
     return 0 if ids.empty?
 
     transaction do
+      purge_alert_dependents!(ids)
+
       ts_ids = TimeSeries.where(monitoring_location_id: ids).pluck(:id)
       if ts_ids.any?
         LatestObservation.where(time_series_id: ts_ids).delete_all
@@ -443,6 +445,27 @@ class MonitoringLocation < ApplicationRecord
     end
   end
   private_class_method :purge_id_batch!
+
+  # alert_events / station_watches FK to monitoring_locations (restrict). Clear
+  # deliveries → events → rules → watches before deleting locations so Sunday
+  # catalog prune cannot raise InvalidForeignKey mid-batch.
+  def self.purge_alert_dependents!(location_ids)
+    watch_ids = StationWatch.where(monitoring_location_id: location_ids).pluck(:id)
+    rule_ids = AlertRule.where(station_watch_id: watch_ids).pluck(:id)
+    event_ids = AlertEvent.where(monitoring_location_id: location_ids).pluck(:id)
+
+    if event_ids.any? || rule_ids.any?
+      scope = AlertDelivery.none
+      scope = scope.or(AlertDelivery.where(alert_event_id: event_ids)) if event_ids.any?
+      scope = scope.or(AlertDelivery.where(alert_rule_id: rule_ids)) if rule_ids.any?
+      scope.delete_all
+    end
+
+    AlertEvent.where(id: event_ids).delete_all if event_ids.any?
+    AlertRule.where(id: rule_ids).delete_all if rule_ids.any?
+    StationWatch.where(id: watch_ids).delete_all if watch_ids.any?
+  end
+  private_class_method :purge_alert_dependents!
 
   def self.purge_continuous_for_series!(time_series_id, batch_size: PURGE_CONTINUOUS_BATCH)
     scope = ContinuousObservation.where(time_series_id: time_series_id)

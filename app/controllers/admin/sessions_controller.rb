@@ -22,6 +22,8 @@ module Admin
 
     def create
       if Admin::Auth.authenticates?(params[:password])
+        # Prevent session fixation: rotate the session id before elevating.
+        reset_session
         Admin::Auth.sign_in(session)
         redirect_to admin_path
       else

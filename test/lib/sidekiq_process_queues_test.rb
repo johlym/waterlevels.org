@@ -82,6 +82,11 @@ class SidekiqProcessQueuesTest < ActiveSupport::TestCase
     assert_equal :notifications, AlertMailer.deliver_later_queue_name
   end
 
+  test "ContactMailer deliver_later uses the notifications queue" do
+    assert_equal :notifications, ContactMailer.deliver_later_queue_name
+    assert_equal :notifications, ApplicationMailer.deliver_later_queue_name
+  end
+
   private
 
   def load_sidekiq_yaml(path)

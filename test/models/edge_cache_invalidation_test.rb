@@ -139,4 +139,22 @@ class EdgeCacheInvalidationTest < ActiveSupport::TestCase
     @invalidation.after_catalog_sync!(state: nil)
     assert_includes @purger.calls.first, "sitemap"
   end
+
+  test "flush_pending! requeues tags when purge raises" do
+    location = create(:monitoring_location, site_number: "12101000", state_code: "wa")
+    EdgeCacheInvalidation.after_station_history!(location)
+
+    boom = Class.new do
+      def purge_tags(_tags)
+        raise "cloudflare down"
+      end
+    end.new
+
+    assert_raises(RuntimeError) do
+      EdgeCacheInvalidation.flush_pending!(purger: boom)
+    end
+
+    assert_equal :purged, EdgeCacheInvalidation.flush_pending!(purger: @purger)
+    assert_includes @purger.calls.first, "gauge:12101000"
+  end
 end

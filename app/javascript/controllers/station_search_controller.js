@@ -137,7 +137,10 @@ export default class extends Controller {
 
   showLocateError(message) {
     if (!this.hasDialogOutlet) return
-    this.dialogOutlet.show(message)
+    this.dialogOutlet.show({
+      title: "Couldn't find a nearby station",
+      body: message
+    })
   }
 
   async fetchResults() {

@@ -3,6 +3,11 @@ class ApplicationMailer < ActionMailer::Base
   layout "mailer"
   helper MailerHelper
 
+  # No Sidekiq process listens to the default `mailers` queue. Route deliver_later
+  # onto notifications_worker (config/sidekiq_notifications.yml) so ContactMailer
+  # and AlertMailer are both drained. AlertMailer also sets this explicitly.
+  self.deliver_later_queue_name = :notifications
+
   # Rails view filename annotations use multi-line HTML comments that some
   # clients (notably iOS Mail) render as a visible "-->". Keep them out of mail.
   around_action :without_view_annotations
