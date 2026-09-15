@@ -7,13 +7,30 @@ module RedisConfig
     isolate_test_worker_db(ENV.fetch("REDIS_URL", default))
   end
 
-  # Heroku Key-Value Store (and similar) use self-signed certs on rediss://.
-  # VERIFY_NONE is required; ignored for plain redis:// connections.
+  # Redis Cloud presents a public CA (download redis_ca.pem from the console;
+  # the OS trust store is usually enough). VERIFY_PEER is the default.
+  # Set REDIS_SSL_VERIFY=none only for leftover self-signed rediss:// hosts
+  # (e.g. some Heroku Key-Value Store plans). Ignored for redis://.
   def options(default_url: DEFAULT_URL)
     {
       url: url(default: default_url),
-      ssl_params: { verify_mode: OpenSSL::SSL::VERIFY_NONE }
+      ssl_params: { verify_mode: ssl_verify_mode }
     }
+  end
+
+  def cache_options
+    cache_url = ENV["REDIS_CACHE_URL"].to_s.strip
+    return options(default_url: cache_url) if cache_url.present?
+
+    options
+  end
+
+  def ssl_verify_mode
+    if %w[none 0 false off].include?(ENV["REDIS_SSL_VERIFY"].to_s.strip.downcase)
+      OpenSSL::SSL::VERIFY_NONE
+    else
+      OpenSSL::SSL::VERIFY_PEER
+    end
   end
 
   # Rails parallel test workers share one Redis by default. Pin each worker to

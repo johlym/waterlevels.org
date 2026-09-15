@@ -48,7 +48,7 @@ Rails.application.configure do
   config.active_support.report_deprecations = false
 
   require Rails.root.join("lib/redis_config")
-  config.cache_store = :redis_cache_store, RedisConfig.options
+  config.cache_store = :redis_cache_store, RedisConfig.cache_options
   config.active_job.queue_adapter = :sidekiq
 
   config.action_mailer.raise_delivery_errors = true
@@ -69,12 +69,10 @@ Rails.application.configure do
   # Only use :id for inspections in production.
   config.active_record.attributes_for_inspect = [ :id ]
 
-  # Enable DNS rebinding protection and other `Host` header attacks.
-  # config.hosts = [
-  #   "example.com",     # Allow requests from example.com
-  #   /.*\.example\.com/ # Allow requests from subdomains like `www.example.com`
-  # ]
-  #
-  # Skip DNS rebinding protection for the default health check endpoint.
-  # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+  if ENV["APP_HOST"].present?
+    host = ENV["APP_HOST"].to_s.strip.downcase.delete_prefix("https://").delete_prefix("http://").split("/").first
+    config.hosts << host
+    config.hosts << "www.#{host}" unless host.start_with?("www.")
+    config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+  end
 end
