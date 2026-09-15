@@ -1304,10 +1304,10 @@ body.dialog-open {
 }
 
 .segmented {
-  @apply inline-flex rounded-lg border border-zinc-800 bg-zinc-900/50 p-1;
+  @apply inline-flex max-w-full overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/50 p-1;
 
   button {
-    @apply cursor-pointer rounded-md px-4 py-2 text-sm font-medium text-zinc-400 transition-all hover:text-white;
+    @apply shrink-0 cursor-pointer rounded-md px-2 py-2 text-xs font-medium text-zinc-400 transition-all hover:text-white sm:px-4 sm:text-sm;
 
     &[aria-pressed="true"] {
       @apply bg-zinc-800 text-white;
@@ -2180,6 +2180,18 @@ body.dialog-open {
 
   .submit {
     @apply flex w-full cursor-pointer items-center justify-center rounded-lg bg-linear-to-r from-red-500 to-rose-600 px-6 py-3.5 text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.99];
+  }
+}
+
+.admin-flash {
+  @apply mx-6 mt-4 rounded-xl border px-4 py-3 text-sm;
+
+  &--notice {
+    @apply border-emerald-500/30 bg-emerald-500/10 text-emerald-100;
+  }
+
+  &--alert {
+    @apply border-rose-500/30 bg-rose-500/10 text-rose-100;
   }
 }
 

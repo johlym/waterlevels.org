@@ -46,9 +46,10 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
     end
   end
 
-  test "enqueue returns false when USGS rate limit circuit is open" do
+  test "enqueue returns false when history rate limit circuits are open" do
     travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
-      Usgs::RateLimitCircuit.open!(ttl: 1.minute)
+      Usgs::RateLimitCircuit.open!(key_id: "history_continuous", ttl: 1.minute)
+      Usgs::RateLimitCircuit.open!(key_id: "history_daily", ttl: 1.minute)
       assert_no_enqueued_jobs only: HistoryBackfillJob do
         refute HistoryBackfillJob.enqueue(99)
       end
@@ -86,12 +87,13 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
     end
   end
 
-  test "perform skips USGS calls when rate limit circuit is open" do
+  test "perform skips USGS calls when history rate limit circuits are open" do
     location = create(:monitoring_location, site_number: "30000097")
     create(:time_series, monitoring_location: location, selected_for_display: true)
 
     travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
-      Usgs::RateLimitCircuit.open!(ttl: 1.minute)
+      Usgs::RateLimitCircuit.open!(key_id: "history_continuous", ttl: 1.minute)
+      Usgs::RateLimitCircuit.open!(key_id: "history_daily", ttl: 1.minute)
       assert HistoryBackfillLock.claim!(location.id)
       HistoryBackfillJob.perform_now(location.id)
 

@@ -37,7 +37,7 @@ module Usgs
       refute HistoryKeyPool.configured?
       entry = HistoryKeyPool.claim!(:continuous)
       assert_equal "tip-key", entry[:api_key]
-      assert_equal RateLimitCircuit::TIP_KEY, entry[:circuit_key]
+      assert_equal "history_continuous", entry[:circuit_key]
       assert_equal "USGS_API_KEY", entry[:env]
     end
 

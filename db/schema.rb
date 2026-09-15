@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_15_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -37,6 +37,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
     t.datetime "updated_at", null: false
     t.index ["alert_event_id"], name: "index_alert_deliveries_on_alert_event_id"
     t.index ["alert_rule_id"], name: "index_alert_deliveries_on_alert_rule_id"
+    t.index ["subscriber_id", "alert_event_id", "alert_rule_id"], name: "index_alert_deliveries_unique_event_rule", unique: true, where: "((alert_event_id IS NOT NULL) AND (alert_rule_id IS NOT NULL))"
     t.index ["subscriber_id", "created_at"], name: "index_alert_deliveries_on_subscriber_id_and_created_at"
     t.index ["subscriber_id"], name: "index_alert_deliveries_on_subscriber_id"
   end

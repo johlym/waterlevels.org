@@ -61,4 +61,39 @@ class AlertDeliveryJobTest < ActiveSupport::TestCase
     end
     assert_equal "sent", digest.reload.status
   end
+
+  test "sends quiet_station mail" do
+    delivery = create(
+      :alert_delivery,
+      subscriber: @subscriber,
+      alert_event: create(:alert_event, monitoring_location: @event.monitoring_location),
+      alert_rule: @rule,
+      mailer_action: "quiet_station",
+      status: "queued"
+    )
+    assert_emails 1 do
+      AlertDeliveryJob.perform_now(delivery.id)
+    end
+    assert_equal "sent", delivery.reload.status
+  end
+
+  test "reuses the same manage token across deliveries" do
+    first = @subscriber.manage_token!
+    AlertDeliveryJob.perform_now(@delivery.id)
+    second = @subscriber.manage_token!
+    assert_equal first, second
+  end
+
+  test "marks digest sent only after a successful send" do
+    digest = create(
+      :alert_delivery,
+      subscriber: @subscriber,
+      mailer_action: "daily_digest",
+      status: "queued",
+      metadata: { "snapshot" => { "stations" => [] } }
+    )
+    assert_nil @subscriber.digest_last_sent_on
+    AlertDeliveryJob.perform_now(digest.id)
+    assert_not_nil @subscriber.reload.digest_last_sent_on
+  end
 end

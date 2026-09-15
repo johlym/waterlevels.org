@@ -15,14 +15,16 @@ module Admin
       allowed_keys = group.settings.map { |setting| setting.key.to_s }
       values = params.fetch(:settings, {}).permit(*allowed_keys).to_h
       updated = []
-      group.settings.each do |setting|
-        key = setting.key.to_s
-        next unless values.key?(key)
+      AppSetting.transaction do
+        group.settings.each do |setting|
+          key = setting.key.to_s
+          next unless values.key?(key)
 
-        raw = values[key]
-        raw = raw.last if raw.is_a?(Array)
-        AppConfig.write!(setting.key, raw)
-        updated << setting.label
+          raw = values[key]
+          raw = raw.last if raw.is_a?(Array)
+          AppConfig.write!(setting.key, raw)
+          updated << setting.label
+        end
       end
 
       redirect_to admin_settings_path(anchor: group_key),

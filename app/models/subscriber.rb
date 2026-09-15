@@ -106,12 +106,17 @@ class Subscriber < ApplicationRecord
   end
 
   def manage_token!
-    existing = subscriber_tokens.where(purpose: "manage", used_at: nil)
-      .where("expires_at IS NULL OR expires_at > ?", Time.current)
-      .order(created_at: :desc).first
-    # Always issue fresh raw token; invalidate old manage digests by rotating
-    subscriber_tokens.where(purpose: "manage").delete_all
-    issue_token!(purpose: "manage", expires_at: 2.years.from_now)
+    raw = stable_manage_token_raw
+    digest = SubscriberToken.digest(raw)
+    subscriber_tokens.where(purpose: "manage").where.not(token_digest: digest).delete_all
+    subscriber_tokens.find_or_create_by!(purpose: "manage", token_digest: digest) do |token|
+      token.expires_at = 2.years.from_now
+    end
+    raw
+  end
+
+  def stable_manage_token_raw
+    OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base, "manage:#{id}")
   end
 
   private

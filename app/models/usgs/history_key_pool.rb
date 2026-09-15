@@ -69,14 +69,12 @@ module Usgs
     end
 
     def self.circuit_key_for(purpose)
-      if purpose_configured?(purpose)
-        meta_for(purpose)[:circuit_key]
-      else
-        RateLimitCircuit::TIP_KEY
-      end
+      meta_for(purpose)[:circuit_key]
     end
 
     def self.available?(purpose)
+      return false if Rails.env.production? && !purpose_configured?(purpose)
+
       !RateLimitCircuit.open?(circuit_key_for(purpose))
     end
 
@@ -104,6 +102,10 @@ module Usgs
 
     def self.claim!(purpose)
       purpose = normalize_purpose!(purpose)
+      unless purpose_configured?(purpose) || allow_tip_key_fallback?
+        raise Client::RateLimitError, "USGS history purpose key unset purpose=#{purpose}"
+      end
+
       circuit_key = circuit_key_for(purpose)
       if RateLimitCircuit.open?(circuit_key)
         raise Client::RateLimitError, "USGS rate limit circuit open key=#{circuit_key}"
@@ -113,7 +115,7 @@ module Usgs
         purpose: purpose,
         api_key: api_key_for(purpose),
         circuit_key: circuit_key,
-        env: configured?(purpose) ? env_for(purpose) : "USGS_API_KEY"
+        env: purpose_configured?(purpose) ? env_for(purpose) : "USGS_API_KEY"
       }
     end
 
@@ -159,10 +161,15 @@ module Usgs
     end
     private_class_method :normalize_purpose!
 
+    def self.allow_tip_key_fallback?
+      !Rails.env.production?
+    end
+    private_class_method :allow_tip_key_fallback?
+
     def self.api_key_for(purpose)
       if purpose_configured?(purpose)
         ENV[env_for(purpose)].to_s.strip
-      else
+      elsif allow_tip_key_fallback?
         ENV["USGS_API_KEY"].presence
       end
     end

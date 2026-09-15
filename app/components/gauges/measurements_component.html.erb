@@ -62,7 +62,7 @@
             class="value"
             data-temperature-unit-target="display"
             data-temp-c="<%= value %>"
-          ></div>
+          ><%= helpers.display_temperature_c(value) %></div>
         <% else %>
           <div class="value-row">
             <div class="value">
@@ -74,15 +74,15 @@
         <div class="trends">
           <% if kind == "temperature" %>
             <% if change_24h %>
-              <p>24h <span data-temperature-unit-target="display" data-temp-delta-c="<%= change_24h %>"></span></p>
+              <p>24h <span data-temperature-unit-target="display" data-temp-delta-c="<%= change_24h %>"><%= helpers.display_temperature_delta_c(change_24h) %></span></p>
             <% end %>
             <% if yoy %>
-              <p>YoY <span data-temperature-unit-target="display" data-temp-delta-c="<%= yoy %>"></span></p>
+              <p>YoY <span data-temperature-unit-target="display" data-temp-delta-c="<%= yoy %>"><%= helpers.display_temperature_delta_c(yoy) %></span></p>
             <% end %>
             <% if high || low %>
               <p>
-                High <% if high %><span data-temperature-unit-target="display" data-temp-c="<%= high %>" data-temp-hide-unit="true"></span><% else %>—<% end %>
-                · Low <% if low %><span data-temperature-unit-target="display" data-temp-c="<%= low %>" data-temp-hide-unit="true"></span><% else %>—<% end %>
+                High <% if high %><span data-temperature-unit-target="display" data-temp-c="<%= high %>" data-temp-hide-unit="true"><%= helpers.display_temperature_c(high, hide_unit: true) %></span><% else %>—<% end %>
+                · Low <% if low %><span data-temperature-unit-target="display" data-temp-c="<%= low %>" data-temp-hide-unit="true"><%= helpers.display_temperature_c(low, hide_unit: true) %></span><% else %>—<% end %>
               </p>
             <% end %>
           <% else %>

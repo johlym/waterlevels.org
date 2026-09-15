@@ -20,6 +20,7 @@ module Alerts
 
     def should_fire?
       return false unless @rule.enabled?
+      return false if @rule.param("value").blank?
       return false if @rule.in_cooldown?(@at)
       return false if tip_stale?
 

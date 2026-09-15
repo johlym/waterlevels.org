@@ -17,6 +17,7 @@ module Alerts
 
     def should_fire?
       return false unless @rule.enabled?
+      return false if @rule.param("min").blank? || @rule.param("max").blank?
       return false if @rule.in_cooldown?(@at)
 
       current = current_value

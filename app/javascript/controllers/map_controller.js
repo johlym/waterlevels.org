@@ -57,6 +57,7 @@ export default class extends Controller {
     this.markersById = new Map()
     this.query = ""
     this.searchRequestId = 0
+    this.stationsRequestId = 0
     this.searchActiveIndex = -1
     this.syncingHashFromMap = false
     this.layers = {
@@ -438,11 +439,16 @@ export default class extends Controller {
   }
 
   async loadStations() {
+    const requestId = ++this.stationsRequestId
     const bounds = this.map.getBounds()
     const bbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()].join(",")
     const url = `${this.stationsUrlValue}?bbox=${encodeURIComponent(bbox)}`
     const response = await firstPartyApiFetch(url)
-    if (!response.ok) return
+    if (requestId !== this.stationsRequestId) return
+    if (!response.ok) {
+      if (this.hasStatusTarget) this.statusTarget.textContent = "Couldn't refresh stations in view."
+      return
+    }
     const data = await response.json()
     this.stations = data.stations || []
     this.updateCounts()
