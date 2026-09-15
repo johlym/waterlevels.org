@@ -136,7 +136,7 @@ Caching is layered; keep all three layers consistent when adding a surface.
 
 ## 10. Contact form
 
-`GET /contact` renders `Contact::FormComponent` with a Turnstile widget and is served `private, no-store`. It is the only public HTML surface that enables the Rails session (CSRF meta tags + flash). `POST /contact` runs an `invisible_captcha` honeypot, validates a `ContactMessage`, verifies Cloudflare Turnstile (`TurnstileVerification`; bypassed in test when the secret is unset), and enqueues `ContactMailer` (delivered via bento-actionmailer in production, with premailer-rails inlining CSS). Recipient/from configured via `CONTACT_TO_EMAIL` / `MAIL_FROM`.
+`GET /contact` renders `Contact::FormComponent` with a Turnstile widget and is served `private, no-store`. It is the only public HTML surface that enables the Rails session (CSRF meta tags + flash). `POST /contact` runs an `invisible_captcha` honeypot, validates a `ContactMessage`, verifies Cloudflare Turnstile (`TurnstileVerification`; bypassed in test when the secret is unset), and enqueues `ContactMailer` onto the default Sidekiq queue (`worker` dyno; delivered via bento-actionmailer in production, with premailer-rails inlining CSS). Recipient/from configured via `CONTACT_TO_EMAIL` / `MAIL_FROM`.
 
 ## 11. Domain/value objects
 

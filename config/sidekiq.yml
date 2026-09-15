@@ -1,5 +1,6 @@
-# Default worker: one-off / non-queue-specific jobs (prune, edge purge, etc.).
-# Also owns sidekiq-scheduler so sync/history cron entries are enqueued once.
+# Default worker: one-off / non-queue-specific jobs (prune, edge purge,
+# ContactMailer deliver_later, etc.). Also owns sidekiq-scheduler so
+# sync/history cron entries are enqueued once.
 # Each dyno is ~512MB eco — keep a single thread.
 :concurrency: 1
 :queues:

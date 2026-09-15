@@ -28,4 +28,15 @@ class ContactMailerTest < ActionMailer::TestCase
     assert_match(/disable_click/, html)
     assert_match(/disable_utms/, html)
   end
+
+  test "contact_email deliver_later lands on the default queue" do
+    assert_enqueued_with(job: ActionMailer::MailDeliveryJob, queue: "default") do
+      ContactMailer.with(
+        name: "Ada",
+        email: "ada@example.com",
+        subject: "Hello",
+        message: "Testing the form"
+      ).contact_email.deliver_later
+    end
+  end
 end
