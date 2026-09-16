@@ -3,8 +3,23 @@
 class AlertDeliveryJob < ApplicationJob
   queue_as :notifications
 
+  class InProgress < StandardError; end
+
   CLAIMABLE_STATUSES = %w[queued failed].freeze
   STALE_SENDING_AFTER = 10.minutes
+
+  # A worker crash after claim leaves status=sending. The Sidekiq redelivery
+  # arrives while updated_at is still fresh; returning success would ACK the
+  # job and permanently drop the flood/digest email. Wait for the stale
+  # window, then reclaim.
+  retry_on InProgress, wait: STALE_SENDING_AFTER, attempts: 8
+
+  def self.requeue_stale_sending!
+    stale_before = STALE_SENDING_AFTER.before(Time.current)
+    AlertDelivery.where(status: "sending").where("updated_at < ?", stale_before).find_each do |delivery|
+      perform_later(delivery.id)
+    end
+  end
 
   def perform(delivery_id)
     return unless AlertsConfig.enabled?
@@ -29,6 +44,8 @@ class AlertDeliveryJob < ApplicationJob
     if delivery.mailer_action == "daily_digest"
       subscriber.mark_digest_sent!
     end
+  rescue InProgress
+    raise
   rescue StandardError => e
     delivery&.update!(
       status: "failed",
@@ -48,7 +65,11 @@ class AlertDeliveryJob < ApplicationJob
     claimed = AlertDelivery.where(id: delivery.id, status: CLAIMABLE_STATUSES)
       .or(AlertDelivery.where(id: delivery.id, status: "sending").where("updated_at < ?", stale_before))
       .update_all(status: "sending", updated_at: Time.current)
-    return if claimed.zero?
+    if claimed.zero?
+      delivery.reload
+      raise InProgress, "alert delivery #{delivery.id} is still sending" if delivery.status == "sending"
+      return
+    end
 
     delivery.reload
   end
