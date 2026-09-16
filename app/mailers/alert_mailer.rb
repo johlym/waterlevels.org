@@ -2,7 +2,7 @@
 
 class AlertMailer < ApplicationMailer
   # Verify / manage-link use deliver_later — keep them on notifications_worker
-  # with AlertDeliveryJob instead of the orphaned default `mailers` queue.
+  # with AlertDeliveryJob. ContactMailer uses the default worker instead.
   self.deliver_later_queue_name = :notifications
 
   before_action :assign_common_params

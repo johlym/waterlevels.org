@@ -118,7 +118,7 @@ bin/rails test
 
 ## Contact form
 
-`GET /contact` is served by `PagesController` (not edge-cached). `POST /contact` uses `ContactMessage` + `invisible_captcha` + Cloudflare Turnstile, then `ContactMailer`.
+`GET /contact` is served by `PagesController` (not edge-cached). `POST /contact` uses `ContactMessage` + `invisible_captcha` + Cloudflare Turnstile, then `ContactMailer` (`deliver_later` on the default Sidekiq queue / `worker` dyno).
 
 Set in `.env`:
 

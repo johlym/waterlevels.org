@@ -1,4 +1,8 @@
 class ContactMailer < ApplicationMailer
+  # Infrequent contact-form mail; drain with the default worker dyno rather
+  # than notifications_worker (alerts / digests).
+  self.deliver_later_queue_name = :default
+
   def contact_email
     @name = params[:name]
     @email = params[:email]
