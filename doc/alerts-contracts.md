@@ -1,7 +1,7 @@
-# Email Alerts — Shared Contracts (Wave 0)
+# Email Alerts — Shared Contracts
 
-Schema names, rule kinds, and event payloads locked for parallel implementation.
-`ALERTS_ENABLED` defaults off; flip only at Wave 4 ship.
+As-built contracts for the live alerts product (behind `ALERTS_ENABLED`, default off).
+Public FAQ: `/faq#email-alerts`. Operator notes: [`alerts-freshness-sla.md`](alerts-freshness-sla.md) and the README “Email alerts” section.
 
 ## Feature flag
 
@@ -60,7 +60,7 @@ Schema names, rule kinds, and event payloads locked for parallel implementation.
 | alert_event_id | fk, optional |
 | alert_rule_id | fk, optional |
 | mailer_action | string |
-| status | string | `queued`, `sent`, `failed`, `skipped` |
+| status | string | `queued`, `sending`, `sent`, `failed`, `skipped` |
 | sent_at | datetime |
 | metadata | jsonb |
 
@@ -75,8 +75,9 @@ Schema names, rule kinds, and event payloads locked for parallel implementation.
 
 ## Rule kinds
 
-**v1:** `flood_category_change`, `threshold`, `digest`  
-**Reserved (Phase F):** `rate_of_rise`, `in_range`, `quiet_station`, `approaching_stage`
+**v1 (user-created):** `flood_category_change`, `threshold`, `digest`  
+**Implemented operationally (not a user-created rule kind):** `quiet_station` — `AlertQuietScanJob` (hourly `:10`) + `Alerts::QuietStationDetector` (6h quiet threshold, watched stations only). Delivery path is live.  
+**Reserved (Phase F user-created rules):** `rate_of_rise`, `in_range`, `approaching_stage`
 
 ### Params shapes
 
@@ -119,5 +120,8 @@ Schema names, rule kinds, and event payloads locked for parallel implementation.
 ## Sidekiq
 
 - Queue: `notifications`
-- Jobs: `AlertEvaluationBatchJob` (debounced drain of `AlertEvaluationEnqueueBuffer`), `AlertEvaluationJob` (per-location eval, invoked by batch), `AlertDeliveryJob`, `AlertDigestSchedulerJob` (cron `*/15`)
+- Jobs: `AlertEvaluationBatchJob` (debounced drain of `AlertEvaluationEnqueueBuffer`; mid-loop failure re-buffers remaining location IDs), `AlertEvaluationJob` (per-location eval, invoked by batch), `AlertDeliveryJob`, `AlertDigestSchedulerJob` (cron `*/15`), `AlertQuietScanJob` (cron hourly `:10`)
 - Tip/flood sync records `alert_events` for all stations but only **watched** locations enter the evaluation buffer (`Alerts::WatchedLocations`). Multiple events for the same station coalesce to one batch flush (~90s debounce).
+- Delivery uniqueness: partial unique index on `(subscriber_id, alert_event_id, alert_rule_id)`. `digest_last_sent_on` updates only after a successful send.
+- Manage tokens (`Subscriber#manage_token!`) are HMAC-stable per subscriber (not rotated on every delivery). Verify tokens expire in 48 hours.
+- Production gauge signup requires `TURNSTILE_SECRET`. Timezone is JS-detected (hidden on the gauge form). Cap: `ALERTS_MAX_WATCHES` (default 25).
