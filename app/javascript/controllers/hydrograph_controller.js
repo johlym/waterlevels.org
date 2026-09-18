@@ -57,14 +57,16 @@ export default class extends Controller {
     measurements: Array,
     floodStages: Object,
     timeZone: { type: String, default: "" },
-    timeZoneLabel: { type: String, default: "" }
+    timeZoneLabel: { type: String, default: "" },
+    dailyOnly: { type: Boolean, default: false },
+    defaultRange: { type: String, default: "7d" }
   }
 
   connect() {
     const first = (this.measurementsValue || [])[0] || {}
     this.kind = first.kind
     this.parameterCode = first.parameter_code
-    this.range = "7d"
+    this.range = this.defaultRangeValue || (this.dailyOnlyValue ? "1y" : "7d")
     this.view = "chart"
     this.selectedDayKey = null
     this.seriesByKey = {}
@@ -600,7 +602,7 @@ export default class extends Controller {
     if (!primary) return
 
     const primaryPoints = primary.points || []
-    const continuousRange = isContinuousChartRange(this.range)
+    const continuousRange = isContinuousChartRange(this.range, primary.grain)
     const colors = SERIES_COLORS[primary.kind] || SERIES_COLORS.discharge
     const grid = "rgba(255,255,255,0.08)"
     const tick = "#a1a1aa"

@@ -5,7 +5,7 @@ class PopularWaterwaysTest < ActiveSupport::TestCase
     create(
       :monitoring_location,
       site_number: "07010000",
-      usgs_monitoring_location_id: "USGS-07010000",
+      provider_location_id: "USGS-07010000",
       name: "MISSISSIPPI RIVER AT ST. LOUIS, MO",
       state_code: "mo",
       state_name: "Missouri"

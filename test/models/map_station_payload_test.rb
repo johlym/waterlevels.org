@@ -7,7 +7,7 @@ class MapStationPayloadTest < ActiveSupport::TestCase
     location = create(
       :monitoring_location,
       site_number: "12199000",
-      usgs_monitoring_location_id: "USGS-12199000",
+      provider_location_id: "USGS-12199000",
       latest_water_level_value: 23.95,
       latest_water_level_unit: "ft",
       latest_water_level_parameter_code: "00065",

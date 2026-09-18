@@ -277,7 +277,7 @@ module DailyArchive
         begin
           client.each_collection_item(
             "daily",
-            monitoring_location_id: location.usgs_monitoring_location_id,
+            monitoring_location_id: location.provider_location_id,
             parameter_code: series.parameter_code,
             datetime: "#{start_day.iso8601}/#{end_day.iso8601}"
           ) do |item|

@@ -92,7 +92,7 @@ class HistoryIngestion
       attributes: {
         "app.operation" => "history.ingest",
         "app.site_number" => monitoring_location.site_number,
-        "app.usgs_monitoring_location_id" => monitoring_location.usgs_monitoring_location_id,
+        "app.provider_location_id" => monitoring_location.provider_location_id,
         "app.location_name" => monitoring_location.display_name,
         "app.state" => monitoring_location.state_code,
         "app.range" => range.to_s,
@@ -503,7 +503,7 @@ class HistoryIngestion
   def resolve_series(item, series_list)
     ts_id = item["time_series_id"].to_s.presence
     if ts_id
-      match = series_list.find { |series| series.usgs_time_series_id == ts_id }
+      match = series_list.find { |series| series.provider_series_id == ts_id }
       return match if match
     end
 
@@ -627,7 +627,7 @@ class HistoryIngestion
           before = count
           client.each_collection_item(
             "continuous",
-            monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
+            monitoring_location_id: monitoring_location.provider_location_id,
             parameter_code: codes,
             datetime: datetime
           ) do |item|
@@ -750,7 +750,7 @@ class HistoryIngestion
         ranges.each do |start_date, end_date|
           client.each_collection_item(
             "daily",
-            monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
+            monitoring_location_id: monitoring_location.provider_location_id,
             parameter_code: codes,
             datetime: "#{start_date.iso8601}/#{end_date.iso8601}"
           ) do |item|
@@ -923,7 +923,7 @@ class HistoryIngestion
       begin
         client.each_collection_item(
           "peaks",
-          monitoring_location_id: monitoring_location.usgs_monitoring_location_id,
+          monitoring_location_id: monitoring_location.provider_location_id,
           parameter_code: codes
         ) do |item|
           series = resolve_series(item, series_list)

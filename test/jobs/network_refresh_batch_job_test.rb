@@ -15,8 +15,8 @@ class NetworkRefreshBatchJobTest < ActiveSupport::TestCase
   end
 
   test "refreshes a limited batch of unsynced stations" do
-    first = create(:monitoring_location, site_number: "40000001", usgs_monitoring_location_id: "USGS-40000001")
-    second = create(:monitoring_location, site_number: "40000002", usgs_monitoring_location_id: "USGS-40000002")
+    first = create(:monitoring_location, site_number: "40000001", provider_location_id: "USGS-40000001")
+    second = create(:monitoring_location, site_number: "40000002", provider_location_id: "USGS-40000002")
     first, second = [ first, second ].sort_by(&:id)
 
     travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
@@ -28,7 +28,7 @@ class NetworkRefreshBatchJobTest < ActiveSupport::TestCase
   end
 
   test "emits SyncProgress lines for the batch" do
-    create(:monitoring_location, site_number: "40000010", usgs_monitoring_location_id: "USGS-40000010")
+    create(:monitoring_location, site_number: "40000010", provider_location_id: "USGS-40000010")
     io = StringIO.new
     progress = SyncProgress.new("NetworkRefreshBatchJob", io: io, logger: nil, every: 1)
 
@@ -44,7 +44,7 @@ class NetworkRefreshBatchJobTest < ActiveSupport::TestCase
   end
 
   test "skips when the NLDI rate limit circuit is open" do
-    create(:monitoring_location, site_number: "40000004", usgs_monitoring_location_id: "USGS-40000004")
+    create(:monitoring_location, site_number: "40000004", provider_location_id: "USGS-40000004")
     Nldi::RateLimitCircuit.open!(ttl: 5.minutes)
 
     travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
@@ -53,7 +53,7 @@ class NetworkRefreshBatchJobTest < ActiveSupport::TestCase
   end
 
   test "skips on Sunday when catalog pause is enabled" do
-    create(:monitoring_location, site_number: "40000003", usgs_monitoring_location_id: "USGS-40000003")
+    create(:monitoring_location, site_number: "40000003", provider_location_id: "USGS-40000003")
 
     travel_to Time.zone.parse("2026-08-02 12:00:00") do # Sunday
       assert_equal 0, NetworkRefreshBatchJob.perform_now(10)
@@ -61,7 +61,7 @@ class NetworkRefreshBatchJobTest < ActiveSupport::TestCase
   end
 
   test "skips when batch lock already held" do
-    create(:monitoring_location, site_number: "40000005", usgs_monitoring_location_id: "USGS-40000005")
+    create(:monitoring_location, site_number: "40000005", provider_location_id: "USGS-40000005")
     assert NetworkRefreshBatchLock.claim!
 
     travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday

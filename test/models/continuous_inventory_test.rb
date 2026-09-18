@@ -17,7 +17,7 @@ class ContinuousInventoryTest < ActiveSupport::TestCase
         parameter_code: "62615",
         measurement_kind: "water_level",
         selected_for_display: false,
-        usgs_time_series_id: "ts-unselected-iv"
+        provider_series_id: "ts-unselected-iv"
       )
 
       seed_continuous_coverage!(

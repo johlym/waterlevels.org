@@ -178,7 +178,7 @@ class StationInspector
 
     {
       id: series.id,
-      usgs_time_series_id: series.usgs_time_series_id,
+      provider_series_id: series.provider_series_id,
       measurement_kind: series.measurement_kind,
       parameter_code: series.parameter_code,
       label: Usgs::ParameterCodes.label_for(series.parameter_code, fallback: series.parameter_description),

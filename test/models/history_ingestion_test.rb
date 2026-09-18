@@ -2,13 +2,13 @@ require "test_helper"
 
 class HistoryIngestionTest < ActiveSupport::TestCase
   setup do
-    @location = create(:monitoring_location, usgs_monitoring_location_id: "USGS-12101000")
+    @location = create(:monitoring_location, provider_location_id: "USGS-12101000")
     @series = create(
       :time_series,
       monitoring_location: @location,
       parameter_code: "62614",
       measurement_kind: "water_level",
-      usgs_time_series_id: "ts-lake-tapps"
+      provider_series_id: "ts-lake-tapps"
     )
   end
 
@@ -25,7 +25,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
               {
                 id: "1",
                 properties: {
-                  time_series_id: @series.usgs_time_series_id,
+                  time_series_id: @series.provider_series_id,
                   parameter_code: "62614",
                   time: "2026-08-01T12:00:00Z",
                   value: 540.1,
@@ -54,7 +54,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
       {
         id: i.to_s,
         properties: {
-          time_series_id: @series.usgs_time_series_id,
+          time_series_id: @series.provider_series_id,
           parameter_code: "62614",
           time: (12.hours.ago + (i * 15).minutes).utc.iso8601,
           value: 500 + i,
@@ -86,7 +86,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
       {
         id: "1",
         properties: {
-          time_series_id: @series.usgs_time_series_id,
+          time_series_id: @series.provider_series_id,
           parameter_code: "62614",
           time: observed_at,
           value: 540.1,
@@ -97,7 +97,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
       {
         id: "2",
         properties: {
-          time_series_id: @series.usgs_time_series_id,
+          time_series_id: @series.provider_series_id,
           parameter_code: "62614",
           time: observed_at,
           value: 540.9,
@@ -108,7 +108,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
       {
         id: "3",
         properties: {
-          time_series_id: @series.usgs_time_series_id,
+          time_series_id: @series.provider_series_id,
           parameter_code: "62614",
           time: "2026-08-01T12:15:00Z",
           value: 541.0,
@@ -153,7 +153,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
               {
                 id: "1",
                 properties: {
-                  time_series_id: @series.usgs_time_series_id,
+                  time_series_id: @series.provider_series_id,
                   parameter_code: "62614",
                   time: 1.day.ago.utc.iso8601,
                   value: 540.1,
@@ -177,7 +177,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
               {
                 id: "d1",
                 properties: {
-                  time_series_id: @series.usgs_time_series_id,
+                  time_series_id: @series.provider_series_id,
                   parameter_code: "62614",
                   time: 11.months.ago.to_date.iso8601,
                   value: 538.0,
@@ -359,7 +359,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
                 {
                   id: "d3",
                   properties: {
-                    time_series_id: @series.usgs_time_series_id,
+                    time_series_id: @series.provider_series_id,
                     parameter_code: "62614",
                     time: 35.months.ago.to_date.iso8601,
                     value: 537.0,
@@ -472,7 +472,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
       parameter_code: "00010",
       measurement_kind: "temperature",
       selected_for_display: true,
-      usgs_time_series_id: "ts-temperature"
+      provider_series_id: "ts-temperature"
     )
     @location.update!(has_temperature: true, latest_temperature_c: 11.0)
 
@@ -485,7 +485,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
             {
               id: "1",
               properties: {
-                time_series_id: temperature.usgs_time_series_id,
+                time_series_id: temperature.provider_series_id,
                 parameter_code: "00010",
                 time: 1.hour.ago.utc.iso8601,
                 value: -100_000,
@@ -495,7 +495,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
             {
               id: "2",
               properties: {
-                time_series_id: temperature.usgs_time_series_id,
+                time_series_id: temperature.provider_series_id,
                 parameter_code: "00010",
                 time: 2.hours.ago.utc.iso8601,
                 value: 14.2,
@@ -523,13 +523,13 @@ class HistoryIngestionTest < ActiveSupport::TestCase
 
   test "marks usgs_daily_absent when daily API returns sibling params but not this series" do
     stage = @series
-    stage.update!(parameter_code: "00065", measurement_kind: "water_level", usgs_time_series_id: "ts-stage-iv")
+    stage.update!(parameter_code: "00065", measurement_kind: "water_level", provider_series_id: "ts-stage-iv")
     flow = create(
       :time_series,
       monitoring_location: @location,
       parameter_code: "00060",
       measurement_kind: "discharge",
-      usgs_time_series_id: "ts-flow-dv"
+      provider_series_id: "ts-flow-dv"
     )
 
     stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/continuous/items})
@@ -541,7 +541,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
             {
               id: "1",
               properties: {
-                time_series_id: stage.usgs_time_series_id,
+                time_series_id: stage.provider_series_id,
                 parameter_code: "00065",
                 time: 1.hour.ago.utc.iso8601,
                 value: 5.7
@@ -550,7 +550,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
             {
               id: "2",
               properties: {
-                time_series_id: flow.usgs_time_series_id,
+                time_series_id: flow.provider_series_id,
                 parameter_code: "00060",
                 time: 1.hour.ago.utc.iso8601,
                 value: 11.0
@@ -612,7 +612,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
     @series.update!(
       parameter_code: "00060",
       measurement_kind: "discharge",
-      usgs_time_series_id: "ts-dead-flow",
+      provider_series_id: "ts-dead-flow",
       ends_at: Time.zone.parse("2008-06-01")
     )
     LatestObservation.create!(
@@ -669,7 +669,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
       monitoring_location: @location,
       parameter_code: "00060",
       measurement_kind: "discharge",
-      usgs_time_series_id: "ts-discharge"
+      provider_series_id: "ts-discharge"
     )
 
     continuous_requests = []
@@ -684,7 +684,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
               {
                 id: "1",
                 properties: {
-                  time_series_id: @series.usgs_time_series_id,
+                  time_series_id: @series.provider_series_id,
                   parameter_code: "62614",
                   time: 1.hour.ago.utc.iso8601,
                   value: 10.0
@@ -693,7 +693,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
               {
                 id: "2",
                 properties: {
-                  time_series_id: discharge.usgs_time_series_id,
+                  time_series_id: discharge.provider_series_id,
                   parameter_code: "00060",
                   time: 1.hour.ago.utc.iso8601,
                   value: 100.0

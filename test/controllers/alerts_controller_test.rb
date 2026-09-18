@@ -5,7 +5,7 @@ class AlertsControllerTest < ActionDispatch::IntegrationTest
     create(
       :monitoring_location,
       site_number: "300",
-      usgs_monitoring_location_id: "USGS-300",
+      provider_location_id: "USGS-300",
       county_name: "King",
       name: "FLOOD CREEK NEAR TOWN, WA",
       state_code: "wa",
@@ -19,7 +19,7 @@ class AlertsControllerTest < ActionDispatch::IntegrationTest
     create(
       :monitoring_location,
       site_number: "301",
-      usgs_monitoring_location_id: "USGS-301",
+      provider_location_id: "USGS-301",
       county_name: "Travis",
       name: "MAJOR RIVER NEAR CITY, TX",
       state_code: "tx",
@@ -33,7 +33,7 @@ class AlertsControllerTest < ActionDispatch::IntegrationTest
     create(
       :monitoring_location,
       site_number: "302",
-      usgs_monitoring_location_id: "USGS-302",
+      provider_location_id: "USGS-302",
       county_name: "King",
       name: "QUIET CREEK NEAR TOWN, WA",
       state_code: "wa",
@@ -75,7 +75,7 @@ class AlertsControllerTest < ActionDispatch::IntegrationTest
     create(
       :monitoring_location,
       site_number: "303",
-      usgs_monitoring_location_id: "USGS-303",
+      provider_location_id: "USGS-303",
       name: "QUIET CREEK NEAR TOWN, WA",
       state_code: "wa",
       flood_category: "no_flooding"

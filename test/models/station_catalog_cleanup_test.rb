@@ -8,7 +8,7 @@ class StationCatalogCleanupTest < ActiveSupport::TestCase
     well = create(
       :monitoring_location,
       site_number: "90000001",
-      usgs_monitoring_location_id: "USGS-90000001",
+      provider_location_id: "USGS-90000001",
       site_type_code: "GW",
       has_water_level: false,
       has_discharge: false,
@@ -18,7 +18,7 @@ class StationCatalogCleanupTest < ActiveSupport::TestCase
     never_observed = create(
       :monitoring_location,
       site_number: "90000002",
-      usgs_monitoring_location_id: "USGS-90000002",
+      provider_location_id: "USGS-90000002",
       site_type_code: "ST",
       has_discharge: true,
       latest_observed_at: nil
@@ -40,7 +40,7 @@ class StationCatalogCleanupTest < ActiveSupport::TestCase
     create(
       :monitoring_location,
       site_number: "90000003",
-      usgs_monitoring_location_id: "USGS-90000003",
+      provider_location_id: "USGS-90000003",
       site_type_code: "GW",
       has_water_level: false,
       has_discharge: false,

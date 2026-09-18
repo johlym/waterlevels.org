@@ -41,7 +41,7 @@ class NetworkRefreshBatchJob < ApplicationJob
       begin
         progress ||= SyncProgress.new("NetworkRefreshBatchJob", io: nil, every: 1)
         refreshed = NetworkStations.refresh(
-          MonitoringLocation.order(:id),
+          MonitoringLocation.usgs.order(:id),
           limit: budget,
           progress: progress
         )

@@ -67,7 +67,7 @@ class ApiResponseCacheTest < ActiveSupport::TestCase
 
     first = ApiResponseCache.fetch_observations(site_number: "a", parameter_code: "00065", kind: "water_level", range: "7d") do
       calls += 1
-      { kind: "water_level", range: "7d", unit: nil, points: [], peaks: [] }
+      { kind: "water_level", range: "7d", grain: nil, unit: nil, points: [], peaks: [] }
     end
     second = ApiResponseCache.fetch_observations(site_number: "a", parameter_code: "00065", kind: "water_level", range: "7d") do
       calls += 1

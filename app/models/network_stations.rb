@@ -7,7 +7,7 @@ class NetworkStations
   UPSTREAM = "UM"
   DOWNSTREAM = "DM"
 
-  def self.refresh(scope = MonitoringLocation.all, client: Nldi::Client.new, force: false, limit: nil, progress: nil)
+  def self.refresh(scope = MonitoringLocation.usgs, client: Nldi::Client.new, force: false, limit: nil, progress: nil)
     rows = location_rows(scope)
     return 0 if rows.empty?
 
@@ -67,7 +67,7 @@ class NetworkStations
     persist_network!(
       location.id,
       *neighbors_both_ways(
-        location.usgs_monitoring_location_id,
+        location.provider_location_id,
         client: client,
         id_by_usgs: id_by_usgs,
         latlon_by_id: latlon_by_id
@@ -89,7 +89,7 @@ class NetworkStations
       scope.sort_by(&:id).map do |location|
         [
           location.id,
-          location.usgs_monitoring_location_id,
+          location.provider_location_id,
           location.network_synced_at,
           location.upstream_station_ids,
           location.downstream_station_ids
@@ -98,7 +98,7 @@ class NetworkStations
     else
       scope.except(:order).order(:id).pluck(
         :id,
-        :usgs_monitoring_location_id,
+        :provider_location_id,
         :network_synced_at,
         :upstream_station_ids,
         :downstream_station_ids
@@ -136,7 +136,7 @@ class NetworkStations
   def self.catalog_indexes
     id_by_usgs = {}
     latlon_by_id = {}
-    MonitoringLocation.pluck(:id, :usgs_monitoring_location_id, :latitude, :longitude).each do |id, usgs_id, lat, lon|
+    MonitoringLocation.usgs.pluck(:id, :provider_location_id, :latitude, :longitude).each do |id, usgs_id, lat, lon|
       index_usgs_id!(id_by_usgs, usgs_id, id)
       latlon_by_id[id] = [ lat.to_f, lon.to_f ]
     end

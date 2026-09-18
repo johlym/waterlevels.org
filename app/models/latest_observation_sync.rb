@@ -140,7 +140,7 @@ class LatestObservationSync
     end
 
     scope.pluck(
-      :usgs_time_series_id,
+      :provider_series_id,
       :id,
       :monitoring_location_id,
       :measurement_kind,
@@ -359,8 +359,8 @@ class LatestObservationSync
     )
   end
 
-  def find_series(usgs_time_series_id)
-    @selected_series_by_usgs_id&.[](usgs_time_series_id)
+  def find_series(provider_series_id)
+    @selected_series_by_usgs_id&.[](provider_series_id)
   end
 
   def denormalize_locations

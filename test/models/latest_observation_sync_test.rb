@@ -9,7 +9,7 @@ class LatestObservationSyncTest < ActiveSupport::TestCase
     @series = create(
       :time_series,
       monitoring_location: @location,
-      usgs_time_series_id: "ts-latest-sync",
+      provider_series_id: "ts-latest-sync",
       parameter_code: "00065",
       measurement_kind: "water_level",
       selected_for_display: true
@@ -134,7 +134,7 @@ class LatestObservationSyncTest < ActiveSupport::TestCase
     second = create(
       :time_series,
       monitoring_location: @location,
-      usgs_time_series_id: "ts-latest-sync-2",
+      provider_series_id: "ts-latest-sync-2",
       parameter_code: "00060",
       measurement_kind: "discharge",
       selected_for_display: true
@@ -194,7 +194,7 @@ class LatestObservationSyncTest < ActiveSupport::TestCase
     temperature = create(
       :time_series,
       monitoring_location: @location,
-      usgs_time_series_id: "ts-temp-sync",
+      provider_series_id: "ts-temp-sync",
       parameter_code: "00010",
       measurement_kind: "temperature",
       selected_for_display: true
@@ -237,7 +237,7 @@ class LatestObservationSyncTest < ActiveSupport::TestCase
     create(
       :time_series,
       monitoring_location: @location,
-      usgs_time_series_id: "ts-unselected",
+      provider_series_id: "ts-unselected",
       parameter_code: "00060",
       measurement_kind: "discharge",
       selected_for_display: false
@@ -309,7 +309,7 @@ class LatestObservationSyncTest < ActiveSupport::TestCase
     oregon_series = create(
       :time_series,
       monitoring_location: oregon,
-      usgs_time_series_id: "ts-or-latest",
+      provider_series_id: "ts-or-latest",
       parameter_code: "00065",
       measurement_kind: "water_level",
       selected_for_display: true

@@ -5,13 +5,13 @@ class FloodStageSyncTest < ActiveSupport::TestCase
     @location = create(
       :monitoring_location,
       site_number: "01646500",
-      usgs_monitoring_location_id: "USGS-01646500",
+      provider_location_id: "USGS-01646500",
       has_water_level: true
     )
     @unmatched = create(
       :monitoring_location,
       site_number: "99999999",
-      usgs_monitoring_location_id: "USGS-99999999",
+      provider_location_id: "USGS-99999999",
       state_code: "wa"
     )
   end
@@ -96,7 +96,7 @@ class FloodStageSyncTest < ActiveSupport::TestCase
     flooding = create(
       :monitoring_location,
       site_number: "08210000",
-      usgs_monitoring_location_id: "USGS-08210000",
+      provider_location_id: "USGS-08210000",
       state_code: "tx",
       state_name: "Texas",
       has_water_level: true
@@ -490,7 +490,7 @@ class FloodStageSyncTest < ActiveSupport::TestCase
     third = create(
       :monitoring_location,
       site_number: "01646501",
-      usgs_monitoring_location_id: "USGS-01646501",
+      provider_location_id: "USGS-01646501",
       state_code: "wa",
       nwps_synced_at: nil
     )
@@ -521,7 +521,7 @@ class FloodStageSyncTest < ActiveSupport::TestCase
     flooding = create(
       :monitoring_location,
       site_number: "08210000",
-      usgs_monitoring_location_id: "USGS-08210000",
+      provider_location_id: "USGS-08210000",
       state_code: "tx",
       state_name: "Texas",
       has_water_level: true,
@@ -530,7 +530,7 @@ class FloodStageSyncTest < ActiveSupport::TestCase
     never_synced = create(
       :monitoring_location,
       site_number: "08210001",
-      usgs_monitoring_location_id: "USGS-08210001",
+      provider_location_id: "USGS-08210001",
       state_code: "tx",
       state_name: "Texas",
       nwps_synced_at: nil

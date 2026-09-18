@@ -54,7 +54,33 @@ class HydrographSeriesTest < ActiveSupport::TestCase
       range: "7d"
     )
 
-    assert_equal({ kind: "water_level", range: "7d", unit: nil, points: [], peaks: [] }, payload)
+    assert_equal({ kind: "water_level", range: "7d", grain: nil, unit: nil, points: [], peaks: [] }, payload)
+  end
+
+  test "7d range falls back to daily points when continuous is empty" do
+    DailyObservation.create!(time_series: @series, observed_on: 3.days.ago.to_date, value: 9.5)
+    DailyObservation.create!(time_series: @series, observed_on: Date.current, value: 10.25)
+
+    payload = HydrographSeries.for(location: @location, kind: "water_level", range: "7d")
+
+    assert_equal "daily", payload[:grain]
+    assert_equal 2, payload[:points].size
+    assert_in_delta 10.25, payload[:points].last[:v], 0.001
+  end
+
+  test "7d range prefers continuous grain when IV points exist" do
+    ContinuousObservation.create!(
+      time_series: @series,
+      observed_at: 2.hours.ago,
+      value: 16.72
+    )
+    DailyObservation.create!(time_series: @series, observed_on: Date.current, value: 10.0)
+
+    payload = HydrographSeries.for(location: @location, kind: "water_level", range: "7d")
+
+    assert_equal "continuous", payload[:grain]
+    assert_equal 1, payload[:points].size
+    assert_in_delta 16.72, payload[:points].first[:v], 0.001
   end
 
   test "empty series miss records observation_count 0 and series_found false" do

@@ -6,10 +6,13 @@ class MonitoringLocation < ApplicationRecord
 
   before_validation :assign_derived_names
 
-  validates :usgs_monitoring_location_id, :site_number, :name, :display_name, :search_name, :slug, :state_code, :latitude, :longitude, presence: true
-  validates :usgs_monitoring_location_id, :site_number, uniqueness: true
+  validates :provider_location_id, :site_number, :name, :display_name, :search_name, :slug, :state_code, :latitude, :longitude, presence: true
+  validates :provider_location_id, :site_number, uniqueness: true
+  validates :data_provider, presence: true, inclusion: { in: DataProviders::ALL }
 
   scope :active, -> { where(active: true) }
+  scope :usgs, -> { where(data_provider: DataProviders::USGS) }
+  scope :for_provider, ->(provider) { where(data_provider: provider.to_s) }
   # Matches #stale? inverted — recent enough for the map "Active" status.
   scope :not_stale, -> { where(latest_observed_at: STALE_AFTER.ago..) }
   scope :in_state, ->(code) { where(state_code: code.to_s.downcase) }
@@ -125,7 +128,7 @@ class MonitoringLocation < ApplicationRecord
       "elapsed_ms=#{((Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_started) * 1000).round}"
     )
 
-    ids = (hollow_location_ids + missing_tip_location_ids).uniq.sort
+    ids = usgs_location_ids_only((hollow_location_ids + missing_tip_location_ids).uniq.sort)
     Rails.logger.info(
       "IvRepair candidates step=done count=#{ids.size} " \
       "hollow=#{hollow_location_ids.size} missing_tip=#{missing_tip_location_ids.size} " \
@@ -173,6 +176,7 @@ class MonitoringLocation < ApplicationRecord
       .distinct
       .order(:monitoring_location_id)
       .pluck(:monitoring_location_id)
+    location_ids = usgs_location_ids_only(location_ids)
     Rails.logger.info(
       "IvScar candidates step=done count=#{location_ids.size} " \
       "elapsed_ms=#{((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round} " \
@@ -180,6 +184,13 @@ class MonitoringLocation < ApplicationRecord
     )
     location_ids
   end
+
+  def self.usgs_location_ids_only(ids)
+    return [] if ids.blank?
+
+    usgs.where(id: ids).order(:id).pluck(:id)
+  end
+  private_class_method :usgs_location_ids_only
 
   scope :needing_history_backfill, lambda {
     # Cold / year-daily backlog only. Recent IV tip/hollow-middle repair for
@@ -209,10 +220,11 @@ class MonitoringLocation < ApplicationRecord
         )
       )
     stale_daily_tip = expecting_daily.where.not(id: fresh_daily_tip_ids)
-    where(id: missing_continuous_anchor.select(:monitoring_location_id))
-      .or(where(id: missing_daily_anchor.select(:monitoring_location_id)))
-      .or(where(id: stale_daily_tip.select(:monitoring_location_id)))
-      .distinct
+    usgs.and(
+      where(id: missing_continuous_anchor.select(:monitoring_location_id))
+        .or(where(id: missing_daily_anchor.select(:monitoring_location_id)))
+        .or(where(id: stale_daily_tip.select(:monitoring_location_id)))
+    ).distinct
   }
   # Year-ready stations that still lack ~3-year daily history. Excludes phase-1
   # candidates so the deep batch never competes with cold/lazy 1y fills.
@@ -243,7 +255,7 @@ class MonitoringLocation < ApplicationRecord
       .where.not(id: has_deep)
       .where(id: has_daily_tip)
 
-    where(id: candidate_series.select(:monitoring_location_id)).distinct
+    usgs.where(id: candidate_series.select(:monitoring_location_id)).distinct
   }
 
   def stale?
@@ -372,6 +384,43 @@ class MonitoringLocation < ApplicationRecord
 
   def to_param
     "#{site_number}-#{slug}"
+  end
+
+  def usgs?
+    data_provider == DataProviders::USGS
+  end
+
+  # True when selected display series have no continuous (IV) tip — charts should
+  # use daily grain for short ranges and default to a longer tab.
+  def daily_only?
+    selected = time_series.selected.to_a
+    return false if selected.empty?
+
+    selected.none? { |series| series.continuous_newest_at.present? || series.has_continuous_anchor? }
+  end
+
+  def agency_label
+    DataProviders.label_for(data_provider)
+  end
+
+  def agency_url
+    DataProviders.agency_url_for(self)
+  end
+
+  def default_chart_range
+    daily_only? ? "1y" : "7d"
+  end
+
+  def chart_ranges
+    if daily_only?
+      ranges = %w[30d 1y]
+      ranges << "3y" if has_deep_history?
+      return ranges
+    end
+
+    ranges = %w[24h 7d 30d 1y]
+    ranges << "3y" if has_deep_history?
+    ranges
   end
 
   def path_state
