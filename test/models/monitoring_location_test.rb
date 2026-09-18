@@ -386,7 +386,59 @@ class MonitoringLocationTest < ActiveSupport::TestCase
 
     refute location.missing_deep_history?
     assert location.has_deep_history?
+    refute location.has_10y_history?
     refute_includes MonitoringLocation.needing_deep_history_backfill.pluck(:id), location.id
+  end
+
+  test "has_10y_history? is false until the 10-year daily anchor exists" do
+    location = create(:monitoring_location)
+    series = create(:time_series, monitoring_location: location, selected_for_display: true)
+    DailyObservation.create!(time_series: series, observed_on: 35.months.ago.to_date, value: 9.0)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+
+    refute location.has_10y_history?
+    assert_equal %w[24h 7d 30d 1y 3y], location.chart_ranges
+  end
+
+  test "has_10y_history? is true when the 10-year daily anchor is present" do
+    location = create(:monitoring_location)
+    series = create(:time_series, monitoring_location: location, selected_for_display: true)
+    DailyObservation.create!(
+      time_series: series,
+      observed_on: HistoryIngestion::DAILY_10Y_HISTORY_ANCHOR.ago.to_date,
+      value: 8.0
+    )
+    DailyObservation.create!(time_series: series, observed_on: 35.months.ago.to_date, value: 9.0)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+
+    assert location.has_10y_history?
+    assert location.has_deep_history?
+    assert_includes location.chart_ranges, "10y"
+  end
+
+  test "has_10y_history? is true when 10y daily exists only in cold archive shards" do
+    location = create(:monitoring_location)
+    series = create(:time_series, monitoring_location: location, selected_for_display: true)
+    long_day = HistoryIngestion::DAILY_10Y_HISTORY_ANCHOR.ago.to_date
+    deep_day = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
+
+    ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)
+    DailyObservation.create!(time_series: series, observed_on: deep_day, value: 9.0)
+    DailyObservation.create!(time_series: series, observed_on: Date.current, value: 11.0)
+    DailyArchiveShard.create!(
+      time_series: series,
+      year: long_day.year,
+      object_key: "daily/v1/#{series.id}/#{long_day.year}.json.gz",
+      content_sha256: "abc10y",
+      point_count: 1,
+      min_on: long_day,
+      max_on: long_day,
+      source_mix: "usgs",
+      synced_at: Time.current
+    )
+
+    assert location.has_10y_history?
+    assert_includes location.chart_ranges, "10y"
   end
 
   test "needing_deep_history_backfill includes year-ready stations missing deep daily" do

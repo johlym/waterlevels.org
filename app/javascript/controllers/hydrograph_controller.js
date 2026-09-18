@@ -206,7 +206,7 @@ export default class extends Controller {
     if (!this.hasCanvasTarget) return
     const label = series.label || series.kind || "Measurement"
     const unit = this.unitLabel(series)
-    const rangeLabels = { "7d": "7 days", "30d": "30 days", "1y": "1 year", "3y": "3 years" }
+    const rangeLabels = { "7d": "7 days", "30d": "30 days", "1y": "1 year", "3y": "3 years", "10y": "10 years" }
     const range = rangeLabels[this.range] || this.range
     const unitSuffix = unit ? ` in ${unit}` : ""
     this.canvasTarget.setAttribute(
@@ -221,7 +221,7 @@ export default class extends Controller {
 
   renderEstimatedNote(points) {
     if (!this.hasEstimatedNoteTarget) return
-    const dailyRange = this.range === "1y" || this.range === "3y"
+    const dailyRange = this.range === "1y" || this.range === "3y" || this.range === "10y"
     const show = dailyRange && this.hasEstimatedPoints(points)
     this.estimatedNoteTarget.hidden = !show
   }
@@ -346,7 +346,7 @@ export default class extends Controller {
   }
 
   emptyRangeMessage() {
-    const dailyRange = this.range === "1y" || this.range === "3y"
+    const dailyRange = this.range === "1y" || this.range === "3y" || this.range === "10y"
     if (dailyRange && this.series?.usgs_daily_absent && this.dataProviderValue === "usgs") {
       const label = this.series.label || "this measurement"
       return `USGS does not publish daily values for ${label}. Try 30 Days or shorter for continuous readings.`
@@ -948,7 +948,7 @@ export default class extends Controller {
     if (this.range === "1y") {
       return date.toLocaleDateString("en-US", this.localeOptions({ month: "short", day: "numeric" }))
     }
-    if (this.range === "3y") {
+    if (this.range === "3y" || this.range === "10y") {
       return date.toLocaleDateString("en-US", this.localeOptions({
         month: "short",
         day: "numeric",

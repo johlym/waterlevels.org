@@ -13,7 +13,7 @@ class CdecHistoryIngestion
     @progress = progress
   end
 
-  def perform(location, years: 3)
+  def perform(location, years: HistoryIngestion::DEFAULT_NON_USGS_DAILY_YEARS)
     entry = Cdec::ReservoirCatalog.find_by_site_number(location.site_number)
     raise ArgumentError, "No CDEC catalog entry for #{location.site_number}" unless entry
 

@@ -6,10 +6,10 @@ namespace :cdec do
     progress.finish("synced=#{count}")
   end
 
-  desc "Backfill CDEC daily archive history. SITE=cdecoro YEARS=3"
+  desc "Backfill CDEC daily archive history. SITE=cdecoro YEARS=10"
   task backfill: :environment do
     site = ENV.fetch("SITE")
-    years = ENV.fetch("YEARS", "3").to_i
+    years = ENV.fetch("YEARS", HistoryIngestion::DEFAULT_NON_USGS_DAILY_YEARS.to_s).to_i
     location = MonitoringLocation.find_by!(site_number: site)
     abort "SITE=#{site} is not a CDEC location" unless location.data_provider == DataProviders::CDEC
 
@@ -24,7 +24,10 @@ namespace :cdec do
   task enqueue_bootstrap: :environment do
     CdecReservoirSyncJob.perform_later
     Cdec::ReservoirCatalog.active_entries.each do |entry|
-      CdecHistoryBackfillJob.perform_later(entry.site_number, ENV.fetch("YEARS", "3").to_i)
+      CdecHistoryBackfillJob.perform_later(
+        entry.site_number,
+        ENV.fetch("YEARS", HistoryIngestion::DEFAULT_NON_USGS_DAILY_YEARS.to_s).to_i
+      )
     end
     puts "Enqueued CdecReservoirSyncJob + #{Cdec::ReservoirCatalog.active_entries.size} history jobs"
   end

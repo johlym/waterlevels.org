@@ -14,7 +14,7 @@ class HistoryIngestion
   # Batch continuous upserts so tip/gap fills don't one-row round-trip Postgres.
   # Prefer continuous_upsert_batch — constant is the AppConfig default.
   CONTINUOUS_UPSERT_BATCH = 500
-  # High-resolution continuous tip; 1y/3y charts use daily values from R2.
+  # High-resolution continuous tip; 1y/3y/10y charts use daily values from R2.
   # Prefer continuous_retention — constant is the AppConfig default.
   CONTINUOUS_RETENTION = 35.days
   DAILY_RETENTION = 3.years
@@ -24,6 +24,11 @@ class HistoryIngestion
   DAILY_HISTORY_ANCHOR = 11.months
   # Deep (3y) history is ready once a daily point reaches this age.
   DAILY_DEEP_HISTORY_ANCHOR = 35.months
+  # 10y daily tab is ready once a daily point reaches this age (10y minus 1 month slack).
+  DAILY_10Y_HISTORY_ANCHOR = 119.months
+  # Default lookback for curated USBR / USACE / CDEC daily archive backfill.
+  # USGS HistoryIngestion stays on DAILY_RETENTION (3y) — do not reuse this there.
+  DEFAULT_NON_USGS_DAILY_YEARS = 10
   # Continuous is considered loaded once a point reaches this age (~retention slack).
   # Tip-only stations from LatestObservationSync must still pull the older IV window.
   CONTINUOUS_HISTORY_ANCHOR = 32.days

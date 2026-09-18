@@ -369,6 +369,18 @@ class MonitoringLocation < ApplicationRecord
     series.all? { |s| s.has_daily_on_or_before?(deep_anchor) }
   end
 
+  # True when every selected series that expects daily has points near the
+  # ~10-year anchor — used to expose the 10 Years chart tab.
+  def has_10y_history?
+    series = time_series.selected.select { |s|
+      s.expects_daily_history? && s.eligible_for_recent_history_backfill?
+    }
+    return false if series.none?
+
+    long_anchor = HistoryIngestion::DAILY_10Y_HISTORY_ANCHOR.ago.to_date
+    series.all? { |s| s.has_daily_on_or_before?(long_anchor) }
+  end
+
   # Selected series confirmed to have no USGS daily DV (IV-only parameters).
   # Only surface when recent continuous exists — otherwise the flag may be a
   # false positive from an empty recent-window fetch on a long-dead POR series.
@@ -419,11 +431,13 @@ class MonitoringLocation < ApplicationRecord
     if daily_only?
       ranges = %w[30d 1y]
       ranges << "3y" if has_deep_history?
+      ranges << "10y" if has_10y_history?
       return ranges
     end
 
     ranges = %w[24h 7d 30d 1y]
     ranges << "3y" if has_deep_history?
+    ranges << "10y" if has_10y_history?
     ranges
   end
 

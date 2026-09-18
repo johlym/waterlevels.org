@@ -152,4 +152,18 @@ class HydrographSeriesTest < ActiveSupport::TestCase
     assert_includes days, 30.months.ago.to_date
     assert_includes days, Date.current
   end
+
+  test "10y range returns daily points within ten years" do
+    DailyObservation.create!(time_series: @series, observed_on: 11.years.ago.to_date, value: 0.25)
+    DailyObservation.create!(time_series: @series, observed_on: 8.years.ago.to_date, value: 0.75)
+    DailyObservation.create!(time_series: @series, observed_on: Date.current, value: 3.0)
+
+    payload = HydrographSeries.for(location: @location, kind: "water_level", range: "10y")
+    days = payload[:points].map { |point| Date.parse(point[:t]) }
+
+    assert_equal "10y", payload[:range]
+    refute_includes days, 11.years.ago.to_date
+    assert_includes days, 8.years.ago.to_date
+    assert_includes days, Date.current
+  end
 end

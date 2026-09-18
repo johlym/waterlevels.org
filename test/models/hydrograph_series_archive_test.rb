@@ -32,6 +32,18 @@ class HydrographSeriesArchiveTest < ActiveSupport::TestCase
     assert_includes days, archive_day.iso8601
   end
 
+  test "10y reads archive points from R2" do
+    archive_day = 8.years.ago.to_date
+    DailyArchive::Writer.new(store: @store).upsert(
+      time_series_id: @series.id,
+      points: [ { "d" => archive_day.iso8601, "v" => 1.25, "s" => "usgs" } ]
+    )
+
+    payload = HydrographSeries.for(location: @location, kind: "water_level", range: "10y")
+    days = payload[:points].map { |p| p[:t] }
+    assert_includes days, archive_day.iso8601
+  end
+
   test "1y reads from archive when enabled" do
     archive_day = 6.months.ago.to_date
     DailyArchive::Writer.new(store: @store).upsert(
