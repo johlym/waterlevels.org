@@ -127,7 +127,7 @@ class FloodStageSync
   end
 
   def sync_scope
-    MonitoringLocation.active.in_state(postal_code)
+    MonitoringLocation.active.usgs.in_state(postal_code)
   end
 
   def detail_request_budget

@@ -40,7 +40,7 @@ class FloodStageSyncJobTest < ActiveSupport::TestCase
     create(
       :monitoring_location,
       site_number: "01646500",
-      usgs_monitoring_location_id: "USGS-01646500",
+      provider_location_id: "USGS-01646500",
       state_code: "wa",
       nwps_lid: "BRKM2",
       nwps_matched: true,

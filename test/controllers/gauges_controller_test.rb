@@ -330,7 +330,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     neighbor = create(
       :monitoring_location,
       site_number: "00000999",
-      usgs_monitoring_location_id: "USGS-00000999",
+      provider_location_id: "USGS-00000999",
       name: "Neighbor Creek near Town",
       slug: "neighbor-creek-near-town",
       latitude: 47.51,
@@ -366,7 +366,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     up = create(
       :monitoring_location,
       site_number: "00000888",
-      usgs_monitoring_location_id: "USGS-00000888",
+      provider_location_id: "USGS-00000888",
       name: "Upstream Fork near Town",
       slug: "upstream-fork-near-town",
       latitude: 47.52,
@@ -379,7 +379,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     down = create(
       :monitoring_location,
       site_number: "00000777",
-      usgs_monitoring_location_id: "USGS-00000777",
+      provider_location_id: "USGS-00000777",
       name: "Downstream Fork near Town",
       slug: "downstream-fork-near-town",
       latitude: 47.48,
@@ -442,8 +442,8 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "renders state listing grouped by county with titlecased locations" do
-    create(:monitoring_location, site_number: "100", usgs_monitoring_location_id: "USGS-100", county_name: "Yakima", name: "Z RIVER NEAR TOWN, WA", state_code: "wa")
-    create(:monitoring_location, site_number: "101", usgs_monitoring_location_id: "USGS-101", county_name: "Adams", name: "A CREEK NEAR TOWN, WA", state_code: "wa")
+    create(:monitoring_location, site_number: "100", provider_location_id: "USGS-100", county_name: "Yakima", name: "Z RIVER NEAR TOWN, WA", state_code: "wa")
+    create(:monitoring_location, site_number: "101", provider_location_id: "USGS-101", county_name: "Adams", name: "A CREEK NEAR TOWN, WA", state_code: "wa")
 
     get "/gauges/wa"
     assert_response :success
@@ -459,7 +459,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     create(
       :monitoring_location,
       site_number: "200",
-      usgs_monitoring_location_id: "USGS-200",
+      provider_location_id: "USGS-200",
       county_name: "King",
       name: "FLOOD CREEK NEAR TOWN, WA",
       state_code: "wa",
@@ -485,7 +485,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     create(
       :monitoring_location,
       site_number: "201",
-      usgs_monitoring_location_id: "USGS-201",
+      provider_location_id: "USGS-201",
       county_name: "King",
       name: "QUIET CREEK NEAR TOWN, WA",
       state_code: "wa",
@@ -566,7 +566,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     in_view = create(
       :monitoring_location,
       site_number: "12101000",
-      usgs_monitoring_location_id: "USGS-12101000",
+      provider_location_id: "USGS-12101000",
       name: "SNOHOMISH RIVER NEAR MONROE, WA",
       latitude: 47.85,
       longitude: -122.0,
@@ -575,7 +575,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     out_of_view = create(
       :monitoring_location,
       site_number: "01646500",
-      usgs_monitoring_location_id: "USGS-01646500",
+      provider_location_id: "USGS-01646500",
       name: "POTOMAC RIVER NEAR WASH, DC",
       latitude: 38.95,
       longitude: -77.13,
@@ -605,7 +605,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     station = create(
       :monitoring_location,
       site_number: "08158000",
-      usgs_monitoring_location_id: "USGS-08158000",
+      provider_location_id: "USGS-08158000",
       name: "Colorado Rv at Austin, TX",
       state_code: "tx",
       state_name: "Texas"
@@ -625,7 +625,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     create(
       :monitoring_location,
       site_number: "99990001",
-      usgs_monitoring_location_id: "USGS-99990001",
+      provider_location_id: "USGS-99990001",
       name: "Texas",
       state_code: "tx",
       state_name: "Texas"

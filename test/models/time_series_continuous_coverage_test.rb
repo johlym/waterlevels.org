@@ -2,13 +2,13 @@ require "test_helper"
 
 class TimeSeriesContinuousCoverageTest < ActiveSupport::TestCase
   setup do
-    @location = create(:monitoring_location, usgs_monitoring_location_id: "USGS-12101000")
+    @location = create(:monitoring_location, provider_location_id: "USGS-12101000")
     @series = create(
       :time_series,
       monitoring_location: @location,
       parameter_code: "62614",
       measurement_kind: "water_level",
-      usgs_time_series_id: "ts-coverage"
+      provider_series_id: "ts-coverage"
     )
   end
 
@@ -119,7 +119,7 @@ class TimeSeriesContinuousCoverageTest < ActiveSupport::TestCase
               {
                 id: "1",
                 properties: {
-                  time_series_id: @series.usgs_time_series_id,
+                  time_series_id: @series.provider_series_id,
                   parameter_code: "62614",
                   time: tip_at.iso8601,
                   value: 12.5
@@ -128,7 +128,7 @@ class TimeSeriesContinuousCoverageTest < ActiveSupport::TestCase
               {
                 id: "2",
                 properties: {
-                  time_series_id: @series.usgs_time_series_id,
+                  time_series_id: @series.provider_series_id,
                   parameter_code: "62614",
                   time: anchor_at.iso8601,
                   value: 9.0

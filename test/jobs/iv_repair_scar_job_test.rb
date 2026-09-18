@@ -125,7 +125,7 @@ class IvRepairScarJobTest < ActiveSupport::TestCase
         features << {
           id: t.to_i.to_s,
           properties: {
-            time_series_id: series.usgs_time_series_id,
+            time_series_id: series.provider_series_id,
             parameter_code: series.parameter_code,
             time: t.utc.iso8601,
             value: 2.5

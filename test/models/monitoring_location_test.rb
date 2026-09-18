@@ -425,7 +425,7 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     river = create(
       :monitoring_location,
       site_number: "01646500",
-      usgs_monitoring_location_id: "USGS-01646500",
+      provider_location_id: "USGS-01646500",
       name: "POTOMAC RIVER NEAR WASH, DC",
       state_code: "md",
       state_name: "Maryland"
@@ -433,7 +433,7 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     other = create(
       :monitoring_location,
       site_number: "12101000",
-      usgs_monitoring_location_id: "USGS-12101000",
+      provider_location_id: "USGS-12101000",
       name: "SNOHOMISH RIVER NEAR MONROE, WA",
       state_code: "wa",
       state_name: "Washington"
@@ -449,7 +449,7 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     location = create(
       :monitoring_location,
       site_number: "08210000",
-      usgs_monitoring_location_id: "USGS-08210000",
+      provider_location_id: "USGS-08210000",
       name: "Nueces Rv nr Three Rivers, TX",
       state_code: "tx",
       state_name: "Texas",
@@ -476,7 +476,7 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     location = create(
       :monitoring_location,
       site_number: "08154700",
-      usgs_monitoring_location_id: "USGS-08154700",
+      provider_location_id: "USGS-08154700",
       name: "Lk Travis nr Austin, TX",
       state_code: "tx",
       state_name: "Texas"
@@ -490,7 +490,7 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     location = create(
       :monitoring_location,
       site_number: "08154700",
-      usgs_monitoring_location_id: "USGS-08154700",
+      provider_location_id: "USGS-08154700",
       name: "Lk Travis nr Austin, TX",
       state_code: "tx",
       state_name: "Texas",

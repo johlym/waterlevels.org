@@ -112,25 +112,25 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
 
     assert_nothing_raised { StationCatalogSync.new(state: nil).perform }
 
-    assert_nil MonitoringLocation.find_by(usgs_monitoring_location_id: foreign_location_id)
-    domestic = MonitoringLocation.find_by!(usgs_monitoring_location_id: domestic_location_id)
+    assert_nil MonitoringLocation.find_by(provider_location_id: foreign_location_id)
+    domestic = MonitoringLocation.find_by!(provider_location_id: domestic_location_id)
     assert_equal "wa", domestic.state_code
     assert domestic.active?
     assert_equal MonitoringLocation.slug_for(domestic.name), domestic.slug
-    assert TimeSeries.exists?(usgs_time_series_id: "ts-domestic")
-    assert_not TimeSeries.exists?(usgs_time_series_id: "ts-foreign")
+    assert TimeSeries.exists?(provider_series_id: "ts-domestic")
+    assert_not TimeSeries.exists?(provider_series_id: "ts-foreign")
   end
 
   test "re-upserting metadata keeps selected_for_display on existing series" do
     location = create(
       :monitoring_location,
       site_number: "12099550",
-      usgs_monitoring_location_id: "USGS-12099550"
+      provider_location_id: "USGS-12099550"
     )
     series = create(
       :time_series,
       monitoring_location: location,
-      usgs_time_series_id: "ts-boise-gage",
+      provider_series_id: "ts-boise-gage",
       parameter_code: "00065",
       measurement_kind: "water_level",
       selected_for_display: true
@@ -174,7 +174,7 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
     location = create(
       :monitoring_location,
       site_number: "12099550",
-      usgs_monitoring_location_id: "USGS-12099550",
+      provider_location_id: "USGS-12099550",
       name: "BOISE CREEK AT DEMO, WA",
       slug: "custom-stable-slug",
       active: false,
@@ -232,14 +232,14 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
     dirty = create(
       :monitoring_location,
       site_number: "12099550",
-      usgs_monitoring_location_id: "USGS-12099550",
+      provider_location_id: "USGS-12099550",
       has_discharge: false,
       has_temperature: false
     )
     other = create(
       :monitoring_location,
       site_number: "12101000",
-      usgs_monitoring_location_id: "USGS-12101000",
+      provider_location_id: "USGS-12101000",
       has_discharge: false,
       has_temperature: false
     )
@@ -249,7 +249,7 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
       parameter_code: "00065",
       measurement_kind: "water_level",
       selected_for_display: false,
-      usgs_time_series_id: "ts-dirty"
+      provider_series_id: "ts-dirty"
     )
     other_series = create(
       :time_series,
@@ -257,7 +257,7 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
       parameter_code: "00065",
       measurement_kind: "water_level",
       selected_for_display: false,
-      usgs_time_series_id: "ts-other"
+      provider_series_id: "ts-other"
     )
     LatestObservation.create!(
       time_series: dirty_series,
@@ -355,7 +355,7 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
 
     assert_raises(Usgs::Client::Error) { StationCatalogSync.new(state: nil).perform }
 
-    series = TimeSeries.find_by!(usgs_time_series_id: "ts-flow")
+    series = TimeSeries.find_by!(provider_series_id: "ts-flow")
     assert series.selected_for_display?
   end
 
@@ -368,7 +368,7 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
     orphan = create(
       :monitoring_location,
       site_number: "99999999",
-      usgs_monitoring_location_id: "USGS-99999999",
+      provider_location_id: "USGS-99999999",
       has_discharge: true,
       latest_observed_at: 1.hour.ago
     )
@@ -406,7 +406,7 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
     end
     assert_match(/starting catalog/, io.string)
     assert_equal 1, latest_continuous_counts["00060"]
-    assert TimeSeries.find_by!(usgs_time_series_id: "ts-flow").selected_for_display?
+    assert TimeSeries.find_by!(provider_series_id: "ts-flow").selected_for_display?
 
     boom_on_temperature = false
     resume_io = StringIO.new
@@ -415,8 +415,8 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
     assert_match(/resuming catalog completed=00060 remaining=/, resume_io.string)
     assert_equal 1, latest_continuous_counts["00060"]
     assert_nil MonitoringLocation.find_by(id: orphan.id)
-    kept = MonitoringLocation.find_by!(usgs_monitoring_location_id: flow_location_id)
-    assert TimeSeries.find_by!(usgs_time_series_id: "ts-flow").selected_for_display?
+    kept = MonitoringLocation.find_by!(provider_location_id: flow_location_id)
+    assert TimeSeries.find_by!(provider_series_id: "ts-flow").selected_for_display?
     assert kept.has_discharge?
     assert_nil StationCatalogCheckpoint.read_raw(state: nil)
   ensure
@@ -432,14 +432,14 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
     kept = create(
       :monitoring_location,
       site_number: "12101000",
-      usgs_monitoring_location_id: "USGS-12101000",
+      provider_location_id: "USGS-12101000",
       has_discharge: true,
       latest_observed_at: 1.hour.ago
     )
     series = create(
       :time_series,
       monitoring_location: kept,
-      usgs_time_series_id: "ts-flow",
+      provider_series_id: "ts-flow",
       parameter_code: "00060",
       measurement_kind: "discharge",
       selected_for_display: true
@@ -454,7 +454,7 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
     orphan = create(
       :monitoring_location,
       site_number: "99999999",
-      usgs_monitoring_location_id: "USGS-99999999",
+      provider_location_id: "USGS-99999999",
       has_discharge: true,
       latest_observed_at: 1.hour.ago
     )

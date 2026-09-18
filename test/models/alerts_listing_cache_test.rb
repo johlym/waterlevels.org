@@ -5,7 +5,7 @@ class AlertsListingCacheTest < ActiveSupport::TestCase
     create(
       :monitoring_location,
       site_number: "400",
-      usgs_monitoring_location_id: "USGS-400",
+      provider_location_id: "USGS-400",
       name: "ACTION CREEK, WA",
       state_code: "wa",
       state_name: "Washington",
@@ -14,7 +14,7 @@ class AlertsListingCacheTest < ActiveSupport::TestCase
     create(
       :monitoring_location,
       site_number: "401",
-      usgs_monitoring_location_id: "USGS-401",
+      provider_location_id: "USGS-401",
       name: "MAJOR RIVER, TX",
       state_code: "tx",
       state_name: "Texas",
@@ -23,7 +23,7 @@ class AlertsListingCacheTest < ActiveSupport::TestCase
     create(
       :monitoring_location,
       site_number: "402",
-      usgs_monitoring_location_id: "USGS-402",
+      provider_location_id: "USGS-402",
       name: "MINOR CREEK, TX",
       state_code: "tx",
       state_name: "Texas",
@@ -32,7 +32,7 @@ class AlertsListingCacheTest < ActiveSupport::TestCase
     create(
       :monitoring_location,
       site_number: "403",
-      usgs_monitoring_location_id: "USGS-403",
+      provider_location_id: "USGS-403",
       name: "QUIET CREEK, WA",
       state_code: "wa",
       flood_category: "no_flooding"
@@ -52,7 +52,7 @@ class AlertsListingCacheTest < ActiveSupport::TestCase
     create(
       :monitoring_location,
       site_number: "404",
-      usgs_monitoring_location_id: "USGS-404",
+      provider_location_id: "USGS-404",
       name: "FLOOD CREEK, WA",
       state_code: "wa",
       flood_category: "moderate"

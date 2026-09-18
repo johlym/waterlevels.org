@@ -59,7 +59,7 @@ class HydrographSeries
   private_class_method :find_series
 
   def self.empty(kind, range)
-    { kind: kind, range: range, unit: nil, points: [], peaks: [] }
+    { kind: kind, range: range, grain: nil, unit: nil, points: [], peaks: [] }
   end
 
   def self.record_empty!(location, kind:, parameter_code:, range:)
@@ -92,9 +92,20 @@ class HydrographSeries
 
   def as_json(*)
     config = RANGES[range] || RANGES["7d"]
+    grain = nil
     points = if config[:continuous]
-      continuous_points(config[:duration])
+      continuous = continuous_points(config[:duration])
+      if continuous.any?
+        grain = "continuous"
+        continuous
+      else
+        # Daily-only providers (and USGS series without IV) fall back to dailies
+        # so short-range tabs still render when continuous is empty.
+        grain = "daily"
+        daily_points(config[:duration])
+      end
     else
+      grain = "daily"
       daily_points(config[:duration])
     end
 
@@ -106,6 +117,7 @@ class HydrographSeries
       kind: time_series.measurement_kind,
       label: Usgs::ParameterCodes.label_for(time_series.parameter_code, fallback: time_series.parameter_description),
       range: range,
+      grain: grain,
       unit: UnitLabel.format(time_series.unit_of_measure),
       parameter_code: time_series.parameter_code,
       usgs_daily_absent: time_series.usgs_daily_absent?,

@@ -169,7 +169,7 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
         continuous_features << {
           id: i.to_s,
           properties: {
-            time_series_id: series.usgs_time_series_id,
+            time_series_id: series.provider_series_id,
             parameter_code: series.parameter_code,
             time: t.iso8601,
             value: 3.0 + (i * 0.001),
@@ -194,7 +194,7 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
               {
                 id: "d1",
                 properties: {
-                  time_series_id: series.usgs_time_series_id,
+                  time_series_id: series.provider_series_id,
                   parameter_code: series.parameter_code,
                   time: 11.months.ago.to_date.iso8601,
                   value: 2.5,
@@ -204,7 +204,7 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
               {
                 id: "d2",
                 properties: {
-                  time_series_id: series.usgs_time_series_id,
+                  time_series_id: series.provider_series_id,
                   parameter_code: series.parameter_code,
                   time: Date.current.iso8601,
                   value: 2.6,

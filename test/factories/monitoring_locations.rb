@@ -8,7 +8,8 @@ FactoryBot.define do
         break candidate unless MonitoringLocation.exists?(site_number: candidate)
       end
     end
-    usgs_monitoring_location_id { "USGS-#{site_number}" }
+    provider_location_id { "USGS-#{site_number}" }
+    data_provider { DataProviders::USGS }
     name { "Example River near Town" }
     slug { "example-river-near-town" }
     latitude { 47.5 }

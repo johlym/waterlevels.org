@@ -121,7 +121,8 @@ module DemoStateSeed
 
       {
         agency_code: "USGS",
-        usgs_monitoring_location_id: "USGS-#{site_number}",
+        data_provider: DataProviders::USGS,
+        provider_location_id: "USGS-#{site_number}",
         site_number: site_number,
         name: name,
         display_name: derived_names[:display_name],
@@ -189,7 +190,7 @@ module DemoStateSeed
       SERIES_SPECS.each do |spec|
         rows << {
           monitoring_location_id: location.id,
-          usgs_time_series_id: "seed-ts-#{location.site_number}-#{spec[:parameter_code]}",
+          provider_series_id: "seed-ts-#{location.site_number}-#{spec[:parameter_code]}",
           parameter_code: spec[:parameter_code],
           parameter_name: spec[:parameter_name],
           parameter_description: spec[:parameter_description],

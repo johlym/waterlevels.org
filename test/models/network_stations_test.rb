@@ -6,14 +6,14 @@ class NetworkStationsTest < ActiveSupport::TestCase
     @origin = create(
       :monitoring_location,
       site_number: "12113000",
-      usgs_monitoring_location_id: "USGS-12113000",
+      provider_location_id: "USGS-12113000",
       latitude: 47.30,
       longitude: -122.18
     )
     @near_later = create(
       :monitoring_location,
       site_number: "12113100",
-      usgs_monitoring_location_id: "USGS-12113100",
+      provider_location_id: "USGS-12113100",
       name: "Near but later on the bend",
       slug: "near-but-later-on-the-bend",
       latitude: 47.301,
@@ -22,7 +22,7 @@ class NetworkStationsTest < ActiveSupport::TestCase
     @far_earlier = create(
       :monitoring_location,
       site_number: "12106700",
-      usgs_monitoring_location_id: "USGS-12106700",
+      provider_location_id: "USGS-12106700",
       name: "Farther but earlier on the stream",
       slug: "farther-but-earlier-on-the-stream",
       latitude: 47.3002,
@@ -31,7 +31,7 @@ class NetworkStationsTest < ActiveSupport::TestCase
     @third = create(
       :monitoring_location,
       site_number: "12106500",
-      usgs_monitoring_location_id: "USGS-12106500",
+      provider_location_id: "USGS-12106500",
       name: "Third on-stream",
       slug: "third-on-stream",
       latitude: 47.3004,
@@ -40,7 +40,7 @@ class NetworkStationsTest < ActiveSupport::TestCase
     @off_path = create(
       :monitoring_location,
       site_number: "12107300",
-      usgs_monitoring_location_id: "USGS-12107300",
+      provider_location_id: "USGS-12107300",
       name: "Icy Creek off the mainstem",
       slug: "icy-creek-off-the-mainstem",
       latitude: 47.40,
@@ -75,21 +75,21 @@ class NetworkStationsTest < ActiveSupport::TestCase
     downstream_same_reach = create(
       :monitoring_location,
       site_number: "12113200",
-      usgs_monitoring_location_id: "USGS-12113200",
+      provider_location_id: "USGS-12113200",
       latitude: 47.2998,
       longitude: -122.181
     )
     client = FakeNldi.new(
       sites: {
         "UM" => [
-          site(@origin.usgs_monitoring_location_id, comid: 10, measure: 50),
-          site(downstream_same_reach.usgs_monitoring_location_id, comid: 10, measure: 20),
-          site(@far_earlier.usgs_monitoring_location_id, comid: 10, measure: 80)
+          site(@origin.provider_location_id, comid: 10, measure: 50),
+          site(downstream_same_reach.provider_location_id, comid: 10, measure: 20),
+          site(@far_earlier.provider_location_id, comid: 10, measure: 80)
         ],
         "DM" => [
-          site(@origin.usgs_monitoring_location_id, comid: 10, measure: 50),
-          site(downstream_same_reach.usgs_monitoring_location_id, comid: 10, measure: 20),
-          site(@far_earlier.usgs_monitoring_location_id, comid: 10, measure: 80)
+          site(@origin.provider_location_id, comid: 10, measure: 50),
+          site(downstream_same_reach.provider_location_id, comid: 10, measure: 20),
+          site(@far_earlier.provider_location_id, comid: 10, measure: 80)
         ]
       },
       flowlines: {
@@ -188,7 +188,7 @@ class NetworkStationsTest < ActiveSupport::TestCase
 
     output = io.string
     assert_match(/nldi: locations=1 pending=1/, output)
-    assert_match(/usgs_id=#{@origin.usgs_monitoring_location_id} upstream=2 downstream=0 refreshed=1\/1/, output)
+    assert_match(/usgs_id=#{@origin.provider_location_id} upstream=2 downstream=0 refreshed=1\/1/, output)
   end
 
   test "does not hold a database checkout across NLDI HTTP" do
@@ -233,7 +233,7 @@ class NetworkStationsTest < ActiveSupport::TestCase
       sites: { "UM" => [], "DM" => [] },
       flowlines: { "UM" => [], "DM" => [] }
     )
-    client.rate_limit_usgs_ids << @origin.usgs_monitoring_location_id
+    client.rate_limit_usgs_ids << @origin.provider_location_id
 
     refreshed = NetworkStations.refresh([ @origin, @near_later ], client: client)
 
@@ -266,7 +266,7 @@ class NetworkStationsTest < ActiveSupport::TestCase
       sites: { "UM" => [], "DM" => [] },
       flowlines: { "UM" => [], "DM" => [] }
     )
-    client.fail_usgs_ids << @origin.usgs_monitoring_location_id
+    client.fail_usgs_ids << @origin.provider_location_id
 
     refreshed = NetworkStations.refresh([ @origin, @near_later ], client: client)
 
@@ -335,11 +335,11 @@ class NetworkStationsTest < ActiveSupport::TestCase
 
   def um_sites
     [
-      site(@origin.usgs_monitoring_location_id, comid: 10, measure: 40),
-      site(@far_earlier.usgs_monitoring_location_id, comid: 10, measure: 80),
-      site(@near_later.usgs_monitoring_location_id, comid: 20, measure: 30),
-      site(@third.usgs_monitoring_location_id, comid: 30, measure: 10),
-      site(@off_path.usgs_monitoring_location_id, comid: 10, measure: 70),
+      site(@origin.provider_location_id, comid: 10, measure: 40),
+      site(@far_earlier.provider_location_id, comid: 10, measure: 80),
+      site(@near_later.provider_location_id, comid: 20, measure: 30),
+      site(@third.provider_location_id, comid: 30, measure: 10),
+      site(@off_path.provider_location_id, comid: 10, measure: 70),
       site("USGS-99999999", comid: 10, measure: 90)
     ]
   end

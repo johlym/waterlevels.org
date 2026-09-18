@@ -1,5 +1,5 @@
 class StationSnapshotCache
-  PREFIX = "station_snapshot:v14".freeze
+  PREFIX = "station_snapshot:v15".freeze
   TTL = 2.hours
   MILES_PER_KM = 0.621371
 
@@ -163,8 +163,15 @@ class StationSnapshotCache
       extremes: extremes,
       nearby: nearby,
       network: network,
-      usgs_url: "https://waterdata.usgs.gov/monitoring-location/#{location.usgs_monitoring_location_id}/",
-      agency_name: location.agency_code
+      data_provider: location.data_provider,
+      daily_only: location.daily_only?,
+      default_chart_range: location.default_chart_range,
+      agency_url: location.agency_url,
+      agency_label: location.agency_label,
+      # Legacy alias — same as agency_url (USGS pages historically keyed usgs_url).
+      usgs_url: location.agency_url,
+      agency_name: location.agency_code.presence || location.agency_label,
+      agency_credit: location.usgs? ? nil : location.agency_label
     }
   end
 

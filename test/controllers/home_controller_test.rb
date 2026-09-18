@@ -5,7 +5,7 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     create(
       :monitoring_location,
       site_number: "09380000",
-      usgs_monitoring_location_id: "USGS-09380000",
+      provider_location_id: "USGS-09380000",
       name: "COLORADO RIVER AT LEES FERRY, AZ",
       state_code: "az",
       state_name: "Arizona",

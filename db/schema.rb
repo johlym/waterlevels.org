@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_15_180000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_18_030000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -139,6 +139,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_180000) do
     t.string "county_code"
     t.string "county_name"
     t.datetime "created_at", null: false
+    t.string "data_provider", default: "usgs", null: false
     t.string "display_name", null: false
     t.jsonb "downstream_station_ids", default: [], null: false
     t.decimal "drainage_area", precision: 12, scale: 3
@@ -169,6 +170,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_180000) do
     t.string "nwps_lid"
     t.boolean "nwps_matched", default: false, null: false
     t.datetime "nwps_synced_at"
+    t.string "provider_location_id", null: false
     t.string "search_name", null: false
     t.string "site_number", null: false
     t.string "site_type_code"
@@ -179,18 +181,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_180000) do
     t.string "time_zone"
     t.datetime "updated_at", null: false
     t.jsonb "upstream_station_ids", default: [], null: false
-    t.string "usgs_monitoring_location_id", null: false
     t.index ["active", "latest_observed_at"], name: "index_monitoring_locations_on_active_and_latest_observed_at"
+    t.index ["data_provider"], name: "index_monitoring_locations_on_data_provider"
     t.index ["flood_category"], name: "index_monitoring_locations_on_flood_category"
     t.index ["has_discharge"], name: "index_monitoring_locations_on_has_discharge", where: "(has_discharge = true)"
     t.index ["has_water_level"], name: "index_monitoring_locations_on_has_water_level", where: "(has_water_level = true)"
     t.index ["latitude", "longitude"], name: "index_monitoring_locations_on_latitude_and_longitude"
     t.index ["nwps_lid"], name: "index_monitoring_locations_on_nwps_lid", where: "(nwps_lid IS NOT NULL)"
     t.index ["nwps_matched"], name: "index_monitoring_locations_on_nwps_matched", where: "(nwps_matched = true)"
+    t.index ["provider_location_id"], name: "index_monitoring_locations_on_provider_location_id", unique: true
     t.index ["search_name"], name: "index_monitoring_locations_on_search_name"
     t.index ["site_number"], name: "index_monitoring_locations_on_site_number", unique: true
     t.index ["state_code", "county_name", "name"], name: "idx_on_state_code_county_name_name_ac7d4d7687"
-    t.index ["usgs_monitoring_location_id"], name: "index_monitoring_locations_on_usgs_monitoring_location_id", unique: true
   end
 
   create_table "peak_observations", force: :cascade do |t|
@@ -263,17 +265,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_180000) do
     t.string "parameter_description"
     t.string "parameter_name"
     t.boolean "primary_series", default: false, null: false
+    t.string "provider_series_id", null: false
     t.boolean "selected_for_display", default: false, null: false
     t.string "statistic_code"
     t.string "statistic_name"
     t.string "unit_of_measure"
     t.datetime "updated_at", null: false
     t.boolean "usgs_daily_absent", default: false, null: false
-    t.string "usgs_time_series_id", null: false
     t.index ["continuous_max_gap_seconds"], name: "index_time_series_selected_anchored_on_max_gap", where: "((selected_for_display = true) AND (has_continuous_anchor = true))"
     t.index ["monitoring_location_id", "measurement_kind", "selected_for_display"], name: "index_time_series_on_location_kind_selected"
     t.index ["monitoring_location_id"], name: "index_time_series_selected_on_location", where: "(selected_for_display = true)"
-    t.index ["usgs_time_series_id"], name: "index_time_series_on_usgs_time_series_id", unique: true
+    t.index ["provider_series_id"], name: "index_time_series_on_provider_series_id", unique: true
   end
 
   add_foreign_key "alert_deliveries", "alert_events"

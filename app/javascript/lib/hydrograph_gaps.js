@@ -2,7 +2,8 @@
 // keep this above 1h. Used for chart breaks + hatch bands on continuous ranges.
 export const CONTINUOUS_GAP_MS = 2 * 60 * 60 * 1000
 
-export function isContinuousChartRange(range) {
+export function isContinuousChartRange(range, grain = null) {
+  if (grain === "daily") return false
   return range === "24h" || range === "7d" || range === "30d"
 }
 

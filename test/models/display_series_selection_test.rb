@@ -10,7 +10,7 @@ class DisplaySeriesSelectionTest < ActiveSupport::TestCase
       parameter_code: "00065",
       measurement_kind: "water_level",
       selected_for_display: true,
-      usgs_time_series_id: "ts-gage"
+      provider_series_id: "ts-gage"
     )
     ngvd = create(
       :time_series,
@@ -18,7 +18,7 @@ class DisplaySeriesSelectionTest < ActiveSupport::TestCase
       parameter_code: "62614",
       measurement_kind: "water_level",
       selected_for_display: false,
-      usgs_time_series_id: "ts-ngvd"
+      provider_series_id: "ts-ngvd"
     )
     LatestObservation.create!(time_series: gage, value: 541.24, unit_of_measure: "ft", observed_at: 1.hour.ago, synced_at: Time.current)
     LatestObservation.create!(time_series: ngvd, value: 540.74, unit_of_measure: "ft", observed_at: 1.hour.ago, synced_at: Time.current)
@@ -74,7 +74,7 @@ class DisplaySeriesSelectionTest < ActiveSupport::TestCase
       parameter_code: "00065",
       measurement_kind: "water_level",
       selected_for_display: true,
-      usgs_time_series_id: "ts-stage-active"
+      provider_series_id: "ts-stage-active"
     )
     flow = create(
       :time_series,
@@ -82,7 +82,7 @@ class DisplaySeriesSelectionTest < ActiveSupport::TestCase
       parameter_code: "00060",
       measurement_kind: "discharge",
       selected_for_display: true,
-      usgs_time_series_id: "ts-flow-active"
+      provider_series_id: "ts-flow-active"
     )
     temp = create(
       :time_series,
@@ -90,7 +90,7 @@ class DisplaySeriesSelectionTest < ActiveSupport::TestCase
       parameter_code: "00010",
       measurement_kind: "temperature",
       selected_for_display: true,
-      usgs_time_series_id: "ts-temp-ended"
+      provider_series_id: "ts-temp-ended"
     )
     LatestObservation.create!(time_series: stage, value: 4.2, unit_of_measure: "ft", observed_at: 1.hour.ago, synced_at: Time.current)
     LatestObservation.create!(time_series: flow, value: 120.0, unit_of_measure: "ft3/s", observed_at: 1.hour.ago, synced_at: Time.current)
@@ -126,7 +126,7 @@ class DisplaySeriesSelectionTest < ActiveSupport::TestCase
       parameter_code: "00065",
       measurement_kind: "water_level",
       selected_for_display: true,
-      usgs_time_series_id: "ts-stage-stale"
+      provider_series_id: "ts-stage-stale"
     )
     temp = create(
       :time_series,
@@ -134,7 +134,7 @@ class DisplaySeriesSelectionTest < ActiveSupport::TestCase
       parameter_code: "00010",
       measurement_kind: "temperature",
       selected_for_display: true,
-      usgs_time_series_id: "ts-temp-stale"
+      provider_series_id: "ts-temp-stale"
     )
     stale_at = 3.weeks.ago
     LatestObservation.create!(time_series: stage, value: 4.2, unit_of_measure: "ft", observed_at: stale_at, synced_at: Time.current)

@@ -38,7 +38,7 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
       parameter_code: "00065",
       measurement_kind: "water_level",
       selected_for_display: true,
-      usgs_time_series_id: "ts-wl-lag"
+      provider_series_id: "ts-wl-lag"
     )
     discharge = create(
       :time_series,
@@ -46,7 +46,7 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
       parameter_code: "00060",
       measurement_kind: "discharge",
       selected_for_display: true,
-      usgs_time_series_id: "ts-q-lag"
+      provider_series_id: "ts-q-lag"
     )
     LatestObservation.create!(
       time_series: water_level,
@@ -102,9 +102,9 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
     location = create(:monitoring_location, latest_observed_at: observed_at)
 
     series_specs = [
-      { parameter_code: "00065", measurement_kind: "water_level", unit: "ft", value: 4.5, usgs_time_series_id: "ts-wl-n1" },
-      { parameter_code: "00060", measurement_kind: "discharge", unit: "ft3/s", value: 1200.0, usgs_time_series_id: "ts-q-n1" },
-      { parameter_code: "00010", measurement_kind: "temperature", unit: "degC", value: 14.2, usgs_time_series_id: "ts-t-n1" }
+      { parameter_code: "00065", measurement_kind: "water_level", unit: "ft", value: 4.5, provider_series_id: "ts-wl-n1" },
+      { parameter_code: "00060", measurement_kind: "discharge", unit: "ft3/s", value: 1200.0, provider_series_id: "ts-q-n1" },
+      { parameter_code: "00010", measurement_kind: "temperature", unit: "degC", value: 14.2, provider_series_id: "ts-t-n1" }
     ]
 
     series_specs.each_with_index do |spec, index|
@@ -114,7 +114,7 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
         parameter_code: spec[:parameter_code],
         measurement_kind: spec[:measurement_kind],
         selected_for_display: true,
-        usgs_time_series_id: spec[:usgs_time_series_id],
+        provider_series_id: spec[:provider_series_id],
         unit_of_measure: spec[:unit]
       )
       LatestObservation.create!(
@@ -180,11 +180,11 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
   end
 
   test "nearby payload includes all available measurements for a neighbor" do
-    origin = create(:monitoring_location, site_number: "00000001", usgs_monitoring_location_id: "USGS-00000001")
+    origin = create(:monitoring_location, site_number: "00000001", provider_location_id: "USGS-00000001")
     neighbor = create(
       :monitoring_location,
       site_number: "00000002",
-      usgs_monitoring_location_id: "USGS-00000002",
+      provider_location_id: "USGS-00000002",
       name: "Neighbor Creek near Town",
       slug: "neighbor-creek-near-town",
       latitude: 47.51,
@@ -216,11 +216,11 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
   end
 
   test "network payload includes upstream and downstream catalog neighbors" do
-    origin = create(:monitoring_location, site_number: "00000011", usgs_monitoring_location_id: "USGS-00000011")
+    origin = create(:monitoring_location, site_number: "00000011", provider_location_id: "USGS-00000011")
     up = create(
       :monitoring_location,
       site_number: "00000012",
-      usgs_monitoring_location_id: "USGS-00000012",
+      provider_location_id: "USGS-00000012",
       name: "Upstream Creek near Town",
       slug: "upstream-creek-near-town",
       latitude: 47.52,
@@ -232,7 +232,7 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
     down = create(
       :monitoring_location,
       site_number: "00000013",
-      usgs_monitoring_location_id: "USGS-00000013",
+      provider_location_id: "USGS-00000013",
       name: "Downstream Creek near Town",
       slug: "downstream-creek-near-town",
       latitude: 47.48,
@@ -255,10 +255,10 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
   end
 
   test "loads nearby and network neighbor cards in one query" do
-    origin = create(:monitoring_location, site_number: "00000021", usgs_monitoring_location_id: "USGS-00000021")
-    nearby = create(:monitoring_location, site_number: "00000022", usgs_monitoring_location_id: "USGS-00000022")
-    up = create(:monitoring_location, site_number: "00000023", usgs_monitoring_location_id: "USGS-00000023")
-    down = create(:monitoring_location, site_number: "00000024", usgs_monitoring_location_id: "USGS-00000024")
+    origin = create(:monitoring_location, site_number: "00000021", provider_location_id: "USGS-00000021")
+    nearby = create(:monitoring_location, site_number: "00000022", provider_location_id: "USGS-00000022")
+    up = create(:monitoring_location, site_number: "00000023", provider_location_id: "USGS-00000023")
+    down = create(:monitoring_location, site_number: "00000024", provider_location_id: "USGS-00000024")
     origin.update!(
       nearby_station_ids: [ nearby.id ],
       upstream_station_ids: [ up.id ],
@@ -285,8 +285,8 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
   end
 
   test "fetch rebuilds when on-stream neighbor ids are persisted after a warm" do
-    origin = create(:monitoring_location, site_number: "00000031", usgs_monitoring_location_id: "USGS-00000031")
-    up = create(:monitoring_location, site_number: "00000032", usgs_monitoring_location_id: "USGS-00000032")
+    origin = create(:monitoring_location, site_number: "00000031", provider_location_id: "USGS-00000031")
+    up = create(:monitoring_location, site_number: "00000032", provider_location_id: "USGS-00000032")
     StationSnapshotCache.warm(origin.reload)
     origin.update!(upstream_station_ids: [ up.id ], network_synced_at: Time.current)
 

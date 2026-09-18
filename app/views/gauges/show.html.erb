@@ -24,6 +24,8 @@
   data-hydrograph-flood-stages-value="<%= ERB::Util.json_escape((@snapshot[:flood_stages] || @snapshot["flood_stages"] || {}).to_json) %>"
   data-hydrograph-time-zone-value="<%= @snapshot[:time_zone_identifier] %>"
   data-hydrograph-time-zone-label-value="<%= @snapshot[:time_zone] %>"
+  data-hydrograph-daily-only-value="<%= @location.daily_only? %>"
+  data-hydrograph-default-range-value="<%= @location.default_chart_range %>"
   data-temperature-unit-url-value="<%= temperature_unit_path %>"
 >
   <%= render Navigation::BarComponent.new %>
@@ -137,8 +139,8 @@
         <h2 id="graph-heading">Historical trends</h2>
         <div class="history-controls">
           <div class="segmented" role="group" aria-label="Time range">
-            <% ranges = %w[24h 7d 30d 1y]
-               ranges << "3y" if @location.has_deep_history?
+            <% ranges = @location.chart_ranges
+               default_range = @location.default_chart_range
                range_labels = { "7d" => "7 Days", "30d" => "30 Days", "1y" => "1 Year", "3y" => "3 Years" } %>
             <% ranges.each do |range| %>
               <button
@@ -146,7 +148,7 @@
                 data-action="hydrograph#setRange"
                 data-hydrograph-range-param="<%= range %>"
                 data-hydrograph-target="rangeButton"
-                aria-pressed="<%= range == "7d" %>"
+                aria-pressed="<%= range == default_range %>"
               ><%= range_labels.fetch(range, range) %></button>
             <% end %>
           </div>
@@ -238,7 +240,9 @@
           current_node: current_node %>
 
     <p class="usgs-note">
-      Data courtesy of the <%= link_to "U.S. Geological Survey", @snapshot[:usgs_url], rel: "noopener noreferrer", target: "_blank" %><% if @snapshot[:agency_credit].present? %> and <%= @snapshot[:agency_credit] %><% end %>.
+      <% agency_href = @snapshot[:agency_url].presence || @snapshot[:usgs_url] %>
+      <% agency_name = @snapshot[:agency_label].presence || "U.S. Geological Survey" %>
+      Data courtesy of the <% if agency_href.present? %><%= link_to agency_name, agency_href, rel: "noopener noreferrer", target: "_blank" %><% else %><%= agency_name %><% end %><% if @snapshot[:agency_credit].present? && @snapshot[:agency_credit] != agency_name %> and <%= @snapshot[:agency_credit] %><% end %>.
     </p>
   </main>
   <%= render Footer::ThinComponent.new %>

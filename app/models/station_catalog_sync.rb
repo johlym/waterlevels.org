@@ -232,7 +232,8 @@ class StationCatalogSync
         MonitoringLocation.upsert(
           {
             agency_code: item["agency_code"].presence || "USGS",
-            usgs_monitoring_location_id: usgs_id,
+            data_provider: DataProviders::USGS,
+            provider_location_id: usgs_id,
             site_number: site_number,
             name: name,
             display_name: derived_names[:display_name],
@@ -252,7 +253,7 @@ class StationCatalogSync
             active: true,
             metadata_synced_at: Time.current
           },
-          unique_by: :usgs_monitoring_location_id,
+          unique_by: :provider_location_id,
           # New rows still get slug / active from the insert hash. Existing rows
           # must keep created_at, slug, and active — weekly catalog is not the
           # source of truth for those. Do not list updated_at: Rails already
@@ -289,8 +290,8 @@ class StationCatalogSync
   def upsert_time_series_for(active_rows)
     return if active_rows.empty?
 
-    locations = MonitoringLocation.where(usgs_monitoring_location_id: active_rows.map { |r| r[:monitoring_location_id] })
-      .pluck(:usgs_monitoring_location_id, :id)
+    locations = MonitoringLocation.where(provider_location_id: active_rows.map { |r| r[:monitoring_location_id] })
+      .pluck(:provider_location_id, :id)
       .to_h
 
     rows_by_ts = active_rows.index_by { |row| row[:time_series_id] }
@@ -315,7 +316,7 @@ class StationCatalogSync
         TimeSeries.upsert(
           {
             monitoring_location_id: location_id,
-            usgs_time_series_id: ts_id,
+            provider_series_id: ts_id,
             parameter_code: row[:parameter_code],
             parameter_name: item["parameter_name"] || item["parameter_description"],
             parameter_description: item["parameter_description"],
@@ -328,7 +329,7 @@ class StationCatalogSync
             ends_at: item["end_date"] || item["ends_at"] || item["end"] || item["end_utc"],
             metadata_synced_at: Time.current
           },
-          unique_by: :usgs_time_series_id,
+          unique_by: :provider_series_id,
           # New rows keep the schema default (false) until select_display_series.
           # Existing rows must keep selected_for_display — a national catalog run
           # upserts every series before the final apply!, and overwriting the flag
@@ -359,8 +360,8 @@ class StationCatalogSync
     return if active_rows.empty?
 
     progress&.step("upserting latest observations from discovery")
-    series_ids = TimeSeries.where(usgs_time_series_id: active_rows.map { |r| r[:time_series_id] })
-      .pluck(:usgs_time_series_id, :id, :unit_of_measure)
+    series_ids = TimeSeries.where(provider_series_id: active_rows.map { |r| r[:time_series_id] })
+      .pluck(:provider_series_id, :id, :unit_of_measure)
       .to_h { |usgs_id, id, unit| [ usgs_id, [ id, unit ] ] }
 
     count = 0
@@ -416,7 +417,7 @@ class StationCatalogSync
       ids = Array(usgs_ids).map(&:to_s).uniq
       return 0 if ids.empty?
 
-      scope = scope.where(usgs_monitoring_location_id: ids)
+      scope = scope.where(provider_location_id: ids)
       progress&.step("selecting display series dirty=#{ids.size}")
     else
       progress&.step("selecting display series")
@@ -444,7 +445,7 @@ class StationCatalogSync
     location_scope
       .select(
         :id,
-        :usgs_monitoring_location_id,
+        :provider_location_id,
         :has_water_level,
         :has_discharge,
         :has_temperature,
@@ -452,7 +453,7 @@ class StationCatalogSync
       )
       .find_each do |location|
         inactive =
-          kept_set.exclude?(location.usgs_monitoring_location_id) ||
+          kept_set.exclude?(location.provider_location_id) ||
           location.latest_observed_at.nil? ||
           !(location.has_water_level? || location.has_discharge? || location.has_temperature?)
         next unless inactive

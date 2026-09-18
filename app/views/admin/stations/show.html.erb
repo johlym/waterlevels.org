@@ -232,7 +232,7 @@
                 <td>
                   <strong><%= series[:label] %></strong>
                   <span class="cell-hint"><%= series[:measurement_kind] %> · <%= series[:parameter_code] %><% if series[:primary_series] %> · primary<% end %></span>
-                  <span class="cell-hint">id=<%= series[:id] %> · <%= series[:usgs_time_series_id] %></span>
+                  <span class="cell-hint">id=<%= series[:id] %> · <%= series[:provider_series_id] %></span>
                 </td>
                 <td>
                   <% if series[:selected] %>
