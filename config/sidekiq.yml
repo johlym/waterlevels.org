@@ -47,12 +47,13 @@
       class: HistoryBackfillBatchJob
       queue: backfill
     network_refresh_batch:
-      # Drain unsynced on-stream neighbors. Catalog sync kicks one limited
-      # pass then enqueues this; cron finishes the national set. Hourly —
-      # a 50-station tick is ~35–45 minutes at NLDI's 10s pause (2–4 GETs
-      # per station). Offset past tip (:03) and before flood (:30).
-      # Sunday no-ops so it does not overlap StationCatalogSyncJob.
-      cron: "17 * * * 1-6"
+      # One NLDI_REFRESH_BATCH of unsynced on-stream neighbors per week.
+      # Catalog sync still kicks a limited pass and may enqueue this; the
+      # cron is the standing refresh. A 50-station tick is ~35–45 minutes
+      # at NLDI's 10s pause (2–4 GETs per station). Monday 06:17 UTC sits
+      # after Sunday catalog, clear of the 04:xx reservoir/NWPS syncs, and
+      # between tip (:03) and flood (:30). The job still no-ops on Sunday.
+      cron: "17 6 * * 1"
       class: NetworkRefreshBatchJob
       queue: sync
     continuous_prune:
