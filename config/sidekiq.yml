@@ -5,6 +5,7 @@
 :concurrency: 1
 :queues:
   - default
+  - backfill
 
 :scheduler:
   :schedule:
