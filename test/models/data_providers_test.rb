@@ -14,6 +14,20 @@ class DataProvidersTest < ActiveSupport::TestCase
     assert location.usgs?
   end
 
+  test "agency_url_for cdec uses station metadata page" do
+    location = build(:monitoring_location,
+      data_provider: DataProviders::CDEC,
+      provider_location_id: "CDEC-ORO",
+      site_number: "cdecoro")
+
+    assert_equal(
+      "https://cdec.water.ca.gov/dynamicapp/staMeta?station_id=ORO",
+      DataProviders.agency_url_for(location)
+    )
+    assert_equal "California Data Exchange Center", location.agency_label
+    assert_not location.usgs?
+  end
+
   test "agency_url_for nwps uses water.noaa.gov gauge path" do
     location = build(:monitoring_location,
       data_provider: DataProviders::NWPS,

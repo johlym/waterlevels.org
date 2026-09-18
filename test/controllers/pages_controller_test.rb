@@ -52,6 +52,8 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Bureau of Reclamation"
     assert_includes response.body, "Army Corps of Engineers"
     assert_includes response.body, "Alpowa Creek"
+    assert_includes response.body, "Lake Oroville"
+    assert_includes response.body, "https://cdec.water.ca.gov/"
     assert_includes response.body, "National Water Prediction Service"
     assert_includes response.body, "https://water.noaa.gov/"
     assert_includes response.body, "https://api.water.noaa.gov/nwps/v1/docs/"

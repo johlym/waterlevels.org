@@ -19,7 +19,7 @@ Rails.application.routes.draw do
       constraints: { site_number: /[a-z0-9]+/i }
 
   get "/gauges/:state", to: "states#show", as: :state_gauges, constraints: { state: /[a-z]{2}/ }
-  # site_number may be USGS digits or provider-prefixed ids (usbr3514, usacenabraystown, nwpsacrw1, …).
+  # site_number may be USGS digits or provider-prefixed ids (usbr3514, usacenabraystown, nwpsacrw1, cdecoro, …).
   get "/gauges/:state/:site_number_slug", to: "gauges#show", as: :gauge,
       constraints: { state: /[a-z]{2}/, site_number_slug: /[a-z0-9]+.+/i }
   get "/gauges/:site_number", to: "gauges#show", as: :gauge_short, constraints: { site_number: /\d+/ }

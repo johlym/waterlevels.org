@@ -75,6 +75,11 @@
       cron: "50 4 * * *"
       class: NwpsGaugeSyncJob
       queue: sync
+    cdec_reservoir_sync:
+      # Daily tip + recent archive window for curated CDEC reservoirs.
+      cron: "5 5 * * *"
+      class: CdecReservoirSyncJob
+      queue: sync
     daily_archive_drain:
       # Offset from nightly retention (09:15) so leftover Postgres dailies
       # (ingest fallback / export catch-up) do not sit until the next UTC day.

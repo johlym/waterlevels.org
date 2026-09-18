@@ -1,0 +1,21 @@
+class CdecHistoryBackfillJob < ApplicationJob
+  queue_as :backfill
+
+  def perform(site_number, years = 3)
+    Telemetry.in_root_span(
+      "job.cdec_history_backfill",
+      attributes: {
+        "app.operation" => "job.cdec_history_backfill",
+        "app.site_number" => site_number.to_s,
+        "app.range" => "#{years}y"
+      }
+    ) do
+      location = MonitoringLocation.find_by!(site_number: site_number)
+      raise ArgumentError, "not a CDEC location" unless location.data_provider == DataProviders::CDEC
+
+      progress = SyncProgress.new("CdecHistoryBackfillJob", io: nil, every: 1)
+      CdecHistoryIngestion.new(progress: progress).perform(location, years: years.to_i)
+      progress.finish("site=#{site_number} years=#{years}")
+    end
+  end
+end

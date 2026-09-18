@@ -9,6 +9,7 @@ class ApiCatalog
   NWPS_API = "https://api.water.noaa.gov/nwps/v1/docs/"
   USBR_API = "https://data.usbr.gov/rise-api"
   USACE_API = "https://cwms-data.usace.army.mil/cwms-data/"
+  CDEC_API = "https://cdec.water.ca.gov/"
 
   DISCOVERY_LINKS = [
     SELF_LINK,
@@ -67,6 +68,15 @@ class ApiCatalog
           "anchor" => USACE_API,
           "service-desc" => [
             { "href" => USACE_API, "type" => "text/html" }
+          ],
+          "service-doc" => [
+            { "href" => "#{base}/disclosures", "type" => "text/html" }
+          ]
+        },
+        {
+          "anchor" => CDEC_API,
+          "service-desc" => [
+            { "href" => CDEC_API, "type" => "text/html" }
           ],
           "service-doc" => [
             { "href" => "#{base}/disclosures", "type" => "text/html" }

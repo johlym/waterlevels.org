@@ -1,8 +1,8 @@
 # WaterLevels.org
 
-WaterLevels.org maps USGS monitoring locations and curated Bureau of Reclamation, U.S. Army Corps of Engineers, and National Weather Service (NWPS) gauges, presenting streamflow, water level, and temperature readings for streams, rivers, lakes, and reservoirs across the United States. Flood categories and stage thresholds come from the National Weather Service National Water Prediction Service (NWPS) when a match exists.
+WaterLevels.org maps USGS monitoring locations and curated Bureau of Reclamation, U.S. Army Corps of Engineers, National Weather Service (NWPS), and California Data Exchange Center gauges, presenting streamflow, water level, and temperature readings for streams, rivers, lakes, and reservoirs across the United States. Flood categories and stage thresholds come from the National Weather Service National Water Prediction Service (NWPS) when a match exists.
 
-This is not an official USGS, USBR, USACE, or NWS website.
+This is not an official USGS, USBR, USACE, NWS, or CDEC website.
 
 ## Pages
 
@@ -26,5 +26,6 @@ For programmatic access, use:
 - USBR RISE API: https://data.usbr.gov/rise-api
 - USACE CWMS Data API: https://cwms-data.usace.army.mil/cwms-data/
 - NWPS API: https://api.water.noaa.gov/nwps/v1/docs/
+- CDEC: https://cdec.water.ca.gov/
 
 Machine-readable catalog: /.well-known/api-catalog
