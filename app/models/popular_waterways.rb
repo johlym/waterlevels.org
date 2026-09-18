@@ -23,12 +23,6 @@ class PopularWaterways
       name: "Pacific Northwest",
       blurb: "Columbia, Willamette, and Snake River reference gauges.",
       site_numbers: %w[14105700 14211720 13334300]
-    },
-    {
-      key: "corps-reservoirs",
-      name: "Corps reservoirs",
-      blurb: "Selected U.S. Army Corps of Engineers lake and pool elevations.",
-      site_numbers: %w[usacenabraystown usacesashartwell usacesajokeechobee]
     }
   ].freeze
 
