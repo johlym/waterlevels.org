@@ -442,7 +442,11 @@ class StationCatalogSync
 
     # Stream candidates instead of plucking the whole catalog into one id list
     # and issuing a single giant purge (IV tip deletes dominate).
+    # USGS-only: kept_set is latest-continuous monitoring_location_id values
+    # (e.g. USGS-12099550). Curated USBR/USACE reservoirs are never in that
+    # collection; their lifecycle is the provider sync jobs, not this prune.
     location_scope
+      .usgs
       .select(
         :id,
         :provider_location_id,

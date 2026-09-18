@@ -489,6 +489,81 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
     Rails.cache = previous_cache
   end
 
+  test "national catalog prune does not delete non-usgs reservoirs" do
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    StationCatalogCheckpoint.clear_all!
+
+    flow_location_id = "USGS-12101000"
+    usbr = create(
+      :monitoring_location,
+      data_provider: DataProviders::USBR,
+      provider_location_id: "USBR-3514",
+      site_number: "usbr3514",
+      name: "Lake Mead at Hoover Dam",
+      slug: "lake-mead-at-hoover-dam",
+      state_code: "nv",
+      state_name: "Nevada",
+      has_water_level: true,
+      has_discharge: false,
+      latest_observed_at: 1.hour.ago
+    )
+    usace = create(
+      :monitoring_location,
+      data_provider: DataProviders::USACE,
+      provider_location_id: "USACE-NAB-Raystown",
+      site_number: "usacenabraystown",
+      name: "Raystown Lake",
+      slug: "raystown-lake",
+      state_code: "pa",
+      state_name: "Pennsylvania",
+      has_water_level: true,
+      has_discharge: false,
+      latest_observed_at: 1.hour.ago
+    )
+    usgs_orphan = create(
+      :monitoring_location,
+      site_number: "99999999",
+      provider_location_id: "USGS-99999999",
+      has_discharge: true,
+      latest_observed_at: 1.hour.ago
+    )
+
+    stub_catalog_collections(
+      latest_continuous: lambda do |request|
+        query = request.uri.query.to_s
+        code = query[/parameter_code=(\d+)/, 1]
+        features =
+          if code == "00060"
+            [ catalog_feature(
+              id: "ts-flow",
+              monitoring_location_id: flow_location_id,
+              parameter_code: "00060",
+              value: 4.13,
+              unit_of_measure: "ft3/s"
+            ) ]
+          else
+            []
+          end
+        catalog_collection_response(features)
+      end,
+      locations: [ catalog_location_feature(flow_location_id) ],
+      time_series: [ catalog_time_series_feature("ts-flow", "Discharge", "ft3/s") ]
+    )
+
+    StationCatalogSync.new.perform
+
+    assert MonitoringLocation.exists?(usbr.id)
+    assert MonitoringLocation.exists?(usace.id)
+    assert MonitoringLocation.exists?(MonitoringLocation.find_by!(provider_location_id: flow_location_id).id)
+    assert_nil MonitoringLocation.find_by(id: usgs_orphan.id)
+    assert_equal DataProviders::USBR, usbr.reload.data_provider
+    assert_equal DataProviders::USACE, usace.reload.data_provider
+  ensure
+    StationCatalogCheckpoint.clear_all!
+    Rails.cache = previous_cache
+  end
+
   private
 
   def stub_catalog_collections(latest_continuous:, locations:, time_series:)
