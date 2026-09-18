@@ -49,7 +49,6 @@ class UsaceProjectSync
     attrs = {
       data_provider: DataProviders::USACE,
       agency_code: "USACE",
-      agency_name: DataProviders.label_for(DataProviders::USACE),
       provider_location_id: Usace::ProjectCatalog.provider_location_id(entry.office, entry.location_name),
       site_number: entry.site_number,
       name: entry.name,

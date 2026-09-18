@@ -18,6 +18,9 @@ class CdecReservoirSyncTest < ActiveSupport::TestCase
     assert_equal 1, count
 
     location = MonitoringLocation.find_by!(site_number: "cdecoro")
+    assert_not_includes MonitoringLocation.column_names, "agency_name"
+    assert_equal "CDEC", location.agency_code
+    assert_equal "California Data Exchange Center", location.agency_label
     assert_equal DataProviders::CDEC, location.data_provider
     assert_equal "CDEC-ORO", location.provider_location_id
     assert_equal "ca", location.state_code

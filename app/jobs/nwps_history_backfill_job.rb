@@ -1,4 +1,6 @@
 class NwpsHistoryBackfillJob < ApplicationJob
+  include ProviderHistoryBackfill
+
   queue_as :backfill
 
   def perform(site_number)
@@ -9,7 +11,7 @@ class NwpsHistoryBackfillJob < ApplicationJob
         "app.site_number" => site_number.to_s
       }
     ) do
-      location = MonitoringLocation.find_by!(site_number: site_number)
+      location = require_synced_location!(site_number)
       raise ArgumentError, "not an NWPS location" unless location.data_provider == DataProviders::NWPS
 
       progress = SyncProgress.new("NwpsHistoryBackfillJob", io: nil, every: 1)

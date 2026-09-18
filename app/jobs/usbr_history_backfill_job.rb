@@ -1,4 +1,6 @@
 class UsbrHistoryBackfillJob < ApplicationJob
+  include ProviderHistoryBackfill
+
   queue_as :backfill
 
   def perform(site_number, years = 3)
@@ -10,7 +12,7 @@ class UsbrHistoryBackfillJob < ApplicationJob
         "app.range" => "#{years}y"
       }
     ) do
-      location = MonitoringLocation.find_by!(site_number: site_number)
+      location = require_synced_location!(site_number)
       raise ArgumentError, "not a USBR location" unless location.data_provider == DataProviders::USBR
 
       progress = SyncProgress.new("UsbrHistoryBackfillJob", io: nil, every: 1)

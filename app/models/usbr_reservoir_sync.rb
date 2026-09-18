@@ -47,7 +47,6 @@ class UsbrReservoirSync
     attrs = {
       data_provider: DataProviders::USBR,
       agency_code: "USBR",
-      agency_name: DataProviders.label_for(DataProviders::USBR),
       provider_location_id: Usbr::ReservoirCatalog.provider_location_id(entry.rise_location_id),
       site_number: entry.site_number,
       name: entry.name,
