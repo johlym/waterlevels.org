@@ -9,6 +9,8 @@ module ParameterLabels
       Usace::ParameterCodes.label_for(code, fallback: fallback)
     elsif code.start_with?("NWPS:")
       Nwps::ParameterCodes.label_for(code, fallback: fallback)
+    elsif code.start_with?("CDEC:")
+      Cdec::ParameterCodes.label_for(code, fallback: fallback)
     else
       Usgs::ParameterCodes.label_for(code, fallback: fallback)
     end
@@ -22,6 +24,8 @@ module ParameterLabels
       Usace::ParameterCodes.preference_rank(code)
     elsif code.start_with?("NWPS:")
       Nwps::ParameterCodes.preference_rank(code)
+    elsif code.start_with?("CDEC:")
+      Cdec::ParameterCodes.preference_rank(code)
     else
       Usgs::ParameterCodes.preference_rank(code)
     end

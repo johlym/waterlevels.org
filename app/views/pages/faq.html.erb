@@ -109,7 +109,7 @@
           <div class="faq-list">
             <%= render "pages/faq_item", question: "What is WaterLevels.org?", id: "what-is" do %>
               <p>
-                WaterLevels.org is an independent site that maps USGS water-monitoring locations and selected Bureau of Reclamation, U.S. Army Corps of Engineers, and National Weather Service (NWPS) gauges, and presents streamflow, water level (gage height or reservoir elevation), and water temperature in a browsable map, state directories, and station detail pages. When a National Weather Service forecast point is linked to a USGS gauge, we also show flood categories and stage thresholds—including on the
+                WaterLevels.org is an independent site that maps USGS water-monitoring locations and selected Bureau of Reclamation, U.S. Army Corps of Engineers, National Weather Service (NWPS), and California Data Exchange Center gauges, and presents streamflow, water level (gage height or reservoir elevation), and water temperature in a browsable map, state directories, and station detail pages. When a National Weather Service forecast point is linked to a USGS gauge, we also show flood categories and stage thresholds—including on the
                 <%= link_to "flood alerts list", alerts_path %>.
               </p>
             <% end %>
@@ -165,6 +165,10 @@
                 Selected NWPS gauges without a USGS site id publish observed stage from the
                 <a href="https://api.water.noaa.gov/nwps/v1/docs/" rel="noopener noreferrer" target="_blank">NWPS API</a>
                 (for example Alpowa Creek at Mouth).
+              </p>
+              <p>
+                Selected California reservoirs (for example Lake Oroville) use daily lake/reservoir elevation from the
+                <a href="https://cdec.water.ca.gov/" rel="noopener noreferrer" target="_blank">California Data Exchange Center</a>.
               </p>
               <p>
                 Flood categories (action, minor, moderate, major) and stage thresholds come from the National Weather Service

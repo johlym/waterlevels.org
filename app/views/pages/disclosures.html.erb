@@ -16,7 +16,7 @@
         <span class="accent">agency water data</span>
       </h1>
       <p class="lede">
-        WaterLevels.org is an independent site that republishes selected public water monitoring data from the U.S. Geological Survey, curated reservoir elevations from the U.S. Bureau of Reclamation (RISE) and the U.S. Army Corps of Engineers (CWMS), selected National Weather Service NWPS gauges without a USGS site id, plus flood categories and stage thresholds from NWPS when available. This page explains where the data comes from, what we keep, how we display it, and what it is not.
+        WaterLevels.org is an independent site that republishes selected public water monitoring data from the U.S. Geological Survey, curated reservoir elevations from the U.S. Bureau of Reclamation (RISE), the U.S. Army Corps of Engineers (CWMS), and the California Data Exchange Center (CDEC), selected National Weather Service NWPS gauges without a USGS site id, plus flood categories and stage thresholds from NWPS when available. This page explains where the data comes from, what we keep, how we display it, and what it is not.
       </p>
     </div>
   </section>
@@ -44,6 +44,11 @@
           Selected National Weather Service NWPS gauges that publish no USGS site id (for example Alpowa Creek at Mouth) appear as first-class stations with observed stage from the
           <a href="https://api.water.noaa.gov/nwps/v1/docs/" rel="noopener noreferrer" target="_blank">NWPS API</a>.
           We do not promote NWPS points that already join to a USGS gauge (those stay USGS stations with NWPS flood enrichment only), and we skip lids that would duplicate reservoirs already ingested from USBR.
+        </p>
+        <p>
+          Selected California reservoirs that USBR and USACE do not already cover (for example Lake Oroville, Lake Shasta, and Folsom Lake) use daily lake/reservoir elevation from the
+          <a href="https://cdec.water.ca.gov/" rel="noopener noreferrer" target="_blank">California Data Exchange Center</a>.
+          Shasta is USBR-operated, but it is not on the USBR RISE allowlist, so CDEC is the source. CDEC pages do not use NWPS flood stages.
         </p>
         <p>
           Flood categories (action, minor, moderate, major) and stage thresholds, when shown on the map, Flood Alerts list, and station pages, come from the National Weather Service

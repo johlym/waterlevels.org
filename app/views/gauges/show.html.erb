@@ -240,6 +240,19 @@
             for provenance.
           </p>
         </div>
+      <% elsif @location.data_provider == DataProviders::CDEC && @location.agency_url.present? %>
+        <% cdec_entry = Cdec::ReservoirCatalog.find_by_site_number(@location.site_number) %>
+        <div class="history-callout" role="status">
+          <p>
+            Elevation is published daily by the California Data Exchange Center (CDEC).
+            <% if cdec_entry&.datum_note.present? %>
+              <%= cdec_entry.datum_note %>.
+            <% end %>
+            See the
+            <%= link_to "official CDEC station page", @location.agency_url, rel: "noopener noreferrer", target: "_blank" %>
+            for provenance.
+          </p>
+        </div>
       <% end %>
       <div data-hydrograph-target="chartView">
         <div class="chart-panel">
