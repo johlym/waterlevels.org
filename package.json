@@ -2,7 +2,7 @@
   "name": "app",
   "private": true,
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "scripts": {
     "build": "esbuild app/javascript/*.* --bundle --sourcemap --format=esm --outdir=app/assets/builds --public-path=/assets && esbuild node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs --bundle --format=esm --outfile=app/assets/builds/maplibre-gl-worker.js",
