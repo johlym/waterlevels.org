@@ -369,8 +369,9 @@ class MonitoringLocation < ApplicationRecord
     series.all? { |s| s.has_daily_on_or_before?(deep_anchor) }
   end
 
-  # True when every selected series that expects daily has points near the
-  # ~10-year anchor — used to expose the 10 Years chart tab.
+  # True when every selected series that expects daily has points older than
+  # the 3y chart window — used to expose the 10 Years chart tab (POR may be
+  # shorter than 10 years; the chart still requests a 10y daily window).
   def has_10y_history?
     series = time_series.selected.select { |s|
       s.expects_daily_history? && s.eligible_for_recent_history_backfill?

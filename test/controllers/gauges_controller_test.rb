@@ -327,7 +327,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, 'data-hydrograph-range-param="10y"'
   end
 
-  test "shows 10 year range tab when 10-year daily history is present" do
+  test "shows 10 year range tab when daily history extends past 3 years" do
     series = create(:time_series, monitoring_location: @location, selected_for_display: true)
     ContinuousObservation.create!(time_series: series, observed_at: 1.day.ago, value: 12.3)
     DailyObservation.create!(

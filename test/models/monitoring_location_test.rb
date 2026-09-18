@@ -390,7 +390,7 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     refute_includes MonitoringLocation.needing_deep_history_backfill.pluck(:id), location.id
   end
 
-  test "has_10y_history? is false until the 10-year daily anchor exists" do
+  test "has_10y_history? is false until daily history extends past 3 years" do
     location = create(:monitoring_location)
     series = create(:time_series, monitoring_location: location, selected_for_display: true)
     DailyObservation.create!(time_series: series, observed_on: 35.months.ago.to_date, value: 9.0)
@@ -400,7 +400,7 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     assert_equal %w[24h 7d 30d 1y 3y], location.chart_ranges
   end
 
-  test "has_10y_history? is true when the 10-year daily anchor is present" do
+  test "has_10y_history? is true when daily history extends past the 3y window" do
     location = create(:monitoring_location)
     series = create(:time_series, monitoring_location: location, selected_for_display: true)
     DailyObservation.create!(

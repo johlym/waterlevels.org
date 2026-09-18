@@ -24,8 +24,9 @@ class HistoryIngestion
   DAILY_HISTORY_ANCHOR = 11.months
   # Deep (3y) history is ready once a daily point reaches this age.
   DAILY_DEEP_HISTORY_ANCHOR = 35.months
-  # 10y daily tab is ready once a daily point reaches this age (10y minus 1 month slack).
-  DAILY_10Y_HISTORY_ANCHOR = 119.months
+  # 10y daily tab unlocks once history extends past the 3y chart window. Ingest
+  # still requests up to 10 years and stores whatever the agency POR includes.
+  DAILY_10Y_HISTORY_ANCHOR = 37.months
   # Default lookback for curated USBR / USACE / CDEC daily archive backfill.
   # USGS HistoryIngestion stays on DAILY_RETENTION (3y) — do not reuse this there.
   DEFAULT_NON_USGS_DAILY_YEARS = 10

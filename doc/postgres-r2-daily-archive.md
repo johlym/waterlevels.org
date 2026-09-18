@@ -9,7 +9,7 @@ Related: [`plan-3y-daily-history.md`](./plan-3y-daily-history.md) (historical 1y
 | Range | Source |
 |-------|--------|
 | `24h` / `7d` / `30d` | Continuous IV in Postgres (~15-minute) |
-| `1y` / `3y` / `10y` | Daily means from **R2 only** (`10y` unlocks when a series has ~10 years of archive coverage; non-USGS daily reservoirs are filled first) |
+| `1y` / `3y` / `10y` | Daily means from **R2 only** (`10y` unlocks when archive coverage extends past 3 years, then shows up to 10 years or the series POR; non-USGS daily reservoirs are filled first) |
 
 ## Windows
 
