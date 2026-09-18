@@ -1,4 +1,4 @@
-# Prevents overlapping NetworkRefreshBatchJob ticks (hourly cron + catalog
+# Prevents overlapping NetworkRefreshBatchJob ticks (weekly cron + catalog
 # enqueue) from taking both sync_worker threads while NLDI paces ~10s/station.
 class NetworkRefreshBatchLock
   KEY = "network_refresh_batch:running"

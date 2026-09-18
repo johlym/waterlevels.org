@@ -41,6 +41,15 @@ class SidekiqProcessQueuesTest < ActiveSupport::TestCase
     end
   end
 
+  test "scheduler runs NLDI network refresh once a week" do
+    schedule = load_sidekiq_yaml("config/sidekiq.yml").dig(:scheduler, :schedule)
+    entry = schedule.fetch("network_refresh_batch")
+
+    assert_equal "NetworkRefreshBatchJob", entry["class"]
+    assert_equal "sync", entry["queue"]
+    assert_equal "17 6 * * 1", entry["cron"]
+  end
+
   test "scheduler routes IV scar catch-up onto the isolated scar queue" do
     schedule = load_sidekiq_yaml("config/sidekiq.yml").dig(:scheduler, :schedule)
     entry = schedule.fetch("iv_repair_scar_batch")

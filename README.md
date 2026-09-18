@@ -39,8 +39,8 @@ Hourly `LatestObservationSyncJob` keeps readings fresh near `:00`. `FloodStageSy
 ```bash
 STATE=wa bin/rails usgs:purge ALL=1   # wipe a bad/partial import
 STATE=wa bin/rails usgs:bootstrap
-# On-stream neighbors (catalog sync does one batch, then NetworkRefreshBatchJob
-# drains the rest Mon–Sat). FORCE=1 recomputes fresh rows. LIMIT=50 for a chunk.
+# On-stream neighbors (catalog sync does one batch; NetworkRefreshBatchJob
+# runs weekly, Monday 06:17 UTC). FORCE=1 recomputes fresh rows. LIMIT=50 for a chunk.
 STATE=wa bin/rails nldi:refresh
 ```
 
@@ -131,4 +131,4 @@ Set in `.env`:
 - Map may be empty until catalog sync lands locations.
 - Temperature is stored in °C; UI defaults to °F via a preference cookie.
 - Local PostGIS is optional; nearby stations use haversine precompute, map bbox uses lat/lon indexes.
-- On-stream upstream/downstream neighbors are precomputed from the public USGS NLDI API (no API key). Navigation is ~400 req/hr per client; a 429 trips a circuit for the rest of the UTC hour. Catalog sync refreshes one `NLDI_REFRESH_BATCH`, then `NetworkRefreshBatchJob` drains unsynced rows (Mon–Sat hourly). One-off: `bin/rails nldi:refresh` (optional `STATE=wa`, `FORCE=1`, `LIMIT=50`). Re-runs skip stations that already have neighbor ids and a fresh `network_synced_at`; empty graphs stay pending so a failed first pass can retry. Demo seed wires a 5-station chain offline (`99000096`–`990000100`).
+- On-stream upstream/downstream neighbors are precomputed from the public USGS NLDI API (no API key). Navigation is ~400 req/hr per client; a 429 trips a circuit for the rest of the UTC hour. Catalog sync refreshes one `NLDI_REFRESH_BATCH`, then `NetworkRefreshBatchJob` refreshes one more batch weekly (Monday 06:17 UTC). One-off: `bin/rails nldi:refresh` (optional `STATE=wa`, `FORCE=1`, `LIMIT=50`). Re-runs skip stations that already have neighbor ids and a fresh `network_synced_at`; empty graphs stay pending so a failed first pass can retry. Demo seed wires a 5-station chain offline (`99000096`–`990000100`).
