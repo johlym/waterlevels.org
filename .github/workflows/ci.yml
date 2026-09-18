@@ -98,6 +98,12 @@ jobs:
         with:
           bundler-cache: true
 
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: ".nvmrc"
+          cache: yarn
+
       - name: Run tests
         env:
           RAILS_ENV: test
