@@ -1,4 +1,6 @@
 class UsaceHistoryBackfillJob < ApplicationJob
+  include ProviderHistoryBackfill
+
   queue_as :backfill
 
   def perform(site_number, years = 3)
@@ -10,7 +12,7 @@ class UsaceHistoryBackfillJob < ApplicationJob
         "app.range" => "#{years}y"
       }
     ) do
-      location = MonitoringLocation.find_by!(site_number: site_number)
+      location = require_synced_location!(site_number)
       raise ArgumentError, "not a USACE location" unless location.data_provider == DataProviders::USACE
 
       progress = SyncProgress.new("UsaceHistoryBackfillJob", io: nil, every: 1)
