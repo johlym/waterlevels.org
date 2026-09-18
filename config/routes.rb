@@ -16,11 +16,12 @@ Rails.application.routes.draw do
 
   get "/og.png", to: "og_images#default", as: :og_default
   get "/og/gauges/:site_number.png", to: "og_images#station", as: :og_station,
-      constraints: { site_number: /\d+/ }
+      constraints: { site_number: /[a-z0-9]+/i }
 
   get "/gauges/:state", to: "states#show", as: :state_gauges, constraints: { state: /[a-z]{2}/ }
+  # site_number may be USGS digits or provider-prefixed ids (usbr3514, …).
   get "/gauges/:state/:site_number_slug", to: "gauges#show", as: :gauge,
-      constraints: { state: /[a-z]{2}/, site_number_slug: /\d+.+/ }
+      constraints: { state: /[a-z]{2}/, site_number_slug: /[a-z0-9]+.+/i }
   get "/gauges/:site_number", to: "gauges#show", as: :gauge_short, constraints: { site_number: /\d+/ }
 
   get "/pages/:id", to: "pages#show", as: :page
