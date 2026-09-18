@@ -50,10 +50,12 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "agency water data"
     assert_includes response.body, "Bureau of Reclamation"
+    assert_includes response.body, "Army Corps of Engineers"
     assert_includes response.body, "National Water Prediction Service"
     assert_includes response.body, "https://water.noaa.gov/"
     assert_includes response.body, "https://api.water.noaa.gov/nwps/v1/docs/"
     assert_includes response.body, "https://data.usbr.gov/"
+    assert_includes response.body, "https://cwms-data.usace.army.mil/cwms-data/"
     assert_includes response.body, "Flood categories"
   end
 
@@ -63,7 +65,7 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "What flood data do you show?"
     assert_includes response.body, "Why doesn’t every station have flood stages?"
     assert_includes response.body, "What is the flood alerts list?"
-    assert_includes response.body, "Is this an official USGS, USBR, or NWS website?"
+    assert_includes response.body, "Is this an official USGS, USBR, USACE, or NWS website?"
     assert_includes response.body, "National Water Prediction Service"
     assert_includes response.body, "https://water.noaa.gov/"
     assert_includes response.body, "https://api.water.noaa.gov/nwps/v1/docs/"

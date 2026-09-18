@@ -1,0 +1,21 @@
+class UsaceHistoryBackfillJob < ApplicationJob
+  queue_as :backfill
+
+  def perform(site_number, years = 3)
+    Telemetry.in_root_span(
+      "job.usace_history_backfill",
+      attributes: {
+        "app.operation" => "job.usace_history_backfill",
+        "app.site_number" => site_number.to_s,
+        "app.range" => "#{years}y"
+      }
+    ) do
+      location = MonitoringLocation.find_by!(site_number: site_number)
+      raise ArgumentError, "not a USACE location" unless location.data_provider == DataProviders::USACE
+
+      progress = SyncProgress.new("UsaceHistoryBackfillJob", io: nil, every: 1)
+      UsaceHistoryIngestion.new(progress: progress).perform(location, years: years.to_i)
+      progress.finish("site=#{site_number} years=#{years}")
+    end
+  end
+end

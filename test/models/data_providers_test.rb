@@ -14,6 +14,20 @@ class DataProvidersTest < ActiveSupport::TestCase
     assert location.usgs?
   end
 
+  test "agency_url_for usace uses CWMS location path" do
+    location = build(:monitoring_location,
+      data_provider: DataProviders::USACE,
+      provider_location_id: "USACE-NAB-Raystown",
+      site_number: "usacenabraystown")
+
+    assert_equal(
+      "https://cwms-data.usace.army.mil/cwms-data/locations/Raystown?office=NAB",
+      DataProviders.agency_url_for(location)
+    )
+    assert_equal "U.S. Army Corps of Engineers", location.agency_label
+    assert_not location.usgs?
+  end
+
   test "agency_url_for usbr uses RISE location page" do
     location = build(:monitoring_location,
       data_provider: DataProviders::USBR,

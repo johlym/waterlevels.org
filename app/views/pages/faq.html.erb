@@ -109,7 +109,7 @@
           <div class="faq-list">
             <%= render "pages/faq_item", question: "What is WaterLevels.org?", id: "what-is" do %>
               <p>
-                WaterLevels.org is an independent site that maps USGS water-monitoring locations and selected Bureau of Reclamation reservoirs, and presents streamflow, water level (gage height or reservoir elevation), and water temperature in a browsable map, state directories, and station detail pages. When a National Weather Service forecast point is linked to a USGS gauge, we also show flood categories and stage thresholds—including on the
+                WaterLevels.org is an independent site that maps USGS water-monitoring locations and selected Bureau of Reclamation and U.S. Army Corps of Engineers reservoirs, and presents streamflow, water level (gage height or reservoir elevation), and water temperature in a browsable map, state directories, and station detail pages. When a National Weather Service forecast point is linked to a USGS gauge, we also show flood categories and stage thresholds—including on the
                 <%= link_to "flood alerts list", alerts_path %>.
               </p>
             <% end %>
@@ -120,9 +120,9 @@
               </p>
             <% end %>
 
-            <%= render "pages/faq_item", question: "Is this an official USGS, USBR, or NWS website?", id: "official-usgs" do %>
+            <%= render "pages/faq_item", question: "Is this an official USGS, USBR, USACE, or NWS website?", id: "official-usgs" do %>
               <p>
-                No. WaterLevels.org is a private project operated by Bytoro LLC. It is not affiliated with, endorsed by, or operated by the USGS, the Bureau of Reclamation, the National Weather Service, NOAA, or the Department of the Interior. For the authoritative hydrologic record at any station, use the official agency page linked from each gauge. For official flood forecasts and watches/warnings, use
+                No. WaterLevels.org is a private project operated by Bytoro LLC. It is not affiliated with, endorsed by, or operated by the USGS, the Bureau of Reclamation, the U.S. Army Corps of Engineers, the National Weather Service, NOAA, the Department of the Interior, or the Department of Defense. For the authoritative hydrologic record at any station, use the official agency page linked from each gauge. For official flood forecasts and watches/warnings, use
                 <a href="https://water.noaa.gov/" rel="noopener noreferrer" target="_blank">water.noaa.gov</a>
                 and local NWS products.
               </p>
@@ -156,6 +156,10 @@
               <p>
                 Selected Bureau of Reclamation reservoirs (for example Lake Mead) use daily lake/reservoir elevation from
                 <a href="https://data.usbr.gov/" rel="noopener noreferrer" target="_blank">USBR RISE</a>.
+              </p>
+              <p>
+                Selected U.S. Army Corps of Engineers projects (for example Raystown Lake) use lake/reservoir elevation from the
+                <a href="https://cwms-data.usace.army.mil/cwms-data/" rel="noopener noreferrer" target="_blank">CWMS Data API</a>.
               </p>
               <p>
                 Flood categories (action, minor, moderate, major) and stage thresholds come from the National Weather Service
