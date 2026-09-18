@@ -392,9 +392,13 @@ class MonitoringLocation < ApplicationRecord
 
   # True when selected display series have no continuous (IV) tip — charts should
   # use daily grain for short ranges and default to a longer tab.
+  # USGS stays continuous-first even when denorm tips are still warming; non-USGS
+  # providers without an IV tip are treated as daily-only.
   def daily_only?
+    return false if usgs?
+
     selected = time_series.selected.to_a
-    return false if selected.empty?
+    return true if selected.empty?
 
     selected.none? { |series| series.continuous_newest_at.present? || series.has_continuous_anchor? }
   end

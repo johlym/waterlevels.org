@@ -25,8 +25,11 @@ class DataProvidersTest < ActiveSupport::TestCase
     assert_not location.usgs?
   end
 
-  test "daily_only? is true when selected series lack continuous tips" do
-    location = create(:monitoring_location)
+  test "daily_only? is true for non-usgs stations without continuous tips" do
+    location = create(:monitoring_location,
+      data_provider: DataProviders::USBR,
+      provider_location_id: "USBR-3514",
+      site_number: "usbr3514")
     create(:time_series,
       monitoring_location: location,
       has_continuous_anchor: false,
@@ -37,8 +40,23 @@ class DataProvidersTest < ActiveSupport::TestCase
     assert_equal %w[30d 1y], location.chart_ranges
   end
 
-  test "daily_only? is false when a selected series has continuous tip" do
+  test "daily_only? is false for usgs even without continuous denorm tips" do
     location = create(:monitoring_location)
+    create(:time_series,
+      monitoring_location: location,
+      has_continuous_anchor: false,
+      continuous_newest_at: nil)
+
+    assert_not location.daily_only?
+    assert_equal "7d", location.default_chart_range
+    assert_includes location.chart_ranges, "24h"
+  end
+
+  test "daily_only? is false when a non-usgs selected series has continuous tip" do
+    location = create(:monitoring_location,
+      data_provider: DataProviders::USACE,
+      provider_location_id: "USACE-MVP-TEST",
+      site_number: "usaceMVPTEST")
     create(:time_series,
       monitoring_location: location,
       has_continuous_anchor: true,
