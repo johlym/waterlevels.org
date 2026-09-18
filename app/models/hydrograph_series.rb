@@ -52,9 +52,9 @@ class HydrographSeries
     return unless kind.present?
 
     selected.where(measurement_kind: kind)
-      .min_by { |s| Usgs::ParameterCodes.preference_rank(s.parameter_code) } ||
+      .min_by { |s| ParameterLabels.preference_rank(s.parameter_code) } ||
       location.time_series.where(measurement_kind: kind)
-        .min_by { |s| Usgs::ParameterCodes.preference_rank(s.parameter_code) }
+        .min_by { |s| ParameterLabels.preference_rank(s.parameter_code) }
   end
   private_class_method :find_series
 
@@ -115,7 +115,7 @@ class HydrographSeries
 
     {
       kind: time_series.measurement_kind,
-      label: Usgs::ParameterCodes.label_for(time_series.parameter_code, fallback: time_series.parameter_description),
+      label: ParameterLabels.label_for(time_series.parameter_code, fallback: time_series.parameter_description),
       range: range,
       grain: grain,
       unit: UnitLabel.format(time_series.unit_of_measure),

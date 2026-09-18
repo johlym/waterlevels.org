@@ -16,6 +16,7 @@ class WellKnown::ApiCatalogControllerTest < ActionDispatch::IntegrationTest
     assert_includes anchors, "http://www.example.com/"
     assert_includes anchors, ApiCatalog::USGS_API
     assert_includes anchors, ApiCatalog::NWPS_API
+    assert_includes anchors, ApiCatalog::USBR_API
     refute_includes response.body, "/api/"
     refute_includes response.body, "#{request.base_url}/api"
   end

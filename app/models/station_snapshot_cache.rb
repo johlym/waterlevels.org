@@ -106,7 +106,7 @@ class StationSnapshotCache
     selected = location.time_series.selected
       .includes(:latest_observation, :peak_observations, :daily_observations)
       .to_a
-      .sort_by { |s| [ kind_order(s.measurement_kind), Usgs::ParameterCodes.preference_rank(s.parameter_code) ] }
+      .sort_by { |s| [ kind_order(s.measurement_kind), ParameterLabels.preference_rank(s.parameter_code) ] }
 
     prior_24h_by_series_id = TrendComparison.prior_24h_continuous_by_series(selected)
     measurements = selected.filter_map do |series|
@@ -221,7 +221,7 @@ class StationSnapshotCache
       series.peak_observations.where(peak_kind: "high").order(value: :desc).first
     end
     low_daily = lowest_daily_payload(series)
-    label = Usgs::ParameterCodes.label_for(series.parameter_code, fallback: series.parameter_description)
+    label = ParameterLabels.label_for(series.parameter_code, fallback: series.parameter_description)
 
     {
       key: series.parameter_code,
@@ -276,7 +276,7 @@ class StationSnapshotCache
       measurements << {
         key: code.presence || "water_level",
         kind: "water_level",
-        label: Usgs::ParameterCodes.label_for(code, fallback: "Water level"),
+        label: ParameterLabels.label_for(code, fallback: "Water level"),
         parameter_code: code,
         parameter_description: nil,
         value: location.latest_water_level_value.to_f,

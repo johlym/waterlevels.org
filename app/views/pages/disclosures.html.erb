@@ -1,5 +1,5 @@
 <% content_for :title, "Data disclosures | WaterLevels.org" %>
-<% content_for :meta_description, "How WaterLevels.org uses U.S. Geological Survey water data and National Weather Service flood stages, what we store, how often it updates, and important limitations." %>
+<% content_for :meta_description, "How WaterLevels.org uses U.S. Geological Survey water data, Bureau of Reclamation reservoir elevations, and National Weather Service flood stages, what we store, how often it updates, and important limitations." %>
 
 <div class="app-shell">
   <%= render Navigation::BarComponent.new %>
@@ -13,10 +13,10 @@
       <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Data disclosures</span>
       <h1>
         How we use
-        <span class="accent">USGS &amp; NWS data</span>
+        <span class="accent">agency water data</span>
       </h1>
       <p class="lede">
-        WaterLevels.org is an independent site that republishes selected public water monitoring data from the U.S. Geological Survey, plus flood categories and stage thresholds from the National Weather Service when available. This page explains where the data comes from, what we keep, how we display it, and what it is not.
+        WaterLevels.org is an independent site that republishes selected public water monitoring data from the U.S. Geological Survey, curated reservoir elevations from the U.S. Bureau of Reclamation (RISE), plus flood categories and stage thresholds from the National Weather Service when available. This page explains where the data comes from, what we keep, how we display it, and what it is not.
       </p>
     </div>
   </section>
@@ -26,19 +26,24 @@
       <section aria-labelledby="source-heading">
         <h2 id="source-heading">Data sources</h2>
         <p>
-          Nearly all hydrologic observation values shown on WaterLevels.org come from the
+          Nearly all stream and lake observation values shown on WaterLevels.org come from the
           <a href="https://api.waterdata.usgs.gov/" rel="noopener noreferrer" target="_blank">USGS Water Data APIs</a>
-          (OGC API–Features services operated by the USGS). Site identity, coordinates, and official station pages are likewise USGS products.
+          (OGC API–Features services operated by the USGS). Site identity, coordinates, and official station pages for those gauges are likewise USGS products.
+        </p>
+        <p>
+          Selected Reclamation reservoirs (for example Lake Mead at Hoover Dam) use daily lake/reservoir elevation from the Bureau of Reclamation
+          <a href="https://data.usbr.gov/" rel="noopener noreferrer" target="_blank">RISE</a>
+          APIs. Those stations are identified separately from USGS gauges and link to the official RISE location page for provenance and datum notes.
         </p>
         <p>
           Flood categories (action, minor, moderate, major) and stage thresholds, when shown on the map, Flood Alerts list, and station pages, come from the National Weather Service
           <a href="https://water.noaa.gov/" rel="noopener noreferrer" target="_blank">National Water Prediction Service (NWPS)</a>
           via the
           <a href="https://api.water.noaa.gov/nwps/v1/docs/" rel="noopener noreferrer" target="_blank">NWPS API</a>.
-          We join NWPS forecast points to USGS gauges by site number when a match exists. Not every USGS site has an NWPS forecast point, so some stations will show USGS measurements without flood-stage context.
+          We join NWPS forecast points to USGS gauges by site number when a match exists. Not every USGS site has an NWPS forecast point, so some stations will show USGS measurements without flood-stage context. USBR reservoir pages do not use NWPS flood stages.
         </p>
         <p>
-          USGS and NWS products are U.S. government work. WaterLevels.org is not affiliated with, endorsed by, or operated by the USGS, the National Weather Service, NOAA, or the Department of the Interior. We are a private project that consumes public APIs and presents a subset of that data for browsing and reference.
+          USGS, USBR, and NWS products are U.S. government work. WaterLevels.org is not affiliated with, endorsed by, or operated by the USGS, the Bureau of Reclamation, the National Weather Service, NOAA, or the Department of the Interior. We are a private project that consumes public APIs and presents a subset of that data for browsing and reference.
         </p>
         <p>
           For the authoritative hydrologic record at any station, use the official USGS monitoring-location page linked from each WaterLevels.org station (typically

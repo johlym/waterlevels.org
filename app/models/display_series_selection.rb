@@ -37,7 +37,7 @@ class DisplaySeriesSelection
 
     water_levels = selected
       .select { |s| s.measurement_kind == "water_level" && s.latest_observation }
-      .sort_by { |s| Usgs::ParameterCodes.preference_rank(s.parameter_code) }
+      .sort_by { |s| ParameterLabels.preference_rank(s.parameter_code) }
     preferred_water_level = water_levels.first
 
     if preferred_water_level
@@ -86,7 +86,7 @@ class DisplaySeriesSelection
         pool = filter_for_display(group, station_reporting: station_reporting)
         pool.find(&:primary_series?) || pool.first
       end
-      .sort_by { |s| Usgs::ParameterCodes.preference_rank(s.parameter_code) }
+      .sort_by { |s| ParameterLabels.preference_rank(s.parameter_code) }
   end
   private_class_method :pick_water_levels
 

@@ -59,6 +59,11 @@
       cron: "15 9 * * *"
       class: ContinuousPruneJob
       queue: default
+    usbr_reservoir_sync:
+      # Daily tip + recent archive window for curated USBR reservoirs (Mead).
+      cron: "20 4 * * *"
+      class: UsbrReservoirSyncJob
+      queue: sync
     daily_archive_drain:
       # Offset from nightly retention (09:15) so leftover Postgres dailies
       # (ingest fallback / export catch-up) do not sit until the next UTC day.
