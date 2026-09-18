@@ -229,6 +229,17 @@
             for provenance.
           </p>
         </div>
+      <% elsif @location.data_provider == DataProviders::NWPS && @location.agency_url.present? %>
+        <div class="history-callout" role="status">
+          <p>
+            Observed stage is published by the National Weather Service
+            National Water Prediction Service (NWPS). This gauge has no USGS
+            site id in NWPS — WaterLevels.org shows it as an NWS monitoring point.
+            See the
+            <%= link_to "official NWPS gauge page", @location.agency_url, rel: "noopener noreferrer", target: "_blank" %>
+            for provenance.
+          </p>
+        </div>
       <% end %>
       <div data-hydrograph-target="chartView">
         <div class="chart-panel">

@@ -4,7 +4,7 @@ How WaterLevels.org is designed and how it should continue to be designed. This 
 
 ## 1. Product overview
 
-WaterLevels.org is a public, read-mostly web app that maps USGS water-monitoring locations (gage height, streamflow/discharge, water temperature) across US states, curated Bureau of Reclamation reservoir elevations via RISE, curated U.S. Army Corps of Engineers lake/pool elevations via CWMS, and enriches USGS sites with NOAA NWPS flood categories. The product surfaces:
+WaterLevels.org is a public, read-mostly web app that maps USGS water-monitoring locations (gage height, streamflow/discharge, water temperature) across US states, curated Bureau of Reclamation reservoir elevations via RISE, curated U.S. Army Corps of Engineers lake/pool elevations via CWMS, curated National Weather Service NWPS gauges without a USGS site id, and enriches USGS sites with NOAA NWPS flood categories. The product surfaces:
 
 - An interactive national map of active continuous water-body stations.
 - Per-state station directories grouped by county.

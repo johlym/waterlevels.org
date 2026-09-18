@@ -42,6 +42,32 @@ module Nwps
       end
     end
 
+    # Observed (+ forecast) stage/flow time series for a gauge LID or USGS id.
+    # Returns the parsed Hash or nil on 404.
+    def stageflow(identifier)
+      Telemetry.in_span(
+        "nwps.http.stageflow",
+        attributes: {
+          "http.request.method" => "GET",
+          "app.operation" => "nwps.http.stageflow",
+          "app.nwps_identifier" => identifier.to_s
+        }
+      ) do
+        pause_between_requests!
+        response = @connection.get("gauges/#{identifier}/stageflow") do |req|
+          req.headers["Accept"] = "application/json"
+          req.options.timeout = 60
+        end
+        Telemetry.add_attributes(
+          "http.response.status_code" => response.status,
+          "app.found" => response.status != 404
+        )
+        return nil if response.status == 404
+
+        handle_response(response)
+      end
+    end
+
     # Returns the NWPS gauge list for one state bbox (status + LID; no usgsId /
     # thresholds). +state+ is required so callers cannot request the unbounded
     # national payload that NWPS often 504s on. Callers still filter by state
