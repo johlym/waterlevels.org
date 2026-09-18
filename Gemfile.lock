@@ -654,7 +654,6 @@ DEPENDENCIES
   sidekiq-scheduler (~> 6.0)
   stimulus-rails
   turbo-rails
-  tzinfo-data
   view_component (~> 4.0)
   web-console
   webmock

@@ -28,10 +28,9 @@ gem "invisible_captcha"
 gem "bento-actionmailer", github: "bentonow/bento-actionmailer", branch: "main"
 gem "premailer-rails"
 gem "bootsnap", require: false
-gem "tzinfo-data", platforms: %i[windows jruby]
 
 group :development, :test do
-  gem "debug", platforms: %i[mri windows], require: "debug/prelude"
+  gem "debug", platforms: %i[mri], require: "debug/prelude"
   gem "bundler-audit", require: false
   gem "brakeman", require: false
   gem "rubocop-rails-omakase", require: false
