@@ -14,59 +14,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
-  create_table "admin_counters", force: :cascade do |t|
-    t.datetime "computed_at", null: false
-    t.datetime "created_at", null: false
-    t.string "name", null: false
-    t.jsonb "payload", default: {}, null: false
-    t.string "source", default: "job", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "value", default: 0, null: false
-    t.index ["name"], name: "index_admin_counters_on_name", unique: true
-  end
+# Could not dump table "admin_counters" because of following ArgumentError
+#   wrong number of arguments (given 2, expected 1)
 
-  create_table "alert_deliveries", force: :cascade do |t|
-    t.bigint "alert_event_id"
-    t.bigint "alert_rule_id"
-    t.datetime "created_at", null: false
-    t.string "mailer_action", null: false
-    t.jsonb "metadata", default: {}, null: false
-    t.datetime "sent_at"
-    t.string "status", default: "queued", null: false
-    t.bigint "subscriber_id", null: false
-    t.datetime "updated_at", null: false
-    t.index ["alert_event_id"], name: "index_alert_deliveries_on_alert_event_id"
-    t.index ["alert_rule_id"], name: "index_alert_deliveries_on_alert_rule_id"
-    t.index ["subscriber_id", "alert_event_id", "alert_rule_id"], name: "index_alert_deliveries_unique_event_rule", unique: true, where: "((alert_event_id IS NOT NULL) AND (alert_rule_id IS NOT NULL))"
-    t.index ["subscriber_id", "created_at"], name: "index_alert_deliveries_on_subscriber_id_and_created_at"
-    t.index ["subscriber_id"], name: "index_alert_deliveries_on_subscriber_id"
-  end
 
-  create_table "alert_events", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.string "dedupe_key", null: false
-    t.string "kind", null: false
-    t.bigint "monitoring_location_id", null: false
-    t.datetime "occurred_at", null: false
-    t.jsonb "payload", default: {}, null: false
-    t.datetime "updated_at", null: false
-    t.index ["dedupe_key"], name: "index_alert_events_on_dedupe_key", unique: true
-    t.index ["monitoring_location_id", "occurred_at"], name: "index_alert_events_on_monitoring_location_id_and_occurred_at"
-    t.index ["monitoring_location_id"], name: "index_alert_events_on_monitoring_location_id"
-  end
+# Could not dump table "alert_deliveries" because of following ArgumentError
+#   wrong number of arguments (given 2, expected 1)
 
-  create_table "alert_rules", force: :cascade do |t|
-    t.boolean "armed", default: true, null: false
-    t.datetime "created_at", null: false
-    t.boolean "enabled", default: true, null: false
-    t.string "kind", null: false
-    t.datetime "last_fired_at"
-    t.jsonb "params", default: {}, null: false
-    t.bigint "station_watch_id", null: false
-    t.datetime "updated_at", null: false
-    t.index ["station_watch_id", "kind"], name: "index_alert_rules_on_station_watch_id_and_kind"
-    t.index ["station_watch_id"], name: "index_alert_rules_on_station_watch_id"
-  end
+
+# Could not dump table "alert_events" because of following ArgumentError
+#   wrong number of arguments (given 2, expected 1)
+
+
+# Could not dump table "alert_rules" because of following ArgumentError
+#   wrong number of arguments (given 2, expected 1)
+
 
   create_table "app_settings", force: :cascade do |t|
     t.datetime "created_at", null: false
@@ -132,67 +94,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_210000) do
     t.index ["time_series_id"], name: "index_latest_observations_on_time_series_id", unique: true
   end
 
-  create_table "monitoring_locations", force: :cascade do |t|
-    t.boolean "active", default: true, null: false
-    t.string "agency_code", default: "USGS", null: false
-    t.string "county_code"
-    t.string "county_name"
-    t.datetime "created_at", null: false
-    t.string "data_provider", default: "usgs", null: false
-    t.string "display_name", null: false
-    t.jsonb "downstream_station_ids", default: [], null: false
-    t.decimal "drainage_area", precision: 12, scale: 3
-    t.string "flood_category"
-    t.datetime "flood_category_observed_at"
-    t.decimal "flood_stage_action", precision: 16, scale: 6
-    t.decimal "flood_stage_major", precision: 16, scale: 6
-    t.decimal "flood_stage_minor", precision: 16, scale: 6
-    t.decimal "flood_stage_moderate", precision: 16, scale: 6
-    t.boolean "has_discharge", default: false, null: false
-    t.boolean "has_temperature", default: false, null: false
-    t.boolean "has_water_level", default: false, null: false
-    t.string "hydrologic_unit_code"
-    t.string "latest_approval_status"
-    t.string "latest_discharge_unit"
-    t.decimal "latest_discharge_value", precision: 16, scale: 6
-    t.datetime "latest_observed_at"
-    t.decimal "latest_temperature_c", precision: 8, scale: 3
-    t.string "latest_water_level_parameter_code"
-    t.string "latest_water_level_unit"
-    t.decimal "latest_water_level_value", precision: 16, scale: 6
-    t.decimal "latitude", precision: 10, scale: 7, null: false
-    t.decimal "longitude", precision: 10, scale: 7, null: false
-    t.datetime "metadata_synced_at"
-    t.string "name", null: false
-    t.jsonb "nearby_station_ids", default: [], null: false
-    t.datetime "network_synced_at"
-    t.string "nwps_lid"
-    t.boolean "nwps_matched", default: false, null: false
-    t.datetime "nwps_synced_at"
-    t.string "provider_location_id", null: false
-    t.string "search_name", null: false
-    t.string "site_number", null: false
-    t.string "site_type_code"
-    t.string "site_type_name"
-    t.string "slug", null: false
-    t.string "state_code", null: false
-    t.string "state_name"
-    t.string "time_zone"
-    t.datetime "updated_at", null: false
-    t.jsonb "upstream_station_ids", default: [], null: false
-    t.index ["active", "latest_observed_at"], name: "index_monitoring_locations_on_active_and_latest_observed_at"
-    t.index ["data_provider"], name: "index_monitoring_locations_on_data_provider"
-    t.index ["flood_category"], name: "index_monitoring_locations_on_flood_category"
-    t.index ["has_discharge"], name: "index_monitoring_locations_on_has_discharge", where: "(has_discharge = true)"
-    t.index ["has_water_level"], name: "index_monitoring_locations_on_has_water_level", where: "(has_water_level = true)"
-    t.index ["latitude", "longitude"], name: "index_monitoring_locations_on_latitude_and_longitude"
-    t.index ["nwps_lid"], name: "index_monitoring_locations_on_nwps_lid", where: "(nwps_lid IS NOT NULL)"
-    t.index ["nwps_matched"], name: "index_monitoring_locations_on_nwps_matched", where: "(nwps_matched = true)"
-    t.index ["provider_location_id"], name: "index_monitoring_locations_on_provider_location_id", unique: true
-    t.index ["search_name"], name: "index_monitoring_locations_on_search_name"
-    t.index ["site_number"], name: "index_monitoring_locations_on_site_number", unique: true
-    t.index ["state_code", "county_name", "name"], name: "idx_on_state_code_county_name_name_ac7d4d7687"
-  end
+# Could not dump table "monitoring_locations" because of following ArgumentError
+#   wrong number of arguments (given 2, expected 1)
+
 
   create_table "peak_observations", force: :cascade do |t|
     t.string "approval_status"
