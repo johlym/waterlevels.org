@@ -78,7 +78,6 @@ class NwpsGaugeSync
     attrs = {
       data_provider: DataProviders::NWPS,
       agency_code: "NWS",
-      agency_name: DataProviders.label_for(DataProviders::NWPS),
       provider_location_id: Nwps::GaugeCatalog.provider_location_id(entry.lid),
       site_number: entry.site_number,
       name: entry.name,

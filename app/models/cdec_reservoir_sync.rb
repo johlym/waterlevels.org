@@ -49,7 +49,6 @@ class CdecReservoirSync
     attrs = {
       data_provider: DataProviders::CDEC,
       agency_code: "CDEC",
-      agency_name: DataProviders.label_for(DataProviders::CDEC),
       provider_location_id: Cdec::ReservoirCatalog.provider_location_id(entry.station_id),
       site_number: entry.site_number,
       name: entry.name,
