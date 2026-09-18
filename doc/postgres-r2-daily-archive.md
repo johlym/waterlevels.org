@@ -9,7 +9,7 @@ Related: [`plan-3y-daily-history.md`](./plan-3y-daily-history.md) (historical 1y
 | Range | Source |
 |-------|--------|
 | `24h` / `7d` / `30d` | Continuous IV in Postgres (~15-minute) |
-| `1y` / `3y` / future `Ny` | Daily means from **R2 only** |
+| `1y` / `3y` / `10y` | Daily means from **R2 only** (`10y` unlocks when archive coverage extends past 3 years, then shows up to 10 years or the series POR; non-USGS daily reservoirs are filled first) |
 
 ## Windows
 
@@ -17,7 +17,7 @@ Related: [`plan-3y-daily-history.md`](./plan-3y-daily-history.md) (historical 1y
 |-------|-----------|
 | Continuous IV (Postgres) | **35 days** (`HistoryIngestion::CONTINUOUS_RETENTION`) of native USGS IV (typically ~15-minute) |
 | Day-31 handoff frontier | Local calendar **day 31** (`DailyArchive::CONTINUOUS_ROLLUP_AFTER`) |
-| Daily history (R2) | All historical dailies used by `1y` / `3y` / `Ny` |
+| Daily history (R2) | All historical dailies used by `1y` / `3y` / `10y` |
 | `daily_observations` (Postgres) | **Legacy drain only** — new ingest does not write here when archive writes are on |
 
 ## Expected IV row counts

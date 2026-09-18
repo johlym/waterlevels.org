@@ -6,10 +6,10 @@ namespace :usace do
     progress.finish("synced=#{count}")
   end
 
-  desc "Backfill USACE daily archive history. SITE=usacenabraystown YEARS=3"
+  desc "Backfill USACE daily archive history. SITE=usacenabraystown YEARS=10"
   task backfill: :environment do
     site = ENV.fetch("SITE")
-    years = ENV.fetch("YEARS", "3").to_i
+    years = ENV.fetch("YEARS", HistoryIngestion::DEFAULT_NON_USGS_DAILY_YEARS.to_s).to_i
     location = MonitoringLocation.find_by!(site_number: site)
     abort "SITE=#{site} is not a USACE location" unless location.data_provider == DataProviders::USACE
 
@@ -24,7 +24,10 @@ namespace :usace do
   task enqueue_bootstrap: :environment do
     UsaceProjectSyncJob.perform_later
     Usace::ProjectCatalog.active_entries.each do |entry|
-      UsaceHistoryBackfillJob.perform_later(entry.site_number, ENV.fetch("YEARS", "3").to_i)
+      UsaceHistoryBackfillJob.perform_later(
+        entry.site_number,
+        ENV.fetch("YEARS", HistoryIngestion::DEFAULT_NON_USGS_DAILY_YEARS.to_s).to_i
+      )
     end
     puts "Enqueued UsaceProjectSyncJob + #{Usace::ProjectCatalog.active_entries.size} history jobs"
   end

@@ -78,6 +78,7 @@ class DataProvidersTest < ActiveSupport::TestCase
     assert location.daily_only?
     assert_equal "1y", location.default_chart_range
     assert_equal %w[30d 1y], location.chart_ranges
+    refute_includes location.chart_ranges, "10y"
   end
 
   test "daily_only? is false for usgs even without continuous denorm tips" do

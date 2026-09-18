@@ -142,7 +142,7 @@
           <div class="segmented" role="group" aria-label="Time range">
             <% ranges = @location.chart_ranges
                default_range = @location.default_chart_range
-               range_labels = { "7d" => "7 Days", "30d" => "30 Days", "1y" => "1 Year", "3y" => "3 Years" } %>
+               range_labels = { "7d" => "7 Days", "30d" => "30 Days", "1y" => "1 Year", "3y" => "3 Years", "10y" => "10 Years" } %>
             <% ranges.each do |range| %>
               <button
                 type="button"

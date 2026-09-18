@@ -6,7 +6,8 @@ class HydrographSeries
     "7d" => { continuous: true, duration: 7.days },
     "30d" => { continuous: true, duration: 30.days },
     "1y" => { continuous: false, duration: 1.year },
-    "3y" => { continuous: false, duration: 3.years }
+    "3y" => { continuous: false, duration: 3.years },
+    "10y" => { continuous: false, duration: 10.years }
   }.freeze
 
   attr_accessor :time_series, :range

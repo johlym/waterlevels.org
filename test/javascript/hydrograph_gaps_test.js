@@ -14,6 +14,9 @@ describe("hydrograph_gaps", () => {
     assert.equal(isContinuousChartRange("7d"), true)
     assert.equal(isContinuousChartRange("30d"), true)
     assert.equal(isContinuousChartRange("1y"), false)
+    assert.equal(isContinuousChartRange("3y"), false)
+    assert.equal(isContinuousChartRange("10y"), false)
+    assert.equal(isContinuousChartRange("10y", "daily"), false)
   })
 
   it("finds interior gaps larger than the threshold", () => {

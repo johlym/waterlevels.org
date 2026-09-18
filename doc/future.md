@@ -19,7 +19,9 @@ We use the modern OGC API (`https://api.waterdata.usgs.gov/ogcapi/v0/`), not leg
 
 Official USGS/`dataRetrieval` guidance: continuous is limited to three years **per request**, not three years total archive. Longer continuous POR is done by partitioning queries. Direct-download helpers may improve later; until then, chunked API pulls are the supported path.
 
-**Today’s product grain:** short charts use ~15‑minute continuous (retained ~35 days); `1y` / `3y` charts use **daily** means from R2. There is no hourly series yet.
+**Today’s product grain:** short charts use ~15‑minute continuous (retained ~35 days); `1y` / `3y` charts use **daily** means from R2. Curated non-USGS daily reservoirs (USBR / USACE / CDEC) also fill a gated `10y` daily tab so the year-shard read path can be proven before USGS daily goes past 3y. There is no hourly series yet.
+
+**Non-USGS daily 10y (mechanics proving ground):** seven allowlisted reservoirs write year shards the same way USGS dailies do. Backfill still requests 10 years and keeps whatever the agency POR includes. The `10y` tab unlocks once daily coverage extends past 3 years (not only when a full decade is present), so a shorter record still gets the longer chart. USGS `HistoryIngestion` stays at `DAILY_RETENTION = 3.years`. NWPS primary gauges cannot join this path — the official NWPS API keeps only ~30 days of stageflow plus crest/low-water history, not a continuous archive.
 
 **Target product grain (this doc’s north star):** **hourly resolution for the full period of record** (metadata `start` → now), so long-range charts no longer drop to daily after 30 days. Daily remains the cheap long archive in R2; full IV (~15‑minute) stays for the recent window only unless product later demands it.
 

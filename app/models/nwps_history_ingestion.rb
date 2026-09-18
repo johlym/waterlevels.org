@@ -1,6 +1,10 @@
 # Ingests NWPS stageflow observed points into continuous_observations for
 # curated non-USGS NWPS gauges. Stageflow typically covers ~30 days of IV-like
 # readings — enough for 24h/7d/30d hydrographs.
+#
+# The official NWPS API does not publish a continuous historical archive
+# (only recent stageflow plus crest / low-water events), so these gauges
+# cannot join the R2 10y daily path used by USBR / USACE / CDEC.
 class NwpsHistoryIngestion
   include ActiveModel::Model
 

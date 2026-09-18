@@ -1,6 +1,12 @@
 require "test_helper"
 
 class HistoryIngestionTest < ActiveSupport::TestCase
+  test "non-USGS daily backfill defaults to 10 years without changing USGS daily retention" do
+    assert_equal 10, HistoryIngestion::DEFAULT_NON_USGS_DAILY_YEARS
+    assert_equal 37.months, HistoryIngestion::DAILY_10Y_HISTORY_ANCHOR
+    assert_equal 3.years, HistoryIngestion::DAILY_RETENTION
+  end
+
   setup do
     @location = create(:monitoring_location, provider_location_id: "USGS-12101000")
     @series = create(

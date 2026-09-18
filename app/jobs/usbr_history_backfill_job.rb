@@ -3,7 +3,7 @@ class UsbrHistoryBackfillJob < ApplicationJob
 
   queue_as :backfill
 
-  def perform(site_number, years = 3)
+  def perform(site_number, years = HistoryIngestion::DEFAULT_NON_USGS_DAILY_YEARS)
     Telemetry.in_root_span(
       "job.usbr_history_backfill",
       attributes: {
