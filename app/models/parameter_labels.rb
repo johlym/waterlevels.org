@@ -5,6 +5,8 @@ module ParameterLabels
     code = parameter_code.to_s
     if code.start_with?("USBR:")
       Usbr::ParameterCodes.label_for(code, fallback: fallback)
+    elsif code.start_with?("USACE:")
+      Usace::ParameterCodes.label_for(code, fallback: fallback)
     else
       Usgs::ParameterCodes.label_for(code, fallback: fallback)
     end
@@ -14,6 +16,8 @@ module ParameterLabels
     code = parameter_code.to_s
     if code.start_with?("USBR:")
       Usbr::ParameterCodes.preference_rank(code)
+    elsif code.start_with?("USACE:")
+      Usace::ParameterCodes.preference_rank(code)
     else
       Usgs::ParameterCodes.preference_rank(code)
     end

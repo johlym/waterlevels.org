@@ -34,7 +34,14 @@ module DataProviders
       rise_id = external_id.delete_prefix("USBR-")
       "https://data.usbr.gov/location/#{rise_id}"
     when USACE
-      nil
+      # USACE-NAB-Raystown → office NAB, CWMS location name Raystown
+      rest = external_id.delete_prefix("USACE-")
+      office, name = rest.split("-", 2)
+      if office.present? && name.present?
+        encoded_name = URI.encode_www_form_component(name)
+        encoded_office = URI.encode_www_form_component(office)
+        "https://cwms-data.usace.army.mil/cwms-data/locations/#{encoded_name}?office=#{encoded_office}"
+      end
     when NWPS
       lid = location.nwps_lid.presence || external_id.delete_prefix("NWPS-")
       "https://water.noaa.gov/gauges/#{lid}" if lid.present?

@@ -216,6 +216,19 @@
             for provenance.
           </p>
         </div>
+      <% elsif @location.data_provider == DataProviders::USACE && @location.agency_url.present? %>
+        <% usace_entry = Usace::ProjectCatalog.find_by_site_number(@location.site_number) %>
+        <div class="history-callout" role="status">
+          <p>
+            Elevation is published by the U.S. Army Corps of Engineers (CWMS Data API).
+            <% if usace_entry&.datum_note.present? %>
+              Vertical datum: <%= usace_entry.datum_note %>.
+            <% end %>
+            See the
+            <%= link_to "official CWMS location record", @location.agency_url, rel: "noopener noreferrer", target: "_blank" %>
+            for provenance.
+          </p>
+        </div>
       <% end %>
       <div data-hydrograph-target="chartView">
         <div class="chart-panel">

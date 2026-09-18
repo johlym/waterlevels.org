@@ -9,6 +9,7 @@ class ApiCatalogTest < ActiveSupport::TestCase
     assert_includes anchors, ApiCatalog::USGS_API
     assert_includes anchors, ApiCatalog::NWPS_API
     assert_includes anchors, ApiCatalog::USBR_API
+    assert_includes anchors, ApiCatalog::USACE_API
 
     serialized = payload.to_json
     refute_includes serialized, "https://waterlevels.org/api"

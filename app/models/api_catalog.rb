@@ -8,6 +8,7 @@ class ApiCatalog
   USGS_API = "https://api.waterdata.usgs.gov/"
   NWPS_API = "https://api.water.noaa.gov/nwps/v1/docs/"
   USBR_API = "https://data.usbr.gov/rise-api"
+  USACE_API = "https://cwms-data.usace.army.mil/cwms-data/"
 
   DISCOVERY_LINKS = [
     SELF_LINK,
@@ -57,6 +58,15 @@ class ApiCatalog
           "anchor" => USBR_API,
           "service-desc" => [
             { "href" => USBR_API, "type" => "text/html" }
+          ],
+          "service-doc" => [
+            { "href" => "#{base}/disclosures", "type" => "text/html" }
+          ]
+        },
+        {
+          "anchor" => USACE_API,
+          "service-desc" => [
+            { "href" => USACE_API, "type" => "text/html" }
           ],
           "service-doc" => [
             { "href" => "#{base}/disclosures", "type" => "text/html" }
