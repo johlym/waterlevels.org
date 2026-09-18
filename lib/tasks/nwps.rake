@@ -24,4 +24,33 @@ namespace :nwps do
       puts "Enqueued FloodStageSyncJob (national paced loop)"
     end
   end
+
+  desc "Sync curated NWPS gauges that have no usgsId (primary MonitoringLocation rows)"
+  task sync_gauges: :environment do
+    progress = SyncProgress.new("nwps:sync_gauges")
+    count = NwpsGaugeSync.new(progress: progress).perform
+    progress.finish("synced=#{count}")
+  end
+
+  desc "Backfill NWPS stageflow continuous history. SITE=nwpsacrw1"
+  task backfill_gauge: :environment do
+    site = ENV.fetch("SITE")
+    location = MonitoringLocation.find_by!(site_number: site)
+    abort "SITE=#{site} is not an NWPS location" unless location.data_provider == DataProviders::NWPS
+
+    progress = SyncProgress.new("nwps:backfill_gauge")
+    entry = Nwps::GaugeCatalog.find_by_site_number(site) || abort("Unknown NWPS SITE=#{site}")
+    NwpsGaugeSync.new(progress: progress).sync_entry!(entry)
+    NwpsHistoryIngestion.new(progress: progress).perform(location)
+    progress.finish("site=#{site}")
+  end
+
+  desc "Enqueue curated NWPS gauge tip sync + stageflow backfill"
+  task enqueue_gauge_bootstrap: :environment do
+    NwpsGaugeSyncJob.perform_later
+    Nwps::GaugeCatalog.active_entries.each do |entry|
+      NwpsHistoryBackfillJob.perform_later(entry.site_number)
+    end
+    puts "Enqueued NwpsGaugeSyncJob + #{Nwps::GaugeCatalog.active_entries.size} history jobs"
+  end
 end

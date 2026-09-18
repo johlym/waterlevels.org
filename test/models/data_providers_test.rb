@@ -14,6 +14,18 @@ class DataProvidersTest < ActiveSupport::TestCase
     assert location.usgs?
   end
 
+  test "agency_url_for nwps uses water.noaa.gov gauge path" do
+    location = build(:monitoring_location,
+      data_provider: DataProviders::NWPS,
+      provider_location_id: "NWPS-ACRW1",
+      site_number: "nwpsacrw1",
+      nwps_lid: "ACRW1")
+
+    assert_equal "https://water.noaa.gov/gauges/ACRW1", DataProviders.agency_url_for(location)
+    assert_equal "National Weather Service", location.agency_label
+    assert_not location.usgs?
+  end
+
   test "agency_url_for usace uses CWMS location path" do
     location = build(:monitoring_location,
       data_provider: DataProviders::USACE,

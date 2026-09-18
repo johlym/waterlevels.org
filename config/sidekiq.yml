@@ -69,6 +69,11 @@
       cron: "35 4 * * *"
       class: UsaceProjectSyncJob
       queue: sync
+    nwps_gauge_sync:
+      # Tip refresh for curated NWPS gauges without usgsId (primary rows).
+      cron: "50 4 * * *"
+      class: NwpsGaugeSyncJob
+      queue: sync
     daily_archive_drain:
       # Offset from nightly retention (09:15) so leftover Postgres dailies
       # (ingest fallback / export catch-up) do not sit until the next UTC day.
