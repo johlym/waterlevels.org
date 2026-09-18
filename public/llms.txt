@@ -1,8 +1,8 @@
 # WaterLevels.org
 
-WaterLevels.org maps USGS monitoring locations and presents streamflow, water level, and temperature readings for streams, rivers, lakes, and reservoirs across the United States. Flood categories and stage thresholds come from the National Weather Service National Water Prediction Service (NWPS) when a match exists.
+WaterLevels.org maps USGS monitoring locations and curated Bureau of Reclamation reservoirs, presenting streamflow, water level, and temperature readings for streams, rivers, lakes, and reservoirs across the United States. Flood categories and stage thresholds come from the National Weather Service National Water Prediction Service (NWPS) when a match exists.
 
-This is not an official USGS or NWS website.
+This is not an official USGS, USBR, or NWS website.
 
 ## Pages
 
@@ -23,6 +23,7 @@ WaterLevels.org does not offer a public third-party data API. First-party `/api/
 For programmatic access, use:
 
 - USGS Water Data APIs: https://api.waterdata.usgs.gov/
+- USBR RISE API: https://data.usbr.gov/rise-api
 - NWPS API: https://api.water.noaa.gov/nwps/v1/docs/
 
 Machine-readable catalog: /.well-known/api-catalog

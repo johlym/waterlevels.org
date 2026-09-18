@@ -1,6 +1,6 @@
 <% location_name = display_location_name(@snapshot[:name]) %>
 <% content_for :title, "#{location_name} Water Level & Flow | #{@snapshot[:state_code].upcase} | WaterLevels.org" %>
-<% content_for :meta_description, "Current water level, flow, and temperature for #{location_name} from USGS monitoring data." %>
+<% content_for :meta_description, "Current water level, flow, and temperature for #{location_name} from #{@location.agency_label} monitoring data." %>
 <% content_for :og_image_path, og_station_path(@snapshot[:site_number]) %>
 <% measurements = Array(@snapshot[:measurements]) %>
 <%
@@ -26,6 +26,7 @@
   data-hydrograph-time-zone-label-value="<%= @snapshot[:time_zone] %>"
   data-hydrograph-daily-only-value="<%= @location.daily_only? %>"
   data-hydrograph-default-range-value="<%= @location.default_chart_range %>"
+  data-hydrograph-data-provider-value="<%= @location.data_provider %>"
   data-temperature-unit-url-value="<%= temperature_unit_path %>"
 >
   <%= render Navigation::BarComponent.new %>
@@ -176,14 +177,14 @@
           </button>
         </div>
       </div>
-      <% if @location.missing_year_history? %>
+      <% if @location.usgs? && @location.missing_year_history? %>
         <div class="history-callout" role="status">
           <p>
             Full-year history is still loading for this station. Shorter ranges are available now;
             the 1 Year chart will fill in as we finish backfilling from USGS.
           </p>
         </div>
-      <% elsif (unavailable = @location.daily_history_unavailable_labels).any? %>
+      <% elsif @location.usgs? && (unavailable = @location.daily_history_unavailable_labels).any? %>
         <div class="history-callout" role="status">
           <p>
             USGS does not publish daily history for <%= unavailable.to_sentence %>.
@@ -191,7 +192,7 @@
           </p>
         </div>
       <% end %>
-      <% if @location.known_missing_usgs_iv? %>
+      <% if @location.usgs? && @location.known_missing_usgs_iv? %>
         <div class="history-callout" role="status">
           <p>
             USGS is missing data that would fill a gap in this station's recent readings.
@@ -202,6 +203,17 @@
             <% else %>
               We'll check USGS again after the retry window.
             <% end %>
+          </p>
+        </div>
+      <% end %>
+      <% if @location.data_provider == DataProviders::USBR && @location.agency_url.present? %>
+        <div class="history-callout" role="status">
+          <p>
+            Elevation is published daily by the U.S. Bureau of Reclamation (RISE).
+            Vertical datum at Hoover Dam / Lake Mead is USGS 1912 (Power House Datum).
+            See the
+            <%= link_to "official RISE location page", @location.agency_url, rel: "noopener noreferrer", target: "_blank" %>
+            for provenance.
           </p>
         </div>
       <% end %>

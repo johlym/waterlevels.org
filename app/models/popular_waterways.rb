@@ -4,7 +4,7 @@ class PopularWaterways
       key: "colorado-river",
       name: "Colorado River",
       blurb: "Major gauges along the Colorado and its lower basin.",
-      site_numbers: %w[09380000 09421500 09427520]
+      site_numbers: %w[09380000 09421500 09427520 usbr3514]
     },
     {
       key: "mississippi-basin",

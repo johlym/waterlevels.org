@@ -43,7 +43,7 @@ class MapStationPayload
       water_level: water_level_value&.to_f,
       water_level_unit: UnitLabel.format(water_level_unit),
       water_level_parameter_code: water_level_code,
-      water_level_label: Usgs::ParameterCodes.label_for(water_level_code, fallback: "Water level"),
+      water_level_label: ParameterLabels.label_for(water_level_code, fallback: "Water level"),
       discharge: discharge_value&.to_f,
       discharge_unit: UnitLabel.format(discharge_unit),
       temperature_c: temperature_c&.to_f,

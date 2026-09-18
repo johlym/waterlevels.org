@@ -378,7 +378,7 @@ class MonitoringLocation < ApplicationRecord
 
   def daily_history_unavailable_labels
     daily_history_unavailable_series.map do |series|
-      Usgs::ParameterCodes.label_for(series.parameter_code, fallback: series.parameter_description)
+      ParameterLabels.label_for(series.parameter_code, fallback: series.parameter_description)
     end.uniq
   end
 

@@ -59,7 +59,8 @@ export default class extends Controller {
     timeZone: { type: String, default: "" },
     timeZoneLabel: { type: String, default: "" },
     dailyOnly: { type: Boolean, default: false },
-    defaultRange: { type: String, default: "7d" }
+    defaultRange: { type: String, default: "7d" },
+    dataProvider: { type: String, default: "usgs" }
   }
 
   connect() {
@@ -346,7 +347,7 @@ export default class extends Controller {
 
   emptyRangeMessage() {
     const dailyRange = this.range === "1y" || this.range === "3y"
-    if (dailyRange && this.series?.usgs_daily_absent) {
+    if (dailyRange && this.series?.usgs_daily_absent && this.dataProviderValue === "usgs") {
       const label = this.series.label || "this measurement"
       return `USGS does not publish daily values for ${label}. Try 30 Days or shorter for continuous readings.`
     }
@@ -479,7 +480,7 @@ export default class extends Controller {
       `
     }).join("")
 
-    const estimatedFootnote = day.rows.some((row) => row.status === "estimated")
+    const estimatedFootnote = day.rows.some((row) => row.status === "estimated") && this.dataProviderValue === "usgs"
       ? `<p class="aside">Estimated daily mean from continuous data (USGS daily unavailable).</p>`
       : ""
 
