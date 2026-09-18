@@ -3,9 +3,10 @@ require "faraday/retry"
 module Usace
   # CWMS Data API (CDA) client for curated Corps projects.
   # Docs: https://cwms-data.usace.army.mil/cwms-data/swagger-ui.html
+  # CDA rejects requests that send both an Accept header and format=json;
+  # we negotiate via the query param only.
   class Client
     BASE_URL = "https://cwms-data.usace.army.mil/cwms-data/".freeze
-    ACCEPT = "application/json".freeze
     DEFAULT_PAGE_SIZE = 500
 
     Error = Class.new(StandardError)
@@ -81,7 +82,8 @@ module Usace
       ) do
         pause_between_requests!
         response = @connection.get(path) do |req|
-          req.headers["Accept"] = ACCEPT
+          # Prefer query format= over Accept — CDA returns 406 if both are set.
+          req.headers.delete("Accept")
           params.each { |key, value| req.params[key.to_s] = value }
         end
         Telemetry.add_attributes("http.response.status_code" => response.status)
