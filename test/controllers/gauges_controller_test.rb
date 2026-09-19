@@ -610,6 +610,67 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_not stations.first.key?("lat")
   end
 
+  test "station search fills live matches before leftover stale slots" do
+    live = 8.times.map do |index|
+      create(
+        :monitoring_location,
+        site_number: format("3100000%d", index),
+        provider_location_id: format("USGS-3100000%d", index),
+        name: "Zander Creek near Site #{index}",
+        state_code: "or",
+        state_name: "Oregon",
+        latest_observed_at: 1.hour.ago
+      )
+    end
+    stale = create(
+      :monitoring_location,
+      site_number: "31000009",
+      provider_location_id: "USGS-31000009",
+      name: "Zander Creek near Site stale",
+      state_code: "or",
+      state_name: "Oregon",
+      latest_observed_at: 2.weeks.ago
+    )
+
+    api_get "/api/map/stations/search", params: { q: "zander" }
+    assert_response :success
+    results = JSON.parse(response.body)["stations"]
+    ids = results.map { |row| row["id"] }
+
+    assert_equal 8, results.size
+    assert_equal live.map(&:site_number).sort, ids.sort
+    assert results.none? { |row| row["stale"] }
+    assert_not_includes ids, stale.site_number
+  end
+
+  test "station search includes a stale match when live results leave room" do
+    live = create(
+      :monitoring_location,
+      site_number: "31000010",
+      provider_location_id: "USGS-31000010",
+      name: "Zelkova Creek near Live",
+      state_code: "or",
+      state_name: "Oregon",
+      latest_observed_at: 1.hour.ago
+    )
+    stale = create(
+      :monitoring_location,
+      site_number: "31000011",
+      provider_location_id: "USGS-31000011",
+      name: "Zelkova Creek near Stale",
+      state_code: "or",
+      state_name: "Oregon",
+      latest_observed_at: 2.weeks.ago
+    )
+
+    api_get "/api/map/stations/search", params: { q: "zelkova" }
+    assert_response :success
+    results = JSON.parse(response.body)["stations"].select { |row| row["type"] == "station" }
+
+    assert_equal [ live.site_number, stale.site_number ], results.map { |row| row["id"] }
+    assert_equal [ false, true ], results.map { |row| row["stale"] }
+  end
+
   test "station search requires at least two characters" do
     create(:monitoring_location, name: "POTOMAC RIVER NEAR WASH, DC", state_code: "md")
 

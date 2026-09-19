@@ -15,6 +15,7 @@ class MonitoringLocation < ApplicationRecord
   scope :for_provider, ->(provider) { where(data_provider: provider.to_s) }
   # Matches #stale? inverted — recent enough for the map "Active" status.
   scope :not_stale, -> { where(latest_observed_at: STALE_AFTER.ago..) }
+  scope :stale, -> { where("latest_observed_at IS NULL OR latest_observed_at < ?", STALE_AFTER.ago) }
   scope :in_state, ->(code) { where(state_code: code.to_s.downcase) }
   scope :ordered_for_state_table, -> { order(Arel.sql("LOWER(COALESCE(county_name, '')) ASC, LOWER(display_name) ASC")) }
   scope :in_bbox, lambda { |west, south, east, north|
@@ -35,7 +36,8 @@ class MonitoringLocation < ApplicationRecord
     ).order(
       Arel.sql(
         sanitize_sql_array([
-          "CASE
+          "CASE WHEN latest_observed_at >= :fresh_after THEN 0 ELSE 1 END,
+          CASE
             WHEN site_number = :exact THEN 0
             WHEN UPPER(COALESCE(nwps_lid, '')) = UPPER(:exact) THEN 1
             WHEN site_number ILIKE :prefix THEN 2
@@ -43,6 +45,7 @@ class MonitoringLocation < ApplicationRecord
             ELSE 4
           END, display_name ASC",
           {
+            fresh_after: STALE_AFTER.ago,
             exact: q,
             prefix: "#{sanitize_sql_like(q)}%",
             expanded_prefix: "#{sanitize_sql_like(expanded)}%"
