@@ -97,10 +97,18 @@ class StationSnapshotCache
     network = cached[:network] || cached["network"] || {}
     cached_up = Array(network[:upstream] || network["upstream"]).size
     cached_down = Array(network[:downstream] || network["downstream"]).size
-    cached_up != Array(location.upstream_station_ids).size ||
-      cached_down != Array(location.downstream_station_ids).size
+    live_ids = live_neighbor_ids(location.upstream_station_ids + location.downstream_station_ids)
+    cached_up != Array(location.upstream_station_ids).count { |id| live_ids.include?(id) } ||
+      cached_down != Array(location.downstream_station_ids).count { |id| live_ids.include?(id) }
   end
-  private_class_method :stale_snapshot?, :network_mismatch?
+
+  def self.live_neighbor_ids(ids)
+    ids = Array(ids).uniq
+    return [] if ids.empty?
+
+    MonitoringLocation.not_stale.where(id: ids).pluck(:id)
+  end
+  private_class_method :stale_snapshot?, :network_mismatch?, :live_neighbor_ids
 
   def self.build_payload(location)
     selected = location.time_series.selected
@@ -347,6 +355,7 @@ class StationSnapshotCache
     Array(ids).filter_map do |id|
       n = stations[id]
       next unless n
+      next if n.stale?
 
       neighbor_card(n, origin_lat: origin_lat, origin_lon: origin_lon)
     end

@@ -18,6 +18,13 @@ class GaugesHelperTest < ActionView::TestCase
     assert_equal 1, fields[:readings].size
   end
 
+  test "related_station_stale? reads boolean or string flags" do
+    assert related_station_stale?({ stale: true })
+    assert related_station_stale?("stale" => "true")
+    refute related_station_stale?({ stale: false })
+    refute related_station_stale?({ name: "Live Creek" })
+  end
+
   test "related_station_watch? is true for NWS alert categories" do
     assert related_station_watch?("action")
     assert related_station_watch?("major")

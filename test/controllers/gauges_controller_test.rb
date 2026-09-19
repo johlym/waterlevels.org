@@ -420,6 +420,35 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "stream-hop"
   end
 
+  test "related stations omit stale neighbors even when ids are persisted" do
+    live = create(
+      :monitoring_location,
+      site_number: "00000666",
+      provider_location_id: "USGS-00000666",
+      name: "Live Neighbor near Town",
+      slug: "live-neighbor-near-town",
+      latest_observed_at: 20.minutes.ago
+    )
+    stale = create(
+      :monitoring_location,
+      site_number: "00000555",
+      provider_location_id: "USGS-00000555",
+      name: "Stale Neighbor near Town",
+      slug: "stale-neighbor-near-town",
+      latest_observed_at: 2.weeks.ago
+    )
+    @location.update!(
+      nearby_station_ids: [ live.id, stale.id ],
+      upstream_station_ids: [ stale.id ]
+    )
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_includes response.body, "Live Neighbor Near Town"
+    assert_not_includes response.body, "Stale Neighbor Near Town"
+    assert_not_includes response.body, "On this stream"
+  end
+
   test "hides the on-stream timeline when both sides are empty" do
     get "/gauges/#{@location.state_code}/#{@location.to_param}"
     assert_response :success
@@ -727,6 +756,44 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     station = JSON.parse(response.body)["station"]
     assert_equal near.site_number, station["id"]
     assert_equal "/gauges/#{near.path_state}/#{near.to_param}", station["path"]
+  end
+
+  test "nearest station skips a closer stale location" do
+    @location.update!(latitude: 20.0, longitude: -80.0)
+    create(
+      :monitoring_location,
+      site_number: "20000003",
+      latitude: 47.051,
+      longitude: -122.051,
+      latest_observed_at: 2.weeks.ago
+    )
+    live = create(
+      :monitoring_location,
+      site_number: "20000004",
+      latitude: 47.06,
+      longitude: -122.06,
+      latest_observed_at: 1.hour.ago
+    )
+
+    api_get "/api/map/stations/nearest", params: { lat: 47.051, lon: -122.051 }
+    assert_response :success
+    station = JSON.parse(response.body)["station"]
+    assert_equal live.site_number, station["id"]
+  end
+
+  test "nearest station is not found when only stale locations are nearby" do
+    @location.update!(latitude: 20.0, longitude: -80.0)
+    create(
+      :monitoring_location,
+      site_number: "20000005",
+      latitude: 47.051,
+      longitude: -122.051,
+      latest_observed_at: 2.weeks.ago
+    )
+
+    api_get "/api/map/stations/nearest", params: { lat: 47.051, lon: -122.051 }
+    assert_response :not_found
+    assert_nil JSON.parse(response.body)["station"]
   end
 
   test "station search returns a ZIP result that links to a zoomed map view" do
