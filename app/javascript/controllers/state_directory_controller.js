@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["search", "type", "floodStage", "alertsOnly", "card", "county", "countyCount", "empty", "listings", "countyJump", "status"]
+  static targets = ["search", "type", "floodStage", "alertsOnly", "showOffline", "card", "county", "countyCount", "empty", "listings", "countyJump", "jump", "status"]
 
   connect() {
     this.filter()
@@ -31,6 +31,7 @@ export default class extends Controller {
       .map((input) => input.value)
     const filterByFloodStage = floodStageFilters.length > 0
     const alertsOnly = this.hasAlertsOnlyTarget && this.alertsOnlyTarget.checked
+    const showOffline = this.hasShowOfflineTarget && this.showOfflineTarget.checked
 
     let visibleCards = 0
 
@@ -39,11 +40,13 @@ export default class extends Controller {
       const types = (card.dataset.types || "").split(/\s+/).filter(Boolean)
       const floodStage = card.dataset.floodStage || ""
       const hasAlert = card.dataset.alert === "true"
+      const isOffline = card.dataset.offline === "true"
       const matchesQuery = !query || name.includes(query)
       const matchesType = activeTypes.length > 0 && types.some((type) => activeTypes.includes(type))
       const matchesFloodStage = !filterByFloodStage || (activeFloodStages.length > 0 && activeFloodStages.includes(floodStage))
       const matchesAlert = !alertsOnly || hasAlert
-      const visible = matchesQuery && matchesType && matchesFloodStage && matchesAlert
+      const matchesOffline = showOffline || !isOffline
+      const visible = matchesQuery && matchesType && matchesFloodStage && matchesAlert && matchesOffline
       card.hidden = !visible
       if (visible) visibleCards += 1
     })
@@ -55,6 +58,16 @@ export default class extends Controller {
       const countEl = county.querySelector("[data-state-directory-target='countyCount']")
       if (countEl) {
         countEl.textContent = `${count} ${count === 1 ? "station" : "stations"}`
+      }
+      const head = county.querySelector(".county-head")
+      const anchor = head?.id
+      if (anchor && this.hasJumpTarget) {
+        const link = this.jumpTargets.find((el) => el.getAttribute("href") === `#${anchor}`)
+        if (link) {
+          const name = link.dataset.groupName || ""
+          link.textContent = `${name} (${count})`
+          link.hidden = count === 0
+        }
       }
     })
 
