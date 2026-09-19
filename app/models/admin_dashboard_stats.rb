@@ -107,6 +107,17 @@ class AdminDashboardStats
       payload
     end
 
+    # Merge into the last snapshot and refresh finished_at. Used for skip /
+    # in-progress phase writes so /admin keeps a last-done time even when a
+    # run does not reach a full successful finish.
+    def record_job_progress!(name, finished_at: Time.current, skip_reason: nil, **extra)
+      previous = (last_job(name) || {}).except(:finished_at)
+      previous.delete(:skip_reason) if skip_reason.blank?
+      payload = previous.merge(extra.compact)
+      payload[:skip_reason] = skip_reason if skip_reason.present?
+      record_job_finish!(name, finished_at: finished_at, **payload.except(:finished_at))
+    end
+
     def record_iv_repair_candidates!(count, scanned_at: Time.current)
       write_job_payload(
         IV_REPAIR_CANDIDATES_CACHE_KEY,
@@ -289,7 +300,14 @@ class AdminDashboardStats
     end
 
     def read_job_payload(key)
-      AdminCounter.payload_for(key)
+      row = AdminCounter.fetch(key)
+      return unless row
+
+      payload = AdminCounter.payload_for(key) || {}
+      if payload[:finished_at].blank? && row.computed_at
+        payload[:finished_at] = row.computed_at.iso8601
+      end
+      payload
     end
 
     def redis_with_rescue
@@ -456,6 +474,8 @@ class AdminDashboardStats
       last_flood_sync_at: parse_time(flood[:finished_at]),
       last_flood_sync_state: flood[:state],
       last_prune_at: parse_time(prune[:finished_at]),
+      last_prune_phase: prune[:phase],
+      last_prune_skip_reason: prune[:skip_reason],
       last_prune_usgs_ensured: prune[:usgs_ensured].to_i,
       last_prune_derived: prune[:derived].to_i,
       last_prune_retrying: prune[:retrying].to_i,
@@ -466,6 +486,8 @@ class AdminDashboardStats
       last_prune_daily_blocked: prune[:daily_prune_blocked].to_i,
       last_prune_vacuumed: prune[:vacuumed],
       last_daily_archive_export_at: parse_time(archive_export[:finished_at]),
+      last_daily_archive_export_phase: archive_export[:phase],
+      last_daily_archive_export_skip_reason: archive_export[:skip_reason],
       last_daily_archive_export_series: archive_export[:series],
       last_daily_archive_export_points: archive_export[:points],
       last_daily_archive_export_daily_deleted: archive_export[:daily_deleted].to_i,
@@ -824,11 +846,7 @@ class AdminDashboardStats
   end
 
   def parse_time(value)
-    return if value.blank?
-
-    Time.zone.parse(value.to_s)
-  rescue ArgumentError
-    nil
+    self.class.parse_cached_time(value)
   end
 
   def connection

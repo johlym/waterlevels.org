@@ -73,6 +73,20 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
       series_upserted: 12,
       finished_at: 30.minutes.ago
     )
+    AdminDashboardStats.record_job_finish!(
+      :prune,
+      finished_at: 2.hours.ago,
+      usgs_ensured: 3,
+      derived: 1,
+      iv_deleted: 8
+    )
+    AdminDashboardStats.record_job_finish!(
+      :daily_archive_export,
+      finished_at: 90.minutes.ago,
+      series: 2,
+      points: 11,
+      daily_deleted: 11
+    )
 
     post admin_login_path, params: { password: "secret-dashboard" }
 
@@ -111,6 +125,11 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     get admin_dashboard_section_path(section: :jobs)
     assert_response :success
     assert_includes response.body, "Latest tip sync"
+    assert_includes response.body, "Day-31 handoff + retention"
+    assert_includes response.body, "3 USGS"
+    assert_includes response.body, "Daily archive export"
+    assert_includes response.body, "2 series"
+    assert_includes response.body, "11 points"
 
     get admin_dashboard_section_path(section: :states)
     assert_response :success

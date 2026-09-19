@@ -4,6 +4,7 @@ class ContinuousPruneJob < ApplicationJob
   def perform
     unless AppConfig.boolean?(:continuous_prune_enabled)
       Rails.logger.info("ContinuousPruneJob skipped: disabled by admin settings")
+      AdminDashboardStats.record_job_progress!(:prune, skip_reason: "disabled_by_settings")
       return
     end
     if DatabaseReadOnlyCircuit.open?
@@ -15,7 +16,13 @@ class ContinuousPruneJob < ApplicationJob
       "daily_archive.retention",
       attributes: { "app.operation" => "daily_archive.retention" }
     ) do
-      stats = DailyArchive::Retention.new(progress: progress).perform
+      AdminDashboardStats.record_job_progress!(:prune, phase: "running")
+      stats = DailyArchive::Retention.new(
+        progress: progress,
+        on_phase: ->(phase, phase_stats) {
+          AdminDashboardStats.record_job_progress!(:prune, phase: phase, **phase_stats)
+        }
+      ).perform
       Telemetry.add_attributes(
         "app.usgs_ensured" => stats[:usgs_ensured],
         "app.derived" => stats[:derived],
@@ -29,6 +36,7 @@ class ContinuousPruneJob < ApplicationJob
       )
       AdminDashboardStats.record_job_finish!(
         :prune,
+        phase: "complete",
         usgs_ensured: stats[:usgs_ensured],
         derived: stats[:derived],
         retrying: stats[:retrying],

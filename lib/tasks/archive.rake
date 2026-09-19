@@ -17,6 +17,7 @@ namespace :archive do
       time_series_ids: ids,
       only_cold: only_cold
     )
+    DailyArchiveExportJob.record_finish!(result)
     progress.finish("series=#{result[:series]} points=#{result[:points]} daily_deleted=#{result[:daily_deleted]}")
     puts "Daily archive export finished series=#{result[:series]} points=#{result[:points]} daily_deleted=#{result[:daily_deleted]}"
   end

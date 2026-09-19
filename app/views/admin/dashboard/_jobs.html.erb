@@ -69,7 +69,9 @@
       </p>
       <p class="label">Day-31 handoff + retention</p>
       <p class="hint">
-        <% if stats[:last_prune_at] %>
+        <% if stats[:last_prune_skip_reason].present? %>
+          Skipped: <%= stats[:last_prune_skip_reason] %>
+        <% elsif stats[:last_prune_at] %>
           <%= number_with_delimiter(stats[:last_prune_usgs_ensured].to_i) %> USGS ·
           <%= number_with_delimiter(stats[:last_prune_derived].to_i) %> estimated ·
           <%= number_with_delimiter(stats[:last_prune_retrying].to_i) %> retrying ·
@@ -83,6 +85,9 @@
           <% if stats[:last_prune_vacuumed] %>
             · VACUUM
           <% end %>
+          <% if stats[:last_prune_phase].present? && stats[:last_prune_phase].to_s != "complete" %>
+            · <%= stats[:last_prune_phase].to_s.tr("_", " ") %>
+          <% end %>
         <% else %>
           USGS-first ensure, then IV prune + Postgres daily drain
         <% end %>
@@ -95,7 +100,9 @@
       </p>
       <p class="label">Daily archive export</p>
       <p class="hint">
-        <% if stats[:last_daily_archive_export_at] %>
+        <% if stats[:last_daily_archive_export_skip_reason].present? %>
+          Skipped: <%= stats[:last_daily_archive_export_skip_reason] %>
+        <% elsif stats[:last_daily_archive_export_at] %>
           <%= number_with_delimiter(stats[:last_daily_archive_export_series].to_i) %> series ·
           <%= number_with_delimiter(stats[:last_daily_archive_export_points].to_i) %> points
           <% if stats[:last_daily_archive_export_daily_deleted].to_i.positive? %>

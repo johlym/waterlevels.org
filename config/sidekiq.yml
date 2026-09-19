@@ -56,6 +56,12 @@
       cron: "17 6 * * 1"
       class: NetworkRefreshBatchJob
       queue: sync
+    daily_archive_export:
+      # Leftover Postgres → R2 / local shards before nightly retention.
+      # Cheap no-op once daily_observations is empty. Drained by historical_worker.
+      cron: "0 8 * * *"
+      class: DailyArchiveExportJob
+      queue: backfill
     continuous_prune:
       cron: "15 9 * * *"
       class: ContinuousPruneJob

@@ -16,13 +16,14 @@ module DailyArchive
   # one per local day. Year shards are cached in-process for presence/source
   # checks to avoid repeated get/decode.
   class Retention
-    def initialize(store: DailyArchive.store, writer: nil, as_of: Time.current, client: nil, progress: nil, checkpoint: nil)
+    def initialize(store: DailyArchive.store, writer: nil, as_of: Time.current, client: nil, progress: nil, checkpoint: nil, on_phase: nil)
       @store = store
       @writer = writer || Writer.new(store: store)
       @as_of = as_of
       @client = client
       @progress = progress
       @checkpoint = checkpoint
+      @on_phase = on_phase
       @gap_days = Set.new # [time_series_id, iso_day] alerted this run
       @archived_points_cache = {}
     end
@@ -46,16 +47,44 @@ module DailyArchive
         "handoff done usgs_ensured=#{handoff[:usgs_ensured]} " \
         "derived=#{handoff[:derived]} retrying=#{handoff[:retrying]}"
       )
+      notify_phase!(
+        "handoff",
+        usgs_ensured: handoff[:usgs_ensured],
+        derived: handoff[:derived],
+        retrying: handoff[:retrying]
+      )
 
       iv_result = prune_continuous!
       @progress&.step(
         "iv prune done deleted=#{iv_result[:deleted]} " \
         "blocked=#{iv_result[:blocked]} gaps_alerted=#{iv_result[:gaps_alerted]}"
       )
+      notify_phase!(
+        "iv_prune",
+        usgs_ensured: handoff[:usgs_ensured],
+        derived: handoff[:derived],
+        retrying: handoff[:retrying],
+        gaps_alerted: iv_result[:gaps_alerted],
+        iv_deleted: iv_result[:deleted],
+        iv_prune_blocked: iv_result[:blocked],
+        continuous_deleted: iv_result[:deleted]
+      )
 
       daily_result = prune_daily!
       @progress&.step(
         "daily prune done deleted=#{daily_result[:deleted]} blocked=#{daily_result[:blocked]}"
+      )
+      notify_phase!(
+        "daily_prune",
+        usgs_ensured: handoff[:usgs_ensured],
+        derived: handoff[:derived],
+        retrying: handoff[:retrying],
+        gaps_alerted: iv_result[:gaps_alerted],
+        iv_deleted: iv_result[:deleted],
+        iv_prune_blocked: iv_result[:blocked],
+        continuous_deleted: iv_result[:deleted],
+        daily_deleted: daily_result[:deleted],
+        daily_prune_blocked: daily_result[:blocked]
       )
 
       vacuum = TableMaintenance.vacuum_after_deletes!(
@@ -86,6 +115,10 @@ module DailyArchive
     end
 
     private
+
+    def notify_phase!(phase, **stats)
+      @on_phase&.call(phase, stats)
+    end
 
     def ensure_aged_days!
       if @checkpoint.phase_completed?("handoff")
