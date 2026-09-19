@@ -7,8 +7,8 @@ class OgImageTest < ActiveSupport::TestCase
     assert_includes svg, "WaterLevels.org"
     assert_includes svg, "Monitor water levels"
     assert_includes svg, "in real-time"
-    assert_includes svg, "#09090b"
-    assert_includes svg, "#22d3ee"
+    assert_includes svg, "#0b1218"
+    assert_includes svg, "#6ed4c6"
   end
 
   test "station svg includes name, site id, and measurements" do

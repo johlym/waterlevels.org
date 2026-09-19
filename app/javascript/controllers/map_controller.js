@@ -513,7 +513,7 @@ export default class extends Controller {
     if (station.stale) return { color: "#d4d4d8", fill: "#a1a1aa", glyph: "×", shape: "circle" }
     const flood = this.constructor.FLOOD_COLORS[station.flood_category]
     if (flood) return flood
-    return { color: "#22d3ee", fill: "#06b6d4", glyph: "", shape: "circle" }
+    return { color: "#6ed4c6", fill: "#3aa394", glyph: "", shape: "circle" }
   }
 
   markerIcon(station, style) {

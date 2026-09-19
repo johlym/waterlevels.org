@@ -14,7 +14,7 @@
       <div class="copy">
         <span class="eyebrow">
           <span class="dot" aria-hidden="true"></span>
-          National Flood Alerts
+          National flood alerts
         </span>
         <h1>Stations with active flood alerts</h1>
         <p>
@@ -28,12 +28,12 @@
         </div>
         <div class="divider" aria-hidden="true"></div>
         <div class="stat">
-          <div class="label">States Affected</div>
+          <div class="label">States affected</div>
           <div class="value"><%= number_with_delimiter(state_count) %></div>
         </div>
         <div class="divider" aria-hidden="true"></div>
         <div class="stat">
-          <div class="label">Major Flooding</div>
+          <div class="label">Major flooding</div>
           <div class="value<%= " alert" if major_count.to_i.positive? %>"><%= number_with_delimiter(major_count) %></div>
         </div>
       </div>
