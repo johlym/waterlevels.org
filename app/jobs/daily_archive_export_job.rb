@@ -5,26 +5,31 @@ class DailyArchiveExportJob < ApplicationJob
     if DatabaseReadOnlyCircuit.open?
       raise DatabaseReadOnlyError, "database read-only circuit open"
     end
-    return unless DailyArchive.configured?
+    unless DailyArchive.configured?
+      Rails.logger.info("DailyArchiveExportJob skipped: archive store not configured")
+      AdminDashboardStats.record_job_progress!(
+        :daily_archive_export,
+        skip_reason: "not_configured"
+      )
+      return
+    end
     unless DailyArchiveExportLock.claim!
       Rails.logger.info("DailyArchiveExportJob skipped: lock held")
+      AdminDashboardStats.record_job_progress!(
+        :daily_archive_export,
+        skip_reason: "lock_held"
+      )
       return
     end
 
     begin
       progress = SyncProgress.new("DailyArchiveExportJob", io: nil)
+      AdminDashboardStats.record_job_progress!(:daily_archive_export, phase: "running")
       result = DailyArchive::Exporter.new(progress: progress).perform(
         time_series_ids: time_series_ids,
         only_cold: only_cold
       )
-      AdminDashboardStats.record_job_finish!(
-        :daily_archive_export,
-        series: result[:series],
-        points: result[:points],
-        daily_deleted: result[:daily_deleted],
-        vacuumed: result[:vacuumed],
-        vacuum_ms: result[:vacuum_ms]
-      )
+      self.class.record_finish!(result)
       AdminDashboardStats.schedule_inventory_refresh!
       progress.finish(
         "series=#{result[:series]} points=#{result[:points]} " \
@@ -33,5 +38,18 @@ class DailyArchiveExportJob < ApplicationJob
     ensure
       DailyArchiveExportLock.release!
     end
+  end
+
+  def self.record_finish!(result, **extra)
+    AdminDashboardStats.record_job_finish!(
+      :daily_archive_export,
+      phase: "complete",
+      series: result[:series],
+      points: result[:points],
+      daily_deleted: result[:daily_deleted],
+      vacuumed: result[:vacuumed],
+      vacuum_ms: result[:vacuum_ms],
+      **extra
+    )
   end
 end

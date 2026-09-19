@@ -276,5 +276,17 @@ module DailyArchive
       assert_equal 0, ContinuousObservation.where(time_series_id: second.id).count
       assert_nil RetentionCheckpoint.read_raw
     end
+
+    test "notifies on_phase after handoff, iv prune, and daily prune" do
+      phases = []
+      Retention.new(
+        store: @store,
+        as_of: @as_of,
+        client: nil,
+        on_phase: ->(phase, _stats) { phases << phase }
+      ).perform
+
+      assert_equal %w[handoff iv_prune daily_prune], phases
+    end
   end
 end

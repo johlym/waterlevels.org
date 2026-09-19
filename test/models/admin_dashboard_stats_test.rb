@@ -405,6 +405,41 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
     assert_equal 1, stats[:history_backfill_cooldowns]
   end
 
+  test "last_job fills finished_at from AdminCounter.computed_at when payload omits it" do
+    computed_at = 2.hours.ago.change(usec: 0)
+    AdminCounter.set!(
+      AdminDashboardStats::JOB_CACHE_KEYS.fetch(:prune),
+      value: 0,
+      source: "job",
+      computed_at: computed_at,
+      usgs_ensured: 4
+    )
+
+    payload = AdminDashboardStats.last_job(:prune)
+    assert_equal 4, payload[:usgs_ensured]
+    assert payload[:finished_at]
+    stats = AdminDashboardStats.new.jobs_section
+    assert_in_delta computed_at, stats[:last_prune_at], 1
+  end
+
+  test "record_job_progress! refreshes finished_at and keeps prior prune stats" do
+    AdminDashboardStats.record_job_finish!(
+      :prune,
+      finished_at: 1.day.ago,
+      usgs_ensured: 6,
+      derived: 2
+    )
+    AdminDashboardStats.record_job_progress!(:prune, phase: "handoff", retrying: 1)
+
+    payload = AdminDashboardStats.last_job(:prune)
+    assert_equal 6, payload[:usgs_ensured]
+    assert_equal 2, payload[:derived]
+    assert_equal 1, payload[:retrying]
+    assert_equal "handoff", payload[:phase]
+    refute payload[:skip_reason]
+    assert_in_delta Time.current, Time.zone.parse(payload[:finished_at]), 2
+  end
+
   test "record_tip_refresh! overwrites the cached tip summary" do
     AdminDashboardStats.record_tip_refresh!(stations_updated: 1, series_upserted: 1)
     AdminDashboardStats.record_tip_refresh!(stations_updated: 3, series_upserted: 5, state: "wa")

@@ -121,7 +121,7 @@ Keep `CLOUDFLARE_ZONE_ID` / `CLOUDFLARE_API_TOKEN` for Cache-Tag purge only — 
 
 ## Jobs / rake
 
-- `DailyArchiveExportJob` / `bin/rails archive:export_daily` — one-time / catch-up Postgres → R2 for leftover rows (safe to re-run). When prune is on, each successfully shuttled series is deleted from Postgres in the same pass, then `VACUUM (ANALYZE)` runs if deletes (or dead tuples) cross the threshold.
+- `DailyArchiveExportJob` / `bin/rails archive:export_daily` — daily 08:00 UTC catch-up (`queue: backfill`) plus the rake one-off. Shuttles leftover Postgres dailies into R2 / local shards (safe to re-run; cheap no-op when the table is empty). When prune is on, each successfully shuttled series is deleted from Postgres in the same pass, then `VACUUM (ANALYZE)` runs if deletes (or dead tuples) cross the threshold. Both the job and the rake task write the `/admin` last-done snapshot.
 - `DailyArchiveDrainJob` / `bin/rails archive:drain_daily` — every 6 hours (`:20` past 00/06/12/18 UTC). Deletes leftover Postgres dailies already present in R2 (ingest fallback, export that ran with prune off). Same VACUUM gate. Does not rewrite R2, so it cannot clobber an in-flight export checkpoint.
 - `ContinuousPruneJob` (daily 09:15 UTC) — USGS-first day-31+ ensure, estimated fallback, gap alerts, IV prune, Postgres daily drain when `DAILY_ARCHIVE_PRUNE=1`, then VACUUM.
 - Readiness / freshness gates use R2 shard catalog (`min_on` / `max_on`), not Postgres daily row presence.
