@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FAQ · WaterLevels.org</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div class="app-shell">
+    <header class="site-header">
+      <div class="inner">
+        <a class="brand" href="home.html">
+          <svg class="mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M12 3s7 8.1 7 12.1A7 7 0 1 1 5 15.1C5 11.1 12 3 12 3z"></path>
+          </svg>
+          <span class="name">WaterLevels.org</span>
+        </a>
+        <nav class="desktop-nav" aria-label="Primary">
+          <a class="nav-link" href="map.html">Map</a>
+          <a class="nav-link" href="alerts.html">Flood Alerts</a>
+          <a class="nav-link" href="home.html">Home</a>
+          <a class="nav-link" href="faq.html" aria-current="page">FAQ</a>
+          <a class="nav-link" href="index.html">System</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" class="page">
+      <p class="kicker">FAQ</p>
+      <h1 class="page-title">How the observations are gathered and shown</h1>
+      <p class="lede">
+        USGS readings, NWS flood categories, optional email alerts, and how often the public pages refresh.
+      </p>
+
+      <div class="faq-layout" style="margin-top: 3rem">
+        <nav class="faq-nav" aria-label="FAQ categories">
+          <h2>Categories</h2>
+          <button type="button" aria-current="true">General</button>
+          <button type="button">Data and sources</button>
+          <button type="button">Stations</button>
+          <button type="button">Alerts</button>
+        </nav>
+
+        <div>
+          <div class="faq-item" data-open>
+            <button type="button" aria-expanded="true">
+              What is WaterLevels.org?
+              <span class="plus" aria-hidden="true">−</span>
+            </button>
+            <div class="answer">
+              A public map and directory of USGS water-monitoring locations, plus selected Reclamation, Corps, NWS, and CDEC gauges. It shows current conditions, recent history, and NWS flood categories.
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" aria-expanded="false">
+              How often do readings update?
+              <span class="plus" aria-hidden="true">+</span>
+            </button>
+            <div class="answer">
+              USGS tips refresh about hourly. Public pages are cacheable and may lag a few minutes after a sync. Charts for 24 hours, 7 days, and 30 days use continuous observations; 1 year and longer use daily means.
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" aria-expanded="false">
+              What do the flood categories mean?
+              <span class="plus" aria-hidden="true">+</span>
+            </button>
+            <div class="answer">
+              Action, minor, moderate, and major come from the National Weather Service. The map and lists always pair the color with a shape and a text label.
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" aria-expanded="false">
+              How do optional email alerts work?
+              <span class="plus" aria-hidden="true">+</span>
+            </button>
+            <div class="answer">
+              From a station page you can watch a threshold, a rate of rise, or a flood-category change. That list is separate from the national flood alerts page.
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="inner">
+        <p>© 2026 WaterLevels.org</p>
+        <nav aria-label="Footer">
+          <a href="faq.html" aria-current="page">FAQ</a>
+          <a href="index.html">System</a>
+        </nav>
+      </div>
+    </footer>
+  </div>
+  <script>
+    document.querySelectorAll('.faq-item button').forEach((button) => {
+      button.addEventListener('click', () => {
+        const item = button.parentElement;
+        const open = item.toggleAttribute('data-open');
+        button.setAttribute('aria-expanded', String(open));
+        button.querySelector('.plus').textContent = open ? '−' : '+';
+      });
+    });
+  </script>
+</body>
+</html>
