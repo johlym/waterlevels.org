@@ -18,9 +18,9 @@ import {
 } from "../lib/temperature_unit"
 
 const SERIES_COLORS = {
-  discharge: { border: "#22d3ee", fill: "rgba(34, 211, 238, 0.18)", legend: "bg-cyan" },
-  water_level: { border: "#60a5fa", fill: "rgba(96, 165, 250, 0.12)", legend: "bg-blue" },
-  temperature: { border: "#2dd4bf", fill: "rgba(45, 212, 191, 0.12)", legend: "bg-teal" }
+  discharge: { border: "#6ed4c6", fill: "rgba(110, 212, 198, 0.18)", legend: "bg-cyan" },
+  water_level: { border: "#7eb4d0", fill: "rgba(126, 180, 208, 0.14)", legend: "bg-blue" },
+  temperature: { border: "#c4a574", fill: "rgba(196, 165, 116, 0.14)", legend: "bg-teal" }
 }
 
 const FLOOD_STAGE_COLORS = {
@@ -606,7 +606,7 @@ export default class extends Controller {
     const continuousRange = isContinuousChartRange(this.range, primary.grain)
     const colors = SERIES_COLORS[primary.kind] || SERIES_COLORS.discharge
     const grid = "rgba(255,255,255,0.08)"
-    const tick = "#a1a1aa"
+    const tick = "#a3b5bc"
     const narrow = typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches
     const maxTicksLimit = this.range === "24h" ? (narrow ? 4 : 6) : (narrow ? 4 : 5)
 
@@ -647,7 +647,7 @@ export default class extends Controller {
       pointRadius: estimatedFlags.map((estimated) => estimated ? 3 : 0),
       pointHoverRadius: estimatedFlags.map((estimated) => estimated ? 4 : 3),
       pointBackgroundColor: estimatedFlags.map((estimated) => estimated ? colors.border : "transparent"),
-      pointBorderColor: estimatedFlags.map((estimated) => estimated ? "#09090b" : "transparent"),
+      pointBorderColor: estimatedFlags.map((estimated) => estimated ? "#0b1218" : "transparent"),
       pointBorderWidth: 1,
       borderWidth: 2,
       yAxisID: "y",
@@ -792,9 +792,9 @@ export default class extends Controller {
               ? { series: bridgeSeries }
               : false,
             tooltip: {
-              backgroundColor: "#18181b",
-              titleColor: "#fafafa",
-              bodyColor: "#d4d4d8",
+              backgroundColor: "#152026",
+              titleColor: "#f3f7f8",
+              bodyColor: "#cddbe1",
               borderColor: "rgba(255,255,255,0.12)",
               borderWidth: 1,
               filter: (context) => {

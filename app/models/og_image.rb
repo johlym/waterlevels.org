@@ -17,9 +17,9 @@ class OgImage
   CACHE_TTL = 24.hours
 
   SERIES_COLORS = {
-    "water_level" => "#60a5fa",
-    "discharge" => "#22d3ee",
-    "temperature" => "#2dd4bf"
+    "water_level" => "#7eb4d0",
+    "discharge" => "#6ed4c6",
+    "temperature" => "#c4a574"
   }.freeze
 
   FLOOD_COLORS = {
@@ -71,11 +71,11 @@ class OgImage
         #{font_faces}
         #{background_layers}
         #{brand_mark(x: 96, y: 120, size: 72)}
-        <text x="192" y="168" font-family="Space Grotesk" font-size="42" font-weight="700" fill="#fafafa" letter-spacing="-0.03em">WaterLevels.org</text>
-        <text x="96" y="300" font-family="Space Grotesk" font-size="72" font-weight="700" fill="#fafafa" letter-spacing="-0.04em">Monitor water levels</text>
-        <text x="96" y="380" font-family="Space Grotesk" font-size="72" font-weight="700" fill="url(#accentText)" letter-spacing="-0.04em">in real-time</text>
-        <text x="96" y="470" font-family="DM Sans" font-size="28" font-weight="500" fill="#a1a1aa">Streamflow · Gauge height · Temperature</text>
-        <text x="96" y="520" font-family="DM Sans" font-size="22" font-weight="400" fill="#71717a">Live USGS monitoring across the United States</text>
+        <text x="192" y="168" font-family="Space Grotesk" font-size="42" font-weight="700" fill="#f3f7f8" letter-spacing="-0.03em">WaterLevels.org</text>
+        <text x="96" y="300" font-family="Space Grotesk" font-size="72" font-weight="700" fill="#f3f7f8" letter-spacing="-0.04em">Monitor water levels</text>
+        <text x="96" y="380" font-family="Space Grotesk" font-size="72" font-weight="600" font-style="italic" fill="#6ed4c6" letter-spacing="-0.04em">in real-time</text>
+        <text x="96" y="470" font-family="DM Sans" font-size="28" font-weight="500" fill="#a3b5bc">Streamflow · Gauge height · Temperature</text>
+        <text x="96" y="520" font-family="DM Sans" font-size="22" font-weight="400" fill="#a3b5bc">USGS monitoring across the United States</text>
         #{accent_bar}
       </svg>
     SVG
@@ -95,11 +95,11 @@ class OgImage
         #{font_faces}
         #{background_layers}
         #{brand_mark(x: 80, y: 56, size: 48)}
-        <text x="148" y="90" font-family="Space Grotesk" font-size="28" font-weight="600" fill="#fafafa" letter-spacing="-0.02em">WaterLevels.org</text>
-        <text x="#{WIDTH - 80}" y="90" text-anchor="end" font-family="DM Sans" font-size="22" font-weight="500" fill="#a1a1aa">USGS · #{escape(state)}</text>
+        <text x="148" y="90" font-family="Space Grotesk" font-size="28" font-weight="600" fill="#f3f7f8" letter-spacing="-0.02em">WaterLevels.org</text>
+        <text x="#{WIDTH - 80}" y="90" text-anchor="end" font-family="DM Sans" font-size="22" font-weight="500" fill="#a3b5bc">USGS · #{escape(state)}</text>
 
-        <text x="80" y="210" font-family="Space Grotesk" font-size="52" font-weight="700" fill="#fafafa" letter-spacing="-0.035em">#{escape(name)}</text>
-        <text x="80" y="268" font-family="DM Sans" font-size="28" font-weight="500" fill="#71717a">Site #{escape(site_number)}</text>
+        <text x="80" y="210" font-family="Space Grotesk" font-size="52" font-weight="700" fill="#f3f7f8" letter-spacing="-0.035em">#{escape(name)}</text>
+        <text x="80" y="268" font-family="DM Sans" font-size="28" font-weight="500" fill="#a3b5bc">Site #{escape(site_number)}</text>
 
         #{status_pills(stale: stale, flood_category: flood_category, flood_label: flood_label)}
         #{measurement_cards(measurements)}
@@ -154,24 +154,24 @@ class OgImage
           }
         </style>
         <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#22d3ee"/>
-          <stop offset="100%" stop-color="#3b82f6"/>
+          <stop offset="0%" stop-color="#6ed4c6"/>
+          <stop offset="100%" stop-color="#3aa394"/>
         </linearGradient>
         <linearGradient id="accentText" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#22d3ee"/>
-          <stop offset="100%" stop-color="#60a5fa"/>
+          <stop offset="0%" stop-color="#6ed4c6"/>
+          <stop offset="100%" stop-color="#7dd4c6"/>
         </linearGradient>
         <linearGradient id="accentBar" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#22d3ee"/>
-          <stop offset="100%" stop-color="#3b82f6"/>
+          <stop offset="0%" stop-color="#6ed4c6"/>
+          <stop offset="100%" stop-color="#3aa394"/>
         </linearGradient>
-        <radialGradient id="glowA" cx="20%" cy="30%" r="45%">
-          <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.22"/>
-          <stop offset="100%" stop-color="#06b6d4" stop-opacity="0"/>
+        <radialGradient id="glowA" cx="12%" cy="22%" r="48%">
+          <stop offset="0%" stop-color="#3aa394" stop-opacity="0.22"/>
+          <stop offset="100%" stop-color="#3aa394" stop-opacity="0"/>
         </radialGradient>
-        <radialGradient id="glowB" cx="85%" cy="70%" r="40%">
-          <stop offset="0%" stop-color="#2563eb" stop-opacity="0.18"/>
-          <stop offset="100%" stop-color="#2563eb" stop-opacity="0"/>
+        <radialGradient id="glowB" cx="88%" cy="82%" r="42%">
+          <stop offset="0%" stop-color="#1b4f48" stop-opacity="0.35"/>
+          <stop offset="100%" stop-color="#1b4f48" stop-opacity="0"/>
         </radialGradient>
       </defs>
     CSS
@@ -179,10 +179,10 @@ class OgImage
 
   def background_layers
     <<~SVG
-      <rect width="#{WIDTH}" height="#{HEIGHT}" fill="#09090b"/>
+      <rect width="#{WIDTH}" height="#{HEIGHT}" fill="#0b1218"/>
       <rect width="#{WIDTH}" height="#{HEIGHT}" fill="url(#glowA)"/>
       <rect width="#{WIDTH}" height="#{HEIGHT}" fill="url(#glowB)"/>
-      <rect x="0" y="0" width="#{WIDTH}" height="#{HEIGHT}" fill="none" stroke="#27272a" stroke-width="2"/>
+      <rect x="0" y="0" width="#{WIDTH}" height="#{HEIGHT}" fill="none" stroke="#24333a" stroke-width="2"/>
     SVG
   end
 
@@ -191,7 +191,7 @@ class OgImage
     icon = (size * 0.56).round
     <<~SVG
       <rect x="#{x}" y="#{y}" width="#{size}" height="#{size}" rx="#{(size * 0.22).round}" fill="url(#accentGrad)"/>
-      <g transform="translate(#{x + pad}, #{y + pad})" fill="#ffffff">
+      <g transform="translate(#{x + pad}, #{y + pad})" fill="#0b1218">
         <path transform="scale(#{format("%.4f", icon / 24.0)})" d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zm0 18c-3.35 0-6-2.57-6-6.2 0-2.34 1.95-5.44 6-9.14 4.05 3.7 6 6.79 6 9.14 0 3.63-2.65 6.2-6 6.2z"/>
       </g>
     SVG
@@ -235,16 +235,16 @@ class OgImage
     cards = measurements.each_with_index.map do |raw, index|
       m = raw.with_indifferent_access
       kind = m[:kind].to_s
-      color = SERIES_COLORS.fetch(kind, "#22d3ee")
+      color = SERIES_COLORS.fetch(kind, "#6ed4c6")
       label = measurement_label(m)
       value_text, unit_text = format_measurement(m)
       x = 80 + (index * 360)
 
       <<~SVG
-        <rect x="#{x}" y="370" width="336" height="170" rx="20" fill="#18181b" stroke="#27272a" stroke-width="1.5"/>
+        <rect x="#{x}" y="370" width="336" height="170" rx="20" fill="#152026" stroke="#24333a" stroke-width="1.5"/>
         <rect x="#{x}" y="370" width="8" height="170" rx="4" fill="#{color}"/>
-        <text x="#{x + 28}" y="416" font-family="DM Sans" font-size="20" font-weight="500" fill="#a1a1aa">#{escape(label)}</text>
-        <text x="#{x + 28}" y="490" font-family="Space Grotesk" font-size="48" font-weight="700" fill="#fafafa" letter-spacing="-0.03em">#{escape(value_text)}</text>
+        <text x="#{x + 28}" y="416" font-family="DM Sans" font-size="20" font-weight="500" fill="#a3b5bc">#{escape(label)}</text>
+        <text x="#{x + 28}" y="490" font-family="Space Grotesk" font-size="48" font-weight="700" fill="#f3f7f8" letter-spacing="-0.03em">#{escape(value_text)}</text>
         <text x="#{x + 28}" y="530" font-family="DM Sans" font-size="22" font-weight="500" fill="#{color}">#{escape(unit_text)}</text>
       SVG
     end
@@ -254,8 +254,8 @@ class OgImage
 
   def empty_measurements_note
     <<~SVG
-      <rect x="80" y="370" width="1040" height="170" rx="20" fill="#18181b" stroke="#27272a" stroke-width="1.5"/>
-      <text x="600" y="465" text-anchor="middle" font-family="DM Sans" font-size="28" font-weight="500" fill="#71717a">No recent measurements available</text>
+      <rect x="80" y="370" width="1040" height="170" rx="20" fill="#152026" stroke="#24333a" stroke-width="1.5"/>
+      <text x="600" y="465" text-anchor="middle" font-family="DM Sans" font-size="28" font-weight="500" fill="#a3b5bc">No recent measurements available</text>
     SVG
   end
 
