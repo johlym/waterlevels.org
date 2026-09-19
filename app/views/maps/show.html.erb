@@ -107,6 +107,18 @@
               <span class="count" data-map-target="temperatureCount" data-zero>0</span>
             </label>
           </div>
+          <div class="layers" role="group" aria-label="Station status">
+            <label>
+              <input
+                type="checkbox"
+                data-map-target="filter"
+                data-map-layer-param="inactive"
+                data-action="change->map#filterChanged"
+              >
+              <span class="name">Inactive / stale</span>
+              <span class="count" data-map-target="inactiveCount" data-zero>0</span>
+            </label>
+          </div>
 
           <div class="map-station-panel">
             <h3>Stations in view</h3>

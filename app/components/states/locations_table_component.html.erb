@@ -74,6 +74,23 @@
         </div>
       </div>
 
+      <% if show_offline_filter? %>
+        <div class="filter-block">
+          <span class="filter-label">Station status</span>
+          <div class="type-filters" role="group" aria-label="Station status">
+            <label class="filter-check">
+              <input
+                type="checkbox"
+                value="offline"
+                data-state-directory-target="showOffline"
+                data-action="change->state-directory#filter"
+              >
+              <span>Show offline / stale (<%= offline_count %>)</span>
+            </label>
+          </div>
+        </div>
+      <% end %>
+
       <% if show_alerts_filter? %>
         <div class="filter-block">
           <span class="filter-label">Flood alerts</span>
@@ -101,7 +118,12 @@
           </summary>
           <div class="county-jumps">
             <% group_jump_links.each do |name, count, dom_id| %>
-              <a href="#<%= dom_id %>"><%= name %> (<%= count %>)</a>
+              <a
+                href="#<%= dom_id %>"
+                data-state-directory-target="jump"
+                data-group-name="<%= name %>"
+                <%= "hidden" if count.zero? %>
+              ><%= name %> (<%= count %>)</a>
             <% end %>
           </div>
         </details>
@@ -121,13 +143,15 @@
         class="county-group"
         data-state-directory-target="county"
         data-county-name="<%= group_name %>"
+        <%= "hidden" if live_count(locations).zero? %>
       >
         <div class="county-head" id="<%= group_anchor %>">
           <h2>
             <a href="#<%= group_anchor %>"><%= group_name %></a>
           </h2>
           <span data-state-directory-target="countyCount">
-            <%= locations.size %> <%= locations.size == 1 ? "station" : "stations" %>
+            <% group_live = live_count(locations) %>
+            <%= group_live %> <%= group_live == 1 ? "station" : "stations" %>
           </span>
         </div>
 
@@ -172,7 +196,8 @@
                     name: search_blob,
                     types: tokens.join(" "),
                     flood_stage: flood_stage,
-                    alert: flood_alert ? "true" : "false"
+                    alert: flood_alert ? "true" : "false",
+                    offline: offline ? "true" : "false"
                   } do %>
               <div class="card-head">
                 <div>

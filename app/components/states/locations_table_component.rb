@@ -42,8 +42,20 @@ module States
 
     def group_jump_links
       groups
-        .map { |name, locations| [ name, locations.size, group_dom_id(name) ] }
+        .map { |name, locations| [ name, live_count(locations), group_dom_id(name) ] }
         .sort_by { |(name, _, _)| name.downcase }
+    end
+
+    def live_count(locations)
+      Array(locations).count { |loc| !stale?(loc) }
+    end
+
+    def show_offline_filter?
+      offline_count.positive?
+    end
+
+    def offline_count
+      @offline_count ||= @locations.count { |loc| stale?(loc) }
     end
 
     def county_jump_links

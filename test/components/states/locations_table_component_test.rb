@@ -85,7 +85,9 @@ class States::LocationsTableComponentTest < ViewComponent::TestCase
     assert_includes html, 'href="#king">King</a>'
     assert_includes html, 'id="st-louis"'
     assert_includes html, 'href="#st-louis">St. Louis</a>'
-    assert_includes html, 'href="#king">King (1)</a>'
+    assert_includes html, 'href="#king"'
+    assert_includes html, "King (1)"
+    assert_includes html, 'data-state-directory-target="jump"'
   end
 
   test "renders flood stage filters above measurement types when enabled" do
@@ -130,5 +132,39 @@ class States::LocationsTableComponentTest < ViewComponent::TestCase
     assert_includes html, 'data-flood-stage="action"'
     assert_includes html, 'data-flood-stage="major"'
     assert_operator html.index("Flood stages"), :<, html.index("Measurement types")
+  end
+
+  test "hides offline stations by default and offers an opt-in filter" do
+    html = render_inline(
+      States::LocationsTableComponent.new(
+        locations: [
+          { name: "Live Creek", stale: false, county_name: "King", path: "/gauges/wa/1", site_number: "1" },
+          { name: "Quiet Creek", stale: true, county_name: "King", path: "/gauges/wa/2", site_number: "2" },
+          { name: "Gone Brook", stale: true, county_name: "Pierce", path: "/gauges/wa/3", site_number: "3" }
+        ]
+      )
+    ).to_html
+
+    assert_includes html, "Show offline / stale (2)"
+    assert_includes html, 'data-state-directory-target="showOffline"'
+    assert_includes html, 'data-offline="true"'
+    assert_includes html, 'data-offline="false"'
+    assert_includes html, "King (1)"
+    assert_includes html, "1 station"
+    assert_match(/data-county-name="Pierce"[^>]*\bhidden/, html)
+    assert_match(/href="#pierce"[^>]*\bhidden/, html)
+  end
+
+  test "omits offline filter when every station is live" do
+    html = render_inline(
+      States::LocationsTableComponent.new(
+        locations: [
+          { name: "Live Creek", stale: false, county_name: "King", path: "/gauges/wa/1", site_number: "1" }
+        ]
+      )
+    ).to_html
+
+    assert_not_includes html, "Show offline / stale"
+    assert_includes html, 'data-offline="false"'
   end
 end

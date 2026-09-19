@@ -294,4 +294,33 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
     assert_equal 1, payload[:network][:upstream].size
     assert_equal "00000032", payload[:network][:upstream].first[:site_number]
   end
+
+  test "neighbor cards omit stale nearby and on-stream stations" do
+    origin = create(:monitoring_location, site_number: "00000041", provider_location_id: "USGS-00000041")
+    live_near = create(:monitoring_location, site_number: "00000042", provider_location_id: "USGS-00000042")
+    stale_near = create(
+      :monitoring_location,
+      site_number: "00000043",
+      provider_location_id: "USGS-00000043",
+      latest_observed_at: 2.weeks.ago
+    )
+    stale_up = create(
+      :monitoring_location,
+      site_number: "00000044",
+      provider_location_id: "USGS-00000044",
+      latest_observed_at: 3.weeks.ago
+    )
+    live_down = create(:monitoring_location, site_number: "00000045", provider_location_id: "USGS-00000045")
+    origin.update!(
+      nearby_station_ids: [ live_near.id, stale_near.id ],
+      upstream_station_ids: [ stale_up.id ],
+      downstream_station_ids: [ live_down.id ]
+    )
+
+    payload = StationSnapshotCache.warm(origin.reload)
+
+    assert_equal [ "00000042" ], payload[:nearby].map { |row| row[:site_number] }
+    assert_empty payload[:network][:upstream]
+    assert_equal [ "00000045" ], payload[:network][:downstream].map { |row| row[:site_number] }
+  end
 end

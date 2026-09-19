@@ -24,6 +24,7 @@ export default class extends Controller {
     "dischargeCount",
     "waterLevelCount",
     "temperatureCount",
+    "inactiveCount",
     "settingsPanel",
     "settingsButton",
     "mobileSearch",
@@ -63,7 +64,8 @@ export default class extends Controller {
     this.layers = {
       discharge: true,
       water_level: true,
-      temperature: true
+      temperature: true,
+      inactive: false
     }
 
     if (this.maplibreWorkerUrlValue) setWorkerUrl(this.maplibreWorkerUrlValue)
@@ -369,12 +371,14 @@ export default class extends Controller {
     this.layers = {
       discharge: false,
       water_level: false,
-      temperature: false
+      temperature: false,
+      inactive: false
     }
     this.filterTargets.forEach((input) => {
       const layer = input.dataset.mapLayerParam
       if (layer) this.layers[layer] = input.checked
     })
+    this.updateCounts()
     this.renderStations()
   }
 
@@ -456,8 +460,11 @@ export default class extends Controller {
   }
 
   updateCounts() {
-    const counts = { discharge: 0, water_level: 0, temperature: 0 }
+    const counts = { discharge: 0, water_level: 0, temperature: 0, inactive: 0 }
     this.stations.forEach((station) => {
+      if (!this.matchesMeasurementLayers(station)) return
+      if (station.stale) counts.inactive += 1
+      if (station.stale && !this.layers.inactive) return
       if (station.has_discharge) counts.discharge += 1
       if (station.has_water_level) counts.water_level += 1
       if (station.has_temperature) counts.temperature += 1
@@ -466,6 +473,7 @@ export default class extends Controller {
     this.setCount(this.dischargeCountTarget, counts.discharge)
     this.setCount(this.waterLevelCountTarget, counts.water_level)
     this.setCount(this.temperatureCountTarget, counts.temperature)
+    if (this.hasInactiveCountTarget) this.setCount(this.inactiveCountTarget, counts.inactive)
   }
 
   setCount(target, value) {
@@ -474,16 +482,20 @@ export default class extends Controller {
     else target.removeAttribute("data-zero")
   }
 
-  matchesLayers(station) {
+  matchesMeasurementLayers(station) {
     const anyLayerOn = this.layers.discharge || this.layers.water_level || this.layers.temperature
     if (!anyLayerOn) return false
 
-    const matches =
+    return Boolean(
       (this.layers.discharge && station.has_discharge) ||
       (this.layers.water_level && station.has_water_level) ||
       (this.layers.temperature && station.has_temperature)
+    )
+  }
 
-    return Boolean(matches)
+  matchesLayers(station) {
+    if (station.stale && !this.layers.inactive) return false
+    return this.matchesMeasurementLayers(station)
   }
 
   visibleStations() {

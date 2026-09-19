@@ -5,9 +5,9 @@
 <% measurements = Array(@snapshot[:measurements]) %>
 <%
   network = @snapshot[:network] || @snapshot["network"] || {}
-  upstream = Array(network[:upstream] || network["upstream"])
-  downstream = Array(network[:downstream] || network["downstream"])
-  nearby = Array(@snapshot[:nearby])
+  upstream = Array(network[:upstream] || network["upstream"]).reject { |node| related_station_stale?(node) }
+  downstream = Array(network[:downstream] || network["downstream"]).reject { |node| related_station_stale?(node) }
+  nearby = Array(@snapshot[:nearby]).reject { |node| related_station_stale?(node) }
   current_node = {
     site_number: @snapshot[:site_number],
     name: location_name,

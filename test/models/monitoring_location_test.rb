@@ -21,6 +21,11 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     refute fresh.stale?
     assert stale.stale?
     assert missing.stale?
+
+    stale_ids = MonitoringLocation.stale.pluck(:id)
+    refute_includes stale_ids, fresh.id
+    assert_includes stale_ids, stale.id
+    assert_includes stale_ids, missing.id
   end
 
   test "flood helpers classify NWS categories" do
@@ -495,6 +500,29 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     assert_equal [ river ], MonitoringLocation.search("016465").to_a
     assert_includes MonitoringLocation.search("maryland"), river
     assert_not_includes MonitoringLocation.search("potomac"), other
+  end
+
+  test "search returns live matches before stale matches" do
+    stale = create(
+      :monitoring_location,
+      site_number: "01646501",
+      provider_location_id: "USGS-01646501",
+      name: "POTOMAC RIVER NEAR WASH, DC",
+      state_code: "md",
+      state_name: "Maryland",
+      latest_observed_at: 2.weeks.ago
+    )
+    live = create(
+      :monitoring_location,
+      site_number: "01646502",
+      provider_location_id: "USGS-01646502",
+      name: "POTOMAC RIVER AT POINT OF ROCKS, MD",
+      state_code: "md",
+      state_name: "Maryland",
+      latest_observed_at: 1.hour.ago
+    )
+
+    assert_equal [ live, stale ], MonitoringLocation.search("potomac").to_a
   end
 
   test "search matches NWPS LID" do

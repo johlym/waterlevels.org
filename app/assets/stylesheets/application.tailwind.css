@@ -123,6 +123,10 @@
     @apply space-y-2;
   }
 
+  .layers + .layers {
+    @apply mt-3 border-t border-zinc-800 pt-3;
+  }
+
   label {
     @apply flex cursor-pointer items-center gap-3 rounded-lg p-2 transition-colors hover:bg-zinc-800/50;
 

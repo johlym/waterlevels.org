@@ -14,6 +14,11 @@ module GaugesHelper
     }
   end
 
+  def related_station_stale?(node)
+    value = node.is_a?(Hash) ? (node[:stale] || node["stale"]) : nil
+    value == true || value.to_s == "true"
+  end
+
   def related_station_watch?(category)
     FLOOD_WATCH_CATEGORIES.include?(category.to_s)
   end

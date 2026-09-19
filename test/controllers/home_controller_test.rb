@@ -97,6 +97,8 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, '<details class="map-legend">'
     assert_includes response.body, "Flood stage"
     assert_includes response.body, "Station status"
+    assert_includes response.body, "Inactive / stale"
+    assert_includes response.body, 'data-map-layer-param="inactive"'
     assert_not_includes response.body, "At / above flood stage"
     assert_not_includes response.body, 'data-map-target="floodCount"'
     assert_not_includes response.body, 'class="site-footer"'

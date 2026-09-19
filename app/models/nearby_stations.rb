@@ -4,11 +4,16 @@ class NearbyStations
   NEAREST_SEARCH_DEG = 2.0
 
   def self.refresh_all
-    locations = MonitoringLocation.pluck(:id, :latitude, :longitude)
-    return if locations.empty?
+    rows = MonitoringLocation.pluck(:id, :latitude, :longitude, :latest_observed_at)
+    return if rows.empty?
 
-    grid = build_grid(locations)
-    locations.each do |id, lat, lon|
+    live = rows.filter_map do |id, lat, lon, observed_at|
+      next if stale_tip?(observed_at)
+
+      [ id, lat, lon ]
+    end
+    grid = build_grid(live)
+    rows.each do |id, lat, lon, _observed_at|
       candidates = candidates_for(lat.to_f, lon.to_f, grid)
       nearest = nearest_ids(id, lat.to_f, lon.to_f, candidates, limit: 4)
       MonitoringLocation.where(id: id).update_all(nearby_station_ids: nearest, updated_at: Time.current)
@@ -22,8 +27,8 @@ class NearbyStations
     return unless lat.between?(-90, 90) && lon.between?(-180, 180)
 
     pad = NEAREST_SEARCH_DEG
-    scope = MonitoringLocation.in_bbox(lon - pad, lat - pad, lon + pad, lat + pad)
-    scope = MonitoringLocation.all if scope.none?
+    scope = MonitoringLocation.not_stale.in_bbox(lon - pad, lat - pad, lon + pad, lat + pad)
+    return if scope.none?
 
     scope.min_by do |loc|
       haversine_km(lat, lon, loc.latitude.to_f, loc.longitude.to_f)
@@ -49,6 +54,11 @@ class NearbyStations
   def self.to_rad(deg)
     deg * Math::PI / 180.0
   end
+
+  def self.stale_tip?(observed_at)
+    observed_at.blank? || observed_at < MonitoringLocation::STALE_AFTER.ago
+  end
+  private_class_method :stale_tip?
 
   def self.build_grid(locations)
     grid = Hash.new { |h, key| h[key] = [] }
