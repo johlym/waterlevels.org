@@ -113,8 +113,12 @@ module AppLogging
     value = raw.to_s
     if value.start_with?('"') && value.end_with?('"')
       begin
-        return value.undump
-      rescue ArgumentError
+        # String#undump only accepts ASCII dump format. Job logs quote names
+        # with String#inspect, which keeps UTF-8 station names as-is.
+        return value.undump if value.ascii_only?
+
+        value = value[1..-2]
+      rescue ArgumentError, RuntimeError
         value = value[1..-2]
       end
     end
