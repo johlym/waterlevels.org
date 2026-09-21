@@ -316,6 +316,11 @@ class MonitoringLocation < ApplicationRecord
   end
 
   def needs_history_backfill?
+    # USGS HistoryBackfillJob only. Daily-only USBR/USACE/CDEC/NWPS series have
+    # no continuous_newest_at, so the coverage-gap check would stay true forever
+    # and GaugesController#show would enqueue USGS ingest against a non-USGS id.
+    return false unless usgs?
+
     series = time_series.selected.select(&:eligible_for_recent_history_backfill?)
     return false if series.none?
 

@@ -225,6 +225,33 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     refute location.needs_history_backfill?
   end
 
+  test "needs_history_backfill? is false for daily-only non-USGS reservoirs" do
+    location = create(
+      :monitoring_location,
+      data_provider: DataProviders::USBR,
+      provider_location_id: "USBR-35991",
+      site_number: "usbr35991"
+    )
+    series = create(
+      :time_series,
+      monitoring_location: location,
+      selected_for_display: true,
+      has_continuous_anchor: false,
+      continuous_newest_at: nil
+    )
+    LatestObservation.create!(
+      time_series: series,
+      observed_at: 1.hour.ago,
+      value: 1083.0,
+      unit_of_measure: "ft",
+      synced_at: Time.current
+    )
+
+    assert location.daily_only?
+    refute location.needs_history_backfill?
+    refute_includes MonitoringLocation.needing_history_backfill.pluck(:id), location.id
+  end
+
   test "missing_year_history? is true without a daily point near the year anchor" do
     location = create(:monitoring_location)
     series = create(:time_series, monitoring_location: location, selected_for_display: true)

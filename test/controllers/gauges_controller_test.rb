@@ -1,6 +1,8 @@
 require "test_helper"
 
 class GaugesControllerTest < ActionDispatch::IntegrationTest
+  include ActiveJob::TestHelper
+
   setup do
     @location = create(:monitoring_location)
   end
@@ -862,5 +864,42 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     results = JSON.parse(response.body)["stations"]
 
     assert results.none? { |row| row["type"] == "zip" }
+  end
+
+  test "USBR gauge pages do not enqueue USGS HistoryBackfillJob" do
+    location = create(
+      :monitoring_location,
+      data_provider: DataProviders::USBR,
+      provider_location_id: "USBR-35993",
+      site_number: "usbr35993",
+      name: "Lake Mead",
+      display_name: "Lake Mead",
+      search_name: "lake mead",
+      slug: "lake-mead",
+      state_code: "nv",
+      state_name: "Nevada"
+    )
+    series = create(
+      :time_series,
+      monitoring_location: location,
+      selected_for_display: true,
+      has_continuous_anchor: false,
+      continuous_newest_at: nil
+    )
+    LatestObservation.create!(
+      time_series: series,
+      observed_at: 1.hour.ago,
+      value: 1083.0,
+      unit_of_measure: "ft",
+      synced_at: Time.current
+    )
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      assert_no_enqueued_jobs only: HistoryBackfillJob do
+        get "/gauges/#{location.state_code}/#{location.to_param}"
+      end
+    end
+
+    assert_response :success
   end
 end
