@@ -1,5 +1,7 @@
-<% content_for :title, "FAQ | WaterLevels.org" %>
-<% content_for :meta_description, "Answers about WaterLevels.org: USGS observations, National Weather Service flood categories and stages, optional email alerts, update frequency, and how to use the map, alerts, and station pages." %>
+<% set_meta_tags(
+  title: "FAQ",
+  description: "Answers about WaterLevels.org: USGS observations, National Weather Service flood categories and stages, optional email alerts, update frequency, and how to use the map, alerts, and station pages."
+) %>
 
 <div class="app-shell">
   <%= render Navigation::BarComponent.new %>

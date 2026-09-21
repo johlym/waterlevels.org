@@ -1,4 +1,7 @@
-<% content_for :title, "Contact | WaterLevels.org" %>
+<% set_meta_tags(
+  title: "Contact",
+  description: "Send a message to WaterLevels.org about a gauge page, a data issue, or the project."
+) %>
 <% @contact_message ||= ContactMessage.new %>
 
 <div class="app-shell">

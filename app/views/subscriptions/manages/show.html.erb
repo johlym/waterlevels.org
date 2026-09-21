@@ -1,5 +1,9 @@
-<% content_for :title, "Manage email alerts | WaterLevels.org" %>
-<% content_for :meta_description, "Update WaterLevels.org email alert preferences, digest timing, and watched stations." %>
+<% set_meta_tags(
+  title: "Manage email alerts",
+  description: "Update WaterLevels.org email alert preferences, digest timing, and watched stations.",
+  noindex: true,
+  nofollow: true
+) %>
 
 <div class="app-shell">
   <%= render Navigation::BarComponent.new %>

@@ -1,4 +1,7 @@
-<% content_for :title, "About | WaterLevels.org" %>
+<% set_meta_tags(
+  title: "About",
+  description: "WaterLevels.org maps public water gauges and turns streamflow, water level, and temperature readings into clear views for anyone who needs them."
+) %>
 <div class="app-shell">
   <%= render Navigation::BarComponent.new %>
 

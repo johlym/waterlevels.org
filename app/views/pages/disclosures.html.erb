@@ -1,5 +1,7 @@
-<% content_for :title, "Data disclosures | WaterLevels.org" %>
-<% content_for :meta_description, "How WaterLevels.org uses U.S. Geological Survey water data, Bureau of Reclamation and U.S. Army Corps of Engineers reservoir elevations, and National Weather Service flood stages, what we store, how often it updates, and important limitations." %>
+<% set_meta_tags(
+  title: "Data disclosures",
+  description: "How WaterLevels.org uses U.S. Geological Survey water data, Bureau of Reclamation and U.S. Army Corps of Engineers reservoir elevations, and National Weather Service flood stages, what we store, how often it updates, and important limitations."
+) %>
 
 <div class="app-shell">
   <%= render Navigation::BarComponent.new %>

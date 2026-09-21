@@ -1,5 +1,7 @@
-<% content_for :title, "Terms and Conditions | WaterLevels.org" %>
-<% content_for :meta_description, "Terms and conditions for using WaterLevels.org, including service limits, user obligations, and liability." %>
+<% set_meta_tags(
+  title: "Terms and Conditions",
+  description: "Terms and conditions for using WaterLevels.org, including service limits, user obligations, and liability."
+) %>
 
 <div class="app-shell">
   <%= render Navigation::BarComponent.new %>

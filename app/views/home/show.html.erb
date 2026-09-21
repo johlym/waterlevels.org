@@ -1,5 +1,14 @@
-<% content_for :title, "WaterLevels.org - Monitor water levels in real-time" %>
-<% content_for :meta_description, "Search USGS streamflow, water level, and temperature gauges across the United States. Find nearby stations and explore the live monitoring network." %>
+<% set_meta_tags(
+  title: "Monitor water levels in real-time",
+  description: "Search USGS streamflow, water level, and temperature gauges across the United States. Find nearby stations and explore the live monitoring network."
+) %>
+<% content_for :head do %>
+  <%= json_ld_tag(Seo.website(
+    name: "WaterLevels.org",
+    url: "#{app_base_url}/",
+    description: "Search USGS streamflow, water level, and temperature gauges across the United States."
+  )) %>
+<% end %>
 
 <div class="app-shell">
   <%= render Navigation::BarComponent.new %>

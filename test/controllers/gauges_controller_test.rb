@@ -187,8 +187,9 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
 
     get "/gauges/#{@location.state_code}/#{@location.to_param}"
     assert_response :success
-    assert_includes response.body, ">King<"
-    assert_not_includes response.body, "King County"
+    breadcrumb = response.body[/<nav class="breadcrumb".*?<\/nav>/m]
+    assert_includes breadcrumb, ">King<"
+    assert_not_includes breadcrumb, "King County"
   end
 
   test "breadcrumb county links to state directory county anchor" do
@@ -198,6 +199,37 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, 'href="/gauges/wa#king"'
     assert_includes response.body, ">King</a>"
+  end
+
+  test "search snippet uses a short title, canonical url, and breadcrumb names" do
+    @location.update!(
+      name: "CAMBRIDGE RESERVOIR., UNNAMED TRIBUTARY 3, NEAR LEXINGTON, MA",
+      state_code: "ma",
+      state_name: "Massachusetts",
+      county_name: "Middlesex County"
+    )
+
+    get "/gauges/ma/#{@location.to_param}"
+    assert_response :success
+
+    title = response.body[/<title>(.*?)<\/title>/m, 1]
+    assert_equal "Cambridge Reservoir, Unnamed Tributary 3 Water Level | MA", title
+    assert_operator title.length, :<=, 60
+    assert_includes response.body, "<h1>Cambridge Reservoir, Unnamed Tributary 3, Near Lexington, MA</h1>"
+    assert_includes response.body, 'rel="canonical" href="http://www.example.com/gauges/ma/'
+    assert_not_includes title, "WaterLevels.org"
+    assert_includes response.body, 'type="application/ld+json"'
+    assert_includes response.body, "BreadcrumbList"
+    assert_includes response.body, "Massachusetts"
+    assert_includes response.body, "http://www.example.com/gauges/ma#middlesex"
+    assert_includes response.body, 'rel="icon" type="image/png" href="/icon-48.png"'
+    assert_includes response.body, 'rel="icon" type="image/svg+xml" href="/icon.svg"'
+    assert_includes response.body, 'property="og:title" content="Cambridge Reservoir, Unnamed Tributary 3 Water Level | MA"'
+    description = response.body[/name="description" content="(.*?)"/, 1]
+    assert description
+    assert_operator description.length, :<=, 160
+    assert_includes description, "water level and flow"
+    assert_not_includes description, "Reservoir.,"
   end
 
   test "gauge page shows NWS flood category and stage thresholds" do
@@ -493,6 +525,8 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
 
     get "/gauges/wa"
     assert_response :success
+    assert_includes response.body, "<h1>Water Gauges in Washington</h1>"
+    assert_includes response.body, "BreadcrumbList"
     assert_includes response.body, "Adams"
     assert_includes response.body, "Yakima"
     assert_includes response.body, "A Creek Near Town, WA"

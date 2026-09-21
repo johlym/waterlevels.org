@@ -44,12 +44,18 @@ module Usgs
       return "" if raw.blank?
 
       expanded = expand(raw)
-      titleize_preserving_state(expanded)
+      titleize_preserving_state(tidy_punctuation(expanded))
     end
 
     # Lowercase expanded form used for ILIKE search matching.
     def search_key(name)
       format(name).downcase
+    end
+
+    # USGS names sometimes keep a period before a comma ("RESERVOIR.,").
+    # That punctuation shows up in titles and search snippets as "Reservoir.,".
+    def tidy_punctuation(name)
+      name.to_s.gsub(/\.+,/, ",").gsub(/[ \t]{2,}/, " ").strip
     end
 
     def expand(name)

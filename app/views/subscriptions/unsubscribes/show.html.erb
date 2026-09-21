@@ -1,5 +1,9 @@
-<% content_for :title, "Unsubscribe | WaterLevels.org" %>
-<% content_for :meta_description, "Confirm unsubscribing from WaterLevels.org email alerts." %>
+<% set_meta_tags(
+  title: "Unsubscribe",
+  description: "Confirm unsubscribing from WaterLevels.org email alerts.",
+  noindex: true,
+  nofollow: true
+) %>
 
 <div class="app-shell">
   <%= render Navigation::BarComponent.new %>
