@@ -1321,6 +1321,33 @@ body.dialog-open {
       @apply bg-zinc-800 text-white;
     }
   }
+
+  .range-lock {
+    @apply inline-flex shrink-0 cursor-not-allowed;
+    anchor-name: --long-range-lock;
+
+    button {
+      @apply pointer-events-none cursor-not-allowed text-zinc-600 hover:text-zinc-600;
+    }
+  }
+
+  .range-lock:focus-visible {
+    @apply rounded-md outline-2 outline-offset-2 outline-cyan-500;
+  }
+}
+
+.range-lock-tip {
+  @apply pointer-events-none z-50 w-max max-w-72 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-left text-xs leading-snug font-normal text-zinc-200 opacity-0 shadow-lg shadow-black/40 transition-opacity duration-150;
+  position: fixed;
+  position-anchor: --long-range-lock;
+  bottom: anchor(top);
+  left: anchor(center);
+  translate: -50% -0.45rem;
+}
+
+.history-controls:has(.range-lock:hover) .range-lock-tip,
+.history-controls:has(.range-lock:focus-within) .range-lock-tip {
+  @apply opacity-100;
 }
 
 .chart-panel {

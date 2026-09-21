@@ -285,6 +285,33 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'class="history-callout"'
     assert_not_includes response.body, "Full-year history is still loading"
     assert_includes response.body, "USGS does not publish daily history for Gage height"
+    assert_includes response.body, 'data-hydrograph-range-param="1y"'
+    assert_not_includes response.body, 'class="range-lock"'
+  end
+
+  test "locks long ranges and hides the daily-history callout when no year data exists" do
+    stage = create(
+      :time_series,
+      monitoring_location: @location,
+      selected_for_display: true,
+      usgs_daily_absent: true,
+      parameter_code: "00065",
+      measurement_kind: "water_level"
+    )
+    ContinuousObservation.create!(time_series: stage, observed_at: 1.hour.ago, value: 5.5)
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_not_includes response.body, "USGS does not publish daily history"
+    assert_not_includes response.body, "Full-year history is still loading"
+    assert_includes response.body, "available because USGS does not provide them."
+    assert_includes response.body, 'class="range-lock"'
+    assert_includes response.body, 'id="long-range-unavailable-tip"'
+    assert_includes response.body, 'data-hydrograph-range-param="30d"'
+    assert_not_includes response.body, 'data-hydrograph-range-param="1y"'
+    assert_not_includes response.body, 'data-hydrograph-range-param="3y"'
+    assert_match(/disabled[^>]*>\s*1 Year<\/button>/, response.body)
+    assert_match(/disabled[^>]*>\s*3 Years<\/button>/, response.body)
   end
 
   test "shows known-missing USGS IV callout with the next check time" do

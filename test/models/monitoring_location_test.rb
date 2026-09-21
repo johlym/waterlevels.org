@@ -272,6 +272,72 @@ class MonitoringLocationTest < ActiveSupport::TestCase
 
     refute location.missing_year_history?
     assert_equal [ "Gage height" ], location.daily_history_unavailable_labels
+    refute location.long_chart_ranges_unavailable?
+    assert location.year_history_available?
+    controls = location.chart_range_controls
+    assert_equal location.chart_ranges, controls.map { |control| control[:range] }
+    assert controls.none? { |control| control[:locked] }
+  end
+
+  test "locks 1y and 3y controls when USGS publishes no daily history and no year data exists" do
+    location = create(:monitoring_location)
+    stage = create(
+      :time_series,
+      monitoring_location: location,
+      selected_for_display: true,
+      usgs_daily_absent: true,
+      parameter_code: "00065",
+      measurement_kind: "water_level"
+    )
+    ContinuousObservation.create!(time_series: stage, observed_at: 1.hour.ago, value: 5.5)
+
+    refute location.missing_year_history?
+    refute location.year_history_available?
+    assert location.long_chart_ranges_unavailable?
+    assert_equal [ "Gage height" ], location.daily_history_unavailable_labels
+
+    controls = location.chart_range_controls
+    assert_equal %w[24h 7d 30d 1y 3y], controls.map { |control| control[:range] }
+    assert_equal %w[1y 3y], controls.select { |control| control[:locked] }.map { |control| control[:range] }
+    assert_equal %w[24h 7d 30d], controls.reject { |control| control[:locked] }.map { |control| control[:range] }
+  end
+
+  test "does not lock long ranges while year history is still loading" do
+    location = create(:monitoring_location)
+    stage = create(
+      :time_series,
+      monitoring_location: location,
+      selected_for_display: true,
+      usgs_daily_absent: true,
+      parameter_code: "00065",
+      measurement_kind: "water_level"
+    )
+    ContinuousObservation.create!(time_series: stage, observed_at: 1.hour.ago, value: 5.5)
+    flow = create(
+      :time_series,
+      monitoring_location: location,
+      selected_for_display: true,
+      parameter_code: "00060",
+      measurement_kind: "discharge"
+    )
+    ContinuousObservation.create!(time_series: flow, observed_at: 1.hour.ago, value: 40.0)
+    DailyObservation.create!(time_series: flow, observed_on: Date.current, value: 11.0)
+
+    assert location.missing_year_history?
+    refute location.long_chart_ranges_unavailable?
+  end
+
+  test "long chart ranges stay available for non-USGS providers" do
+    location = create(:monitoring_location, data_provider: DataProviders::USBR)
+    series = create(
+      :time_series,
+      monitoring_location: location,
+      selected_for_display: true,
+      usgs_daily_absent: true
+    )
+    ContinuousObservation.create!(time_series: series, observed_at: 1.hour.ago, value: 5.5)
+
+    refute location.long_chart_ranges_unavailable?
   end
 
   test "long-inactive series does not keep needs_history_backfill? or year callout true" do

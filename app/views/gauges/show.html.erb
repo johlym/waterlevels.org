@@ -139,11 +139,15 @@
       <div class="section-head">
         <h2 id="graph-heading">Historical trends</h2>
         <div class="history-controls">
+          <%
+            controls = @location.chart_range_controls
+            default_range = @location.default_chart_range
+            range_labels = { "7d" => "7 Days", "30d" => "30 Days", "1y" => "1 Year", "3y" => "3 Years", "10y" => "10 Years" }
+            open_controls, locked_controls = controls.partition { |control| !control[:locked] }
+          %>
           <div class="segmented" role="group" aria-label="Time range">
-            <% ranges = @location.chart_ranges
-               default_range = @location.default_chart_range
-               range_labels = { "7d" => "7 Days", "30d" => "30 Days", "1y" => "1 Year", "3y" => "3 Years", "10y" => "10 Years" } %>
-            <% ranges.each do |range| %>
+            <% open_controls.each do |control| %>
+              <% range = control[:range] %>
               <button
                 type="button"
                 data-action="hydrograph#setRange"
@@ -152,7 +156,27 @@
                 aria-pressed="<%= range == default_range %>"
               ><%= range_labels.fetch(range, range) %></button>
             <% end %>
+            <% if locked_controls.any? %>
+              <span
+                class="range-lock"
+                tabindex="0"
+                role="group"
+                aria-label="1 Year and 3 Years unavailable"
+                aria-describedby="long-range-unavailable-tip"
+              >
+                <% locked_controls.each do |control| %>
+                  <button
+                    type="button"
+                    disabled
+                    aria-describedby="long-range-unavailable-tip"
+                  ><%= range_labels.fetch(control[:range], control[:range]) %></button>
+                <% end %>
+              </span>
+            <% end %>
           </div>
+          <% if locked_controls.any? %>
+            <span id="long-range-unavailable-tip" class="range-lock-tip" role="tooltip"><%= MonitoringLocation::UNAVAILABLE_LONG_RANGE_TOOLTIP %></span>
+          <% end %>
           <div class="segmented" role="group" aria-label="History view">
             <button
               type="button"
@@ -184,7 +208,7 @@
             the 1 Year chart will fill in as we finish backfilling from USGS.
           </p>
         </div>
-      <% elsif @location.usgs? && (unavailable = @location.daily_history_unavailable_labels).any? %>
+      <% elsif @location.usgs? && !@location.long_chart_ranges_unavailable? && (unavailable = @location.daily_history_unavailable_labels).any? %>
         <div class="history-callout" role="status">
           <p>
             USGS does not publish daily history for <%= unavailable.to_sentence %>.
