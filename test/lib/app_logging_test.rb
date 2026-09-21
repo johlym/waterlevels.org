@@ -58,7 +58,7 @@ class AppLoggingTest < ActiveSupport::TestCase
 
     assert_equal name, fields[:name]
     assert_equal 42, fields[:id]
-    assert_equal "08313000", fields[:site]
+    assert_equal 8_313_000, fields[:site]
     assert_equal "nm", fields[:state]
     assert_equal "history_iv_repair2", fields[:circuit]
     assert_equal "true", fields[:key_configured]
