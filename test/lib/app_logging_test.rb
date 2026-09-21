@@ -49,6 +49,27 @@ class AppLoggingTest < ActiveSupport::TestCase
     assert_in_delta 24.3, fields[:elapsed]
   end
 
+  test "extract_logfmt keeps inspect-quoted UTF-8 station names" do
+    name = "Río Grande at San José"
+    fields = AppLogging.extract_logfmt(
+      "IvRepairScarJob start id=42 site=08313000 state=nm name=#{name.inspect} " \
+      "circuit=history_iv_repair2 key_configured=true"
+    )
+
+    assert_equal name, fields[:name]
+    assert_equal 42, fields[:id]
+    assert_equal "08313000", fields[:site]
+    assert_equal "nm", fields[:state]
+    assert_equal "history_iv_repair2", fields[:circuit]
+    assert_equal "true", fields[:key_configured]
+  end
+
+  test "extract_logfmt undumps ASCII escaped quotes" do
+    fields = AppLogging.extract_logfmt('note="foo \"bar\" baz"')
+
+    assert_equal 'foo "bar" baz', fields[:note]
+  end
+
   test "json omits nil values" do
     line = AppLogging.json(event: "job.perform", error: nil, status: "ok")
     data = JSON.parse(line)
@@ -152,5 +173,21 @@ class AppLoggingTest < ActiveSupport::TestCase
     json_line = '{"level":"info","event":"request","message":"GET / 200"}'
     passed = formatter.call("INFO", Time.utc(2026, 8, 12), nil, json_line)
     assert_equal "#{json_line}\n", passed
+  end
+
+  test "json formatter does not raise on inspect-quoted non-ASCII logfmt" do
+    formatter = AppLogging::JsonFormatter.new
+    name = "Río Grande at San José"
+    line = formatter.call(
+      "INFO",
+      Time.utc(2026, 9, 21),
+      nil,
+      "IvRepairScarJob start id=42 site=08313000 name=#{name.inspect}"
+    )
+    data = JSON.parse(line)
+
+    assert_equal "info", data["level"]
+    assert_equal name, data["name"]
+    assert_equal 42, data["id"]
   end
 end
