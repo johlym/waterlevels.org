@@ -2,15 +2,18 @@
 
 ## Cursor Cloud specific instructions
 
-WaterLevels.org is a single Rails 8.1 / Ruby 4.0.4 app (USGS water-monitoring map). See `README.md` for the full stack and the canonical setup/run/test commands; this section only records non-obvious cloud-environment caveats.
+WaterLevels.org is a single Rails 8.1 / Ruby 4.0.7 app (USGS water-monitoring map). See `README.md` for the full stack and the canonical setup/run/test commands; this section only records non-obvious cloud-environment caveats.
 
 ### Toolchain
-- Ruby 4.0.4 is managed by `mise` and activated for interactive shells via `~/.bashrc` (`eval "$(mise activate bash)"`). `ruby`, `bundle`, `rubocop`, `foreman`, `sidekiq` resolve through mise. Node/Yarn come from `nvm` (Node 24, pinned by `.nvmrc`, which satisfies `bin/dev`'s Node 20+ requirement); `corepack enable` provides Yarn 1.22.x. The update script refreshes gems/JS deps, so those don't need reinstalling by hand.
+- Ruby 4.0.7 is pinned by `.ruby-version` / `mise.toml` and managed by `mise`. Interactive shells activate it via `~/.bashrc` (`eval "$(mise activate bash)"`). Non-interactive shells need the same `eval` (or `export PATH="$HOME/.local/bin:$PATH"` then `eval "$(mise activate bash)"`). `ruby`, `bundle`, `rubocop`, `foreman`, `sidekiq` resolve through mise.
+- Node/Yarn come from `nvm` (Node 24, pinned by `.nvmrc`, which satisfies `bin/dev`'s Node 20+ requirement); `corepack enable` provides Yarn 1.22.x. `/exec-daemon/node` may still be Node 22 on PATH — run `nvm use` (or `bin/dev`, which does that) when you need Node 24.
+- The environment install script refreshes gems/JS deps, prepares the DBs, and runs `bin/rails archive:export_daily`, so those don't need reinstalling by hand on a fresh agent.
 
-### Services must be started each session (no systemd / not auto-started)
-- PostgreSQL: `sudo pg_ctlcluster 16 main start`
-- Redis: `sudo redis-server --daemonize yes`
+### Services (start script brings these up each boot)
+- PostgreSQL: `sudo pg_ctlcluster 16 main start` (if `start` already ran, this is a no-op)
+- Redis: `sudo redis-server --daemonize yes` (skip if `redis-cli ping` already returns `PONG`)
 - The dev DB connects over the local Unix socket as OS user `ubuntu` (peer auth); a `ubuntu` superuser role exists in Postgres. `config/database.yml` sets no host/user for development, so this role is what makes `bin/rails` work locally.
+- `bin/dev` is not started automatically; run it in a terminal when you need the app on `http://127.0.0.1:3000`.
 
 ### `.env` gotchas (file is gitignored; copy from `.env.example`)
 - Do NOT keep an empty `DATABASE_URL=` line in `.env`. An empty value makes `bin/rails` abort with "Database URL cannot be empty" in development. Leave `DATABASE_URL` unset (delete the line) locally.
