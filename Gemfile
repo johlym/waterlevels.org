@@ -6,7 +6,7 @@ gem "rails", "~> 8.1.3", ">= 8.1.3.1"
 # json 3.0 (Ruby 4.0.7 default) made JSON.parse keywords-only.
 # ActiveSupport 8.1 still calls JSON.parse(json, options), which
 # cannot dump jsonb tables and then breaks db:test:prepare.
-gem "json", "~> 2.18"
+gem "json", "~> 3.0"
 gem "propshaft"
 gem "pg", "~> 1.1"
 gem "puma", ">= 5.0"
