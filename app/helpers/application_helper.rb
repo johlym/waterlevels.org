@@ -5,14 +5,43 @@ module ApplicationHelper
     Usgs::LocationNames.format(name)
   end
 
-  # Absolute URL for Open Graph / Twitter card images.
+  # Absolute URL for the default Open Graph / Twitter card image.
   def social_image_url
-    path = if content_for?(:og_image_path)
-      content_for(:og_image_path)
-    else
-      og_default_path
-    end
-    "#{app_base_url}#{path}"
+    absolute_url(og_default_path)
+  end
+
+  def site_icon_tags
+    [
+      { href: "/icon-48.png", sizes: "48x48", type: "image/png" },
+      { href: "/icon.svg", type: "image/svg+xml" }
+    ]
+  end
+
+  # Defaults rendered by the meta-tags gem. Page views override title,
+  # description, and the station card image with set_meta_tags.
+  def public_meta_tags
+    image = social_image_url
+    {
+      site: "WaterLevels.org",
+      reverse: true,
+      description: "Live USGS streamflow, water level, and temperature gauges across the United States.",
+      canonical: social_page_url,
+      icon: site_icon_tags,
+      og: {
+        site_name: "WaterLevels.org",
+        type: "website",
+        url: social_page_url,
+        title: :full_title,
+        description: :description,
+        image: { _: image, width: 1200, height: 630, type: "image/png" }
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: :full_title,
+        description: :description,
+        image: image
+      }
+    }
   end
 
   def app_base_url
@@ -56,19 +85,6 @@ module ApplicationHelper
     crumbs << [ location_name, request.path ]
     crumbs
   end
-
-  def social_title
-    content_for?(:title) ? content_for(:title) : "WaterLevels.org"
-  end
-
-  def social_description
-    if content_for?(:meta_description)
-      content_for(:meta_description)
-    else
-      "Live USGS streamflow, water level, and temperature gauges across the United States."
-    end
-  end
-
 
   # Breadcrumbs / headings should not repeat the word "County".
   def display_county_name(name)

@@ -1,16 +1,22 @@
 <% location_name = display_location_name(@snapshot[:name]) %>
-<% content_for :title, Seo.gauge_title(name: location_name, state_code: @snapshot[:state_code], kinds: @location.measurement_kinds) %>
-<% content_for :meta_description, Seo.gauge_description(
-  name: location_name,
-  agency: @location.agency_label,
-  county_name: @snapshot[:county_name],
-  state_name: @snapshot[:state_name],
-  kinds: @location.measurement_kinds
+<% station_image = absolute_url(og_station_path(@snapshot[:site_number])) %>
+<%# Blank site keeps the fitted station title inside the snippet width. %>
+<% set_meta_tags(
+  site: "",
+  title: Seo.gauge_title(name: location_name, state_code: @snapshot[:state_code], kinds: @location.measurement_kinds),
+  description: Seo.gauge_description(
+    name: location_name,
+    agency: @location.agency_label,
+    county_name: @snapshot[:county_name],
+    state_name: @snapshot[:state_name],
+    kinds: @location.measurement_kinds
+  ),
+  og: { image: { _: station_image } },
+  twitter: { image: station_image }
 ) %>
 <% content_for :head do %>
   <%= json_ld_tag(breadcrumb_json_ld(gauge_breadcrumbs(@snapshot, location_name))) %>
 <% end %>
-<% content_for :og_image_path, og_station_path(@snapshot[:site_number]) %>
 <% measurements = Array(@snapshot[:measurements]) %>
 <%
   network = @snapshot[:network] || @snapshot["network"] || {}

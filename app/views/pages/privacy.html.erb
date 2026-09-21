@@ -1,5 +1,7 @@
-<% content_for :title, "Privacy Policy | WaterLevels.org" %>
-<% content_for :meta_description, "What personal information WaterLevels.org collects, why we collect it, how we use it, and what choices you have." %>
+<% set_meta_tags(
+  title: "Privacy Policy",
+  description: "What personal information WaterLevels.org collects, why we collect it, how we use it, and what choices you have."
+) %>
 
 <div class="app-shell">
   <%= render Navigation::BarComponent.new %>

@@ -1,5 +1,7 @@
-<% content_for :title, "Manage email subscriptions | WaterLevels.org" %>
-<% content_for :meta_description, "Request a private link to manage WaterLevels.org email alert preferences or unsubscribe." %>
+<% set_meta_tags(
+  title: "Manage email subscriptions",
+  description: "Request a private link to manage WaterLevels.org email alert preferences or unsubscribe."
+) %>
 <% site_key = ENV.fetch("TURNSTILE_SITE_KEY", Contact::FormComponent::SITE_KEY) %>
 <% turnstile_required = ENV["TURNSTILE_SECRET"].present? %>
 

@@ -1,4 +1,4 @@
-<% content_for :title, "#{@location.site_number} | Inspect | Admin | WaterLevels.org" %>
+<% set_meta_tags title: [ @location.site_number, "Inspect", "Admin" ] %>
 
 <%
   loc = @report[:location]

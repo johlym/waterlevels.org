@@ -217,12 +217,14 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_operator title.length, :<=, 60
     assert_includes response.body, "<h1>Cambridge Reservoir, Unnamed Tributary 3, Near Lexington, MA</h1>"
     assert_includes response.body, 'rel="canonical" href="http://www.example.com/gauges/ma/'
+    assert_not_includes title, "WaterLevels.org"
     assert_includes response.body, 'type="application/ld+json"'
     assert_includes response.body, "BreadcrumbList"
     assert_includes response.body, "Massachusetts"
     assert_includes response.body, "http://www.example.com/gauges/ma#middlesex"
-    assert_includes response.body, 'rel="icon" href="/icon-48.png"'
-    assert_includes response.body, 'rel="icon" href="/icon.svg"'
+    assert_includes response.body, 'rel="icon" type="image/png" href="/icon-48.png"'
+    assert_includes response.body, 'rel="icon" type="image/svg+xml" href="/icon.svg"'
+    assert_includes response.body, 'property="og:title" content="Cambridge Reservoir, Unnamed Tributary 3 Water Level | MA"'
     description = response.body[/name="description" content="(.*?)"/, 1]
     assert description
     assert_operator description.length, :<=, 160
