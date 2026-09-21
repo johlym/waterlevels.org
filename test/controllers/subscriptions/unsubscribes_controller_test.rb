@@ -25,6 +25,7 @@ module Subscriptions
       get subscriptions_unsubscribe_path(token: @raw, scope: "all")
       assert_response :success
       assert_includes response.body, "Unsubscribe from all"
+      assert_includes response.body, 'name="robots" content="noindex, nofollow"'
     end
 
     test "create unsubscribes all" do

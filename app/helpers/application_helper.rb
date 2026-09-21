@@ -27,6 +27,36 @@ module ApplicationHelper
     "#{app_base_url}#{request.path}"
   end
 
+  def absolute_url(path)
+    return if path.blank?
+    return path if path.match?(%r{\Ahttps?://})
+
+    "#{app_base_url}#{path}"
+  end
+
+  def json_ld_tag(data)
+    tag.script(ERB::Util.json_escape(data.to_json).html_safe, type: "application/ld+json")
+  end
+
+  def breadcrumb_json_ld(crumbs)
+    Seo.breadcrumb_list(crumbs.map { |name, path| [ name, absolute_url(path) ] })
+  end
+
+  # Ancestors match the visible gauge breadcrumb. The station is the current
+  # page, so search results can show "Massachusetts › Middlesex" instead of
+  # the URL slug.
+  def gauge_breadcrumbs(snapshot, location_name)
+    crumbs = [ [ "Map", root_path ] ]
+    state = snapshot[:state_name].presence || snapshot[:state_code].to_s.upcase
+    crumbs << [ state, state_gauges_path(snapshot[:state_code]) ]
+    if snapshot[:county_name].present?
+      county = display_county_name(snapshot[:county_name])
+      crumbs << [ county, state_gauges_path(snapshot[:state_code], anchor: directory_group_anchor(county)) ]
+    end
+    crumbs << [ location_name, request.path ]
+    crumbs
+  end
+
   def social_title
     content_for?(:title) ? content_for(:title) : "WaterLevels.org"
   end

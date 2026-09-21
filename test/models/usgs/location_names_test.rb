@@ -40,6 +40,11 @@ module Usgs
         LocationNames.search_key("Lk Travis nr Austin, TX")
     end
 
+    test "drops a USGS period that sits immediately before a comma" do
+      assert_equal "Cambridge Reservoir, Unnamed Tributary 3, Near Lexington, MA",
+        LocationNames.format("CAMBRIDGE RESERVOIR., UNNAMED TRIBUTARY 3, NEAR LEXINGTON, MA")
+    end
+
     test "blank names stay blank" do
       assert_equal "", LocationNames.format("")
       assert_equal "", LocationNames.format(nil)
