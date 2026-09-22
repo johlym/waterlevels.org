@@ -6,8 +6,10 @@ Sentry.init do |config|
   config.send_default_pii = true
   config.enabled_environments = %w[development production staging]
 
-  # Full sampling in non-production; keep production volume reasonable.
-  config.traces_sample_rate = Rails.env.production? ? 0.1 : 1.0
+  # Telebugs does not support performance tracing or profiling yet.
+  # nil disables tracing completely, including continuation of incoming traces.
+  config.traces_sample_rate = nil
+  config.profiles_sample_rate = nil
 
   # Production is the only deployed environment; local uses Rails.env.
   config.environment = Rails.env.production? ? "production" : Rails.env
