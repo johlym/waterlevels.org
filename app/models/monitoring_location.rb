@@ -1,8 +1,7 @@
 class MonitoringLocation < ApplicationRecord
   STALE_AFTER = 1.week
   CHART_RANGE_ORDER = %w[24h 7d 30d 1y 3y 10y].freeze
-  # 1 Year / 3 Years stay on screen but locked when USGS publishes no daily history.
-  LOCKED_LONG_CHART_RANGES = %w[1y 3y].freeze
+  LONG_CHART_RANGES = %w[1y 3y 10y].freeze
   UNAVAILABLE_LONG_RANGE_TOOLTIP =
     "These lengths of time aren't available because USGS does not provide them.".freeze
 
@@ -456,24 +455,25 @@ class MonitoringLocation < ApplicationRecord
     time_series.selected.any? { |series| series.has_daily_on_or_before?(anchor) }
   end
 
-  # USGS confirmed daily history is absent, and no selected series has 1 Year (or
-  # longer) data. The long-range tabs stay visible but are not selectable.
-  def long_chart_ranges_unavailable?
-    return false unless usgs?
-    return false if missing_year_history?
-    return false if daily_history_unavailable_labels.empty?
+  # Parameter codes USGS does not publish daily history for. Long chart ranges
+  # lock while one of these measurements is selected.
+  def daily_absent_parameter_codes
+    return [] unless usgs?
 
-    !year_history_available?
+    daily_history_unavailable_series.map(&:parameter_code).uniq
   end
 
-  # Range buttons for the gauge page. Locked entries are rendered disabled.
-  def chart_range_controls
-    lock = long_chart_ranges_unavailable?
+  # Range buttons for the gauge page. `long` entries lock when the selected
+  # measurement has no USGS daily history. When nothing on the gauge has year
+  # data, 3 Years is still shown so that length is visibly unavailable.
+  def chart_range_controls(lock_long_ranges: false)
     ranges = chart_ranges
-    ranges = CHART_RANGE_ORDER & (ranges | LOCKED_LONG_CHART_RANGES) if lock
+    if lock_long_ranges && !year_history_available?
+      ranges = CHART_RANGE_ORDER & (ranges | %w[1y 3y])
+    end
 
     ranges.map do |range|
-      { range: range, locked: lock && LOCKED_LONG_CHART_RANGES.include?(range) }
+      { range: range, long: LONG_CHART_RANGES.include?(range) }
     end
   end
 

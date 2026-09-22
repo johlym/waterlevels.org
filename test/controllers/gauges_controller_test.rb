@@ -292,7 +292,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, 'data-hydrograph-range-param="3y"'
   end
 
-  test "shows unavailable callout when USGS daily is absent for a parameter" do
+  test "locks long ranges for the selected parameter when other measurements have year history" do
     stage = create(
       :time_series,
       monitoring_location: @location,
@@ -302,6 +302,13 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
       measurement_kind: "water_level"
     )
     ContinuousObservation.create!(time_series: stage, observed_at: 1.hour.ago, value: 5.5)
+    LatestObservation.create!(
+      time_series: stage,
+      value: 5.5,
+      unit_of_measure: "ft",
+      observed_at: 1.hour.ago,
+      synced_at: Time.current
+    )
     flow = create(
       :time_series,
       monitoring_location: @location,
@@ -309,16 +316,35 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
       parameter_code: "00060",
       measurement_kind: "discharge"
     )
+    LatestObservation.create!(
+      time_series: flow,
+      value: 40.0,
+      unit_of_measure: "ft3/s",
+      observed_at: 1.hour.ago,
+      synced_at: Time.current
+    )
     DailyObservation.create!(time_series: flow, observed_on: 11.months.ago.to_date, value: 10.0)
+    DailyObservation.create!(time_series: flow, observed_on: 35.months.ago.to_date, value: 9.0)
+    DailyObservation.create!(
+      time_series: flow,
+      observed_on: HistoryIngestion::DAILY_10Y_HISTORY_ANCHOR.ago.to_date,
+      value: 8.0
+    )
     DailyObservation.create!(time_series: flow, observed_on: Date.current, value: 11.0)
 
     get "/gauges/#{@location.state_code}/#{@location.to_param}"
     assert_response :success
-    assert_includes response.body, 'class="history-callout"'
+    assert_not_includes response.body, "USGS does not publish daily history"
     assert_not_includes response.body, "Full-year history is still loading"
-    assert_includes response.body, "USGS does not publish daily history for Gage height"
+    assert_includes response.body, "available because USGS does not provide them."
+    assert_includes response.body, 'class="long-ranges is-locked"'
+    assert_includes response.body, "00065"
     assert_includes response.body, 'data-hydrograph-range-param="1y"'
-    assert_not_includes response.body, 'class="range-lock"'
+    assert_includes response.body, 'data-hydrograph-range-param="3y"'
+    assert_includes response.body, 'data-hydrograph-range-param="10y"'
+    assert_match(/disabled[^>]*>\s*1 Year<\/button>/, response.body)
+    assert_match(/disabled[^>]*>\s*3 Years<\/button>/, response.body)
+    assert_match(/disabled[^>]*>\s*10 Years<\/button>/, response.body)
   end
 
   test "locks long ranges and hides the daily-history callout when no year data exists" do
@@ -331,17 +357,24 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
       measurement_kind: "water_level"
     )
     ContinuousObservation.create!(time_series: stage, observed_at: 1.hour.ago, value: 5.5)
+    LatestObservation.create!(
+      time_series: stage,
+      value: 5.5,
+      unit_of_measure: "ft",
+      observed_at: 1.hour.ago,
+      synced_at: Time.current
+    )
 
     get "/gauges/#{@location.state_code}/#{@location.to_param}"
     assert_response :success
     assert_not_includes response.body, "USGS does not publish daily history"
     assert_not_includes response.body, "Full-year history is still loading"
     assert_includes response.body, "available because USGS does not provide them."
-    assert_includes response.body, 'class="range-lock"'
+    assert_includes response.body, 'class="long-ranges is-locked"'
     assert_includes response.body, 'id="long-range-unavailable-tip"'
     assert_includes response.body, 'data-hydrograph-range-param="30d"'
-    assert_not_includes response.body, 'data-hydrograph-range-param="1y"'
-    assert_not_includes response.body, 'data-hydrograph-range-param="3y"'
+    assert_includes response.body, 'data-hydrograph-range-param="1y"'
+    assert_includes response.body, 'data-hydrograph-range-param="3y"'
     assert_match(/disabled[^>]*>\s*1 Year<\/button>/, response.body)
     assert_match(/disabled[^>]*>\s*3 Years<\/button>/, response.body)
   end
