@@ -54,4 +54,11 @@ class AlertEvaluationJobTest < ActiveSupport::TestCase
       AlertEvaluationJob.perform_now(@location.id)
     end
   end
+
+  test "skips unverified subscribers until they confirm" do
+    @subscriber.update!(verified_at: nil)
+    assert_no_difference("AlertDelivery.count") do
+      AlertEvaluationJob.perform_now(@location.id)
+    end
+  end
 end

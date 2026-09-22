@@ -40,6 +40,15 @@ class AlertDeliveryJobTest < ActiveSupport::TestCase
     assert_not_nil @delivery.sent_at
   end
 
+  test "skips unverified subscribers" do
+    @subscriber.update!(verified_at: nil)
+    assert_no_emails do
+      AlertDeliveryJob.perform_now(@delivery.id)
+    end
+    assert_equal "skipped", @delivery.reload.status
+    assert_equal "inactive", @delivery.metadata["reason"]
+  end
+
   test "skips during quiet hours for immediate alerts" do
     @subscriber.update!(quiet_hours_start_minute: 0, quiet_hours_end_minute: 24 * 60)
     AlertDeliveryJob.perform_now(@delivery.id)
