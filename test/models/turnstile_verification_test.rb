@@ -71,6 +71,39 @@ class TurnstileVerificationTest < ActiveSupport::TestCase
     assert_not_requested :post, TurnstileVerification::SITEVERIFY_URL
   end
 
+  test "accepts a token minted by the previous contact widget action" do
+    stub_siteverify(success: true, action: "turnstile-spin-v2", hostname: "localhost")
+
+    assert verification.success?
+  end
+
+  test "an explicit hostname list replaces the production default" do
+    hostnames = TurnstileVerification.hostnames_for(
+      env: ActiveSupport::StringInquirer.new("production"),
+      configured: "localhost",
+      app_host: "waterlevels.org"
+    )
+
+    assert_equal [ "localhost" ], hostnames
+  end
+
+  test "production accepts the apex and www hosts when TURNSTILE_HOSTNAMES is unset" do
+    hostnames = TurnstileVerification.hostnames_for(
+      env: ActiveSupport::StringInquirer.new("production"),
+      configured: nil,
+      app_host: "https://waterlevels.org"
+    )
+
+    assert_equal [ "waterlevels.org", "www.waterlevels.org" ], hostnames
+  end
+
+  test "accepts a www hostname when that host is configured" do
+    ENV["TURNSTILE_HOSTNAMES"] = "https://waterlevels.org"
+    stub_siteverify(success: true, action: "contact", hostname: "waterlevels.org")
+
+    assert verification.success?
+  end
+
   private
 
   def verification(token: "good-token", expected_action: TurnstileVerification::CONTACT)
