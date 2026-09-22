@@ -110,6 +110,8 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "cf-turnstile"
     assert_includes response.body, "challenges.cloudflare.com/turnstile"
+    assert_includes response.body, "test-site-key"
+    assert_includes response.body, %(data-action="#{TurnstileVerification::EMAIL_NOTIFICATIONS}")
   ensure
     if previous_secret
       ENV["TURNSTILE_SECRET"] = previous_secret
@@ -161,6 +163,55 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "create rejects gauge signup when turnstile does not pass" do
+    with_turnstile_enforced do
+      stub_turnstile(success: false, action: TurnstileVerification::EMAIL_NOTIFICATIONS, hostname: "localhost")
+
+      assert_no_enqueued_emails do
+        post subscriptions_path, params: {
+          email: "bot.check@example.com",
+          monitoring_location_id: @location.id,
+          "cf-turnstile-response" => "stale-token"
+        }
+      end
+
+      assert_redirected_to gauge_signup_path("bot")
+      assert_not Subscriber.exists?(email: "bot.check@example.com")
+    end
+  end
+
+  test "create accepts gauge signup when siteverify matches the notification action" do
+    with_turnstile_enforced do
+      stub_turnstile(
+        success: true,
+        action: TurnstileVerification::EMAIL_NOTIFICATIONS,
+        hostname: "localhost"
+      )
+
+      assert_enqueued_emails 1 do
+        post subscriptions_path, params: {
+          email: "checked@example.com",
+          monitoring_location_id: @location.id,
+          time_zone: "America/Los_Angeles",
+          "cf-turnstile-response" => "fresh-token"
+        }
+      end
+
+      assert_redirected_to gauge_signup_path("sent")
+      subscriber = Subscriber.find_by!(email: "checked@example.com")
+      assert_not subscriber.verified?
+    end
+  end
+
+  test "manage link form embeds turnstile when secret is configured" do
+    with_turnstile_enforced do
+      get subscriptions_path
+      assert_response :success
+      assert_includes response.body, %(data-action="#{TurnstileVerification::MANAGE_LINK}")
+      assert_includes response.body, "challenges.cloudflare.com/turnstile"
+    end
+  end
+
   test "create manage_link intent emails existing subscriber" do
     subscriber = create(:subscriber, :verified, email: "manage.me@example.com")
 
@@ -178,6 +229,30 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
 
   def gauge_signup_path(signup)
     gauge_path(state: @location.path_state, site_number_slug: @location.to_param, signup: signup)
+  end
+
+  def with_turnstile_enforced
+    previous_secret = ENV["TURNSTILE_SECRET"]
+    previous_hostnames = ENV["TURNSTILE_HOSTNAMES"]
+    ENV["TURNSTILE_SECRET"] = "test-secret"
+    ENV["TURNSTILE_HOSTNAMES"] = "localhost"
+    yield
+  ensure
+    restore_env("TURNSTILE_SECRET", previous_secret)
+    restore_env("TURNSTILE_HOSTNAMES", previous_hostnames)
+  end
+
+  def stub_turnstile(**body)
+    stub_request(:post, TurnstileVerification::SITEVERIFY_URL)
+      .to_return(status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" })
+  end
+
+  def restore_env(key, previous)
+    if previous
+      ENV[key] = previous
+    else
+      ENV.delete(key)
+    end
   end
 
   def with_invisible_captcha_session_checks

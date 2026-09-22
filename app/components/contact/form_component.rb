@@ -7,8 +7,12 @@ module Contact
       @contact_message = contact_message
     end
 
+    def self.site_key
+      ENV["TURNSTILE_SITE_KEY"].presence || SITE_KEY
+    end
+
     def site_key
-      ENV.fetch("TURNSTILE_SITE_KEY", SITE_KEY)
+      self.class.site_key
     end
   end
 end

@@ -1,4 +1,4 @@
-<% site_key = ENV.fetch("TURNSTILE_SITE_KEY", Contact::FormComponent::SITE_KEY) %>
+<% site_key = Contact::FormComponent.site_key %>
 <% turnstile_required = ENV["TURNSTILE_SECRET"].present? %>
 <section id="alerts-cta" class="gauge-alert-card" aria-labelledby="alerts-cta-heading">
   <div class="gauge-alert-copy">
@@ -49,7 +49,7 @@
         class="cf-turnstile turnstile"
         data-sitekey="<%= site_key %>"
         data-theme="dark"
-        data-action="subscription-gauge-signup"
+        data-action="<%= TurnstileVerification::EMAIL_NOTIFICATIONS %>"
         aria-label="Bot check"
       ></div>
     <% end %>

@@ -2,7 +2,7 @@
   title: "Manage email subscriptions",
   description: "Request a private link to manage WaterLevels.org email alert preferences or unsubscribe."
 ) %>
-<% site_key = ENV.fetch("TURNSTILE_SITE_KEY", Contact::FormComponent::SITE_KEY) %>
+<% site_key = Contact::FormComponent.site_key %>
 <% turnstile_required = ENV["TURNSTILE_SECRET"].present? %>
 
 <div class="app-shell">
@@ -37,7 +37,7 @@
             class="cf-turnstile turnstile"
             data-sitekey="<%= site_key %>"
             data-theme="dark"
-            data-action="subscription-manage-link"
+            data-action="<%= TurnstileVerification::MANAGE_LINK %>"
             aria-label="Bot check"
           ></div>
         <% end %>
