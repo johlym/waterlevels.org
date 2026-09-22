@@ -1322,16 +1322,20 @@ body.dialog-open {
     }
   }
 
-  .range-lock {
-    @apply inline-flex shrink-0 cursor-not-allowed;
+  .long-ranges {
+    @apply inline-flex shrink-0;
     anchor-name: --long-range-lock;
+  }
+
+  .long-ranges.is-locked {
+    @apply cursor-not-allowed;
 
     button {
       @apply pointer-events-none cursor-not-allowed text-zinc-600 hover:text-zinc-600;
     }
   }
 
-  .range-lock:focus-visible {
+  .long-ranges.is-locked:focus-visible {
     @apply rounded-md outline-2 outline-offset-2 outline-cyan-500;
   }
 }
@@ -1345,8 +1349,8 @@ body.dialog-open {
   translate: -50% -0.45rem;
 }
 
-.history-controls:has(.range-lock:hover) .range-lock-tip,
-.history-controls:has(.range-lock:focus-within) .range-lock-tip {
+.history-controls:has(.long-ranges.is-locked:hover) .range-lock-tip,
+.history-controls:has(.long-ranges.is-locked:focus-within) .range-lock-tip {
   @apply opacity-100;
 }
 

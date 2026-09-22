@@ -50,7 +50,8 @@ export default class extends Controller {
     "estimatedNote",
     "chartView",
     "tableView",
-    "viewButton"
+    "viewButton",
+    "longRanges"
   ]
   static values = {
     url: String,
@@ -60,7 +61,8 @@ export default class extends Controller {
     timeZoneLabel: { type: String, default: "" },
     dailyOnly: { type: Boolean, default: false },
     defaultRange: { type: String, default: "7d" },
-    dataProvider: { type: String, default: "usgs" }
+    dataProvider: { type: String, default: "usgs" },
+    dailyAbsentCodes: { type: Array, default: [] }
   }
 
   connect() {
@@ -73,11 +75,13 @@ export default class extends Controller {
     this.seriesByKey = {}
     this.loadRequestId = 0
     this.syncView()
+    this.applyLongRangeLock()
     this.load()
     this.element.addEventListener("parameter-toggle:changed", (event) => {
       this.kind = event.detail.kind
       this.parameterCode = event.detail.parameterCode
-      this.render()
+      if (this.applyLongRangeLock()) this.load()
+      else this.render()
     })
     this.element.addEventListener("temperature-unit:changed", () => this.render())
   }
@@ -87,12 +91,68 @@ export default class extends Controller {
   }
 
   setRange(event) {
+    if (event.currentTarget.disabled) return
+
     this.range = event.params.range
+    this.syncPressedRange()
+    this.selectedDayKey = null
+    this.load()
+  }
+
+  syncPressedRange() {
     this.rangeButtonTargets.forEach((button) => {
       button.setAttribute("aria-pressed", button.dataset.hydrographRangeParam === this.range ? "true" : "false")
     })
+  }
+
+  isLongRange(range) {
+    return range === "1y" || range === "3y" || range === "10y"
+  }
+
+  longRangesLocked() {
+    if (this.dataProviderValue !== "usgs") return false
+
+    const code = this.parameterCode == null ? "" : String(this.parameterCode)
+    if (!code) return false
+
+    return this.dailyAbsentCodesValue.map(String).includes(code)
+  }
+
+  fallbackShortRange() {
+    const ranges = this.rangeButtonTargets.map((button) => button.dataset.hydrographRangeParam)
+    if (ranges.includes("30d")) return "30d"
+    if (ranges.includes("7d")) return "7d"
+
+    return ranges.find((range) => !this.isLongRange(range)) || this.range
+  }
+
+  // Disable 1 Year / 3 Years / 10 Years while the selected measurement has no
+  // USGS daily history. Returns true when the active range had to change.
+  applyLongRangeLock() {
+    const locked = this.longRangesLocked()
+    if (this.hasLongRangesTarget) {
+      const group = this.longRangesTarget
+      group.classList.toggle("is-locked", locked)
+      if (locked) {
+        group.tabIndex = 0
+        group.setAttribute("aria-label", "1 Year and longer ranges unavailable")
+      } else {
+        group.removeAttribute("tabindex")
+        group.removeAttribute("aria-label")
+      }
+      group.querySelectorAll("button").forEach((button) => {
+        button.disabled = locked
+        if (locked) button.setAttribute("aria-describedby", "long-range-unavailable-tip")
+        else button.removeAttribute("aria-describedby")
+      })
+    }
+
+    if (!locked || !this.isLongRange(this.range)) return false
+
+    this.range = this.fallbackShortRange()
+    this.syncPressedRange()
     this.selectedDayKey = null
-    this.load()
+    return true
   }
 
   selectDay() {

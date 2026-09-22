@@ -18,6 +18,13 @@
   <%= json_ld_tag(breadcrumb_json_ld(gauge_breadcrumbs(@snapshot, location_name))) %>
 <% end %>
 <% measurements = Array(@snapshot[:measurements]) %>
+<% absent_codes = @location.daily_absent_parameter_codes %>
+<%
+  first_parameter_code = measurements.filter_map { |measurement|
+    measurement[:parameter_code] || measurement["parameter_code"]
+  }.first.to_s
+  lock_long_ranges = absent_codes.include?(first_parameter_code)
+%>
 <%
   network = @snapshot[:network] || @snapshot["network"] || {}
   upstream = Array(network[:upstream] || network["upstream"]).reject { |node| related_station_stale?(node) }
@@ -42,6 +49,7 @@
   data-hydrograph-daily-only-value="<%= @location.daily_only? %>"
   data-hydrograph-default-range-value="<%= @location.default_chart_range %>"
   data-hydrograph-data-provider-value="<%= @location.data_provider %>"
+  data-hydrograph-daily-absent-codes-value="<%= ERB::Util.json_escape(absent_codes.to_json) %>"
   data-temperature-unit-url-value="<%= temperature_unit_path %>"
 >
   <%= render Navigation::BarComponent.new %>
@@ -155,13 +163,13 @@
         <h2 id="graph-heading">Historical trends</h2>
         <div class="history-controls">
           <%
-            controls = @location.chart_range_controls
+            controls = @location.chart_range_controls(lock_long_ranges: lock_long_ranges)
             default_range = @location.default_chart_range
             range_labels = { "7d" => "7 Days", "30d" => "30 Days", "1y" => "1 Year", "3y" => "3 Years", "10y" => "10 Years" }
-            open_controls, locked_controls = controls.partition { |control| !control[:locked] }
+            short_controls, long_controls = controls.partition { |control| !control[:long] }
           %>
           <div class="segmented" role="group" aria-label="Time range">
-            <% open_controls.each do |control| %>
+            <% short_controls.each do |control| %>
               <% range = control[:range] %>
               <button
                 type="button"
@@ -171,25 +179,35 @@
                 aria-pressed="<%= range == default_range %>"
               ><%= range_labels.fetch(range, range) %></button>
             <% end %>
-            <% if locked_controls.any? %>
+            <% if long_controls.any? %>
               <span
-                class="range-lock"
-                tabindex="0"
-                role="group"
-                aria-label="1 Year and 3 Years unavailable"
-                aria-describedby="long-range-unavailable-tip"
+                class="long-ranges<%= " is-locked" if lock_long_ranges %>"
+                data-hydrograph-target="longRanges"
+                <% if lock_long_ranges %>
+                  tabindex="0"
+                  role="group"
+                  aria-label="1 Year and longer ranges unavailable"
+                  aria-describedby="long-range-unavailable-tip"
+                <% end %>
               >
-                <% locked_controls.each do |control| %>
+                <% long_controls.each do |control| %>
+                  <% range = control[:range] %>
                   <button
                     type="button"
-                    disabled
-                    aria-describedby="long-range-unavailable-tip"
-                  ><%= range_labels.fetch(control[:range], control[:range]) %></button>
+                    data-action="hydrograph#setRange"
+                    data-hydrograph-range-param="<%= range %>"
+                    data-hydrograph-target="rangeButton"
+                    aria-pressed="<%= range == default_range %>"
+                    <% if lock_long_ranges %>
+                      disabled
+                      aria-describedby="long-range-unavailable-tip"
+                    <% end %>
+                  ><%= range_labels.fetch(range, range) %></button>
                 <% end %>
               </span>
             <% end %>
           </div>
-          <% if locked_controls.any? %>
+          <% if absent_codes.any? %>
             <span id="long-range-unavailable-tip" class="range-lock-tip" role="tooltip"><%= MonitoringLocation::UNAVAILABLE_LONG_RANGE_TOOLTIP %></span>
           <% end %>
           <div class="segmented" role="group" aria-label="History view">
@@ -221,13 +239,6 @@
           <p>
             Full-year history is still loading for this station. Shorter ranges are available now;
             the 1 Year chart will fill in as we finish backfilling from USGS.
-          </p>
-        </div>
-      <% elsif @location.usgs? && !@location.long_chart_ranges_unavailable? && (unavailable = @location.daily_history_unavailable_labels).any? %>
-        <div class="history-callout" role="status">
-          <p>
-            USGS does not publish daily history for <%= unavailable.to_sentence %>.
-            Use 30 Days or shorter for continuous readings; other measurements may still have 1 Year / 3 Years charts.
           </p>
         </div>
       <% end %>
