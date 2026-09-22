@@ -52,7 +52,7 @@ class SubscriptionsController < ApplicationController
   end
 
   def request_manage_link
-    unless turnstile_ok?
+    unless turnstile_ok?(TurnstileVerification::MANAGE_LINK)
       flash.now[:alert] = "Please complete the bot check and try again."
       return render :new, status: :unprocessable_content
     end
@@ -77,7 +77,7 @@ class SubscriptionsController < ApplicationController
       return render :new, status: :unprocessable_content
     end
 
-    unless turnstile_ok?
+    unless turnstile_ok?(TurnstileVerification::EMAIL_NOTIFICATIONS)
       return redirect_to_gauge_signup(location, signup: "bot")
     end
 
@@ -146,14 +146,15 @@ class SubscriptionsController < ApplicationController
     ).subscription_confirmation.deliver_later
   end
 
-  def turnstile_ok?
+  def turnstile_ok?(expected_action)
     if ENV["TURNSTILE_SECRET"].blank?
       return !Rails.env.production?
     end
 
     TurnstileVerification.new(
       token: params["cf-turnstile-response"],
-      remote_ip: request.remote_ip
+      remote_ip: request.remote_ip,
+      expected_action: expected_action
     ).success?
   end
 

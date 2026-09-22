@@ -61,7 +61,7 @@
     class="cf-turnstile turnstile"
     data-sitekey="<%= site_key %>"
     data-theme="dark"
-    data-action="turnstile-spin-v2"
+    data-action="<%= TurnstileVerification::CONTACT %>"
     aria-label="Bot check"
   ></div>
   <% if errors[:base].any? %>

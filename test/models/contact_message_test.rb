@@ -17,6 +17,40 @@ class ContactMessageTest < ActiveSupport::TestCase
     assert_not message.valid?
   end
 
+  test "is invalid when the turnstile action is not contact" do
+    previous = ENV["TURNSTILE_SECRET"]
+    hostnames = ENV["TURNSTILE_HOSTNAMES"]
+    ENV["TURNSTILE_SECRET"] = "secret"
+    ENV["TURNSTILE_HOSTNAMES"] = "localhost"
+    stub_request(:post, TurnstileVerification::SITEVERIFY_URL)
+      .to_return(
+        status: 200,
+        body: { success: true, action: "email-notifications", hostname: "localhost" }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+    message = ContactMessage.new(
+      name: "Ada",
+      email: "ada@example.com",
+      subject: "Hello",
+      message: "Body",
+      turnstile_token: "token"
+    )
+    assert_not message.valid?
+    assert_match(/bot check/i, message.errors[:base].join)
+  ensure
+    if previous
+      ENV["TURNSTILE_SECRET"] = previous
+    else
+      ENV.delete("TURNSTILE_SECRET")
+    end
+    if hostnames
+      ENV["TURNSTILE_HOSTNAMES"] = hostnames
+    else
+      ENV.delete("TURNSTILE_HOSTNAMES")
+    end
+  end
+
   test "is invalid when turnstile fails" do
     previous = ENV["TURNSTILE_SECRET"]
     ENV["TURNSTILE_SECRET"] = "secret"

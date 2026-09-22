@@ -31,7 +31,11 @@ class ContactMessage
   private
 
   def turnstile_must_pass
-    return if TurnstileVerification.new(token: turnstile_token, remote_ip: remote_ip).success?
+    return if TurnstileVerification.new(
+      token: turnstile_token,
+      remote_ip: remote_ip,
+      expected_action: TurnstileVerification::CONTACT
+    ).success?
 
     errors.add(:base, "Please complete the bot check and try again.")
   end
