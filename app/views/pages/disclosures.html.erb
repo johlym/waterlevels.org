@@ -1,6 +1,6 @@
 <% set_meta_tags(
   title: "Data disclosures",
-  description: "How WaterLevels.org uses U.S. Geological Survey water data, Bureau of Reclamation and U.S. Army Corps of Engineers reservoir elevations, and National Weather Service flood stages, what we store, how often it updates, and important limitations."
+  description: "Where WaterLevels.org water data comes from, what we store and how we use it, how often it updates, and what we collect when you search, use your location, or subscribe to email alerts."
 ) %>
 
 <div class="app-shell">
@@ -18,7 +18,7 @@
         <span class="accent">agency water data</span>
       </h1>
       <p class="lede">
-        WaterLevels.org is an independent site that republishes selected public water monitoring data from the U.S. Geological Survey, curated reservoir elevations from the U.S. Bureau of Reclamation (RISE), the U.S. Army Corps of Engineers (CWMS), and the California Data Exchange Center (CDEC), selected National Weather Service NWPS gauges without a USGS site id, plus flood categories and stage thresholds from NWPS when available. This page explains where the data comes from, what we keep, how we display it, and what it is not.
+        WaterLevels.org is an independent site that republishes selected public water monitoring data from the U.S. Geological Survey, curated reservoir elevations from the U.S. Bureau of Reclamation (RISE), the U.S. Army Corps of Engineers (CWMS), and the California Data Exchange Center (CDEC), selected National Weather Service NWPS gauges without a USGS site id, plus flood categories and stage thresholds from NWPS when available. This page explains where that data comes from, what we keep, how we use it, and what it is not. It also covers the information we collect from you when you search, center the map, or subscribe to email alerts.
       </p>
     </div>
   </section>
@@ -57,31 +57,45 @@
           <a href="https://water.noaa.gov/" rel="noopener noreferrer" target="_blank">National Water Prediction Service (NWPS)</a>
           via the
           <a href="https://api.water.noaa.gov/nwps/v1/docs/" rel="noopener noreferrer" target="_blank">NWPS API</a>.
-          We join NWPS forecast points to USGS gauges by site number when a match exists. Not every USGS site has an NWPS forecast point, so some stations will show USGS measurements without flood-stage context. USBR and USACE reservoir pages do not use NWPS flood stages.
+          We join NWPS forecast points to USGS gauges by site number when a match exists. Not every USGS site has an NWPS forecast point, so some stations will show USGS measurements without flood-stage context. USBR, USACE, and CDEC reservoir pages do not use NWPS flood stages. We do not chart NWPS forecast hydrographs; forecast information is used only to choose the flood category described below.
         </p>
         <p>
-          USGS, USBR, USACE, and NWS products are U.S. government work. WaterLevels.org is not affiliated with, endorsed by, or operated by the USGS, the Bureau of Reclamation, the U.S. Army Corps of Engineers, the National Weather Service, NOAA, the Department of the Interior, or the Department of Defense. We are a private project that consumes public APIs and presents a subset of that data for browsing and reference.
+          Upstream and downstream neighbors on USGS station pages come from the USGS
+          <a href="https://api.water.usgs.gov/nldi/" rel="noopener noreferrer" target="_blank">Network Linked Data Index (NLDI)</a>.
+          We ask NLDI which NWIS sites lie along the flowpath within about 80 kilometers, then keep the closest matches we already index. Nearby stations are not an agency product: we compute them from the coordinates stored with each gauge.
         </p>
         <p>
-          For the authoritative hydrologic record at any station, use the official USGS monitoring-location page linked from each WaterLevels.org station (typically
-          <a href="https://waterdata.usgs.gov/" rel="noopener noreferrer" target="_blank">waterdata.usgs.gov</a>).
-          For official flood forecasts, impacts, and watches/warnings, use
+          USGS, USBR, USACE, and NWS products are U.S. government work. CDEC products are California state government work, operated by the California Department of Water Resources. WaterLevels.org is not affiliated with, endorsed by, or operated by the USGS, the Bureau of Reclamation, the U.S. Army Corps of Engineers, the National Weather Service, NOAA, the Department of the Interior, the Department of Defense, or the California Department of Water Resources. We are a private project that consumes public APIs and presents a subset of that data for browsing and reference.
+        </p>
+        <p>
+          For the authoritative hydrologic record at any station, use the official agency page linked from that WaterLevels.org station: typically
+          <a href="https://waterdata.usgs.gov/" rel="noopener noreferrer" target="_blank">waterdata.usgs.gov</a>
+          for USGS,
+          <a href="https://data.usbr.gov/" rel="noopener noreferrer" target="_blank">data.usbr.gov</a>
+          for Reclamation,
+          the CWMS location page for Corps projects,
+          <a href="https://cdec.water.ca.gov/" rel="noopener noreferrer" target="_blank">cdec.water.ca.gov</a>
+          for California reservoirs, and
           <a href="https://water.noaa.gov/" rel="noopener noreferrer" target="_blank">water.noaa.gov</a>
-          and local NWS products. Official pages may include additional parameters, cooperators, remarks, and quality notes that we do not show.
+          for NWPS-only gauges.
+          For official flood forecasts, impacts, and watches/warnings, use water.noaa.gov and local NWS products. Official pages may include additional parameters, cooperators, remarks, and quality notes that we do not show.
         </p>
       </section>
 
       <section aria-labelledby="what-we-show-heading">
         <h2 id="what-we-show-heading">What we show</h2>
-        <p>We focus on continuously monitored surface-water and related sites that currently report at least one of:</p>
+        <p>We focus on surface-water sites that currently report at least one of:</p>
         <ul role="list">
           <li><span class="emphasis">Water level / stage</span> — including gage height (USGS parameter code 00065) and, where available, lake or reservoir elevation relative to a vertical datum such as NGVD 1929 (62614) or NAVD 1988 (62615), or height above a local datum (00062).</li>
           <li><span class="emphasis">Streamflow / discharge</span> — USGS parameter code 00060, typically in cubic feet per second.</li>
           <li><span class="emphasis">Water temperature</span> — USGS parameter code 00010, stored in Celsius and convertible to Fahrenheit in the interface.</li>
-          <li><span class="emphasis">NWS flood context</span> — observed flood category and action/minor/moderate/major stage thresholds from NWPS when a gauge is matched, used for map coloring, the alerts directory, and station flood-stage markers.</li>
+          <li><span class="emphasis">Reservoir elevation</span> — daily or pool elevation for a curated allowlist of USBR, USACE, and CDEC reservoirs (CDEC sensor 6). These are not USGS parameter codes, and we do not ingest every reservoir or series those agencies publish.</li>
+          <li><span class="emphasis">NWPS observed stage</span> — gage height from recent NWPS stageflow observations for gauges we promote that have no USGS site id. That history is typically about 30 days. We do not store the forecast portion of stageflow.</li>
+          <li><span class="emphasis">NWS flood context</span> — action, minor, moderate, and major stage thresholds from NWPS when a gauge is matched, plus a flood category. The category we store is the more severe of the NWPS observed category and the NWPS forecast category when both are present. It colors the map, fills the Flood Alerts list, and marks station pages. USBR, USACE, and CDEC pages omit it.</li>
+          <li><span class="emphasis">Neighbors</span> — upstream and downstream USGS gauges from NLDI, and nearby gauges ranked by distance between stored coordinates.</li>
         </ul>
         <p>
-          When a site reports more than one water-level style parameter, we generally prefer gage height for map and default display, and still expose the other selected series on the station page so you can compare them. We do not attempt to host the full USGS groundwater-well archive or every historical field measurement.
+          When a USGS site reports more than one water-level style parameter, we generally prefer gage height for map and default display, and still expose the other selected series on the station page so you can compare them. We do not attempt to host the full USGS groundwater-well archive, every historical field measurement, or the full parameter catalogs of USBR, USACE, CDEC, or NWPS.
         </p>
       </section>
 
@@ -89,35 +103,38 @@
         <h2 id="how-used-heading">How the data is used</h2>
         <p>In practical terms, WaterLevels.org:</p>
         <ul role="list">
-          <li>Discovers active sites from USGS <code>latest-continuous</code> feeds for the parameter codes above.</li>
-          <li>Stores monitoring-location metadata (name, site number, coordinates, state/county when provided) and selected time-series metadata.</li>
-          <li>Caches the latest observation for map popups and station “current conditions.”</li>
-          <li>Syncs NWPS flood categories and stage thresholds for matched gauges and surfaces them on the map, Flood Alerts list, and station pages.</li>
-          <li>Backfills short continuous history (and related daily/peak series where available) so station graphs and tables can render without calling USGS on every page view.</li>
-          <li>Serves highly cached HTML and JSON responses so the site stays fast; cached pages can lag behind the live USGS and NWPS feeds by design.</li>
+          <li>Discovers active USGS sites from <code>latest-continuous</code> feeds for the parameter codes above, and stores monitoring-location metadata (name, site number, coordinates, state and county, and drainage area or hydrologic unit when the feed includes them) plus selected time-series metadata.</li>
+          <li>Refreshes a curated allowlist of USBR, USACE, CDEC, and NWPS-only gauges from those agencies’ APIs. Stations outside the allowlist are not added.</li>
+          <li>Caches the latest observation for map popups, station current conditions, the Flood Alerts list, and optional email alerts.</li>
+          <li>Syncs NWPS flood categories and stage thresholds for matched gauges. The stored category is the more severe of the observed and forecast categories. It appears on the map, the Flood Alerts list, and station pages, and it can trigger flood emails for people who opted in.</li>
+          <li>Backfills USGS continuous history (about 35 days), daily values, and peak series where USGS publishes them, and keeps longer daily history so charts and tables render from our cache: about three years for USGS, and up to about ten years for curated USBR, USACE, and CDEC reservoirs. When USGS does not publish a daily value, a chart may show an estimated daily mean computed from stored continuous readings and labeled as estimated.</li>
+          <li>Stores recent observed NWPS stageflow points for short charts on NWPS-only gauges. NWPS does not provide the long daily archive used for the reservoir sources.</li>
+          <li>Uses USGS NLDI to attach upstream and downstream neighbors, and computes nearby stations from stored coordinates.</li>
+          <li>Uses those stored readings to send optional email alerts and daily digests (water level, discharge, flood category, and related threshold rules) to confirmed subscribers. Those messages are informational. They are not NWS watches or warnings.</li>
+          <li>Serves highly cached HTML and JSON responses so the site stays fast; cached pages can lag behind the live agency feeds by design.</li>
         </ul>
         <p>
-          We do not sell USGS or NWS data, resell raw API access, or claim ownership of those observations. Values are shown for informational browsing. Units, parameter descriptions, approval status, and timestamps are taken from the source fields when present.
+          We do not sell agency observations, resell raw API access, or claim ownership of those observations. Values are shown for informational browsing. Units, parameter descriptions, approval status, and timestamps are taken from the source fields when present.
         </p>
       </section>
 
       <section aria-labelledby="provisional-heading">
         <h2 id="provisional-heading">Provisional data and limitations</h2>
         <p>
-          USGS marks many real-time values as <span class="emphasis">provisional</span>. Provisional data can be revised, corrected, or removed after USGS review. Approved values are more stable but still subject to USGS publication practices. NWPS flood categories and thresholds can also change as conditions and forecasts update.
+          USGS marks many real-time values as <span class="emphasis">provisional</span>. Provisional data can be revised, corrected, or removed after USGS review. Approved values are more stable but still subject to USGS publication practices. USBR, USACE, and CDEC elevations can also be revised by those agencies. NWPS observed stage that we store is treated as provisional because NWPS can update it. Flood categories and thresholds can change as conditions and forecasts update, including when a forecast category is more severe than the observed category.
         </p>
         <p>
-          WaterLevels.org is <span class="emphasis">not</span> a warning system and is not suitable as the sole source for flood response, navigation, engineering design, legal disputes, or other safety-critical decisions. Always confirm against official USGS and NWS products and local emergency authorities when those decisions matter.
+          WaterLevels.org is <span class="emphasis">not</span> a warning system and is not suitable as the sole source for flood response, navigation, engineering design, legal disputes, or other safety-critical decisions. Always confirm against the official agency page for that station and local emergency authorities when those decisions matter.
         </p>
         <p>
-          Gaps can appear when a sensor is offline, a parameter is discontinued, our sync lags, a station falls outside the site types we keep, an NWPS match is missing, or USGS/NWPS rate limits or API errors interrupt a refresh. “Stale” labels on the site mean our latest stored observation is older than our freshness threshold (currently one week), not necessarily that USGS has stopped collecting data.
+          Gaps can appear when a sensor is offline, a parameter is discontinued, our sync lags, a station falls outside the site types or allowlists we keep, an NWPS or NLDI match is missing, or an agency rate limit or API error interrupts a refresh. “Stale” labels on the site mean our latest stored observation is older than our freshness threshold (currently one week), not necessarily that the source agency has stopped collecting data.
         </p>
       </section>
 
       <section aria-labelledby="updates-heading">
         <h2 id="updates-heading">Updates and caching</h2>
         <p>
-          Catalog, latest-observation, and flood-stage syncs run on a schedule (and can be triggered operationally). Station history is filled on demand and by batch jobs. Public pages and map station payloads are cached at the application and, in production, often at the CDN edge. That means the number or flood category you see may be minutes to hours behind the USGS or NWPS source at peak, and occasionally longer if a sync has not completed.
+          Catalog, latest-observation, reservoir, NWPS-gauge, and flood-stage syncs run on a schedule (and can be triggered operationally). Station history is filled on demand and by batch jobs. Longer daily history is kept in an archive so year-scale charts do not depend on a live agency call. Public pages and map station payloads are cached at the application and, in production, often at the CDN edge. That means the number or flood category you see may be minutes to hours behind the source agency at peak, and occasionally longer if a sync has not completed.
         </p>
       </section>
 
@@ -136,16 +153,58 @@
           Prefer citing the NWPS gauge (LID) and valid time when you reuse a flood-stage value from this site.
         </p>
         <p>
+          Reclamation reservoir elevation: U.S. Bureau of Reclamation, RISE
+          (<a href="https://data.usbr.gov/" rel="noopener noreferrer" target="_blank">data.usbr.gov</a>).
+          Prefer citing the RISE location and observation date.
+        </p>
+        <p>
+          Corps reservoir elevation: U.S. Army Corps of Engineers, CWMS Data API
+          (<a href="https://cwms-data.usace.army.mil/cwms-data/" rel="noopener noreferrer" target="_blank">cwms-data.usace.army.mil</a>).
+          Prefer citing the CWMS office, location, and timeseries.
+        </p>
+        <p>
+          California reservoir elevation: California Department of Water Resources, California Data Exchange Center
+          (<a href="https://cdec.water.ca.gov/" rel="noopener noreferrer" target="_blank">cdec.water.ca.gov</a>).
+          Prefer citing the CDEC station id, sensor, and observation date.
+        </p>
+        <p>
+          Upstream and downstream relationships: U.S. Geological Survey, Network Linked Data Index
+          (<a href="https://api.water.usgs.gov/nldi/" rel="noopener noreferrer" target="_blank">api.water.usgs.gov/nldi</a>).
+        </p>
+        <p>
           The interactive map uses CARTO Dark Matter vector basemaps, built on
           <a href="https://www.openstreetmap.org/copyright" rel="noopener noreferrer" target="_blank">OpenStreetMap</a>
-          data; map credit appears in the map control itself.
+          data; map credit appears in the map control itself. Your browser loads those tiles from CARTO.
+        </p>
+        <p>
+          ZIP code search uses
+          <a href="https://www.zippopotam.us/" rel="noopener noreferrer" target="_blank">Zippopotam.us</a>
+          to turn a U.S. ZIP code into a place name and map point.
+        </p>
+      </section>
+
+      <section aria-labelledby="your-visit-heading">
+        <h2 id="your-visit-heading">Information from your visit</h2>
+        <p>
+          Browsing the map, directories, and station pages does not require an account. We still handle a few kinds of information so search, location, and optional email alerts work:
+        </p>
+        <ul role="list">
+          <li><span class="emphasis">ZIP code search</span> — if you search with a U.S. ZIP code, we send that ZIP to Zippopotam.us, cache the returned place and centroid for about 30 days, and use it only to open the map near that place. We do not attach the ZIP to an account.</li>
+          <li><span class="emphasis">Device location</span> — “Use my location” runs only after you choose it. The browser sends coordinates to our nearest-station lookup so we can center the map or open a nearby gauge. We do not store those coordinates as a profile.</li>
+          <li><span class="emphasis">Email alerts</span> — if you subscribe, we store your email address, time zone, digest schedule, quiet hours, the stations you watch, and the alert rules you set. We use the cached water readings and flood categories described above to send confirmation, threshold, flood, and digest messages. Delivery goes through our email provider. You can pause or unsubscribe from any alert email or the manage page.</li>
+          <li><span class="emphasis">Contact form</span> — name, email, subject, and message are emailed to us so we can reply. A Cloudflare Turnstile check runs on that form, on alert signup, and when you request a manage link, to reject automated submissions.</li>
+        </ul>
+        <p>
+          Server logs, analytics, and error reports are covered in the
+          <%= link_to "privacy policy", privacy_path %>,
+          including Cloudflare, Fathom Analytics, Sentry, and Bento. That policy is the place for how long we keep personal information and the choices you have.
         </p>
       </section>
 
       <section aria-labelledby="contact-heading">
         <h2 id="contact-heading">Questions about a value</h2>
         <p>
-          If something looks wrong on WaterLevels.org, first check the official USGS station page for hydrologic values, or
+          If something looks wrong on WaterLevels.org, first check the official agency page linked from the station for hydrologic values, or
           <a href="https://water.noaa.gov/" rel="noopener noreferrer" target="_blank">NWPS</a>
           for flood category and stage thresholds. If the official source and this site disagree, treat the official source as correct and
           <%= link_to "contact us", contact_path %>
