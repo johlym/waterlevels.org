@@ -60,6 +60,15 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "https://data.usbr.gov/"
     assert_includes response.body, "https://cwms-data.usace.army.mil/cwms-data/"
     assert_includes response.body, "Flood categories"
+    assert_includes response.body, "https://api.water.usgs.gov/nldi/"
+    assert_includes response.body, "more severe of the NWPS observed category and the NWPS forecast category"
+    assert_includes response.body, "California Department of Water Resources"
+    assert_includes response.body, "https://www.zippopotam.us/"
+    assert_includes response.body, "Information from your visit"
+    assert_includes response.body, privacy_path
+    assert_includes response.body, "estimated daily mean"
+    assert_includes response.body, "about 35 days"
+    assert_includes response.body, "about ten years"
   end
 
   test "faq page covers NWS flood data sources and alerts" do

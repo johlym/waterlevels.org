@@ -2,6 +2,10 @@ require "test_helper"
 
 class NwpsHistoryIngestionTest < ActiveSupport::TestCase
   setup do
+    # Stageflow timestamps are fixed in mid-September 2026. The 7-day hydrograph
+    # window is `7.days.ago`, so freeze the clock while those points are still inside it.
+    travel_to Time.zone.parse("2026-09-18 12:00:00 UTC")
+
     @entry = Nwps::GaugeCatalog.find_by_site_number("nwpsacrw1")
     tip_client = Object.new
     def tip_client.gauge(_lid)
@@ -35,6 +39,10 @@ class NwpsHistoryIngestionTest < ActiveSupport::TestCase
     NwpsGaugeSync.new(client: tip_client).perform(entries: [ @entry ])
     @location = MonitoringLocation.find_by!(site_number: "nwpsacrw1")
     @client = tip_client
+  end
+
+  teardown do
+    travel_back
   end
 
   test "history writes continuous points and hydrograph reads them" do
