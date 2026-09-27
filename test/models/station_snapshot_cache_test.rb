@@ -158,10 +158,10 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
     ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
       payload = StationSnapshotCache.warm(location.reload)
       assert_equal 3, payload[:measurements].size
-      payload[:measurements].each do |measurement|
+      payload[:measurements].each_with_index do |measurement, index|
         assert_not_nil measurement.dig(:trends, :change_24h)
         assert_not_nil measurement.dig(:trends, :yoy)
-        assert_not_nil measurement.dig(:extremes, :high)
+        assert_in_delta series_specs[index][:value] + 10, measurement.dig(:extremes, :high, :value), 0.001
         assert_not_nil measurement.dig(:extremes, :low)
       end
     end
@@ -177,6 +177,90 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
     assert_equal 0, peak_scoped, "expected peaks from preload, got:\n#{sql.join("\n")}"
     assert_equal 0, daily_ordered, "expected daily extremes from preload, got:\n#{sql.join("\n")}"
     assert_equal 0, daily_yoy, "expected YoY from preload, got:\n#{sql.join("\n")}"
+  end
+
+  test "daily maximum supplies high when the series has no peak" do
+    observed_at = Time.utc(2026, 8, 4, 18, 0, 0)
+    location = create(:monitoring_location, latest_observed_at: observed_at)
+    series = create(
+      :time_series,
+      monitoring_location: location,
+      parameter_code: "00010",
+      measurement_kind: "temperature",
+      selected_for_display: true,
+      provider_series_id: "ts-temp-high",
+      unit_of_measure: "degC"
+    )
+    LatestObservation.create!(
+      time_series: series,
+      value: 12.0,
+      unit_of_measure: "degC",
+      observed_at: observed_at,
+      synced_at: Time.current
+    )
+    DailyObservation.create!(time_series: series, value: 6.0, observed_on: Date.new(2026, 8, 1))
+    DailyObservation.create!(time_series: series, value: 18.5, observed_on: Date.new(2026, 8, 2))
+    DailyObservation.create!(time_series: series, value: 11.0, observed_on: Date.new(2026, 8, 3))
+
+    payload = StationSnapshotCache.warm(location.reload)
+    measurement = payload[:measurements].first
+    assert_in_delta 18.5, measurement.dig(:extremes, :high, :value), 0.001
+    assert_equal "2026-08-02", measurement.dig(:extremes, :high, :observed_on)
+    assert_in_delta 6.0, measurement.dig(:extremes, :low, :value), 0.001
+    assert_equal "2026-08-01", measurement.dig(:extremes, :low, :observed_on)
+  end
+
+  test "archive daily maximum supplies high and ignores a higher leftover postgres row" do
+    store = DailyArchive::MemoryStore.new
+    previous_store = DailyArchive.instance_variable_get(:@store)
+    previous_reads = ENV["DAILY_ARCHIVE_READS"]
+    DailyArchive.store = store
+    ENV["DAILY_ARCHIVE_READS"] = "1"
+    AppConfig.bust!(:daily_archive_reads)
+
+    observed_at = Time.utc(2026, 8, 4, 18, 0, 0)
+    location = create(:monitoring_location, latest_observed_at: observed_at)
+    series = create(
+      :time_series,
+      monitoring_location: location,
+      parameter_code: "00010",
+      measurement_kind: "temperature",
+      selected_for_display: true,
+      provider_series_id: "ts-temp-archive-high",
+      unit_of_measure: "degC"
+    )
+    LatestObservation.create!(
+      time_series: series,
+      value: 12.0,
+      unit_of_measure: "degC",
+      observed_at: observed_at,
+      synced_at: Time.current
+    )
+    low_day = 20.days.ago.to_date
+    high_day = 10.days.ago.to_date
+    DailyArchive::Writer.new(store: store).upsert(
+      time_series_id: series.id,
+      points: [
+        { "d" => low_day.iso8601, "v" => 4.25, "s" => "usgs" },
+        { "d" => high_day.iso8601, "v" => 21.5, "s" => "usgs" }
+      ]
+    )
+    DailyObservation.create!(time_series: series, value: 99.0, observed_on: 5.days.ago.to_date)
+
+    payload = StationSnapshotCache.warm(location.reload)
+    measurement = payload[:measurements].first
+    assert_in_delta 21.5, measurement.dig(:extremes, :high, :value), 0.001
+    assert_equal high_day.iso8601, measurement.dig(:extremes, :high, :observed_on)
+    assert_in_delta 4.25, measurement.dig(:extremes, :low, :value), 0.001
+    assert_equal low_day.iso8601, measurement.dig(:extremes, :low, :observed_on)
+  ensure
+    DailyArchive.store = previous_store
+    if previous_reads.nil?
+      ENV.delete("DAILY_ARCHIVE_READS")
+    else
+      ENV["DAILY_ARCHIVE_READS"] = previous_reads
+    end
+    AppConfig.bust!(:daily_archive_reads)
   end
 
   test "nearby payload includes all available measurements for a neighbor" do

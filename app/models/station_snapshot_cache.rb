@@ -1,5 +1,5 @@
 class StationSnapshotCache
-  PREFIX = "station_snapshot:v15".freeze
+  PREFIX = "station_snapshot:v16".freeze
   TTL = 2.hours
   MILES_PER_KM = 0.621371
 
@@ -223,12 +223,10 @@ class StationSnapshotCache
       prior_continuous: prior_continuous
     )
     yoy = TrendComparison.yoy_for_series(series, current_value: obs.value, observed_at: obs.observed_at)
-    high = if series.association(:peak_observations).loaded?
-      series.peak_observations.select { |p| p.peak_kind == "high" }.max_by { |p| p.value.to_f }
-    else
-      series.peak_observations.where(peak_kind: "high").order(value: :desc).first
-    end
-    low_daily = lowest_daily_payload(series)
+    # Instantaneous peaks exist for stage and discharge. Temperature and
+    # daily-only reservoirs have no peak rows, so use the same daily window
+    # that already supplies the low.
+    daily = daily_extremes_payload(series)
     label = ParameterLabels.label_for(series.parameter_code, fallback: series.parameter_description)
 
     {
@@ -247,35 +245,72 @@ class StationSnapshotCache
         yoy: yoy.prior_value.nil? ? nil : yoy.delta
       },
       extremes: {
-        high: high && { value: high.value.to_f, water_year: high.water_year, observed_at: high.observed_at&.iso8601 },
-        low: low_daily
+        high: peak_high_payload(series) || daily[:high],
+        low: daily[:low]
       }
     }
   end
 
-  def self.lowest_daily_payload(series)
+  def self.peak_high_payload(series)
+    high = if series.association(:peak_observations).loaded?
+      series.peak_observations.select { |p| p.peak_kind == "high" }.max_by { |p| p.value.to_f }
+    else
+      series.peak_observations.where(peak_kind: "high").order(value: :desc).first
+    end
+    return unless high
+
+    { value: high.value.to_f, water_year: high.water_year, observed_at: high.observed_at&.iso8601 }
+  end
+  private_class_method :peak_high_payload
+
+  def self.daily_extremes_payload(series)
     if DailyArchive.reads_enabled?
       points = DailyArchive::Reader.new.points_for(
         time_series_id: series.id,
         start_on: 1.year.ago.to_date,
         end_on: Date.current
       )
-      if points.any?
-        low = points.min_by { |p| p[:v] }
-        return { value: low[:v].to_f, observed_on: low[:t] }
-      end
+      return extremes_from_points(points) if points.any?
     end
 
-    row = if series.association(:daily_observations).loaded?
-      series.daily_observations.min_by { |d| d.value.to_f }
-    else
-      series.daily_observations.order(:value).first
+    extremes_from_daily_rows(series)
+  end
+  private_class_method :daily_extremes_payload
+
+  def self.extremes_from_points(points)
+    low = points.min_by { |point| point[:v].to_f }
+    high = points.max_by { |point| point[:v].to_f }
+    {
+      high: { value: high[:v].to_f, observed_on: high[:t] },
+      low: { value: low[:v].to_f, observed_on: low[:t] }
+    }
+  end
+  private_class_method :extremes_from_points
+
+  def self.extremes_from_daily_rows(series)
+    if series.association(:daily_observations).loaded?
+      rows = series.daily_observations
+      return { high: nil, low: nil } if rows.blank?
+
+      return {
+        high: daily_row_payload(rows.max_by { |row| row.value.to_f }),
+        low: daily_row_payload(rows.min_by { |row| row.value.to_f })
+      }
     end
+
+    {
+      high: daily_row_payload(series.daily_observations.order(value: :desc).first),
+      low: daily_row_payload(series.daily_observations.order(:value).first)
+    }
+  end
+  private_class_method :extremes_from_daily_rows
+
+  def self.daily_row_payload(row)
     return unless row
 
     { value: row.value.to_f, observed_on: row.observed_on.iso8601 }
   end
-  private_class_method :lowest_daily_payload
+  private_class_method :daily_row_payload
 
   def self.denormalized_measurements(location)
     measurements = []
