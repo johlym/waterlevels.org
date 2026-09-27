@@ -991,7 +991,11 @@ export default class extends Controller {
   formatTimestamp(value) {
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return value || "—"
-    const day = date.toLocaleDateString("en-US", this.localeOptions({ month: "short", day: "numeric" }))
+    const day = date.toLocaleDateString("en-US", this.localeOptions({
+      month: "short",
+      day: "numeric",
+      year: "numeric"
+    }))
     return `${day} at ${this.formatClock(value)}`
   }
 
