@@ -1,3 +1,5 @@
+require "open3"
+
 # Generates Open Graph share cards (1200×630 PNG) from SVG templates.
 # General pages share one branded default; gauge pages include name, site ID,
 # and latest measurements.
@@ -12,7 +14,7 @@ class OgImage
   WIDTH = 1200
   HEIGHT = 630
   FONT_DIR = Rails.root.join("vendor/fonts/og")
-  DEFAULT_CACHE_KEY = "og_image:v1:default"
+  DEFAULT_CACHE_KEY = "og_image:v2:default"
   STATION_CACHE_PREFIX = "og_image:v1:station"
   CACHE_TTL = 24.hours
 
@@ -68,7 +70,7 @@ class OgImage
   def default_svg
     <<~SVG
       <svg xmlns="http://www.w3.org/2000/svg" width="#{WIDTH}" height="#{HEIGHT}" viewBox="0 0 #{WIDTH} #{HEIGHT}">
-        #{font_faces}
+        #{svg_defs}
         #{background_layers}
         #{brand_mark(x: 96, y: 120, size: 72)}
         <text x="192" y="168" font-family="Space Grotesk" font-size="42" font-weight="700" fill="#fafafa" letter-spacing="-0.03em">WaterLevels.org</text>
@@ -92,7 +94,7 @@ class OgImage
 
     <<~SVG
       <svg xmlns="http://www.w3.org/2000/svg" width="#{WIDTH}" height="#{HEIGHT}" viewBox="0 0 #{WIDTH} #{HEIGHT}">
-        #{font_faces}
+        #{svg_defs}
         #{background_layers}
         #{brand_mark(x: 80, y: 56, size: 48)}
         <text x="148" y="90" font-family="Space Grotesk" font-size="28" font-weight="600" fill="#fafafa" letter-spacing="-0.02em">WaterLevels.org</text>
@@ -108,51 +110,12 @@ class OgImage
     SVG
   end
 
-  def font_faces
-    <<~CSS
+  # librsvg's SVG CSS parser rejects @font-face (it logs "Invalid rule; ignoring"
+  # and never loads the files). Family names are resolved through fontconfig
+  # in Rasterizer instead.
+  def svg_defs
+    <<~SVG
       <defs>
-        <style type="text/css">
-          @font-face {
-            font-family: "Space Grotesk";
-            src: url("#{font_uri("SpaceGrotesk-Regular.ttf")}");
-            font-weight: 400;
-          }
-          @font-face {
-            font-family: "Space Grotesk";
-            src: url("#{font_uri("SpaceGrotesk-Medium.ttf")}");
-            font-weight: 500;
-          }
-          @font-face {
-            font-family: "Space Grotesk";
-            src: url("#{font_uri("SpaceGrotesk-Bold.ttf")}");
-            font-weight: 600;
-          }
-          @font-face {
-            font-family: "Space Grotesk";
-            src: url("#{font_uri("SpaceGrotesk-Bold.ttf")}");
-            font-weight: 700;
-          }
-          @font-face {
-            font-family: "DM Sans";
-            src: url("#{font_uri("DMSans-Regular.ttf")}");
-            font-weight: 400;
-          }
-          @font-face {
-            font-family: "DM Sans";
-            src: url("#{font_uri("DMSans-Medium.ttf")}");
-            font-weight: 500;
-          }
-          @font-face {
-            font-family: "DM Sans";
-            src: url("#{font_uri("DMSans-SemiBold.ttf")}");
-            font-weight: 600;
-          }
-          @font-face {
-            font-family: "DM Sans";
-            src: url("#{font_uri("DMSans-Bold.ttf")}");
-            font-weight: 700;
-          }
-        </style>
         <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stop-color="#22d3ee"/>
           <stop offset="100%" stop-color="#3b82f6"/>
@@ -174,7 +137,7 @@ class OgImage
           <stop offset="100%" stop-color="#2563eb" stop-opacity="0"/>
         </radialGradient>
       </defs>
-    CSS
+    SVG
   end
 
   def background_layers
@@ -285,19 +248,23 @@ class OgImage
     [ formatted, unit ]
   end
 
-  def font_uri(filename)
-    "file://#{FONT_DIR.join(filename)}"
-  end
+  # XML 1.0 Char production. Control bytes (and other non-characters) survive
+  # HTML escaping and make rsvg-convert exit non-zero with a parse error.
+  INVALID_XML_CHARS = /[^\u{9}\u{A}\u{D}\u{20}-\u{D7FF}\u{E000}-\u{FFFD}\u{10000}-\u{10FFFF}]/
 
   def escape(text)
-    ERB::Util.html_escape(text.to_s)
+    cleaned = text.to_s.dup.force_encoding(Encoding::UTF_8).scrub("").gsub(INVALID_XML_CHARS, "")
+    # CGI, not ERB::Util.html_escape: a String marked html_safe is returned
+    # unchanged, which leaves raw "&" in the SVG and rsvg-convert aborts.
+    CGI.escapeHTML(cleaned)
   end
 
   def truncate(text, limit)
     str = text.to_s
     return str if str.length <= limit
 
-    "#{str[0, limit - 1]}…"
+    # ASCII dots: Space Grotesk and DM Sans have no ellipsis glyph.
+    "#{str[0, limit - 3]}..."
   end
 
   # Shells out to rsvg-convert (librsvg) for SVG → PNG.
@@ -311,24 +278,58 @@ class OgImage
       end
 
       Tempfile.create([ "og-image", ".svg" ]) do |svg_file|
-        svg_file.write(svg)
+        svg_file.binmode
+        svg_file.write(svg.to_s.encode(Encoding::UTF_8).b)
         svg_file.flush
 
         Tempfile.create([ "og-image", ".png" ]) do |png_file|
-          ok = system(
+          _stdout, stderr, status = Open3.capture3(
+            fontconfig_env,
             binary,
             "--width", WIDTH.to_s,
             "--height", HEIGHT.to_s,
             "--output", png_file.path,
-            svg_file.path,
-            out: File::NULL,
-            err: File::NULL
+            svg_file.path
           )
-          raise "rsvg-convert failed to rasterize OG image" unless ok
+          unless status.success?
+            detail = stderr.to_s.scrub.strip.lines.first(3).join(" ").squish.truncate(300)
+            status_label = status.exited? ? "exit #{status.exitstatus}" : "signal #{status.termsig}"
+            message = "rsvg-convert failed to rasterize OG image (#{status_label})"
+            message = "#{message}: #{detail}" if detail.present?
+            raise message
+          end
 
           File.binread(png_file.path)
         end
       end
     end
+
+    # Bundled faces are not visible to librsvg via @font-face. Point fontconfig
+    # at vendor/fonts/og (and the system config, when present) for this process
+    # only. Heroku's librsvg package does not install a fallback face; without
+    # this, text shaping depends on whatever fonts happen to be on the dyno.
+    def self.fontconfig_env
+      { "FONTCONFIG_FILE" => fontconfig_file }
+    end
+
+    def self.fontconfig_file
+      override = ENV["OG_FONTCONFIG_FILE"].to_s
+      return override if override.present?
+
+      cache_dir = File.join(Dir.tmpdir, "waterlevels-og-fontconfig-cache")
+      FileUtils.mkdir_p(cache_dir)
+      path = File.join(Dir.tmpdir, "waterlevels-og-fonts.conf")
+      contents = <<~XML
+        <?xml version="1.0"?>
+        <fontconfig>
+          <dir>#{FONT_DIR}</dir>
+          <include ignore_missing="yes">/etc/fonts/fonts.conf</include>
+          <cachedir>#{cache_dir}</cachedir>
+        </fontconfig>
+      XML
+      File.write(path, contents) unless File.exist?(path) && File.read(path) == contents
+      path
+    end
+    private_class_method :fontconfig_env, :fontconfig_file
   end
 end

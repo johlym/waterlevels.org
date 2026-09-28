@@ -71,6 +71,25 @@ class OgImageTest < ActiveSupport::TestCase
     assert png.bytesize > 10_000
   end
 
+  test "station svg escapes html_safe text and drops xml-invalid characters" do
+    svg = OgImage.new(:station, snapshot: dirty_snapshot).svg
+
+    assert_includes svg, "Salt &amp; River"
+    assert_not_includes svg, "Salt & River"
+    assert_not_includes svg, "\u0008"
+    assert_includes svg, "Gage &amp; height"
+    assert_not_includes svg, "@font-face"
+    assert_includes svg, "..."
+  end
+
+  test "station png renders dirty text, flood pills, and bundled fonts only" do
+    skip "rsvg-convert not installed" unless rsvg_available?
+
+    png = with_bundled_fonts_only { OgImage.station_png(dirty_snapshot) }
+    assert png.start_with?("\x89PNG".b)
+    assert png.bytesize > 10_000
+  end
+
   test "station png is not written to Rails.cache when tips change" do
     previous = Rails.cache
     Rails.cache = ActiveSupport::Cache::MemoryStore.new
@@ -110,6 +129,53 @@ class OgImageTest < ActiveSupport::TestCase
   end
 
   private
+
+  def with_bundled_fonts_only
+    previous = ENV["OG_FONTCONFIG_FILE"]
+    conf = Tempfile.new([ "og-fonts", ".conf" ])
+    cache = Dir.mktmpdir("og-fontconfig")
+    conf.write(<<~XML)
+      <?xml version="1.0"?>
+      <fontconfig>
+        <dir>#{OgImage::FONT_DIR}</dir>
+        <cachedir>#{cache}</cachedir>
+      </fontconfig>
+    XML
+    conf.flush
+    ENV["OG_FONTCONFIG_FILE"] = conf.path
+    yield
+  ensure
+    if previous
+      ENV["OG_FONTCONFIG_FILE"] = previous
+    else
+      ENV.delete("OG_FONTCONFIG_FILE")
+    end
+    conf&.close!
+    FileUtils.remove_entry(cache) if cache
+  end
+
+  def dirty_snapshot
+    {
+      site_number: "11150500",
+      name: ("Salt & River\u0008 " + ("North Fork " * 6)).html_safe,
+      state_code: "ca",
+      stale: false,
+      flood_category: "no_flooding",
+      flood_category_label: "Normal",
+      latest_observed_at: Time.utc(2026, 9, 25, 21, 0, 0).iso8601,
+      measurements: [
+        { kind: "water_level", label: "Gage & height", value: 3.79, unit: "ft", precision: 2 },
+        { kind: "discharge", label: "Flow", value: 360, unit: "ft3/s", precision: 0 },
+        {
+          kind: "water_level",
+          label: "Stream water level elevation above NAVD 1988, in feet",
+          value: 449.61,
+          unit: "ft",
+          precision: 2
+        }
+      ]
+    }
+  end
 
   def station_snapshot(observed_at:, value:)
     {
