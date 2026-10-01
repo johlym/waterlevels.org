@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WL.ORG / Flood board</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="proposal.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to main content</a>
+  <div class="shell">
+    <header class="bar">
+      <a class="brand" href="home.html">
+        <span class="mark" aria-hidden="true"></span>
+        <span class="brand-id">
+          <strong>WL.ORG</strong>
+          <span>Flood board / Conus</span>
+        </span>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="map.html">Map</a>
+        <a href="alerts.html" aria-current="page">Flood alerts</a>
+        <a href="directory.html">Directory</a>
+        <a href="index.html">Proposal</a>
+      </nav>
+      <div class="status">
+        <span class="pip" aria-hidden="true"></span>
+        <span class="hazard">27 stations · Action or above</span>
+      </div>
+    </header>
+
+    <div class="hatch" role="status">
+      <strong>National flood board</strong>
+      <span>Nwps category · Not email subscriptions</span>
+    </div>
+
+    <header class="unit-head">
+      <div class="cell">
+        <p class="kicker">Stations with active flood alerts</p>
+        <p class="mega hazard" style="font-size:clamp(4rem, 12vw, 10rem)">27</p>
+        <p style="margin-top:16px">Grouped by state. This list is not the optional email alert you can arm on a unit page.</p>
+      </div>
+      <div class="stats" style="grid-template-columns:1fr">
+        <div class="cell"><p class="kicker">Flood alert stations</p><p class="n hazard">27</p></div>
+        <div class="cell"><p class="kicker">States affected</p><p class="n">9</p></div>
+        <div class="cell"><p class="kicker">Major flooding</p><p class="n hazard">3</p></div>
+      </div>
+    </header>
+
+    <main id="main" class="dir">
+      <aside class="rack">
+        <div class="rack-block">
+          <p class="kicker">Flood stages</p>
+          <label class="check"><input type="checkbox" checked> Action</label>
+          <label class="check"><input type="checkbox" checked> Minor</label>
+          <label class="check"><input type="checkbox" checked> Moderate</label>
+          <label class="check"><input type="checkbox" checked> Major</label>
+        </div>
+        <div class="rack-block">
+          <p class="kicker">State jump</p>
+          <nav class="jumps">
+            <a href="#wa">Washington (1)</a>
+            <a href="#or">Oregon (4)</a>
+            <a href="#ca">California (6)</a>
+            <a href="#la">Louisiana (3)</a>
+          </nav>
+        </div>
+      </aside>
+
+      <div>
+        <div class="county-stamp" id="wa">
+          <h2>Washington</h2>
+          <span class="dim">1 station</span>
+        </div>
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Site</th>
+              <th>Name</th>
+              <th class="num">Gh ft</th>
+              <th>Cat</th>
+              <th>Stages</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="row-major">
+              <td>99000020</td>
+              <td><a href="gauge.html">Upper Jade Iris Alder Creek</a></td>
+              <td class="num">14.62</td>
+              <td class="cat">Major</td>
+              <td>A 8.00 · 1 10.00 · 2 12.00 · 3 14.00</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="county-stamp" id="or">
+          <h2>Oregon</h2>
+          <span class="dim">4 stations</span>
+        </div>
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Site</th>
+              <th>Name</th>
+              <th class="num">Gh ft</th>
+              <th>Cat</th>
+              <th>Stages</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>14105700</td>
+              <td><a href="gauge.html">Columbia River at The Dalles</a></td>
+              <td class="num">18.20</td>
+              <td>Action</td>
+              <td>A 17.50 · 1 20.00</td>
+            </tr>
+            <tr>
+              <td>14211720</td>
+              <td><a href="gauge.html">Willamette River at Portland</a></td>
+              <td class="num">17.05</td>
+              <td>Minor</td>
+              <td>A 16.00 · 1 17.00 · 2 20.00</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <footer class="foot">
+      <p>© 2026 WaterLevels.org · Flood board · + + +</p>
+      <nav aria-label="Footer">
+        <a href="directory.html">Directory</a>
+        <a href="gauge.html">Unit 99000020</a>
+        <a href="index.html">Proposal</a>
+      </nav>
+    </footer>
+  </div>
+</body>
+</html>

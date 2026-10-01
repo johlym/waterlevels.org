@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WL.ORG / Stage net</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="proposal.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to main content</a>
+  <div class="shell">
+    <header class="bar">
+      <a class="brand" href="home.html" aria-current="page">
+        <span class="mark" aria-hidden="true"></span>
+        <span class="brand-id">
+          <strong>WL.ORG</strong>
+          <span>[ Net / Conus ]</span>
+        </span>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="map.html">Map</a>
+        <a href="alerts.html">Flood alerts</a>
+        <a href="directory.html">Directory</a>
+        <a href="index.html">Proposal</a>
+      </nav>
+      <div class="status">
+        <span class="pip" title="Live network" aria-hidden="true"></span>
+        <span>Live · 18 421 sites</span>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="home-hero">
+        <div class="stamp">
+          <span class="cross cross-tl" aria-hidden="true">+</span>
+          <span class="cross cross-tr" aria-hidden="true">+</span>
+          <span class="cross cross-bl" aria-hidden="true">+</span>
+          <span class="cross cross-br" aria-hidden="true">+</span>
+          <p class="kicker">Usgs / Nwps / Continuous iv</p>
+          <hr class="rule-hazard" style="margin: 18px 0 22px; max-width: 6rem;">
+          <h1 class="mega">Stage<br>net</h1>
+        </div>
+        <div class="console">
+          <p class="lede">Streamflow, gage height, and temperature from official monitoring stations. Search a river, state, ZIP, or site number.</p>
+          <form class="console-actions" action="directory.html" method="get" role="search">
+            <div class="field">
+              <span class="prefix" aria-hidden="true">&gt;&gt;&gt;</span>
+              <input id="q" type="search" name="q" placeholder="Station, river, state, zip" autocomplete="off" aria-label="Search stations" aria-controls="results" aria-expanded="false">
+            </div>
+            <a class="btn btn-ghost" href="map.html">Locate</a>
+            <button class="btn" type="submit">Query</button>
+          </form>
+          <div id="results" class="auto" hidden>
+            <a class="is-on" href="gauge.html"><span>99000020</span><span>Upper Jade Iris Alder Creek</span><span class="hazard">Major</span></a>
+            <a href="directory.html"><span>14105700</span><span>Columbia River at The Dalles</span><span>Wa</span></a>
+            <a href="directory.html"><span>WA</span><span>Washington station directory</span><span>State</span></a>
+          </div>
+          <div class="frame-head">[ Popular / Jump ]</div>
+          <div class="cell">
+            <a href="#colorado-river">Colorado</a>
+            &nbsp;/&nbsp;
+            <a href="#mississippi-basin">Mississippi</a>
+            &nbsp;/&nbsp;
+            <a href="#great-lakes">Great Lakes</a>
+            &nbsp;/&nbsp;
+            <a href="#pacific-northwest">Pacific Nw</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="stats" aria-label="Network totals">
+        <article class="cell">
+          <p class="kicker">Active sites</p>
+          <p class="n">18 421</p>
+          <p class="dim">Catalog / continuous</p>
+        </article>
+        <article class="cell">
+          <p class="kicker">Measurements</p>
+          <p class="n">2.4 M</p>
+          <p class="dim">Stored observations</p>
+        </article>
+        <article class="cell">
+          <p class="kicker">Updates / 24h</p>
+          <p class="n">148 203</p>
+          <p class="dim">Iv + daily tips</p>
+        </article>
+        <a class="cell stat" href="alerts.html">
+          <p class="kicker">Flood alerts</p>
+          <p class="n hazard">27</p>
+          <p class="dim">Action stage or above</p>
+        </a>
+      </section>
+
+      <section class="index" aria-labelledby="waterways-heading">
+        <div class="index-side">
+          <p class="kicker" id="waterways-heading">[ Index / Waterways ]</p>
+          <p style="margin-top:16px;text-transform:none;letter-spacing:0.02em;line-height:1.5">Major measuring points. Site numbers are USGS or partner IDs.</p>
+        </div>
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Region</th>
+              <th>Site</th>
+              <th>Station</th>
+              <th>St</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr id="colorado-river">
+              <td>Colorado River</td>
+              <td>09380000</td>
+              <td><a href="gauge.html">Colorado River at Lees Ferry</a></td>
+              <td>Az</td>
+            </tr>
+            <tr>
+              <td></td>
+              <td>09421500</td>
+              <td><a href="gauge.html">Colorado River below Hoover Dam</a></td>
+              <td>Az</td>
+            </tr>
+            <tr>
+              <td></td>
+              <td>usbr3514</td>
+              <td><a href="gauge.html">Lake Mead / Hoover (Rise)</a></td>
+              <td>Nv</td>
+            </tr>
+            <tr id="mississippi-basin">
+              <td>Mississippi Basin</td>
+              <td>07010000</td>
+              <td><a href="gauge.html">Mississippi River at St. Louis</a></td>
+              <td>Mo</td>
+            </tr>
+            <tr>
+              <td></td>
+              <td>07374000</td>
+              <td><a href="gauge.html">Mississippi River at Baton Rouge</a></td>
+              <td>La</td>
+            </tr>
+            <tr id="great-lakes">
+              <td>Great Lakes</td>
+              <td>04165710</td>
+              <td><a href="gauge.html">Detroit River at Fort Wayne</a></td>
+              <td>Mi</td>
+            </tr>
+            <tr id="pacific-northwest">
+              <td>Pacific Northwest</td>
+              <td>14105700</td>
+              <td><a href="gauge.html">Columbia River at The Dalles</a></td>
+              <td>Or</td>
+            </tr>
+            <tr>
+              <td></td>
+              <td>14211720</td>
+              <td><a href="gauge.html">Willamette River at Portland</a></td>
+              <td>Or</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <p>© 2026 WaterLevels.org · Data courtesy Usgs and partners · + + +</p>
+      <nav aria-label="Footer">
+        <a href="index.html">Proposal</a>
+        <a href="map.html">Map</a>
+        <a href="alerts.html">Alerts</a>
+      </nav>
+    </footer>
+  </div>
+  <script>
+    const input = document.getElementById("q");
+    const box = document.getElementById("results");
+    input.addEventListener("input", () => {
+      const on = input.value.trim().length > 0;
+      box.hidden = !on;
+      input.setAttribute("aria-expanded", on ? "true" : "false");
+    });
+  </script>
+</body>
+</html>

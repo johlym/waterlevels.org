@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WL.ORG / Map HUD</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="proposal.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to main content</a>
+  <div class="hud">
+    <header class="bar">
+      <a class="brand" href="home.html">
+        <span class="mark" aria-hidden="true"></span>
+        <span class="brand-id">
+          <strong>WL.ORG</strong>
+          <span>Map / Vector plot</span>
+        </span>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="map.html" aria-current="page">Map</a>
+        <a href="alerts.html">Flood alerts</a>
+        <a href="directory.html">Directory</a>
+        <a href="index.html">Proposal</a>
+      </nav>
+      <div class="status">
+        <span>47.8120 N</span>
+        <span>122.1400 W</span>
+        <span>Z 7</span>
+      </div>
+    </header>
+
+    <main id="main" class="plot" aria-label="Schematic station plot. Production keeps the CARTO Dark Matter basemap; this mock shows HUD chrome only.">
+      <p class="plot-note">Production keeps MapLibre + Carto. This field is a schematic so the HUD can be judged without a fake coastline.</p>
+
+      <span class="glyph glyph-plus" style="left:18%;top:28%" title="Nominal"></span>
+      <span class="glyph glyph-plus" style="left:24%;top:41%"></span>
+      <span class="glyph glyph-plus" style="left:33%;top:22%"></span>
+      <span class="glyph glyph-plus" style="left:41%;top:48%"></span>
+      <span class="glyph glyph-plus" style="left:52%;top:31%"></span>
+      <span class="glyph glyph-plus" style="left:61%;top:55%"></span>
+      <span class="glyph glyph-plus" style="left:70%;top:27%"></span>
+      <span class="glyph glyph-plus" style="left:78%;top:44%"></span>
+      <span class="glyph glyph-diamond" style="left:36%;top:62%" title="Action"></span>
+      <span class="glyph glyph-square" style="left:58%;top:18%" title="Minor"></span>
+      <span class="glyph glyph-tri" style="left:47%;top:36%" title="Moderate"></span>
+      <span class="glyph glyph-tri major" style="left:44%;top:40%" title="Major"></span>
+      <span class="glyph glyph-x dimmed" style="left:29%;top:70%" title="Stale"></span>
+      <span class="glyph glyph-plus" style="left:14%;top:58%"></span>
+      <span class="glyph glyph-plus" style="left:84%;top:62%"></span>
+      <span class="glyph glyph-diamond" style="left:72%;top:71%"></span>
+
+      <div class="tools" role="group" aria-label="Map tools">
+        <button class="btn btn-sq" type="button" aria-label="Zoom in">+</button>
+        <button class="btn btn-sq" type="button" aria-label="Zoom out">−</button>
+        <button class="btn btn-sq" type="button" aria-label="Use my location">⌖</button>
+        <button class="btn btn-sq" id="layers-btn" type="button" aria-expanded="false" aria-controls="layers">≡</button>
+      </div>
+
+      <aside class="layers frame" id="layers" hidden>
+        <div class="frame-head">
+          <span>[ Layers ]</span>
+          <button class="btn btn-ghost" id="layers-close" type="button">Close</button>
+        </div>
+        <label class="check"><input type="checkbox" checked> Streamflow <span style="margin-left:auto">11 204</span></label>
+        <label class="check"><input type="checkbox" checked> Water level <span style="margin-left:auto">16 881</span></label>
+        <label class="check"><input type="checkbox" checked> Temperature <span style="margin-left:auto">9 440</span></label>
+      </aside>
+
+      <aside class="sel frame" aria-label="Selected station">
+        <div class="frame-head">[ Sel / 99000020 ]</div>
+        <div class="cell">
+          <p>Upper Jade Iris Alder Creek near Site 20</p>
+          <p style="margin-top:8px">Gh 14.62 ft · <span class="hazard">Major</span> · 1 840 cfs</p>
+          <p style="margin-top:16px"><a class="btn" href="gauge.html">Open unit</a></p>
+        </div>
+      </aside>
+
+      <details class="legend frame" open>
+        <summary class="frame-head" style="cursor:pointer;list-style:none">[ Legend / Flood stage ]</summary>
+        <div class="key">
+          <span class="glyph-plus" style="position:relative"></span><span>Nominal / +</span>
+          <span class="glyph-diamond"></span><span>Action / diamond</span>
+          <span class="glyph-square"></span><span>Minor / square + hatch</span>
+          <span class="glyph-tri" style="position:relative"></span><span>Moderate / triangle</span>
+          <span class="glyph-tri major" style="position:relative"></span><span class="hazard">Major / red triangle</span>
+          <span class="glyph-x dimmed" style="position:relative"></span><span>Stale / ×</span>
+        </div>
+      </details>
+    </main>
+  </div>
+  <script>
+    const panel = document.getElementById("layers");
+    const btn = document.getElementById("layers-btn");
+    const close = document.getElementById("layers-close");
+    const toggle = () => {
+      panel.hidden = !panel.hidden;
+      btn.setAttribute("aria-expanded", panel.hidden ? "false" : "true");
+    };
+    btn.addEventListener("click", toggle);
+    close.addEventListener("click", toggle);
+  </script>
+</body>
+</html>

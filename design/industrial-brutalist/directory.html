@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WL.ORG / Washington directory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="proposal.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to main content</a>
+  <div class="shell">
+    <header class="bar">
+      <a class="brand" href="home.html">
+        <span class="mark" aria-hidden="true"></span>
+        <span class="brand-id">
+          <strong>WL.ORG</strong>
+          <span>Directory / Wa</span>
+        </span>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="map.html">Map</a>
+        <a href="alerts.html">Flood alerts</a>
+        <a href="directory.html" aria-current="page">Directory</a>
+        <a href="index.html">Proposal</a>
+      </nav>
+      <div class="status">
+        <span>100 sites</span>
+        <span class="hazard">1 major</span>
+        <span>0 stale shown</span>
+      </div>
+    </header>
+
+    <div class="unit-head">
+      <div class="cell">
+        <p class="kicker">Washington station directory</p>
+        <h1 class="mega" style="font-size:clamp(3rem, 8vw, 7rem)">Wa</h1>
+        <p style="margin-top:16px">Active monitoring locations grouped by county.</p>
+      </div>
+      <div class="stats" style="grid-template-columns:1fr">
+        <div class="cell"><p class="kicker">Total gauges</p><p class="n">100</p></div>
+        <div class="cell"><p class="kicker">Critical flood alerts</p><p class="n hazard">1</p></div>
+        <div class="cell"><p class="kicker">Offline / stale</p><p class="n">0</p></div>
+      </div>
+    </div>
+
+    <main id="main" class="dir">
+      <aside class="rack">
+        <div class="rack-block">
+          <p class="kicker">Search stations</p>
+          <div class="field" style="margin-top:10px">
+            <span class="prefix">&gt;&gt;&gt;</span>
+            <input type="search" placeholder="Colorado river…" aria-label="Search stations">
+          </div>
+        </div>
+        <div class="rack-block">
+          <p class="kicker">Measurement types</p>
+          <label class="check"><input type="checkbox" checked> Streamflow</label>
+          <label class="check"><input type="checkbox" checked> Gage height</label>
+          <label class="check"><input type="checkbox" checked> Temp / quality</label>
+        </div>
+        <div class="rack-block">
+          <p class="kicker">Flood alerts</p>
+          <label class="check"><input type="checkbox"> Stations with alerts (1)</label>
+        </div>
+        <div class="rack-block">
+          <p class="kicker">County jump</p>
+          <nav class="jumps">
+            <a href="#king">King (10)</a>
+            <a href="#pierce">Pierce (10)</a>
+            <a href="#snohomish">Snohomish (10)</a>
+            <a href="#whatcom">Whatcom (10)</a>
+          </nav>
+        </div>
+      </aside>
+
+      <div>
+        <div class="county-stamp" id="king">
+          <h2>King</h2>
+          <span class="dim">10 stations</span>
+        </div>
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Site</th>
+              <th>Name</th>
+              <th class="num">Gh ft</th>
+              <th class="num">Cfs</th>
+              <th>Cat</th>
+              <th>Updated</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>99000010</td>
+              <td><a href="gauge.html">North Blue Rose Cedar Creek</a></td>
+              <td class="num">4.12</td>
+              <td class="num">312</td>
+              <td>Nominal</td>
+              <td>19 Sep 18:04</td>
+            </tr>
+            <tr class="row-major">
+              <td>99000020</td>
+              <td><a href="gauge.html">Upper Jade Iris Alder Creek</a></td>
+              <td class="num">14.62</td>
+              <td class="num">1 840</td>
+              <td class="cat">Major</td>
+              <td>19 Sep 18:04</td>
+            </tr>
+            <tr>
+              <td>99000030</td>
+              <td><a href="gauge.html">East Amber Lily Maple Creek</a></td>
+              <td class="num">5.88</td>
+              <td class="num">640</td>
+              <td>Nominal</td>
+              <td>19 Sep 18:04</td>
+            </tr>
+            <tr>
+              <td>99000040</td>
+              <td><a href="gauge.html">West Ivory Tulip Birch Creek</a></td>
+              <td class="num">3.40</td>
+              <td class="num">188</td>
+              <td>Nominal</td>
+              <td>19 Sep 18:03</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="county-stamp" id="pierce">
+          <h2>Pierce</h2>
+          <span class="dim">10 stations</span>
+        </div>
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Site</th>
+              <th>Name</th>
+              <th class="num">Gh ft</th>
+              <th class="num">Cfs</th>
+              <th>Cat</th>
+              <th>Updated</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>99000011</td>
+              <td><a href="gauge.html">South Red Lily Oak Creek</a></td>
+              <td class="num">6.01</td>
+              <td class="num">455</td>
+              <td>Nominal</td>
+              <td>19 Sep 18:04</td>
+            </tr>
+            <tr>
+              <td>99000021</td>
+              <td><a href="gauge.html">North Silver Daisy Cedar Creek</a></td>
+              <td class="num">6.12</td>
+              <td class="num">501</td>
+              <td>Nominal</td>
+              <td>19 Sep 18:04</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <footer class="foot">
+      <p>© 2026 WaterLevels.org · Directory · + + +</p>
+      <nav aria-label="Footer">
+        <a href="alerts.html">Flood board</a>
+        <a href="gauge.html">Unit 99000020</a>
+        <a href="index.html">Proposal</a>
+      </nav>
+    </footer>
+  </div>
+</body>
+</html>
