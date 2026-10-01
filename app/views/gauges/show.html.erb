@@ -90,7 +90,7 @@
         <% flood_stage = GaugeFloodStage.from_snapshot(@snapshot) %>
         <% approval = measurements.dig(0, :approval_status) || measurements.dig(0, "approval_status") %>
         <div class="meta-grid">
-          <div class="<%= "span-2" if flood_stage.detail.present? %>">
+          <div<% if flood_stage.detail.present? %> class="span-2"<% end %>>
             <p class="label">Flood stage</p>
             <p class="value"><%= annotate_glossary_terms(flood_stage.headline) %></p>
             <% if flood_stage.detail.present? %>
