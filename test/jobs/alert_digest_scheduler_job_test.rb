@@ -52,4 +52,49 @@ class AlertDigestSchedulerJobTest < ActiveSupport::TestCase
       AlertDigestSchedulerJob.perform_now
     end
   end
+
+  test "re-enqueues stale sending deliveries left after a worker crash" do
+    stale = create(
+      :alert_delivery,
+      subscriber: @subscriber,
+      mailer_action: "flood_category_change",
+      status: "sending"
+    )
+    stale.update_columns(updated_at: 11.minutes.ago)
+
+    fresh = create(
+      :alert_delivery,
+      subscriber: @subscriber,
+      mailer_action: "flood_category_change",
+      status: "sending"
+    )
+
+    assert_enqueued_with(job: AlertDeliveryJob, args: [ stale.id ]) do
+      AlertDigestSchedulerJob.perform_now
+    end
+
+    enqueued_ids = enqueued_jobs.filter_map { |job|
+      next unless job[:job] == AlertDeliveryJob
+      job[:args].first
+    }
+    assert_includes enqueued_ids, stale.id
+    assert_not_includes enqueued_ids, fresh.id
+  end
+
+  test "re-enqueues a stale sending digest instead of skipping the subscriber forever" do
+    stale = create(
+      :alert_delivery,
+      subscriber: @subscriber,
+      mailer_action: "daily_digest",
+      status: "sending",
+      metadata: { "snapshot" => { "stations" => [ { "name" => "Test" } ] } }
+    )
+    stale.update_columns(updated_at: 11.minutes.ago)
+
+    assert_no_difference("AlertDelivery.count") do
+      assert_enqueued_with(job: AlertDeliveryJob, args: [ stale.id ]) do
+        AlertDigestSchedulerJob.perform_now
+      end
+    end
+  end
 end
