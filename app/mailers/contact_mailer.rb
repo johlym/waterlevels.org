@@ -3,6 +3,10 @@ class ContactMailer < ApplicationMailer
   # than notifications_worker (alerts / digests).
   self.deliver_later_queue_name = :default
 
+  # Internal notification. Typography only — no locked colors — so light and
+  # dark email clients can use their own canvas.
+  layout "contact_mailer"
+
   def contact_email
     @name = params[:name]
     @email = params[:email]
