@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <%# Let the client pick light or dark. Do not lock a canvas or text color. %>
+    <meta name="color-scheme" content="light dark">
+    <meta name="supported-color-schemes" content="light dark">
+    <meta name="format-detection" content="telephone=no">
+    <title>WaterLevels.org</title>
+    <style>
+      /* Loose email styles — typography only, no background or text colors.
+         Light and dark clients keep their own canvas so the message stays readable. */
+      :root {
+        color-scheme: light dark;
+        supported-color-schemes: light dark;
+      }
+
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 16px;
+        line-height: 1.5;
+      }
+
+      p {
+        margin: 0 0 16px;
+      }
+
+      strong {
+        font-weight: 600;
+      }
+
+      .bento-flags {
+        display: none !important;
+        max-height: 0;
+        overflow: hidden;
+        mso-hide: all;
+        font-size: 0;
+        line-height: 0;
+      }
+    </style>
+  </head>
+
+  <body>
+    <%# Bento Liquid: strip open-pixel / click-proxy / UTM rewriting on send.
+        Without these, Bento injects a remote open.gif (kodama.*) that triggers
+        iOS Mail "Load Remote Content", and rewrites links with tracking params.
+        Hidden element (not an HTML comment) so filter echoes stay invisible and
+        cannot leak a stray "-->" into the email body after Bento processes Liquid. %>
+    <div class="bento-flags" aria-hidden="true">{{ "true" | disable_open }}{{ "true" | disable_click }}{{ "true" | disable_utms }}</div>
+    <%= yield %>
+  </body>
+</html>
