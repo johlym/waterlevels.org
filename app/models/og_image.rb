@@ -28,7 +28,8 @@ class OgImage
     "action" => "#fbbf24",
     "minor" => "#fb923c",
     "moderate" => "#f43f5e",
-    "major" => "#ef4444"
+    "major" => "#ef4444",
+    "below" => "#a1a1aa"
   }.freeze
 
   def self.clear!
@@ -88,8 +89,7 @@ class OgImage
     site_number = @snapshot[:site_number].to_s
     state = @snapshot[:state_code].to_s.upcase
     measurements = Array(@snapshot[:measurements]).first(3)
-    flood_category = @snapshot[:flood_category].to_s.presence
-    flood_label = @snapshot[:flood_category_label].presence || flood_category&.humanize
+    flood_stage = GaugeFloodStage.from_snapshot(@snapshot)
     stale = ActiveModel::Type::Boolean.new.cast(@snapshot[:stale])
 
     <<~SVG
@@ -103,7 +103,7 @@ class OgImage
         <text x="80" y="210" font-family="Space Grotesk" font-size="52" font-weight="700" fill="#fafafa" letter-spacing="-0.035em">#{escape(name)}</text>
         <text x="80" y="268" font-family="DM Sans" font-size="28" font-weight="500" fill="#71717a">Site #{escape(site_number)}</text>
 
-        #{status_pills(stale: stale, flood_category: flood_category, flood_label: flood_label)}
+        #{status_pills(stale: stale, flood_category: flood_stage.category, flood_label: flood_stage.pill_label)}
         #{measurement_cards(measurements)}
         #{accent_bar}
       </svg>
@@ -176,7 +176,7 @@ class OgImage
       x += 120
     end
 
-    if flood_category.present?
+    if flood_category.present? && flood_label.present?
       color = FLOOD_COLORS.fetch(flood_category, "#a1a1aa")
       pills << pill(x: x, label: flood_label.to_s, fill: "#{color}22", text: color, stroke: "#{color}66")
     end

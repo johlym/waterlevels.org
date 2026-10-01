@@ -57,7 +57,7 @@
           <a href="https://water.noaa.gov/" rel="noopener noreferrer" target="_blank">National Water Prediction Service (NWPS)</a>
           via the
           <a href="https://api.water.noaa.gov/nwps/v1/docs/" rel="noopener noreferrer" target="_blank">NWPS API</a>.
-          We join NWPS forecast points to USGS gauges by site number when a match exists. Not every USGS site has an NWPS forecast point, so some stations will show USGS measurements without flood-stage context. USBR, USACE, and CDEC reservoir pages do not use NWPS flood stages. We do not chart NWPS forecast hydrographs; forecast information is used only to choose the flood category described below.
+          We join NWPS forecast points to USGS gauges by site number when a match exists. Not every USGS site has an NWPS forecast point, so some stations will show USGS measurements without flood-stage context. USBR, USACE, and CDEC reservoir pages do not use NWPS flood stages. We do not chart NWPS forecast hydrographs. A forecast category can still raise the stored flood category used by the map and Flood Alerts list, described below. Station pages do not treat that forecast as the current flood stage.
         </p>
         <p>
           Upstream and downstream neighbors on USGS station pages come from the USGS
@@ -91,7 +91,7 @@
           <li><span class="emphasis">Water temperature</span> — USGS parameter code 00010, stored in Celsius and convertible to Fahrenheit in the interface.</li>
           <li><span class="emphasis">Reservoir elevation</span> — daily or pool elevation for a curated allowlist of USBR, USACE, and CDEC reservoirs (CDEC sensor 6). These are not USGS parameter codes, and we do not ingest every reservoir or series those agencies publish.</li>
           <li><span class="emphasis">NWPS observed stage</span> — gage height from recent NWPS stageflow observations for gauges we promote that have no USGS site id. That history is typically about 30 days. We do not store the forecast portion of stageflow.</li>
-          <li><span class="emphasis">NWS flood context</span> — action, minor, moderate, and major stage thresholds from NWPS when a gauge is matched, plus a flood category. The category we store is the more severe of the NWPS observed category and the NWPS forecast category when both are present. It colors the map, fills the Flood Alerts list, and marks station pages. USBR, USACE, and CDEC pages omit it.</li>
+          <li><span class="emphasis">NWS flood context</span> — action, minor, moderate, and major stage thresholds from NWPS when a gauge is matched, plus a flood category. The category we store is the more severe of the NWPS observed category and the NWPS forecast category when both are present. It colors the map and fills the Flood Alerts list. Station pages compare the current gage height with those thresholds: they name the flood stage the river is in, and when it is below flood stage they give the lowest flood-stage level. USBR, USACE, and CDEC pages omit it.</li>
           <li><span class="emphasis">Neighbors</span> — upstream and downstream USGS gauges from NLDI, and nearby gauges ranked by distance between stored coordinates.</li>
         </ul>
         <p>
@@ -106,7 +106,7 @@
           <li>Discovers active USGS sites from <code>latest-continuous</code> feeds for the parameter codes above, and stores monitoring-location metadata (name, site number, coordinates, state and county, and drainage area or hydrologic unit when the feed includes them) plus selected time-series metadata.</li>
           <li>Refreshes a curated allowlist of USBR, USACE, CDEC, and NWPS-only gauges from those agencies’ APIs. Stations outside the allowlist are not added.</li>
           <li>Caches the latest observation for map popups, station current conditions, the Flood Alerts list, and optional email alerts.</li>
-          <li>Syncs NWPS flood categories and stage thresholds for matched gauges. The stored category is the more severe of the observed and forecast categories. It appears on the map, the Flood Alerts list, and station pages, and it can trigger flood emails for people who opted in.</li>
+          <li>Syncs NWPS flood categories and stage thresholds for matched gauges. The stored category is the more severe of the observed and forecast categories. It appears on the map and the Flood Alerts list, and it can trigger flood emails for people who opted in. Station pages report the stage implied by the current gage height, including the lowest flood-stage level when the river is not at flood stage.</li>
           <li>Backfills USGS continuous history (about 35 days), daily values, and peak series where USGS publishes them, and keeps longer daily history so charts and tables render from our cache: about three years for USGS, and up to about ten years for curated USBR, USACE, and CDEC reservoirs. When USGS does not publish a daily value, a chart may show an estimated daily mean computed from stored continuous readings and labeled as estimated.</li>
           <li>Stores recent observed NWPS stageflow points for short charts on NWPS-only gauges. NWPS does not provide the long daily archive used for the reservoir sources.</li>
           <li>Uses USGS NLDI to attach upstream and downstream neighbors, and computes nearby stations from stored coordinates.</li>
