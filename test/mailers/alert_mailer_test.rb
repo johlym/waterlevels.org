@@ -24,6 +24,11 @@ class AlertMailerTest < ActionMailer::TestCase
     assert_match(/Confirm/, email.subject)
     assert_match(%r{/subscriptions/verify/}, email.html_part.body.to_s)
     assert_match(/informational only/i, email.html_part.body.to_s)
+    assert_match(/Johnathan Lyman/, email.html_part.body.to_s)
+    assert_match(%r{https://johnathan\.org}, email.html_part.body.to_s)
+    assert_match(/Johnathan Lyman \(https:\/\/johnathan\.org\)/, email.text_part.body.to_s)
+    refute_match(/Bytoro/, email.html_part.body.to_s)
+    refute_match(/Bytoro/, email.text_part.body.to_s)
   end
 
   test "subscription_confirmation for unverified signup includes confirm, undo, and manage" do

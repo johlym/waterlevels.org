@@ -61,6 +61,19 @@ class SeoTest < ActiveSupport::TestCase
     assert_includes description, "U.S. Geological Survey"
   end
 
+  test "website credits a person rather than an organization" do
+    data = Seo.website(
+      name: "WaterLevels.org",
+      url: "https://waterlevels.org/",
+      description: "Search gauges."
+    )
+
+    assert_equal "WebSite", data["@type"]
+    assert_equal "Person", data["author"]["@type"]
+    assert_equal "Johnathan Lyman", data["author"]["name"]
+    assert_equal "https://johnathan.org", data["author"]["url"]
+  end
+
   test "breadcrumb list numbers visible ancestors and the current page" do
     data = Seo.breadcrumb_list([
       [ "Map", "https://waterlevels.org/" ],

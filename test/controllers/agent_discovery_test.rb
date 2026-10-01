@@ -16,6 +16,8 @@ class AgentDiscoveryTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "WaterLevels.org"
+    assert_includes response.body, "personal project by Johnathan Lyman"
+    assert_includes response.body, "https://johnathan.org"
     assert_includes response.body, "does not offer a public third-party data API"
     assert_includes response.body, "https://api.waterdata.usgs.gov/"
     assert_includes response.body, "https://api.water.noaa.gov/nwps/v1/docs/"
