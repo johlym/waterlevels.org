@@ -62,6 +62,14 @@ class HistoryBackfillJob < ApplicationJob
         "app.state" => location.state_code,
         "app.location_name" => location.display_name
       )
+      unless location.usgs?
+        Telemetry.add_attributes("app.skip_reason" => "non_usgs_provider")
+        Rails.logger.info(
+          "HistoryBackfillJob skipped: non-USGS provider id=#{monitoring_location_id} " \
+          "provider=#{location.data_provider}"
+        )
+        return
+      end
       progress = SyncProgress.new("HistoryBackfillJob##{location.site_number}", io: nil)
       # HistoryIngestion opens its own root span (linked here) so the big ingest
       # trace always has a root even if this job wrapper fails to export.

@@ -87,6 +87,31 @@ class HistoryBackfillJobTest < ActiveSupport::TestCase
     end
   end
 
+  test "perform skips USGS ingest for non-USGS reservoirs" do
+    location = create(
+      :monitoring_location,
+      data_provider: DataProviders::USBR,
+      provider_location_id: "USBR-35992",
+      site_number: "usbr35992"
+    )
+    create(
+      :time_series,
+      monitoring_location: location,
+      selected_for_display: true,
+      has_continuous_anchor: false,
+      continuous_newest_at: nil
+    )
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do # Monday
+      assert HistoryBackfillLock.claim!(location.id)
+      HistoryBackfillJob.perform_now(location.id)
+
+      assert_not_requested :get, %r{api\.waterdata\.usgs\.gov}
+      refute Rails.cache.exist?("history_backfill:#{location.id}")
+      refute HistoryBackfillLock.cooling_down?(location.id)
+    end
+  end
+
   test "perform skips USGS calls when history rate limit circuits are open" do
     location = create(:monitoring_location, site_number: "30000097")
     create(:time_series, monitoring_location: location, selected_for_display: true)
