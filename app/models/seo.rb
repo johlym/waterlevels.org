@@ -67,7 +67,12 @@ module Seo
       "@type" => "WebSite",
       "name" => name,
       "url" => url,
-      "description" => description
+      "description" => description,
+      "author" => {
+        "@type" => "Person",
+        "name" => "Johnathan Lyman",
+        "url" => "https://johnathan.org"
+      }
     }
   end
 

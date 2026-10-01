@@ -29,15 +29,32 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Sentry"
     assert_includes response.body, "Bento"
     assert_includes response.body, "General Data Protection Regulation"
+    assert_includes response.body, "Johnathan Lyman"
+    assert_includes response.body, "https://johnathan.org"
+    assert_includes response.body, "October 1, 2026"
     assert_includes response.body, contact_path
+    refute_includes response.body, "Bytoro"
+    refute_includes response.body, "our company"
+  end
+
+  test "about page credits the project to Johnathan Lyman" do
+    get about_path
+    assert_response :success
+    assert_includes response.body, "personal project"
+    assert_includes response.body, "Johnathan Lyman"
+    assert_includes response.body, "https://johnathan.org"
+    refute_includes response.body, "Bytoro"
   end
 
   test "terms page publishes the current terms and conditions" do
     get terms_path
     assert_response :success
     assert_includes response.body, "Terms and Conditions"
-    assert_includes response.body, "Bytoro LLC"
-    assert_includes response.body, "August 30, 2026"
+    assert_includes response.body, "Johnathan Lyman"
+    assert_includes response.body, "https://johnathan.org"
+    assert_includes response.body, "personal project"
+    assert_includes response.body, "October 1, 2026"
+    refute_includes response.body, "Bytoro"
     assert_includes response.body, "$100"
     refute_includes response.body, "mpkwali0-x9idrhsjr8a"
     assert_includes response.body, privacy_path
@@ -78,6 +95,10 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Why doesn’t every station have flood stages?"
     assert_includes response.body, "What is the flood alerts list?"
     assert_includes response.body, "Is this an official USGS, USBR, USACE, or NWS website?"
+    assert_includes response.body, "personal project by"
+    assert_includes response.body, "Johnathan Lyman"
+    assert_includes response.body, "https://johnathan.org"
+    refute_includes response.body, "Bytoro"
     assert_includes response.body, "National Water Prediction Service"
     assert_includes response.body, "https://water.noaa.gov/"
     assert_includes response.body, "https://api.water.noaa.gov/nwps/v1/docs/"
