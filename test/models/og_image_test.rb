@@ -17,11 +17,12 @@ class OgImageTest < ActiveSupport::TestCase
       name: "UPPER JADE IRIS ALDER CREEK NEAR SITE 99",
       state_code: "wa",
       stale: false,
-      flood_category: "major",
-      flood_category_label: "Major Flood",
+      flood_category: "moderate",
+      flood_category_label: "Moderate Flooding",
+      flood_stages: { action: 5, minor: 10, moderate: 12, major: 14 },
       latest_observed_at: Time.utc(2026, 8, 3, 12, 0, 0).iso8601,
       measurements: [
-        { kind: "water_level", label: "Gage height", value: 14.5, unit: "ft", precision: 2 },
+        { kind: "water_level", label: "Gage height", parameter_code: "00065", value: 14.5, unit: "ft", precision: 2 },
         { kind: "discharge", label: "Flow", value: 1240, unit: "ft3/s", precision: 0 },
         { kind: "temperature", label: "Temperature", value: 12.0, unit: "°C", precision: 2 }
       ]
@@ -39,7 +40,8 @@ class OgImageTest < ActiveSupport::TestCase
     assert_includes svg, "Temperature"
     assert_includes svg, "53.6"
     assert_includes svg, "°F"
-    assert_includes svg, "Major Flood"
+    assert_includes svg, "Major Flooding"
+    assert_not_includes svg, "Moderate Flooding"
     assert_includes svg, "Active"
   end
 
@@ -69,6 +71,26 @@ class OgImageTest < ActiveSupport::TestCase
     png = OgImage.station_png(snapshot)
     assert png.start_with?("\x89PNG".b)
     assert png.bytesize > 10_000
+  end
+
+  test "station svg ignores a forecast category when gage height is below flood stage" do
+    snapshot = {
+      site_number: "15052500",
+      name: "Mendenhall River near Auke Bay",
+      state_code: "ak",
+      stale: false,
+      flood_category: "moderate",
+      flood_category_label: "Moderate Flooding",
+      flood_stages: { action: 8, minor: 9, moderate: 10, major: 14 },
+      measurements: [
+        { kind: "water_level", label: "Gage height", parameter_code: "00065", value: 6, unit: "ft", precision: 2 }
+      ]
+    }
+
+    svg = OgImage.new(:station, snapshot: snapshot).svg
+
+    assert_includes svg, "Not at flood stage"
+    assert_not_includes svg, "Moderate"
   end
 
   test "station svg escapes html_safe text and drops xml-invalid characters" do

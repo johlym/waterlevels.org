@@ -50,7 +50,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes header_html, 'class="badges"'
     assert_not_includes meta_html, 'class="meta-status"'
     assert_not_includes meta_html, 'class="badge'
-    assert_includes meta_html, "Flood category"
+    assert_includes meta_html, "Flood stage"
     assert_includes meta_html, "No flood stage data"
     assert_includes meta_html, "Data status"
     assert_includes meta_html, ">Provisional<span"
@@ -232,11 +232,15 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes description, "Reservoir.,"
   end
 
-  test "gauge page shows NWS flood category and stage thresholds" do
+  test "gauge page shows the current flood stage and stage thresholds" do
     @location.update!(
       nwps_matched: true,
       nwps_lid: "BRKM2",
-      flood_category: "minor",
+      flood_category: "major",
+      has_water_level: true,
+      latest_water_level_value: 11,
+      latest_water_level_unit: "ft",
+      latest_water_level_parameter_code: "00065",
       flood_stage_action: 5,
       flood_stage_minor: 10,
       flood_stage_moderate: 12,
@@ -247,7 +251,10 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     get "/gauges/#{@location.state_code}/#{@location.to_param}"
     assert_response :success
     assert_includes response.body, "Minor Flooding"
-    assert_includes response.body, "Flood category"
+    assert_includes response.body, "minor at 10 ft"
+    assert_not_includes response.body, "Major Flooding"
+    assert_includes response.body, "Flood stage"
+    assert_not_includes response.body, "Flood category"
     assert_not_includes response.body, "badge flood-minor"
     assert_includes response.body, "NWS flood stages"
     assert_includes response.body, "Action 5 ft"
@@ -259,10 +266,41 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert header_html
     assert meta_html
     assert_not_includes header_html, "Minor Flooding"
-    assert_not_includes header_html, "Flood category"
-    assert_includes meta_html, "Flood category"
+    assert_not_includes header_html, "Flood stage"
+    assert_includes meta_html, "Flood stage"
     assert_includes meta_html, "Minor Flooding"
+    assert_includes meta_html, "minor at 10 ft"
     assert_includes meta_html, "NWS flood stages"
+  end
+
+  test "gauge page names the lowest flood stage when the river is below it" do
+    @location.update!(
+      nwps_matched: true,
+      nwps_lid: "MNDA2",
+      name: "Mendenhall River near Auke Bay",
+      flood_category: "moderate",
+      has_water_level: true,
+      latest_water_level_value: 6,
+      latest_water_level_unit: "ft",
+      latest_water_level_parameter_code: "00065",
+      flood_stage_action: 8,
+      flood_stage_minor: 9,
+      flood_stage_moderate: 10,
+      flood_stage_major: 14,
+      latest_observed_at: 1.hour.ago
+    )
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    meta_html = response.body[/<aside class="station-meta">.*?<\/aside>/m]
+    assert_includes meta_html, "Flood stage"
+    assert_includes meta_html, "Not at flood stage"
+    assert_includes meta_html, "Lowest flood stage is minor at 9 ft"
+    assert_includes meta_html, "NWS flood stages"
+    assert_includes meta_html, "Minor 9 ft"
+    assert_includes meta_html, "Mod 10 ft"
+    assert_not_includes meta_html, "Moderate Flooding"
+    assert_not_includes response.body, "No flood stage data"
   end
 
   test "shows history callout when full-year daily history is missing" do
