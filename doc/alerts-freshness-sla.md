@@ -4,6 +4,7 @@
 - Latest tips: hourly (`LatestObservationSyncJob` at `:03`)
 - NWPS flood categories: hourly (`FloodStageSyncJob` at `:30`)
 - Digest scheduler: every 15 minutes (`AlertDigestSchedulerJob`)
+- Quiet / resume scan: hourly at `:10` (`AlertQuietScanJob` → `Alerts::QuietStationDetector`, 6h quiet threshold, watched stations only)
 
 ## v1 decisions
 1. **Hourly tip evaluation is the SLA for threshold / rate-of-rise / in-range.**
