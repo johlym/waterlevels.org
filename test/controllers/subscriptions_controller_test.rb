@@ -31,10 +31,12 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
     get subscriptions_path
     assert_response :success
     assert_includes response.body, "Manage Your Email Subscriptions"
+    assert_includes response.body, 'name="robots" content="noindex, nofollow"'
     assert_includes response.body, ">Manage Email Alerts</a>"
     assert_not_includes response.body, "Watch a gauge by"
     assert_not_includes response.body, "Get alerts for this station"
     assert_includes response.headers["Cache-Control"], "no-store"
+    assert_equal "noindex, nofollow", response.headers["X-Robots-Tag"]
     assert_includes response.headers["Set-Cookie"].to_s, "_waterlevels_session"
   ensure
     ActionController::Base.allow_forgery_protection = previous

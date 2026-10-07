@@ -45,6 +45,7 @@ class SubscriptionsController < ApplicationController
 
   def set_no_store_headers
     response.set_header("Cache-Control", "private, no-store")
+    response.set_header("X-Robots-Tag", "noindex, nofollow")
   end
 
   def manage_link_request?

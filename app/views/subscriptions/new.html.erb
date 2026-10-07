@@ -1,6 +1,8 @@
 <% set_meta_tags(
   title: "Manage email subscriptions",
-  description: "Request a private link to manage WaterLevels.org email alert preferences or unsubscribe."
+  description: "Request a private link to manage WaterLevels.org email alert preferences or unsubscribe.",
+  noindex: true,
+  nofollow: true
 ) %>
 <% site_key = Contact::FormComponent.site_key %>
 <% turnstile_required = ENV["TURNSTILE_SECRET"].present? %>

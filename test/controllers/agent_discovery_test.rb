@@ -8,6 +8,7 @@ class AgentDiscoveryTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Content-Signal: ai-train=no, search=yes, ai-input=no"
     assert_includes response.body, "Disallow: /admin"
     assert_includes response.body, "Disallow: /api"
+    assert_includes response.body, "Disallow: /subscriptions"
     assert_includes response.body, "Sitemap: https://waterlevels.org/sitemap.xml"
   end
 
