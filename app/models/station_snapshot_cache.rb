@@ -1,5 +1,5 @@
 class StationSnapshotCache
-  PREFIX = "station_snapshot:v16".freeze
+  PREFIX = "station_snapshot:v17".freeze
   TTL = 2.hours
   MILES_PER_KM = 0.621371
 
@@ -410,6 +410,8 @@ class StationSnapshotCache
       has_discharge: n.has_discharge,
       has_temperature: n.has_temperature,
       path: "/gauges/#{n.path_state}/#{n.to_param}",
+      latitude: n.latitude.to_f,
+      longitude: n.longitude.to_f,
       distance_mi: distance_mi.round(1),
       stale: n.stale?,
       flood_category: n.flood_category,

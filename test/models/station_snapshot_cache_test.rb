@@ -291,6 +291,8 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
     assert_equal 1, nearby.size
     assert_equal "minor", nearby.first[:flood_category]
     assert_equal "Minor Flooding", nearby.first[:flood_category_label]
+    assert_in_delta 47.51, nearby.first[:latitude], 0.0001
+    assert_in_delta(-121.81, nearby.first[:longitude], 0.0001)
 
     readings = nearby.first[:measurements]
     assert_equal %w[ discharge water_level temperature ], readings.map { |r| r[:kind] }
@@ -332,9 +334,13 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
 
     assert_equal 1, network[:upstream].size
     assert_equal "00000012", network[:upstream].first[:site_number]
+    assert_in_delta 47.52, network[:upstream].first[:latitude], 0.0001
+    assert_in_delta(-121.80, network[:upstream].first[:longitude], 0.0001)
     assert_equal "discharge", network[:upstream].first[:measurements].first[:kind]
     assert_equal 1, network[:downstream].size
     assert_equal "00000013", network[:downstream].first[:site_number]
+    assert_in_delta 47.48, network[:downstream].first[:latitude], 0.0001
+    assert_in_delta(-121.82, network[:downstream].first[:longitude], 0.0001)
     assert_equal "water_level", network[:downstream].first[:measurements].first[:kind]
   end
 

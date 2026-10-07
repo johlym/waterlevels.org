@@ -21,6 +21,53 @@
       <% end %>
     </div>
 
+    <% payload = related_map_payload(upstream: upstream, downstream: downstream, nearby: nearby, current: current_node) %>
+    <% if payload %>
+      <% roles = payload[:stations].map { |station| station[:role] } %>
+      <div
+        class="related-map"
+        data-controller="related-map"
+        data-related-map-payload-value="<%= ERB::Util.json_escape(payload.to_json) %>"
+        data-related-map-carto-api-key-value="<%= ENV.fetch("CARTO_API_KEY", "") %>"
+        data-related-map-maplibre-worker-url-value="<%= asset_path("maplibre-gl-worker.js") %>"
+      >
+        <div class="related-map-frame">
+          <div
+            data-related-map-target="canvas"
+            class="related-map-canvas"
+            role="img"
+            aria-label="Map of this station and related gauges. Station links are in the lists below."
+          ></div>
+          <div class="related-map-chrome">
+            <ul class="related-map-legend" aria-label="Map legend">
+              <li><span class="swatch swatch-current" aria-hidden="true"></span> This station</li>
+              <% if roles.include?("upstream") %>
+                <li><span class="swatch swatch-upstream" aria-hidden="true"></span> Upstream</li>
+              <% end %>
+              <% if roles.include?("downstream") %>
+                <li><span class="swatch swatch-downstream" aria-hidden="true"></span> Downstream</li>
+              <% end %>
+              <% if roles.include?("nearby") %>
+                <li><span class="swatch swatch-nearby" aria-hidden="true"></span> Nearby</li>
+              <% end %>
+            </ul>
+            <div class="related-map-tools">
+              <button type="button" data-action="related-map#zoomIn" aria-label="Zoom in">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                </svg>
+              </button>
+              <button type="button" data-action="related-map#zoomOut" aria-label="Zoom out">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
     <div class="related-columns<%= " related-columns--single" unless has_stream && has_nearby %>">
       <% if has_stream %>
         <div class="related-column">

@@ -507,6 +507,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'data-temp-prefix="Temp: "'
     assert_includes response.body, 'data-temp-c="12.8"'
     assert_includes response.body, "related-row watch"
+    assert_related_map_roles [ "nearby" ]
   end
 
   test "on-stream timeline renders upstream and downstream neighbors" do
@@ -548,6 +549,7 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Related stations"
     assert_includes response.body, "related-list"
     assert_not_includes response.body, "stream-hop"
+    assert_related_map_roles [ "upstream", "downstream" ]
   end
 
   test "related stations omit stale neighbors even when ids are persisted" do
@@ -584,6 +586,58 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_not_includes response.body, "On this stream"
     assert_not_includes response.body, "Related stations"
+    assert_select "[data-controller='related-map']", count: 0
+  end
+
+  test "related map dedupes a station that is both nearby and upstream" do
+    shared = create(
+      :monitoring_location,
+      site_number: "00000411",
+      provider_location_id: "USGS-00000411",
+      name: "Shared Fork near Town",
+      slug: "shared-fork-near-town",
+      latitude: 47.62,
+      longitude: -121.70,
+      latest_observed_at: 15.minutes.ago
+    )
+    down = create(
+      :monitoring_location,
+      site_number: "00000412",
+      provider_location_id: "USGS-00000412",
+      name: "Lower Fork near Town",
+      slug: "lower-fork-near-town",
+      latitude: 47.40,
+      longitude: -121.95,
+      latest_observed_at: 15.minutes.ago
+    )
+    side = create(
+      :monitoring_location,
+      site_number: "00000413",
+      provider_location_id: "USGS-00000413",
+      name: "Side Creek near Town",
+      slug: "side-creek-near-town",
+      latitude: 47.55,
+      longitude: -121.60,
+      latest_observed_at: 15.minutes.ago
+    )
+    @location.update!(
+      upstream_station_ids: [ shared.id ],
+      downstream_station_ids: [ down.id ],
+      nearby_station_ids: [ shared.id, side.id ]
+    )
+
+    get "/gauges/#{@location.state_code}/#{@location.to_param}"
+    assert_response :success
+    assert_related_map_roles [ "upstream", "downstream", "nearby" ]
+    assert_select ".related-map-canvas"
+    assert_select ".related-map-legend", text: /Upstream/
+    assert_select ".related-map-legend", text: /Downstream/
+    assert_select ".related-map-legend", text: /Nearby/
+    assert_select "[data-related-map-payload-value]" do |elements|
+      stations = JSON.parse(elements.first["data-related-map-payload-value"])["stations"]
+      assert_equal [ shared.site_number ], stations.select { |station| station["role"] == "upstream" }.map { |station| station["site_number"] }
+      assert_equal 1, stations.count { |station| station["site_number"] == shared.site_number }
+    end
   end
 
   test "map stations include station time zone fields" do
@@ -994,5 +1048,21 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     results = JSON.parse(response.body)["stations"]
 
     assert results.none? { |row| row["type"] == "zip" }
+  end
+
+  private
+
+  def assert_related_map_roles(roles)
+    assert_select "[data-controller='related-map']"
+    assert_select "[data-related-map-payload-value]" do |elements|
+      payload = JSON.parse(elements.first["data-related-map-payload-value"])
+      assert_equal roles, payload["stations"].map { |station| station["role"] }.uniq
+      assert payload["current"]["lat"]
+      assert payload["current"]["lon"]
+      payload["stations"].each do |station|
+        assert station["lat"]
+        assert station["lon"]
+      end
+    end
   end
 end
