@@ -85,7 +85,7 @@ There is **no public third-party data API**. First-party `/api/*` stays website-
 | `/llms.txt` | Static site summary, page list, and “use USGS/NWPS” policy |
 | `/.well-known/api-catalog` | RFC 9727 linkset (`application/linkset+json`). Anchors: site root, USGS Water Data API, NWPS API. Does **not** list `/api/*`. |
 | Homepage `Link` headers | `rel="api-catalog"` → catalog; `rel="service-doc"` → `/disclosures`, `/faq`; `rel="describedby"` → `/llms.txt`. Only `/` sets the full discovery header. |
-| `/robots.txt` | `Content-Signal: ai-train=no, search=yes, ai-input=no`; `Disallow: /admin` and `/api` |
+| `/robots.txt` | `Content-Signal: ai-train=no, search=yes, ai-input=no`; `Disallow: /admin`, `/api`, and `/subscriptions` |
 
 HTML pages honor `Accept: text/markdown` (`MarkdownForAgents` on `ApplicationController`): if markdown quality ≥ HTML, the HTML template still renders, then `HtmlToMarkdown` converts hero + `main` (nav/header/footer/svg stripped). Response is `text/markdown; charset=utf-8` with `Vary: Accept` and `x-markdown-tokens` (rough `ceil(chars/4)`). JSON `/api/*` is unchanged. The modern-browser gate is skipped for markdown requests.
 

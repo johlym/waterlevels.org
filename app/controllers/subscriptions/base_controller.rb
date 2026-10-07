@@ -14,6 +14,7 @@ module Subscriptions
 
     def set_no_store_headers
       response.set_header("Cache-Control", "private, no-store")
+      response.set_header("X-Robots-Tag", "noindex, nofollow")
     end
   end
 end

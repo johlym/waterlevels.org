@@ -25,6 +25,7 @@ module Subscriptions
       get subscriptions_manage_path(token: @raw)
       assert_response :success
       assert_includes response.body, 'name="robots" content="noindex, nofollow"'
+      assert_equal "noindex, nofollow", response.headers["X-Robots-Tag"]
       assert_includes response.body, @subscriber.email
       assert_includes response.body, @location.display_name
       assert_includes response.body, "Flood category changes"

@@ -31,6 +31,7 @@ module Subscriptions
 
       assert subscriber.reload.verified?
       assert_response :redirect
+      assert_equal "noindex, nofollow", response.headers["X-Robots-Tag"]
       assert_match %r{/subscriptions/manage/}, response.redirect_url
     end
 

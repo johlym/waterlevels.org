@@ -28,6 +28,7 @@ class SitemapsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "<loc>http://www.example.com/faq</loc>"
     assert_includes response.body, "<loc>http://www.example.com/aup</loc>"
     refute_includes response.body, "/contact"
+    refute_includes response.body, "/subscriptions"
     assert_includes response.headers["Cache-Tag"], "sitemap:static"
   end
 

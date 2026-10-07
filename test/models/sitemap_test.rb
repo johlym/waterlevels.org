@@ -22,6 +22,7 @@ class SitemapTest < ActiveSupport::TestCase
       assert_includes xml, "<loc>https://example.com#{path}</loc>"
     end
     refute_includes xml, "/contact"
+    refute_includes xml, "/subscriptions"
     refute_includes xml, "<lastmod>"
   end
 
