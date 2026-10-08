@@ -1,6 +1,6 @@
 # WaterLevels.org
 
-Rails 8.1 / Ruby 4 app that maps USGS water monitoring locations (water level, flow, temperature) with cached station and state pages.
+Rails 8.1 / Ruby 4.0.7 app that maps USGS water-monitoring locations (water level, flow, temperature) plus a small curated set of non-USGS reservoirs and NWS gauges, with cached station and state pages.
 
 ## Stack
 
@@ -11,8 +11,8 @@ Rails 8.1 / Ruby 4 app that maps USGS water monitoring locations (water level, f
 ## Local setup
 
 ```bash
-rvm use 4.0.4
-nvm use          # Node 20+ required (see .nvmrc / .node-version)
+rvm use 4.0.7    # or mise / .ruby-version
+nvm use          # Node 24 (see .nvmrc; bin/dev requires Node 20+)
 bundle install
 yarn install
 createdb waterlevels_development waterlevels_test
@@ -32,7 +32,7 @@ bin/rails usgs:enqueue_bootstrap
 # optional: STATE=wa DELAY_SECONDS=120
 ```
 
-Hourly `LatestObservationSyncJob` keeps readings fresh near `:00`. `FloodStageSyncJob` runs at `:30` and loops every state in one job with ≥30s between states (one NWPS list GET per state bbox, category refresh, unlinked action+ linking, small detail-GET budget). `STATE=wa bin/rails nwps:sync_flood_stages` or `bin/rails nwps:enqueue_sync`. Bootstrap also runs flood sync per state. Hourly `HistoryBackfillBatchJob` fills gap-aware continuous history (up to ~35 days) and year daily history into R2 in batches (gauge page views also enqueue a station when charts are empty). Prefer this over a national one-off `usgs:bootstrap` on a small dyno.
+Hourly `LatestObservationSyncJob` keeps USGS readings fresh near `:00`. `FloodStageSyncJob` runs at `:30` and loops every state in one job with ≥30s between states (one NWPS list GET per state bbox, category refresh, unlinked action+ linking, small detail-GET budget). `STATE=wa bin/rails nwps:sync_flood_stages` or `bin/rails nwps:enqueue_sync`. Bootstrap also runs flood sync per state. `HistoryBackfillBatchJob` (Mon–Sat every 10 minutes) fills gap-aware USGS continuous history (up to ~35 days) and year daily history into R2. The candidate scopes (`needing_history_backfill` / `needing_deep_history_backfill`) are **USGS-only**. Gauge page views enqueue `HistoryBackfillJob` when `needs_history_backfill?` — that predicate and `HistoryBackfillJob.perform` have **no** `usgs?` guard, so do not enqueue a non-USGS id (it still calls `Usgs::Client.for_history`). Prefer this over a national one-off `usgs:bootstrap` on a small dyno.
 
 ### Local / single-state
 
@@ -56,7 +56,54 @@ Tunables: `USGS_REQUEST_PAUSE_MS` (default `100` outside test), `NLDI_REQUEST_PA
 
 `FloodStageSync` expires flood alerts that drop off the NWPS state list: if a LID is unseen and `flood_category_observed_at` is blank or older than 24 hours, category resets to `no_flooding`.
 
-See `doc/postgres-r2-daily-archive.md` (current R2-first retention), `doc/plan-3y-daily-history.md` (historical 3y plan), and `doc/future.md` (hourly POR) for retention tiers and longer-history notes.
+See `doc/postgres-r2-daily-archive.md` (current R2-first retention), `doc/plan-3y-daily-history.md` (historical 3y plan), and `doc/future.md` (hourly POR + non-USGS 10y proving ground) for retention tiers and longer-history notes.
+
+### Curated non-USGS stations
+
+Allowlists in `app/models/{usbr,usace,nwps,cdec}/*_catalog.rb` — expand `ACTIVE` there, not via USGS catalog sync. Public `site_number` values are provider-prefixed (not USGS digits). The numeric short route `/gauges/:site_number` is digits-only; use `/gauges/{state}/{site_number}-{slug}`.
+
+| Provider | Catalog | Example site | Grain | Daily cron (UTC) | History job |
+| -------- | ------- | ------------ | ----- | ---------------- | ----------- |
+| USBR RISE | `Usbr::ReservoirCatalog` (Lake Mead) | `usbr3514` | daily elevation | `UsbrReservoirSyncJob` 04:20 | `UsbrHistoryBackfillJob` (default 10y) |
+| USACE CWMS | `Usace::ProjectCatalog` (Raystown, Hartwell, Okeechobee) | `usacenabraystown` | daily pool elevation | `UsaceProjectSyncJob` 04:35 | `UsaceHistoryBackfillJob` |
+| NWPS (no usgsId) | `Nwps::GaugeCatalog` (ACRW1, BLKW1, ASTO3) | `nwpsacrw1` | ~30d stageflow IV | `NwpsGaugeSyncJob` 04:50 | `NwpsHistoryBackfillJob` (not R2 10y) |
+| CDEC | `Cdec::ReservoirCatalog` (Oroville, Shasta, Folsom) | `cdecoro` | daily elevation | `CdecReservoirSyncJob` 05:05 | `CdecHistoryBackfillJob` |
+
+Daily-only reservoirs hide `24h` / `7d` tabs and default to `1y`. `3y` unlocks when selected series have daily points ~35 months old; `10y` unlocks past the 3y window (`DAILY_10Y_HISTORY_ANCHOR` = 37 months) even if the agency POR is shorter than a decade. NWPS primary gauges cannot join the R2 10y path — the official API keeps ~30 days of stageflow, not a continuous archive.
+
+### Chart range locks (USGS)
+
+`1y` / `3y` / `10y` read R2 dailies. When the selected measurement has `usgs_daily_absent` (IV-only parameter) the long tabs stay visible but locked. When the whole gauge has no year daily yet, `1y` and `3y` still render so the missing length is obvious. Tooltip copy is USGS-specific.
+
+### Gauge page: flood stage vs High/Low
+
+These are independent numbers. Do not conflate them.
+
+| Surface | Source | Meaning |
+| ------- | ------ | ------- |
+| **Flood stage** (gauge sidebar) | `GaugeFloodStage.from_snapshot` — latest gage height vs NWS thresholds | “Is it flooding **now**?” Ignores stored `flood_category`. Below every flood tier: “Not at flood stage” plus “Lowest flood stage is minor at N ft”. No thresholds: “No flood stage data”. |
+| **NWS flood stages** (same sidebar) | Snapshot `flood_stages` | Static Action / Minor / Mod / Major reference list. |
+| **Stored `flood_category`** | NWPS observed∨forecast max | Map markers, `/alerts`, related-row watch styling. A forecast can say “moderate” while the river is still below minor. |
+| **High / Low** (measurement cards) | Annual peak if present, else max/min daily mean over the last year (R2 when `DAILY_ARCHIVE_READS=1`, else Postgres) | Recent hydrologic context. **Low** always uses the daily window. Map popups and state directories do **not** show these. |
+| **Period high / Period low** (chart footer) | Min/max of the **visible** chart range | Timestamps include the calendar year (`Oct 1, 2026 at …`). |
+
+Demo major-flood seed: site `99000020` (`FLOOD_DEMO_N = 20`).
+
+### Related stations (gauge page)
+
+The related section is hidden when every neighbor is stale or missing. Otherwise it shows a compact Leaflet + MapLibre map (`related-map` Stimulus controller, same `CARTO_API_KEY` as `/map`) plus lists.
+
+| Source | Count | Scope | Notes |
+| ------ | ----- | ----- | ----- |
+| Nearby | up to **4** | All providers with coords | `NearbyStations` haversine on a 0.5° grid |
+| Upstream / downstream | up to **2** each | **USGS NLDI only** (`NetworkStations::PER_SIDE`, 80 km) | Closest-first in DB; upstream list reversed for display |
+| Stale | 0 shown | `MonitoringLocation::STALE_AFTER` (1 week) | Filtered at render even if IDs are persisted |
+
+A site that is both nearby and on-stream is drawn once as the stream role. Related-row “watch” uses stored `flood_category`, not `GaugeFloodStage`. Offline demo chain: `99000096`–`990000100` (mid-chain `99000098`).
+
+### Inactive / stale stations
+
+`MonitoringLocation::STALE_AFTER` is **1 week** (`latest_observed_at`). Live tips rank ahead of stale matches in search. Map markers with a stale tip stay off until the Inactive layer is turned on. State directories hide offline cards unless **Show offline** is checked. Locate / nearby / on-stream neighbor lists drop stale tips. The `active` column is the catalog flag (pruned when USGS continuous disappears); homepage “active” counts `active.not_stale`.
 
 Local archive iteration (no Cloudflare): `.env.example` sets `DAILY_ARCHIVE_STORE=local`. After seeding or backfill, run `bin/rails archive:export_daily` — shards land in `tmp/daily_archive` and `1y` / `3y` charts read them when `DAILY_ARCHIVE_READS=1`.
 
@@ -86,6 +133,7 @@ There is **no public third-party data API**. First-party `/api/*` stays website-
 | `/.well-known/api-catalog` | RFC 9727 linkset (`application/linkset+json`). Anchors: site root, USGS Water Data API, NWPS API. Does **not** list `/api/*`. |
 | Homepage `Link` headers | `rel="api-catalog"` → catalog; `rel="service-doc"` → `/disclosures`, `/faq`; `rel="describedby"` → `/llms.txt`. Only `/` sets the full discovery header. |
 | `/robots.txt` | `Content-Signal: ai-train=no, search=yes, ai-input=no`; `Disallow: /admin`, `/api`, and `/subscriptions` |
+| `/subscriptions*` | Also `X-Robots-Tag: noindex, nofollow`, meta `noindex,nofollow`, `Cache-Control: private, no-store`. Omitted from `Sitemap::STATIC_PATHS`. Humans still reach it from nav/footer. |
 
 HTML pages honor `Accept: text/markdown` (`MarkdownForAgents` on `ApplicationController`): if markdown quality ≥ HTML, the HTML template still renders, then `HtmlToMarkdown` converts hero + `main` (nav/header/footer/svg stripped). Response is `text/markdown; charset=utf-8` with `Vary: Accept` and `x-markdown-tokens` (rough `ceil(chars/4)`). JSON `/api/*` is unchanged. The modern-browser gate is skipped for markdown requests.
 
@@ -103,26 +151,56 @@ bin/rails test
 
 ## Heroku
 
-- Dynos: `web`, `worker` (default queue + scheduler), `sync_worker` (`sync` queue), `iv_repair_worker` (`iv_repair` queue), `iv_repair_scar_worker` (`iv_repair_scar` queue), `historical_worker` (`backfill` queue), `notifications_worker` (`notifications` queue — email alert evaluation, digests, and `AlertMailer` `deliver_later`). Keep the two IV workers isolated: `iv_repair_worker` must listen **only** to `iv_repair` (`config/sidekiq_iv_repair.yml`). Scar jobs are consumed solely by `iv_repair_scar_worker`. After enabling `ALERTS_ENABLED`, scale with `heroku ps:scale notifications_worker=1 -a <app>` — the scheduler still enqueues digest/quiet ticks onto `notifications` even when the product flag is off, so an unscaled process lets that queue back up. Admin health warns if `notifications` / scar / tip-IV queues have depth and no matching workers.
+- Dynos: `web`, `worker` (default queue + scheduler + `ContactMailer`), `sync_worker` (`sync` queue), `iv_repair_worker` (`iv_repair` queue), `iv_repair_scar_worker` (`iv_repair_scar` queue), `historical_worker` (`backfill` queue), `notifications_worker` (`notifications` queue — alert evaluation, digests, quiet scan, `AlertMailer` verify/manage-link, and `AlertDeliveryJob`). Keep the two IV workers isolated: `iv_repair_worker` must listen **only** to `iv_repair` (`config/sidekiq_iv_repair.yml`). Scar jobs are consumed solely by `iv_repair_scar_worker`. After enabling `ALERTS_ENABLED`, scale with `heroku ps:scale notifications_worker=1 -a <app>` — the scheduler still enqueues digest/quiet ticks onto `notifications` even when the product flag is off, so an unscaled process lets that queue back up. Admin health warns if `notifications` / scar / tip-IV queues have depth and no matching workers.
 - Add-ons: Postgres, Redis
-- Set `USGS_API_KEY` (tip/catalog), optional `USGS_API_HISTORY_CONTINUOUS_KEY` / `USGS_API_HISTORY_DAILY_KEY` / `USGS_API_HISTORY_PEAKS_KEY` (purpose-pinned history backfill), `REDIS_URL`, `DATABASE_URL`, `APP_HOST`, `SENTRY_DSN`; `CARTO_API_KEY` for the `/map` Dark Matter vector basemap (higher-traffic CARTO tier; request at [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey/)); optional `CLOUDFLARE_ZONE_ID` + `CLOUDFLARE_API_TOKEN` for post-sync Cache-Tag purge; optional `CLOUDFLARE_R2_*` for the yearly daily-means archive ([`doc/postgres-r2-daily-archive.md`](doc/postgres-r2-daily-archive.md))
+- Set `USGS_API_KEY` (tip/catalog), `USGS_API_HISTORY_CONTINUOUS_KEY` / `USGS_API_HISTORY_DAILY_KEY` / `USGS_API_HISTORY_PEAKS_KEY` / `USGS_API_HISTORY_IVREPAIR_KEY` / `USGS_API_HISTORY_IVREPAIR2_KEY` (purpose-pinned history; **production fail-closes** if a purpose key is unset — no tip-key fallback), `REDIS_URL`, `DATABASE_URL`, `APP_HOST` (**required** in production for `config.hosts` + mail URLs + Turnstile hostname allowlist), `SENTRY_DSN`; `CARTO_API_KEY` for `/map` and the gauge related-stations map (higher-traffic CARTO tier; request at [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey/)); optional `CLOUDFLARE_ZONE_ID` + `CLOUDFLARE_API_TOKEN` for post-sync Cache-Tag purge; optional `CLOUDFLARE_R2_*` for the yearly daily-means archive ([`doc/postgres-r2-daily-archive.md`](doc/postgres-r2-daily-archive.md))
 - Enable [runtime dyno metadata](https://devcenter.heroku.com/articles/dyno-metadata) so `HEROKU_RELEASE_VERSION` is available; Sentry uses it as the release and tags environment as `production`
-- Open Graph PNGs are rendered with `rsvg-convert` (`Aptfile` → `librsvg2-bin` and `fonts-dejavu-core`). Requires [`heroku-community/apt`](https://elements.heroku.com/buildpacks/heroku/heroku-buildpack-apt) as buildpack **#1** (before Ruby) so the Aptfile packages install on the dyno. librsvg ignores `@font-face` in the SVG, so the renderer points fontconfig at `vendor/fonts/og` (DejaVu covers glyphs those faces lack). Station cards are **not** stored in Redis (they filled a 250MB instance); `/og/gauges/:site_number.png` rasterizes on the origin and is Cloudflare-cached (`s-maxage=3600`). Tip/flood syncs purge `og` / `gauge:{site}` tags. The default OG PNG is still Redis-cached.
+- Open Graph PNGs are 1200×630 rasters via `rsvg-convert` (`Aptfile` → `librsvg2-bin` and `fonts-dejavu-core`). Requires [`heroku-community/apt`](https://elements.heroku.com/buildpacks/heroku/heroku-buildpack-apt) as buildpack **#1** (before Ruby). librsvg ignores `@font-face`, so `OgImage::Rasterizer` writes a temp fontconfig file pointing at `vendor/fonts/og` (Space Grotesk + DM Sans) plus `/etc/fonts` (DejaVu covers missing glyphs). Override with `RSVG_CONVERT` / `OG_FONTCONFIG_FILE`. SVG text is `CGI.escapeHTML` + XML-invalid-char strip (UTF-8 scrub); truncation uses ASCII `...`. Raster failures raise with the first ~3 stderr lines. Station cards are **not** stored in Redis (they filled a 250MB instance); `/og/gauges/:site_number.png` rasterizes on the origin and is Cloudflare-cached (`s-maxage=3600`, `max-age=60`, tags `og`, `og:gauge:{site}`, `gauge:{site}`). The default `/og.png` is Redis-cached 24h (`og_image:v2:default`). The station flood pill uses **`GaugeFloodStage`** (gage height), not stored forecast category. `OgImagesController` skips the modern-browser gate so crawlers can fetch PNGs.
 - Redis TLS: Redis Cloud uses a public CA — Sidekiq, cache, and Action Cable default to `VERIFY_PEER`. Set `REDIS_SSL_VERIFY=none` only if you still point at a self-signed `rediss://` host. Optional `REDIS_CACHE_URL` isolates Rails.cache onto a second Redis Cloud database (do not use `/1` on the same Cloud endpoint; Cloud databases are one logical DB per URL).
 - After deploy: `heroku run bin/rails usgs:enqueue_bootstrap -a <app>`
 - Optional: `MALLOC_ARENA_MAX=2` if worker RSS climbs
-- Put Cloudflare in front; honor `Cache-Control` / `Cache-Tag` from the app. Use a Cache Rule (Eligible for cache + Origin Cache Control) for public HTML; bypass `/contact`, `/admin`, and `/api/*`. Public pages skip the Rails session cookie so HTML is not forced to `BYPASS`.
-- Internal `/api/*` JSON is first-party-only (`X-WaterLevels-Client: web` + same-origin browser context), returns `private, no-store`, and is cached in Redis via `ApiResponseCache` (invalidated when syncs bump generation counters).
-- Optional ops dashboard at `/admin` when `DASHBOARD_PW` is set (session login at `/admin/login`). Returns 404 when the env var is unset. Login attempts are rate-limited (Rails `rate_limit`, 10 per 3 minutes per IP). Sidekiq Web is at `/admin/sidekiq` behind the same session. Inventory / growth 24h–7d numbers come from Postgres `admin_counters` (`AdminDashboardCountersJob` every 10 min) — do not `COUNT(*)` `continuous_observations` on the request. Sidekiq stats, USGS circuits, and the tip-freshness histogram stay live.
+- Put Cloudflare in front; honor `Cache-Control` / `Cache-Tag` from the app. Use a Cache Rule (Eligible for cache + Origin Cache Control) for public HTML; bypass `/contact`, `/subscriptions*`, `/admin`, and `/api/*`. Public pages skip the Rails session cookie so HTML is not forced to `BYPASS`.
+- Internal `/api/*` JSON is first-party-only (`X-WaterLevels-Client: web` + same-origin browser context), returns `private, no-store`, is rate-limited to **120 requests/minute/IP** (`Api::BaseController`), and is cached in Redis via `ApiResponseCache` (invalidated when syncs bump generation counters).
+- Optional ops dashboard at `/admin` when `DASHBOARD_PW` is set (session login at `/admin/login`). Returns 404 when the env var is unset. Login attempts are rate-limited (Rails `rate_limit`, 10 per 3 minutes per IP). Sidekiq Web is at `/admin/sidekiq` behind the same session. Station inspector: `/admin/stations` and `bin/rails usgs:inspect SITE=…` (15s statement timeout). Inventory / growth 24h–7d numbers come from Postgres `admin_counters` (`AdminDashboardCountersJob` every 10 min) — do not `COUNT(*)` `continuous_observations` on the request. Sidekiq stats, USGS circuits, and the tip-freshness histogram stay live. The jobs section also shows **last-done** times for Day-31 retention (`ContinuousPruneJob`) and daily archive export (`DailyArchiveExportJob`), including skip reasons and prune gap counts.
 - **Cold first request:** Eco/Hobby web dynos sleep when idle; the next hit waits for Puma/Rails boot (often multi-second). Prefer an always-on web dyno, or ping `/up` every few minutes. Puma also warms DB/Redis/`SiteStats` on boot so a post-sleep origin render is cheaper once the process is up.
+
+## Pipeline overlap prevention
+
+Long national jobs take a Redis lock and **skip** (log + no-op) if another copy is already running. Do not scale `sync_worker` threads expecting two catalog/tip/flood passes to run in parallel — watch `/admin` queue depth instead.
+
+| Lock | TTL | Jobs |
+| ---- | --- | ---- |
+| `StationCatalogSyncLock` | 8h | catalog, bootstrap, rake |
+| `LatestObservationSyncLock` | 2h | hourly tip, bootstrap, rake |
+| `FloodStageSyncLock` | 2h | flood, bootstrap flood leg |
+| `NetworkRefreshBatchLock` | 2h | NLDI batch (Monday 06:17 UTC) |
+| `HistoryBackfillBatchLock` | 30m | USGS cold/year backfill batch |
+| `DailyArchiveExportLock` | 8h | daily archive export |
+| `IvRepairBatchLock` / `IvRepairScarBatchLock` | 15m | tip-IV / scar batch |
+
+`historical_worker` is concurrency 2 with those batch/export locks so one thread can run a station job while another scans. `ApplicationJob` discards USGS/NLDI `RateLimitError` and `ActiveJob::DeserializationError` (deleted records); Postgres read-only windows retry 15 × 2 min and open `DatabaseReadOnlyCircuit` (shown on `/admin`).
+
+## Email alerts
+
+Public FAQ: `/faq#email-alerts`. Contracts: [`doc/alerts-contracts.md`](doc/alerts-contracts.md). Freshness SLA: [`doc/alerts-freshness-sla.md`](doc/alerts-freshness-sla.md).
+
+- Flag: `ALERTS_ENABLED` (off by default). Subscription routes 404 when off.
+- Scale `notifications_worker` even before flipping the flag — digest/quiet cron still enqueue there.
+- Mail split: `ContactMailer` → `default` / `worker` (there is **no** listener on Action Mailer’s `mailers` queue). Alert verify/manage/confirmation → `AlertMailer` `deliver_later` on `notifications`. Alert bodies → `AlertDeliveryJob` on `notifications` (`deliver_now` inside the job).
+- Production signup sends `subscription_confirmation` (verify link embedded when needed). The standalone `verify_email` mailer action remains for tests only.
+- Gauge pages are edge-cached without a Rails session, so embedded signup **skips CSRF** on `POST /subscriptions` (honeypot + Turnstile + 20/hour/IP). `/subscriptions*` itself enables a session and is `private, no-store`.
+- Production signup requires `TURNSTILE_SECRET`. Widget actions: `email-notifications` (gauge signup), `manage-link` (request manage URL), `contact` (contact form). Siteverify also checks **hostname** (`APP_HOST` plus `www.` twin in production; `localhost` / `127.0.0.1` in development; optional `TURNSTILE_HOSTNAMES` comma list overrides). Cached gauge HTML may still submit a pre-rename action for up to a day — those legacy action names are accepted.
+- Timezone is JS-detected, not a form field. Max watches: `ALERTS_MAX_WATCHES` (default 25). Verify tokens expire in 48h. Manage tokens are HMAC-stable per subscriber.
+- Phase F rule kinds (`rate_of_rise`, `in_range`, `approaching_stage`) have backend/mailer stubs but are **not** in the manage UI. `quiet_station` is operational (`AlertQuietScanJob`) and not a user-created rule.
 
 ## Contact form
 
-`GET /contact` is served by `PagesController` (not edge-cached). `POST /contact` uses `ContactMessage` + `invisible_captcha` + Cloudflare Turnstile, then `ContactMailer` (`deliver_later` on the default Sidekiq queue / `worker` dyno).
+`GET /contact` is served by `PagesController` (not edge-cached). `POST /contact` uses `ContactMessage` + `invisible_captcha` + Cloudflare Turnstile (`action=contact`), then `ContactMailer` (`deliver_later` on the default Sidekiq queue / `worker` dyno). Contact mail does **not** need `notifications_worker`.
 
 Set in `.env`:
 
 - `TURNSTILE_SITE_KEY` (defaults to the existing widget) / `TURNSTILE_SECRET`
+- `TURNSTILE_HOSTNAMES` (optional override of the `APP_HOST` / localhost allowlist)
 - `CONTACT_TO_EMAIL` / `MAIL_FROM`
 - `BENTO_SITE_UUID`, `BENTO_PUBLISHABLE_KEY`, `BENTO_SECRET_KEY` (Action Mailer via `bento-actionmailer` + `premailer-rails`)
 
@@ -132,3 +210,4 @@ Set in `.env`:
 - Temperature is stored in °C; UI defaults to °F via a preference cookie.
 - Local PostGIS is optional; nearby stations use haversine precompute, map bbox uses lat/lon indexes.
 - On-stream upstream/downstream neighbors are precomputed from the public USGS NLDI API (no API key). Navigation is ~400 req/hr per client; a 429 trips a circuit for the rest of the UTC hour. Catalog sync refreshes one `NLDI_REFRESH_BATCH`, then `NetworkRefreshBatchJob` refreshes one more batch weekly (Monday 06:17 UTC). One-off: `bin/rails nldi:refresh` (optional `STATE=wa`, `FORCE=1`, `LIMIT=50`). Re-runs skip stations that already have neighbor ids and a fresh `network_synced_at`; empty graphs stay pending so a failed first pass can retry. Demo seed wires a 5-station chain offline (`99000096`–`990000100`).
+- Public CSS is split under `app/assets/stylesheets/` (`application.tailwind.css` is an import hub: `base`, `shell`, `shared`, `map/*`, `gauge/*`, `admin/*`, …). Edit the surface partial, not a monolith. `yarn test:js` scans **every** `.css` file there for banned contrast tokens.
