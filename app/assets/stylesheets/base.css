@@ -1,0 +1,57 @@
+@theme {
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    @apply antialiased font-sans text-zinc-100 bg-zinc-950;
+    color-scheme: dark;
+  }
+
+  a {
+    @apply underline-offset-2;
+  }
+
+  button:not(:disabled),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  summary {
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-cyan-400);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+.skip-link {
+  @apply absolute left-4 z-50 -translate-y-[200%] rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-zinc-950 no-underline;
+  top: 1rem;
+
+  &:focus,
+  &:focus-visible {
+    transform: translateY(0);
+    outline: 2px solid white;
+    outline-offset: 2px;
+  }
+}
+
+.sr-only {
+  @apply absolute size-px overflow-hidden whitespace-nowrap border-0 p-0;
+  clip: rect(0, 0, 0, 0);
+  margin: -1px;
+}

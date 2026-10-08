@@ -1,0 +1,214 @@
+.map-shell {
+  @apply relative flex h-dvh flex-col;
+
+  .map-main {
+    @apply relative min-h-0 flex-1 overflow-hidden bg-zinc-900;
+  }
+
+  /* Leaflet + MapLibre vector basemap live only in this layer */
+  .map-surface {
+    @apply absolute inset-0 z-0;
+
+    .map-canvas {
+      @apply size-full bg-zinc-900;
+    }
+  }
+
+  /* All chrome sits in a sibling layer above Leaflet */
+  .map-chrome {
+    @apply pointer-events-none absolute inset-0 z-10;
+  }
+
+  .map-veil {
+    @apply absolute inset-0 bg-linear-to-b from-zinc-950/20 via-transparent to-zinc-950/40;
+  }
+
+  &[data-search-open] .map-chrome {
+    @apply hidden;
+  }
+}
+
+/* —— Map overlays —— */
+.map-settings {
+  @apply pointer-events-auto absolute top-4 right-16 max-h-[min(36rem,calc(100dvh-6rem))] w-[min(22rem,calc(100%-5.5rem))] overflow-y-auto sm:top-6 sm:right-20;
+
+  .map-filters {
+    @apply map-panel p-4;
+  }
+
+  .settings-heading {
+    @apply mb-3 flex items-center justify-between gap-3;
+
+    h2 {
+      @apply text-sm font-semibold tracking-wide text-zinc-400 uppercase;
+    }
+
+    .close-settings {
+      @apply inline-flex size-8 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white;
+
+      svg {
+        @apply size-4;
+      }
+    }
+  }
+
+  .layers {
+    @apply space-y-2;
+  }
+
+  .layers + .layers {
+    @apply mt-3 border-t border-zinc-800 pt-3;
+  }
+
+  label {
+    @apply flex cursor-pointer items-center gap-3 rounded-lg p-2 transition-colors hover:bg-zinc-800/50;
+
+    input {
+      @apply size-4 accent-cyan-500;
+    }
+
+    .name {
+      @apply text-sm text-zinc-300;
+    }
+
+    .count {
+      @apply ml-auto rounded-full bg-cyan-500/20 px-2 py-0.5 text-sm font-medium text-cyan-400 tabular-nums;
+
+      &[data-zero] {
+        @apply bg-zinc-800 text-zinc-400;
+      }
+    }
+  }
+}
+
+.map-tools {
+  @apply pointer-events-auto absolute flex flex-col gap-2;
+  top: max(1rem, env(safe-area-inset-top, 0px));
+  right: max(1rem, env(safe-area-inset-right, 0px));
+
+  button {
+    @apply flex size-11 cursor-pointer items-center justify-center rounded-lg border border-zinc-700/50 bg-zinc-900 text-zinc-300 shadow-lg shadow-black/40 transition-all hover:bg-zinc-800 hover:text-white active:scale-95;
+
+    svg {
+      @apply size-5;
+    }
+
+    &.is-active {
+      @apply border-cyan-500/40 bg-zinc-800 text-cyan-300;
+    }
+  }
+
+  .divider {
+    @apply my-1 h-px w-full bg-zinc-800;
+  }
+}
+
+.map-legend {
+  @apply pointer-events-auto absolute w-[min(100%,16.5rem)] rounded-xl border border-zinc-700/50 bg-zinc-900 shadow-lg shadow-black/40;
+  right: max(1rem, env(safe-area-inset-right, 0px));
+  bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+
+  summary {
+    @apply flex cursor-pointer list-none items-center gap-3 px-4 py-3 marker:content-none [&::-webkit-details-marker]:hidden;
+  }
+
+  .summary-label {
+    @apply text-sm font-semibold tracking-wide text-zinc-300;
+  }
+
+  .summary-preview {
+    @apply ml-auto flex items-center gap-1.5;
+  }
+
+  .chevron {
+    @apply size-4 shrink-0 text-zinc-400 transition-transform;
+  }
+
+  &[open] .chevron {
+    @apply rotate-180;
+  }
+
+  .legend-body {
+    @apply space-y-4 border-t border-zinc-800 px-4 py-3;
+  }
+
+  .legend-group {
+    @apply space-y-2;
+  }
+
+  .group-label {
+    @apply text-xs font-semibold tracking-wider text-zinc-400 uppercase;
+  }
+
+  .items {
+    @apply grid gap-2;
+  }
+
+  .item {
+    @apply flex items-center gap-2;
+  }
+
+  .swatch {
+    @apply size-3 shrink-0 rounded-full;
+
+    &.active {
+      @apply bg-cyan-400 shadow-lg shadow-cyan-500/30;
+    }
+
+    &.action {
+      @apply bg-amber-400;
+    }
+
+    &.minor {
+      @apply bg-orange-400;
+    }
+
+    &.moderate {
+      @apply bg-rose-500;
+    }
+
+    &.major {
+      @apply bg-red-600;
+    }
+
+    &.inactive {
+      @apply bg-zinc-400;
+    }
+  }
+
+  .label {
+    @apply text-sm text-zinc-400;
+  }
+}
+
+.map-mobile-search {
+  @apply absolute inset-0 z-30 bg-zinc-950/95 backdrop-blur-xl md:hidden;
+
+  .mobile-search-panel {
+    @apply flex h-full flex-col px-4 py-4;
+  }
+
+  .mobile-search-header {
+    @apply mb-4 flex items-center justify-between gap-3;
+
+    h2 {
+      @apply font-display text-lg font-semibold text-white;
+    }
+
+    button {
+      @apply inline-flex size-10 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white;
+
+      svg {
+        @apply size-5;
+      }
+    }
+  }
+
+  .map-embedded-search {
+    @apply mx-0 mt-0 max-w-none;
+  }
+}
+
+.map-alerts-link {
+  @apply mt-2;
+}

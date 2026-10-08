@@ -1,0 +1,151 @@
+/* —— App shell —— */
+.app-shell {
+  @apply isolate flex min-h-dvh flex-col;
+}
+
+.page-main {
+  @apply mx-auto w-full max-w-7xl flex-1 px-6 py-10;
+
+  &.narrow {
+    @apply max-w-3xl py-12;
+  }
+
+  &.form-width {
+    @apply max-w-xl py-12;
+  }
+}
+
+/* —— Site header —— */
+.site-header {
+  @apply relative z-50 w-full border-b border-zinc-800/50 bg-zinc-950/90 backdrop-blur-md;
+
+  &.is-overlay {
+    @apply absolute inset-x-0 top-0;
+  }
+
+  .inner {
+    @apply mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-6 py-4;
+  }
+
+  .brand {
+    @apply flex items-center gap-3 no-underline;
+
+    .mark {
+      @apply flex size-9 items-center justify-center rounded-lg bg-linear-to-br from-cyan-400 to-blue-500 text-white;
+
+      svg {
+        @apply size-5;
+      }
+    }
+
+    .name {
+      @apply font-display text-lg font-semibold tracking-tight text-white;
+    }
+  }
+
+  .desktop-nav {
+    @apply hidden flex-wrap items-center justify-end gap-x-5 gap-y-1 md:flex;
+  }
+
+  .nav-link {
+    @apply text-sm text-zinc-400 no-underline transition-colors hover:text-white;
+  }
+
+  .header-actions {
+    @apply flex items-center gap-1 md:hidden;
+  }
+
+  .map-search-toggle {
+    @apply inline-flex items-center justify-center rounded-lg p-2 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white;
+
+    svg {
+      @apply size-6;
+    }
+  }
+
+  .menu-toggle {
+    @apply inline-flex items-center justify-center rounded-lg p-2 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white md:hidden;
+
+    svg {
+      @apply size-6;
+    }
+
+    .close-icon {
+      @apply hidden;
+    }
+  }
+
+  .mobile-panel {
+    @apply hidden border-t border-zinc-800/50 px-6 py-4 md:hidden;
+
+    nav {
+      @apply flex flex-col gap-1;
+    }
+
+    .nav-link {
+      @apply rounded-lg px-3 py-2 hover:bg-zinc-800/50;
+    }
+  }
+
+  &[data-open] {
+    .menu-toggle {
+      .open-icon {
+        @apply hidden;
+      }
+
+      .close-icon {
+        @apply block;
+      }
+    }
+
+    .mobile-panel {
+      @apply block md:hidden;
+    }
+  }
+}
+
+/* —— Site footer —— */
+.site-footer {
+  @apply border-t border-zinc-800/50 bg-zinc-950 px-6 py-6;
+
+  .inner {
+    @apply mx-auto flex max-w-screen-2xl flex-col items-center justify-between gap-4 sm:flex-row;
+  }
+
+  .brand-row {
+    @apply flex items-center gap-3;
+
+    .mark {
+      @apply flex size-7 items-center justify-center rounded-md bg-linear-to-br from-cyan-400 to-blue-500 text-white;
+
+      svg {
+        @apply size-4;
+      }
+    }
+
+    p {
+      @apply text-sm text-zinc-400;
+
+      a {
+        @apply text-zinc-400 underline transition-colors hover:text-white;
+      }
+    }
+  }
+
+  nav {
+    @apply flex flex-wrap items-center justify-center gap-6;
+
+    a {
+      @apply text-sm text-zinc-400 no-underline transition-colors hover:text-white;
+    }
+  }
+}
+
+.site-header .nav-link[aria-current="page"],
+.site-footer a[aria-current="page"] {
+  @apply text-white;
+}
+
+.nav-link[aria-current="page"] {
+  @apply text-white;
+}

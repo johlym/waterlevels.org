@@ -1,0 +1,41 @@
+.gauge-alert-card {
+  @apply mt-8 scroll-mt-24 rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5;
+
+  .gauge-alert-copy {
+    h2 {
+      @apply font-display text-lg font-semibold text-white;
+    }
+
+    p {
+      @apply mt-1 text-sm text-zinc-400;
+    }
+  }
+
+  .flash {
+    @apply mt-4;
+  }
+
+  .gauge-alert-form {
+    @apply mt-4 space-y-4;
+  }
+
+  .gauge-alert-row {
+    @apply flex flex-col flex-wrap items-start gap-3 sm:flex-row sm:items-end;
+
+    .field {
+      @apply min-w-0 w-full flex-1;
+    }
+
+    .submit {
+      @apply mt-0 h-11 w-auto shrink-0 px-6 py-0;
+    }
+  }
+
+  .gauge-alert-extras {
+    @apply flex flex-wrap items-center gap-x-5 gap-y-2;
+
+    .aside {
+      @apply m-0;
+    }
+  }
+}

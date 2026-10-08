@@ -1,0 +1,232 @@
+/* —— Leaflet —— */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  font: inherit;
+  background: var(--color-zinc-900);
+  z-index: 0;
+}
+
+.leaflet-container {
+  .leaflet-control-attribution {
+    font-size: 0.625rem;
+    line-height: 1.25;
+    padding: 0 0.3rem;
+    background: color-mix(in oklab, var(--color-zinc-950) 75%, transparent);
+    color: var(--color-zinc-400);
+    max-width: min(36rem, calc(100vw - 1.5rem));
+
+    a {
+      color: inherit;
+    }
+
+    .leaflet-attribution-flag {
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 0.15rem;
+    }
+  }
+
+  .leaflet-popup-content-wrapper {
+    border-radius: var(--radius-xl);
+    background: color-mix(in oklab, var(--color-zinc-900) 95%, transparent);
+    border: 1px solid color-mix(in oklab, white 10%, transparent);
+    box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.5);
+    padding: 0;
+    color: var(--color-zinc-200);
+    backdrop-filter: blur(12px);
+  }
+
+  .leaflet-popup-content {
+    margin: 0.875rem 1rem;
+    line-height: 1.45;
+    color: var(--color-zinc-300);
+
+    .popup-title {
+      font-family: var(--font-display);
+      font-weight: 600;
+      color: white;
+      margin-bottom: 0.35rem;
+    }
+
+    .popup-meta {
+      color: var(--color-zinc-400);
+      font-size: 0.875rem;
+    }
+
+    .popup-link {
+      margin-top: 0.5rem;
+    }
+
+    a {
+      color: var(--color-cyan-400);
+      font-weight: 500;
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+
+  .leaflet-popup-tip {
+    background: color-mix(in oklab, var(--color-zinc-900) 95%, transparent);
+    box-shadow: none;
+    border: 1px solid color-mix(in oklab, white 10%, transparent);
+  }
+
+  .leaflet-control-zoom {
+    display: none;
+  }
+
+  .maplibregl-ctrl,
+  .maplibregl-ctrl-bottom-left,
+  .maplibregl-ctrl-bottom-right,
+  .maplibregl-ctrl-top-left,
+  .maplibregl-ctrl-top-right {
+    display: none;
+  }
+
+  .leaflet-gl-layer,
+  .maplibregl-map,
+  .maplibregl-canvas-container,
+  .maplibregl-canvas {
+    background: transparent;
+  }
+}
+
+.marker-cluster-small,
+.marker-cluster-medium,
+.marker-cluster-large {
+  background-color: color-mix(in oklab, var(--color-cyan-500) 25%, transparent);
+}
+
+.marker-cluster-small div,
+.marker-cluster-medium div,
+.marker-cluster-large div {
+  background-color: color-mix(in oklab, var(--color-cyan-500) 55%, transparent);
+  color: white;
+  font-family: var(--font-sans);
+}
+
+/* —— Map markers —— */
+.map-marker {
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.map-marker-shape {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  color: #09090b;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1;
+  background: var(--marker-fill);
+  border: 2px solid var(--marker-color);
+  box-shadow: 0 0 0 1px rgb(9 9 11 / 0.55);
+}
+
+.map-marker--circle .map-marker-shape {
+  border-radius: 9999px;
+}
+
+.map-marker--square .map-marker-shape {
+  border-radius: 2px;
+}
+
+.map-marker--diamond .map-marker-shape {
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+
+.map-marker--diamond .map-marker-glyph {
+  transform: rotate(-45deg);
+}
+
+.map-marker--triangle .map-marker-shape {
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  border: 0;
+  box-shadow: none;
+}
+
+.map-marker--current .map-marker-shape {
+  border-radius: 9999px;
+  border-width: 3px;
+  box-shadow: 0 0 0 4px rgb(34 211 238 / 0.35), 0 0 0 1px rgb(9 9 11 / 0.55);
+}
+
+.map-marker--upstream,
+.map-marker--downstream {
+  overflow: visible;
+}
+
+.map-marker--upstream .map-marker-shape,
+.map-marker--downstream .map-marker-shape {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.map-marker-chevron {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  display: flex;
+  width: 14px;
+  height: 12px;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 0 1px rgb(0 0 0 / 0.85));
+
+  svg {
+    width: 14px;
+    height: 12px;
+  }
+}
+
+.map-marker-chevron--upstream {
+  color: #818cf8;
+}
+
+.map-marker-chevron--downstream {
+  color: #2dd4bf;
+}
+
+.map-station-panel {
+  @apply mt-4 border-t border-zinc-800 pt-4;
+
+  h3 {
+    @apply text-sm font-semibold tracking-wide text-zinc-300;
+  }
+
+  .aside {
+    @apply mt-1 text-xs text-zinc-400;
+  }
+
+  .empty {
+    @apply mt-3 text-sm text-zinc-400;
+  }
+
+  .map-station-list {
+    @apply mt-3 max-h-48 space-y-1 overflow-y-auto;
+
+    a {
+      @apply flex flex-col gap-0.5 rounded-lg px-2 py-2 text-sm text-zinc-200 no-underline transition-colors hover:bg-zinc-800 hover:text-white;
+    }
+
+    .name {
+      @apply font-medium;
+    }
+
+    .meta {
+      @apply text-xs text-zinc-400;
+    }
+  }
+}

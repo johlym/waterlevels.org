@@ -1,0 +1,174 @@
+/* —— Page heroes & prose —— */
+.page-hero {
+  @apply relative overflow-hidden border-b border-zinc-800/30 py-16 md:py-24;
+
+  .glow {
+    @apply pointer-events-none absolute inset-0 overflow-hidden;
+
+    .blob-a {
+      @apply absolute -top-1/2 left-1/4 size-96 rounded-full bg-cyan-500/5 blur-3xl;
+    }
+
+    .blob-b {
+      @apply absolute -bottom-1/2 right-1/4 size-96 rounded-full bg-blue-500/5 blur-3xl;
+    }
+  }
+
+  .inner {
+    @apply relative mx-auto max-w-7xl px-6;
+  }
+
+  .eyebrow {
+    @apply inline-flex items-center gap-2 rounded-full border border-zinc-700/50 bg-zinc-800/50 px-3 py-1 text-sm font-medium tracking-wide text-cyan-400;
+
+    .dot {
+      @apply size-1.5 rounded-full bg-cyan-400;
+    }
+  }
+
+  h1 {
+    @apply mt-6 max-w-[20ch] text-balance font-display text-4xl font-semibold tracking-tight text-white md:text-5xl;
+
+    .accent {
+      @apply bg-linear-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent;
+    }
+  }
+
+  .lede {
+    @apply mt-6 max-w-[48ch] text-pretty text-lg text-zinc-400;
+  }
+}
+
+.contact-hero {
+  @apply relative overflow-hidden py-16 lg:py-24;
+
+  .glow {
+    @apply pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(14,165,233,0.15),rgba(255,255,255,0))];
+  }
+
+  .inner {
+    @apply relative mx-auto grid max-w-7xl gap-16 px-6 lg:grid-cols-12;
+  }
+
+  .intro {
+    @apply flex flex-col justify-between lg:col-span-5;
+  }
+
+  .eyebrow {
+    @apply inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-sm font-medium text-cyan-400;
+
+    .pulse {
+      @apply relative flex size-2;
+
+      .ring {
+        @apply absolute inline-flex size-full animate-ping rounded-full bg-cyan-400 opacity-75;
+      }
+
+      .core {
+        @apply relative inline-flex size-2 rounded-full bg-cyan-500;
+      }
+    }
+  }
+
+  h1 {
+    @apply mt-6 text-balance font-display text-4xl font-semibold tracking-tight text-white sm:text-5xl;
+
+    .accent {
+      @apply bg-linear-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent;
+    }
+  }
+
+  .lede {
+    @apply mt-6 max-w-[40ch] text-pretty text-base text-zinc-400;
+  }
+
+  .meta {
+    @apply mt-12 space-y-6 border-t border-zinc-800/80 pt-10;
+  }
+
+  .meta-row {
+    @apply flex items-start gap-4;
+
+    .icon {
+      @apply flex size-10 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/50 text-cyan-400;
+
+      svg {
+        @apply size-5;
+      }
+    }
+
+    .label {
+      @apply text-sm font-semibold tracking-wide text-zinc-400;
+    }
+
+    .value {
+      @apply mt-1 text-sm text-zinc-300;
+
+      a {
+        @apply text-zinc-300 no-underline transition-colors hover:text-cyan-400;
+      }
+    }
+  }
+
+  .form-panel {
+    @apply lg:col-span-7;
+
+    .card {
+      @apply rounded-2xl border border-zinc-800 bg-zinc-900/40 p-8 backdrop-blur-xl md:p-10;
+    }
+  }
+}
+
+.prose-page {
+  @apply mt-10 space-y-10 text-pretty text-base text-zinc-400;
+
+  section {
+    @apply space-y-3;
+  }
+
+  h2 {
+    @apply font-display text-xl font-semibold text-white;
+  }
+
+  h3 {
+    @apply pt-4 font-display text-lg font-semibold text-white;
+  }
+
+  h4 {
+    @apply pt-2 font-display text-base font-semibold text-zinc-200;
+  }
+
+  a {
+    @apply font-medium text-cyan-400 underline transition-colors hover:text-cyan-300;
+  }
+
+  strong,
+  .emphasis {
+    @apply font-medium text-zinc-200;
+  }
+
+  ul {
+    @apply list-disc space-y-2 pl-5;
+  }
+
+  ol {
+    @apply list-decimal space-y-2 pl-5;
+  }
+
+  code {
+    @apply rounded bg-white/10 px-1.5 py-0.5 text-zinc-200;
+  }
+}
+
+/* —— Shared narrow-page intro (privacy, terms, manage alerts) —— */
+.state-intro {
+  @apply mb-8 space-y-2;
+
+  h1 {
+    @apply font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl;
+  }
+
+  p {
+    @apply text-pretty text-base text-zinc-400;
+  }
+}

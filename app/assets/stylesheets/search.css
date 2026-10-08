@@ -1,0 +1,132 @@
+.home-search {
+  @apply relative mx-auto mt-12 max-w-2xl;
+
+  .search-stack {
+    @apply relative;
+  }
+
+  .search-shell {
+    @apply rounded-2xl border border-zinc-700/50 bg-zinc-900/80 p-2 shadow-2xl shadow-black/40 backdrop-blur-xl;
+  }
+
+  .search-row {
+    @apply flex items-center gap-3;
+  }
+
+  .search-icon {
+    @apply flex size-12 shrink-0 items-center justify-center rounded-xl bg-zinc-800 text-zinc-400;
+
+    svg {
+      @apply size-5;
+    }
+  }
+
+  input {
+    @apply w-full min-w-0 bg-transparent py-3 text-base text-white outline-none placeholder:text-zinc-400;
+  }
+
+  .locate-btn {
+    @apply flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-zinc-700/50 bg-zinc-800 text-zinc-300 transition-all hover:border-cyan-500/40 hover:text-cyan-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60;
+
+    svg {
+      @apply size-5;
+    }
+  }
+
+  .search-btn {
+    @apply inline-flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-cyan-500 text-zinc-950 transition-all hover:bg-cyan-400 active:scale-95 sm:h-auto sm:w-auto sm:px-6 sm:py-3 sm:text-sm sm:font-semibold;
+
+    .search-btn-icon {
+      @apply size-5 sm:hidden;
+    }
+
+    .search-btn-label {
+      @apply hidden sm:inline;
+    }
+  }
+
+  .popular-chips {
+    @apply mt-6 flex flex-wrap items-center justify-center gap-3;
+
+    span {
+      @apply text-sm text-zinc-400;
+    }
+
+    a {
+      @apply rounded-full border border-zinc-800 bg-zinc-900/50 px-3 py-1.5 text-sm text-zinc-400 no-underline transition-colors hover:border-zinc-700 hover:text-white;
+    }
+  }
+}
+
+.home-search .autocomplete,
+.map-embedded-search .autocomplete {
+  @apply absolute inset-x-0 top-full z-50 mt-2 rounded-xl border border-zinc-700/50 bg-zinc-900/95 p-2 shadow-2xl shadow-black/50 backdrop-blur-xl;
+
+  .item {
+    @apply flex items-center gap-3 rounded-lg px-3 py-3 no-underline transition-colors hover:bg-zinc-800/70;
+
+    &.is-active {
+      @apply bg-zinc-800/70;
+    }
+
+    .icon {
+      @apply flex size-9 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-cyan-400;
+
+      svg {
+        @apply size-4;
+      }
+    }
+
+    .copy {
+      @apply min-w-0 flex-1 text-left;
+    }
+
+    .name {
+      @apply truncate text-sm font-medium text-white;
+    }
+
+    .meta {
+      @apply truncate text-sm text-zinc-400;
+    }
+
+    .status {
+      @apply ml-auto shrink-0 rounded-full px-2 py-0.5 text-sm font-medium;
+
+      &.active {
+        @apply bg-emerald-500/20 text-emerald-400;
+      }
+
+      &.inactive {
+        @apply bg-zinc-800 text-zinc-400;
+      }
+
+      &.state {
+        @apply bg-cyan-500/15 text-cyan-300;
+      }
+
+      &.zip {
+        @apply bg-sky-500/15 text-sky-300;
+      }
+    }
+  }
+
+  .empty {
+    @apply px-3 py-3 text-sm text-zinc-400;
+  }
+
+  .footer {
+    @apply mt-2 border-t border-zinc-800 pt-2;
+
+    a {
+      @apply flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-zinc-400 no-underline transition-colors hover:bg-zinc-800/70 hover:text-white;
+
+      svg {
+        @apply size-4;
+      }
+    }
+  }
+}
+
+.map-embedded-search .autocomplete {
+  @apply static mt-3 max-h-[calc(100dvh-12rem)] overflow-y-auto;
+}
