@@ -1531,7 +1531,7 @@ body.dialog-open {
 }
 
 .related-map-legend {
-  @apply pointer-events-none absolute top-3 left-3 m-0 flex max-w-[calc(100%-4.5rem)] list-none flex-wrap gap-x-3 gap-y-1 rounded-lg border border-zinc-700/50 bg-zinc-950/80 px-3 py-2 text-xs text-zinc-200;
+  @apply pointer-events-none absolute top-3 left-3 m-0 flex max-w-[calc(100%-5.25rem)] list-none flex-wrap gap-x-3 gap-y-1 rounded-lg border border-zinc-700/50 bg-zinc-950/80 px-3 py-2 text-xs text-zinc-200;
 
   li {
     @apply flex items-center gap-1.5;
@@ -1589,7 +1589,7 @@ body.dialog-open {
 }
 
 .related-columns {
-  @apply grid gap-6 lg:grid-cols-2;
+  @apply grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-2;
 }
 
 .related-columns--single {
@@ -1597,17 +1597,23 @@ body.dialog-open {
 }
 
 .related-column {
+  @apply min-w-0;
+
   h3 {
     @apply mb-3 font-display text-sm font-semibold text-zinc-300;
   }
 }
 
 .related-list {
-  @apply m-0 flex list-none flex-col gap-2 p-0;
+  @apply m-0 flex list-none flex-col gap-3 p-0;
 }
 
 .related-row {
-  @apply flex flex-col items-stretch gap-3 rounded-xl border border-zinc-800/80 bg-zinc-900/50 px-4 py-3 no-underline transition-all sm:flex-row sm:items-center sm:justify-between sm:gap-4;
+  @apply relative flex min-w-0 flex-col items-stretch gap-2 rounded-xl border border-zinc-800/80 bg-zinc-900/50 py-3 pl-4 pr-4 no-underline transition-all sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4;
+
+  &:not(.current) {
+    @apply pr-11 sm:pr-4;
+  }
 
   &.current {
     @apply border-cyan-500/40 bg-cyan-500/10;
@@ -1683,11 +1689,15 @@ body.dialog-open {
   }
 
   .related-side {
-    @apply flex shrink-0 items-center justify-between gap-3 text-xs text-zinc-400 sm:justify-start;
+    @apply flex min-w-0 items-center justify-between gap-3 text-xs text-zinc-400 sm:shrink-0 sm:justify-start;
 
     svg {
       @apply size-4 shrink-0 text-zinc-400 transition-colors;
     }
+  }
+
+  .related-chevron {
+    @apply pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 sm:pointer-events-auto sm:static sm:translate-y-0;
   }
 
   &:hover:not(.current) .related-side svg {
@@ -1695,7 +1705,7 @@ body.dialog-open {
   }
 
   .related-readings {
-    @apply flex flex-col items-end gap-0.5 text-right;
+    @apply flex min-w-0 flex-col items-start gap-0.5 text-left sm:items-end sm:text-right;
   }
 
   .muted {

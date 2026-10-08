@@ -131,8 +131,13 @@ export default class extends Controller {
     if (!points.length || !this.map) return
 
     const bounds = L.latLngBounds(points)
-    this.map.fitBounds(bounds.pad(0.35), {
-      padding: [36, 36],
+    const width = this.map.getSize().x
+    const narrow = width > 0 && width < 480
+    // Phone maps are short. Leave the top clear of the legend and zoom
+    // buttons, and the bottom clear of the attribution line.
+    this.map.fitBounds(bounds.pad(narrow ? 0.5 : 0.35), {
+      paddingTopLeft: narrow ? [20, 72] : [36, 44],
+      paddingBottomRight: narrow ? [20, 28] : [36, 36],
       maxZoom: this.constructor.MAX_ZOOM
     })
   }
