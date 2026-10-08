@@ -1,0 +1,70 @@
+/* —— Admin header —— */
+.admin-header {
+  @apply border-red-950/60 bg-zinc-950/95;
+
+  .brand {
+    .mark {
+      @apply bg-linear-to-br from-red-500 to-rose-700;
+    }
+
+    .brand-text {
+      @apply flex flex-col leading-none sm:flex-row sm:items-baseline sm:gap-2;
+    }
+
+    .name {
+      @apply text-white;
+    }
+
+    .flavor {
+      @apply font-display text-xs font-semibold tracking-[0.18em] text-red-400 uppercase sm:text-sm sm:tracking-[0.14em];
+    }
+  }
+
+  .admin-header-end {
+    @apply flex items-center gap-4 md:gap-8;
+  }
+
+  .desktop-nav {
+    @apply hidden items-center gap-6 md:flex;
+  }
+
+  .header-actions {
+    @apply flex items-center gap-2 md:flex;
+  }
+
+  .admin-action-buttons {
+    @apply hidden items-center gap-2 md:flex;
+
+    &.is-always-visible {
+      @apply flex;
+    }
+  }
+
+  .admin-action-form {
+    @apply m-0 inline;
+  }
+
+  .admin-action-button {
+    @apply inline-flex items-center justify-center rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white no-underline transition-colors hover:bg-red-500;
+  }
+
+  .admin-action-button.admin-action-button--ghost {
+    @apply border border-zinc-700 bg-transparent text-zinc-200 hover:border-zinc-500 hover:bg-zinc-900 hover:text-white;
+  }
+
+  .menu-toggle {
+    @apply md:hidden;
+  }
+
+  .admin-mobile-sign-out-form {
+    @apply m-0;
+  }
+
+  .admin-mobile-sign-out {
+    @apply w-full cursor-pointer border-0 bg-transparent text-left font-sans;
+  }
+}
+
+.admin-header .nav-link[aria-current="page"] {
+  @apply text-red-300;
+}

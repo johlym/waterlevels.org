@@ -1,0 +1,317 @@
+.section-block {
+  @apply mt-12;
+
+  .section-head {
+    @apply mb-6 flex flex-wrap items-end justify-between gap-4;
+
+    h2 {
+      @apply font-display text-xl font-semibold text-white;
+    }
+
+    .aside {
+      @apply mt-1 text-sm text-zinc-400;
+    }
+  }
+
+  .section-link {
+    @apply inline-flex items-center gap-2 text-sm text-cyan-400 no-underline transition-colors hover:text-cyan-300;
+
+    svg {
+      @apply size-4;
+    }
+  }
+
+  .history-controls {
+    @apply flex flex-wrap items-center justify-end gap-3;
+  }
+
+  .history-toolbar {
+    @apply mb-4 flex flex-wrap items-center gap-3;
+  }
+
+  .history-callout {
+    @apply mb-6 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-base text-cyan-200 sm:text-sm;
+
+    p {
+      @apply text-pretty;
+    }
+  }
+}
+
+.day-select {
+  @apply h-10 rounded-lg border border-zinc-800 bg-zinc-900/80 px-4 text-base leading-none text-white outline-none focus:border-cyan-500/50 sm:text-sm;
+}
+
+.toolbar-btn {
+  @apply inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/80 px-4 text-sm text-zinc-400 transition-all hover:border-cyan-500/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-zinc-800 disabled:hover:text-zinc-400;
+
+  svg {
+    @apply size-4;
+  }
+}
+
+.segmented {
+  @apply inline-flex max-w-full overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/50 p-1;
+
+  button {
+    @apply shrink-0 cursor-pointer rounded-md px-2 py-2 text-xs font-medium text-zinc-400 transition-all hover:text-white sm:px-4 sm:text-sm;
+
+    &[aria-pressed="true"] {
+      @apply bg-zinc-800 text-white;
+    }
+  }
+
+  .long-ranges {
+    @apply inline-flex shrink-0;
+    anchor-name: --long-range-lock;
+  }
+
+  .long-ranges.is-locked {
+    @apply cursor-not-allowed;
+
+    button {
+      @apply pointer-events-none cursor-not-allowed text-zinc-600 hover:text-zinc-600;
+    }
+  }
+
+  .long-ranges.is-locked:focus-visible {
+    @apply rounded-md outline-2 outline-offset-2 outline-cyan-500;
+  }
+}
+
+.range-lock-tip {
+  @apply pointer-events-none z-50 w-max max-w-72 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-left text-xs leading-snug font-normal text-zinc-200 opacity-0 shadow-lg shadow-black/40 transition-opacity duration-150;
+  position: fixed;
+  position-anchor: --long-range-lock;
+  bottom: anchor(top);
+  left: anchor(center);
+  translate: -50% -0.45rem;
+}
+
+.history-controls:has(.long-ranges.is-locked:hover) .range-lock-tip,
+.history-controls:has(.long-ranges.is-locked:focus-within) .range-lock-tip {
+  @apply opacity-100;
+}
+
+.chart-panel {
+  @apply overflow-hidden rounded-xl border border-zinc-800/80 bg-zinc-900/50;
+
+  .pad {
+    @apply p-4 sm:p-6;
+  }
+
+  .chart-legend {
+    @apply mb-6 flex flex-wrap items-center gap-6;
+
+    .item {
+      @apply flex items-center gap-2 text-sm text-zinc-400;
+    }
+
+    .swatch {
+      @apply size-3 rounded-full;
+
+      &.bg-cyan {
+        @apply bg-cyan-400;
+      }
+
+      &.bg-blue {
+        @apply bg-blue-400;
+      }
+
+      &.bg-teal {
+        @apply bg-teal-400;
+      }
+
+      &.bg-flood-action {
+        @apply bg-amber-400;
+      }
+
+      &.bg-flood-minor {
+        @apply bg-orange-400;
+      }
+
+      &.bg-flood-moderate {
+        @apply bg-rose-500;
+      }
+
+      &.bg-flood-major {
+        @apply bg-red-500;
+      }
+
+      &.dashed {
+        @apply rounded-sm ring-1 ring-inset ring-white/20;
+      }
+    }
+
+    .hint {
+      @apply ml-auto text-sm text-zinc-400;
+    }
+  }
+
+  .canvas-wrap {
+    @apply relative h-72 w-full sm:h-80;
+
+    canvas {
+      @apply absolute inset-0 size-full;
+    }
+  }
+
+  .period-stats {
+    @apply mt-6 grid grid-cols-2 gap-4 border-t border-zinc-800 pt-6 sm:grid-cols-4;
+
+    .label {
+      @apply mb-1 text-xs text-zinc-400;
+    }
+
+    .value {
+      @apply font-display text-lg font-semibold text-white;
+    }
+
+    .meta {
+      @apply text-xs text-zinc-400;
+    }
+
+    .empty {
+      @apply col-span-2 text-sm text-zinc-400 sm:col-span-4;
+    }
+  }
+}
+
+.measurements-table {
+  @apply overflow-hidden rounded-xl border border-zinc-800/80 bg-zinc-900/50;
+
+  .empty {
+    @apply px-4 py-8 text-center text-base text-zinc-400 sm:px-6 sm:text-sm;
+  }
+
+  .scroll {
+    @apply max-h-[28rem] overflow-auto;
+  }
+
+  table {
+    @apply w-full text-left text-sm;
+  }
+
+  thead {
+    @apply border-b border-zinc-800 bg-zinc-900/80;
+
+    th {
+      @apply px-6 py-4 font-medium text-zinc-400;
+
+      &.num {
+        @apply text-right;
+      }
+
+      &.center {
+        @apply text-center;
+      }
+    }
+  }
+
+  tbody {
+    @apply divide-y divide-zinc-800/50;
+
+    tr {
+      @apply transition-colors hover:bg-zinc-800/30;
+    }
+
+    td {
+      @apply whitespace-nowrap px-6 py-3 text-white;
+
+      &.time {
+        @apply font-mono text-zinc-300;
+      }
+
+      &.num {
+        @apply text-right tabular-nums;
+      }
+
+      &.status {
+        @apply text-center;
+      }
+    }
+
+    .dot {
+      @apply inline-flex size-2 rounded-full;
+
+      &.ok {
+        @apply bg-emerald-400;
+      }
+
+      &.warn {
+        @apply bg-amber-400;
+      }
+    }
+  }
+
+  .table-foot {
+    @apply flex flex-wrap items-center border-t border-zinc-800 px-6 py-4;
+
+    p {
+      @apply text-sm text-zinc-400;
+    }
+  }
+}
+
+/* —— Measurements —— */
+.measurements {
+  @apply mt-10;
+
+  .section-head {
+    @apply mb-4 flex flex-wrap items-end justify-between gap-4;
+
+    h2 {
+      @apply font-display text-xl font-semibold text-white;
+    }
+  }
+
+  .cards {
+    @apply mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3;
+  }
+}
+
+.measurement-card {
+  @apply relative flex flex-col gap-3 rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-6 text-left transition-all hover:border-cyan-500/30 hover:bg-zinc-900/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-500;
+
+  &[aria-selected="true"] {
+    @apply border-cyan-500/40 bg-zinc-900 ring-2 ring-cyan-500/20;
+  }
+
+  .label {
+    @apply text-sm font-medium text-zinc-400;
+  }
+
+  .value {
+    @apply font-display text-3xl font-semibold tracking-tight text-white tabular-nums;
+  }
+
+  .unit {
+    @apply text-sm font-medium text-zinc-400;
+  }
+
+  .value-row {
+    @apply flex items-baseline gap-2;
+  }
+
+  .trends {
+    @apply flex flex-col gap-1 text-sm text-zinc-400;
+  }
+}
+
+.measurements-history .status-pill,
+.history-table .status-pill,
+td.status .status-pill {
+  @apply inline-flex items-center gap-1.5 text-xs font-medium text-zinc-300;
+
+  .dot {
+    @apply size-2 shrink-0 rounded-full bg-zinc-400;
+  }
+
+  &.ok .dot {
+    @apply bg-emerald-400;
+  }
+
+  &.warn .dot {
+    @apply bg-amber-400;
+  }
+}

@@ -1,0 +1,209 @@
+.related-map {
+  @apply mb-6;
+}
+
+.related-map-frame {
+  @apply relative h-[280px] overflow-hidden rounded-xl border border-zinc-800/80 bg-zinc-900 lg:h-[360px];
+}
+
+.related-map-canvas {
+  @apply size-full bg-zinc-900;
+}
+
+.related-map-chrome {
+  @apply pointer-events-none absolute inset-0 z-10;
+}
+
+.related-map-legend {
+  @apply pointer-events-none absolute top-3 left-3 m-0 flex max-w-[calc(100%-5.25rem)] list-none flex-wrap gap-x-3 gap-y-1 rounded-lg border border-zinc-700/50 bg-zinc-950/80 px-3 py-2 text-xs text-zinc-200;
+
+  li {
+    @apply flex items-center gap-1.5;
+  }
+
+  .swatch {
+    @apply inline-block size-2.5 shrink-0 rounded-full border-2;
+  }
+
+  .swatch-current {
+    @apply border-cyan-200 bg-cyan-500 shadow-[0_0_0_2px_rgb(34_211_238/0.35)];
+  }
+
+  .swatch-upstream {
+    @apply size-0 rounded-none border-x-[5px] border-b-[7px] border-t-0 border-x-transparent border-b-indigo-400 bg-transparent;
+  }
+
+  .swatch-downstream {
+    @apply size-0 rounded-none border-x-[5px] border-t-[7px] border-b-0 border-x-transparent border-t-teal-400 bg-transparent;
+  }
+
+  .swatch-nearby {
+    @apply border-cyan-400 bg-cyan-500;
+  }
+}
+
+.related-map-tools {
+  @apply pointer-events-auto absolute top-3 right-3 flex flex-col gap-2;
+
+  button {
+    @apply flex size-9 cursor-pointer items-center justify-center rounded-lg border border-zinc-700/50 bg-zinc-900 text-zinc-300 shadow-lg shadow-black/40 transition-all hover:bg-zinc-800 hover:text-white;
+
+    svg {
+      @apply size-4;
+    }
+  }
+}
+
+.related-map-arrow {
+  background: transparent !important;
+  border: 0 !important;
+
+  span {
+    display: flex;
+    width: 16px;
+    height: 16px;
+    color: #22d3ee;
+    filter: drop-shadow(0 0 2px rgb(0 0 0 / 0.85));
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.related-columns {
+  @apply grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-2;
+}
+
+.related-columns--single {
+  @apply lg:grid-cols-1;
+}
+
+.related-column {
+  @apply min-w-0;
+
+  h3 {
+    @apply mb-3 font-display text-sm font-semibold text-zinc-300;
+  }
+}
+
+.related-list {
+  @apply m-0 flex list-none flex-col gap-3 p-0;
+}
+
+.related-row {
+  @apply relative flex min-w-0 flex-col items-stretch gap-2 rounded-xl border border-zinc-800/80 bg-zinc-900/50 py-3 pl-4 pr-4 no-underline transition-all sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4;
+
+  &:not(.current) {
+    @apply pr-11 sm:pr-4;
+  }
+
+  &.current {
+    @apply border-cyan-500/40 bg-cyan-500/10;
+  }
+
+  &:not(.current):hover {
+    @apply border-cyan-500/30 bg-zinc-900/80;
+  }
+
+  &.watch {
+    @apply border-amber-500/50 bg-amber-950/20;
+    animation: nearby-watch-pulse 2.4s ease-in-out infinite;
+  }
+
+  .related-main {
+    @apply min-w-0;
+  }
+
+  .related-meta {
+    @apply mb-1 flex flex-wrap items-center gap-2;
+  }
+
+  .related-dir {
+    @apply text-[0.65rem] font-medium uppercase tracking-wide text-zinc-400;
+  }
+
+  &.current .related-dir {
+    @apply text-cyan-400;
+  }
+
+  .status {
+    @apply inline-flex items-center gap-1.5 text-xs;
+
+    .dot {
+      @apply size-2 rounded-full;
+    }
+
+    &.active {
+      @apply text-emerald-400;
+
+      .dot {
+        @apply bg-emerald-400;
+      }
+    }
+
+    &.watch {
+      @apply font-medium text-amber-300;
+
+      .dot {
+        @apply bg-amber-400;
+      }
+    }
+
+    &.offline {
+      @apply text-zinc-400;
+
+      .dot {
+        @apply bg-zinc-500;
+      }
+    }
+  }
+
+  .distance {
+    @apply text-xs text-zinc-400;
+  }
+
+  .related-name {
+    @apply truncate font-display text-sm font-semibold text-white;
+  }
+
+  &:hover:not(.current) .related-name {
+    @apply text-cyan-400;
+  }
+
+  .related-side {
+    @apply flex min-w-0 items-center justify-between gap-3 text-xs text-zinc-400 sm:shrink-0 sm:justify-start;
+
+    svg {
+      @apply size-4 shrink-0 text-zinc-400 transition-colors;
+    }
+  }
+
+  .related-chevron {
+    @apply pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 sm:pointer-events-auto sm:static sm:translate-y-0;
+  }
+
+  &:hover:not(.current) .related-side svg {
+    @apply text-cyan-400;
+  }
+
+  .related-readings {
+    @apply flex min-w-0 flex-col items-start gap-0.5 text-left sm:items-end sm:text-right;
+  }
+
+  .muted {
+    @apply text-zinc-400;
+  }
+}
+
+@keyframes nearby-watch-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.15);
+  }
+
+  50% {
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.28);
+  }
+}

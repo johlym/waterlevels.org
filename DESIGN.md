@@ -150,7 +150,7 @@ Encapsulate domain knowledge in small, well-named objects rather than scattering
 - Controller tests assert `Cache-Tag` headers, HTML content, and JSON API shapes; mailer tests use `assert_enqueued_emails`.
 - **Accessibility CI (do not skip or weaken):**
   - Rails: `test/integration/accessibility_smoke_test.rb` (included in `bin/rails test`) — skip link / `#main` / `<main>` on public pages, home + map combobox wiring, FAQ button semantics (not incomplete tabs), mobile nav `aria-expanded`, nav `aria-current="page"`, contact `aria-invalid` / `aria-describedby`, gauge measurement `role="tablist"`.
-  - JS: `yarn test:js` → `test/javascript/a11y_contrast_tokens.test.js` scans `app/assets/stylesheets/application.tailwind.css` and **fails CI** if `text-zinc-500`, `placeholder:text-zinc-500`, or `placeholder:text-zinc-600` appear, or if global `:focus-visible`, `.skip-link`, or `prefers-reduced-motion` rules disappear.
+  - JS: `yarn test:js` → `test/javascript/a11y_contrast_tokens.test.js` scans every CSS file under `app/assets/stylesheets/` and **fails CI** if `text-zinc-500`, `placeholder:text-zinc-500`, or `placeholder:text-zinc-600` appear, or if global `:focus-visible`, `.skip-link`, or `prefers-reduced-motion` rules disappear.
 
 **Conventions:** stub every external HTTP call; cover new cacheable surfaces with a `Cache-Tag` assertion; use factories for data; when changing public HTML/CSS/Stimulus UI, run the a11y smoke + JS contrast tests before pushing. CI (`.github/workflows/ci.yml`) runs RuboCop (rails-omakase), Brakeman, bundler-audit, `yarn test:js`, and the Rails suite against Postgres.
 
@@ -175,7 +175,7 @@ When adding a feature, keep the design intact:
 
 ## 15. Accessibility (required for UI work)
 
-Baseline: **WCAG 2.2 Level AA**. Fuller keyboard/screen-reader matrices and map-access notes: [`doc/accessibility.md`](doc/accessibility.md). Agents changing views, components, Stimulus controllers, or `application.tailwind.css` **must** keep the contracts below — several are hard-fail in CI.
+Baseline: **WCAG 2.2 Level AA**. Fuller keyboard/screen-reader matrices and map-access notes: [`doc/accessibility.md`](doc/accessibility.md). Agents changing views, components, Stimulus controllers, or stylesheets under `app/assets/stylesheets/` **must** keep the contracts below — several are hard-fail in CI.
 
 ### Contrast tokens (hard CI fail)
 
@@ -188,7 +188,7 @@ On `bg-zinc-950` / `bg-zinc-900`, use only approved muted text:
 | Placeholders | `placeholder:text-zinc-400` | `placeholder:text-zinc-500`, `placeholder:text-zinc-600` |
 | Focus indicator | global cyan-400 2px + offset `:focus-visible` | Removing or greying out the outline |
 
-`test/javascript/a11y_contrast_tokens.test.js` substring-scans `application.tailwind.css` and fails CI on the banned tokens (admin UI included — recent breaks were `text-zinc-500` cell hints and dim inspect placeholders). Prefer `text-zinc-400` even for “subtle” copy. Do **not** put the banned tokens in ERB/`class=` utilities either: they miss AA contrast on this dark shell even if the CSS scanner does not see them.
+`test/javascript/a11y_contrast_tokens.test.js` substring-scans every CSS file under `app/assets/stylesheets/` and fails CI on the banned tokens (admin UI included — recent breaks were `text-zinc-500` cell hints and dim inspect placeholders). Prefer `text-zinc-400` even for “subtle” copy. Do **not** put the banned tokens in ERB/`class=` utilities either: they miss AA contrast on this dark shell even if the CSS scanner does not see them.
 
 ### Landmarks & chrome (smoke-tested)
 
@@ -212,7 +212,7 @@ On `bg-zinc-950` / `bg-zinc-900`, use only approved muted text:
 
 ### Agent checklist before pushing UI changes
 
-1. No `text-zinc-500` / `placeholder:text-zinc-500` / `placeholder:text-zinc-600` in `application.tailwind.css` (CI) or in ERB/`class=` utilities (contrast AA).
+1. No `text-zinc-500` / `placeholder:text-zinc-500` / `placeholder:text-zinc-600` in `app/assets/stylesheets/` (CI) or in ERB/`class=` utilities (contrast AA).
 2. New public pages include skip target `#main` inside `<main>`.
 3. New widgets reuse existing Stimulus a11y patterns instead of inventing unlabeled custom controls.
 4. Status that matters (flood stage, offline, errors) is available as text, not only color.

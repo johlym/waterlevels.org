@@ -1,0 +1,145 @@
+/* —— Gauge / station page —— */
+.gauge-header {
+  @apply flex flex-col gap-6;
+
+  .breadcrumb {
+    ol {
+      @apply flex flex-wrap items-center gap-2 text-base text-zinc-400 sm:text-sm;
+    }
+
+    a {
+      @apply text-zinc-400 no-underline transition-colors hover:text-cyan-400;
+    }
+
+    .sep {
+      @apply text-zinc-700;
+
+      svg {
+        @apply size-4;
+      }
+    }
+
+    .current {
+      @apply text-zinc-400;
+    }
+  }
+
+  .identity {
+    h1 {
+      @apply text-balance font-display text-3xl font-semibold tracking-tight text-white;
+    }
+  }
+}
+
+.gauge-split {
+  @apply mt-6;
+}
+
+.gauge-split--pair {
+  @apply grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2;
+
+  .gauge-alert-card {
+    @apply mt-0 flex h-full min-w-0 flex-col;
+  }
+
+  .station-meta {
+    @apply h-full min-w-0;
+  }
+}
+
+.badge {
+  @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm font-medium;
+
+  &.live {
+    @apply border-emerald-500/20 bg-emerald-500/10 text-emerald-400;
+
+    .dot {
+      @apply size-1.5 animate-pulse rounded-full bg-emerald-400;
+    }
+  }
+
+  &.muted {
+    @apply border-transparent bg-zinc-800 text-zinc-400;
+  }
+
+  &.warn {
+    @apply border-amber-500/20 bg-amber-500/10 text-amber-400;
+  }
+
+  &.flood-no-flooding {
+    @apply border-emerald-500/20 bg-emerald-500/10 text-emerald-400;
+  }
+
+  &.flood-action {
+    @apply border-amber-500/30 bg-amber-500/10 text-amber-300;
+  }
+
+  &.flood-minor {
+    @apply border-orange-500/30 bg-orange-500/10 text-orange-300;
+  }
+
+  &.flood-moderate {
+    @apply border-rose-500/30 bg-rose-500/10 text-rose-300;
+  }
+
+  &.flood-major {
+    @apply border-red-500/40 bg-red-500/15 text-red-300;
+  }
+}
+
+.station-meta {
+  @apply rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5;
+
+  .meta-grid {
+    @apply grid grid-cols-2 gap-4 text-sm;
+  }
+
+  .span-2 {
+    @apply col-span-2;
+  }
+
+  .flood-stages {
+    @apply text-pretty text-zinc-300;
+  }
+
+  .label {
+    @apply mb-1 text-zinc-400;
+  }
+
+  .value {
+    @apply font-mono text-white tabular-nums;
+  }
+}
+
+.usgs-note {
+  @apply mt-12 text-base text-zinc-400 sm:text-sm;
+
+  a {
+    @apply font-medium text-cyan-400 underline transition-colors hover:text-cyan-300;
+  }
+}
+
+/* —— Glossary term tooltips (gauge detail) —— */
+.term-tip {
+  @apply relative inline cursor-help border-b border-dotted border-zinc-500 text-inherit;
+
+  .term-tip-bubble {
+    @apply pointer-events-none absolute top-[calc(100%+0.4rem)] left-1/2 z-50 w-max max-w-64 -translate-x-1/2 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-left text-xs leading-snug font-normal tracking-normal text-zinc-200 opacity-0 shadow-lg shadow-black/40 transition-opacity duration-150;
+  }
+
+  &:hover .term-tip-bubble,
+  &:focus-visible .term-tip-bubble,
+  &:focus-within .term-tip-bubble {
+    @apply opacity-100;
+  }
+
+  &:focus-visible {
+    @apply rounded-sm outline-2 outline-offset-2 outline-cyan-500;
+  }
+}
+
+@media (hover: none) {
+  .term-tip:active .term-tip-bubble {
+    @apply opacity-100;
+  }
+}
