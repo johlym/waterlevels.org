@@ -4,6 +4,7 @@ User-agent: *
 Content-Signal: ai-train=no, search=yes, ai-input=no
 Disallow: /admin
 Disallow: /api
+Disallow: /mcp
 Disallow: /subscriptions
 
 Sitemap: https://waterlevels.org/sitemap.xml

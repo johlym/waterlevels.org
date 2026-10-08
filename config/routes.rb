@@ -3,6 +3,7 @@ require "sidekiq-scheduler/web"
 
 Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
+  match "/mcp", to: "mcp#create", via: %i[get post delete head]
   get "/.well-known/api-catalog", to: "well_known/api_catalog#show", as: :api_catalog
 
   root "home#show"

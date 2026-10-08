@@ -31,6 +31,6 @@ class ApplicationController < ActionController::Base
   end
 
   def skip_modern_browser_gate?
-    markdown_request? || is_a?(Admin::BaseController) || is_a?(Admin::SessionsController)
+    markdown_request? || is_a?(Admin::BaseController) || is_a?(Admin::SessionsController) || is_a?(McpController)
   end
 end
