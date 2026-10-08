@@ -1,5 +1,5 @@
 class StationSnapshotCache
-  PREFIX = "station_snapshot:v17".freeze
+  PREFIX = "station_snapshot:v18".freeze
   TTL = 2.hours
   MILES_PER_KM = 0.621371
 

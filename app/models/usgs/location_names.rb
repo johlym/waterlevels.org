@@ -64,9 +64,21 @@ module Usgs
       end
     end
 
+    # Titleize, then uppercase a trailing USPS code (`GRIMES CA` and `YUMA, AZ`).
+    # Only the final token is considered, so mid-name words such as "La", "Mt",
+    # and county "Co" stay title case.
     def titleize_preserving_state(name)
       titleized = name.to_s.titleize
-      titleized.gsub(/,\s*([A-Za-z]{2})\z/) { ", #{$1.upcase}" }
+      titleized.sub(/(?:,\s*|\s+)([A-Za-z]{2})\z/) do
+        code = Regexp.last_match(1)
+        next Regexp.last_match(0) unless StateCodes::STATES.key?(code.downcase)
+
+        if Regexp.last_match(0).start_with?(",")
+          ", #{code.upcase}"
+        else
+          " #{code.upcase}"
+        end
+      end
     end
   end
 end
