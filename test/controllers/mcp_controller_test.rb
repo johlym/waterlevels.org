@@ -71,9 +71,15 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     assert_empty response.body
   end
 
-  test "authenticated GET is not allowed" do
-    get "/mcp", headers: { "Authorization" => "Bearer #{TOKEN}" }
+  test "authenticated GET, DELETE, and HEAD are not allowed" do
+    headers = { "Authorization" => "Bearer #{TOKEN}" }
+    get "/mcp", headers: headers
+    assert_response :method_not_allowed
 
+    delete "/mcp", headers: headers
+    assert_response :method_not_allowed
+
+    head "/mcp", headers: headers
     assert_response :method_not_allowed
   end
 
@@ -180,44 +186,46 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "rejected search query does not query" do
-    MonitoringLocation.stub(:search, ->(*) { flunk "queried search" }) do
-      MonitoringLocation.stub(:exact_search_match, ->(*) { flunk "queried exact" }) do
-        ZipCodeLookup.stub(:lookup, ->(*) { flunk "queried zip" }) do
-          mcp_post(tool_call("search_stations", { query: "a" * 65 }))
-        end
-      end
-    end
+    replace_singleton(MonitoringLocation, :search)
+    replace_singleton(MonitoringLocation, :exact_search_match)
+    replace_singleton(ZipCodeLookup, :lookup)
+    mcp_post(tool_call("search_stations", { query: "a" * 65 }))
 
     assert_response :success
     assert_equal true, json.dig("result", "isError")
+  ensure
+    restore_singletons
   end
 
   test "bad site_number does not query" do
-    MonitoringLocation.stub(:find_by, ->(*) { flunk "queried" }) do
-      mcp_post(tool_call("get_station", { site_number: "bad id" }))
-    end
+    replace_singleton(MonitoringLocation, :find_by)
+    mcp_post(tool_call("get_station", { site_number: "bad id" }))
 
     assert_response :success
     assert_equal true, json.dig("result", "isError")
+  ensure
+    restore_singletons
   end
 
   test "unknown flood category does not query" do
-    MonitoringLocation.stub(:flood_alert, ->(*) { flunk "queried" }) do
-      mcp_post(tool_call("list_flooding", { category: "severe" }))
-    end
+    replace_singleton(MonitoringLocation, :flood_alert)
+    mcp_post(tool_call("list_flooding", { category: "severe" }))
 
     assert_response :success
     assert_equal true, json.dig("result", "isError")
+  ensure
+    restore_singletons
   end
 
   test "a second tools/call while inflight is held returns 429" do
     assert Mcp::Inflight.try_acquire
-    MonitoringLocation.stub(:find_by, ->(*) { flunk "queried" }) do
-      mcp_post(tool_call("get_station", { site_number: "12345678" }))
-    end
+    replace_singleton(MonitoringLocation, :find_by)
+    mcp_post(tool_call("get_station", { site_number: "12345678" }))
 
     assert_response :too_many_requests
     assert_equal "private, no-store", response.headers["Cache-Control"]
+  ensure
+    restore_singletons
   end
 
   private
@@ -250,6 +258,24 @@ class McpControllerTest < ActionDispatch::IntegrationTest
 
   def json
     JSON.parse(response.body)
+  end
+
+  def replace_singleton(klass, name)
+    singleton = klass.singleton_class
+    @replacements ||= []
+    backup = :"_mcp_test_backup_#{name}_#{@replacements.length}"
+    singleton.alias_method backup, name
+    test_case = self
+    singleton.define_method(name) { |*| test_case.flunk("called #{klass}.#{name}") }
+    @replacements << [ singleton, name, backup ]
+  end
+
+  def restore_singletons
+    Array(@replacements).reverse_each do |singleton, name, backup|
+      singleton.alias_method name, backup
+      singleton.remove_method backup
+    end
+    @replacements = []
   end
 
   def build_station(**attrs)

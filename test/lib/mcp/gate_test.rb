@@ -54,13 +54,14 @@ class Mcp::GateTest < ActiveSupport::TestCase
   end
 
   test "authorization longer than 512 bytes returns 401 without hashing" do
-    Digest::SHA256.stub(:hexdigest, ->(*) { flunk "hashed authorization" }) do
-      status, headers, = call_gate(authorization: "Bearer #{"a" * 600}")
+    replace_singleton(Digest::SHA256, :hexdigest)
+    status, headers, = call_gate(authorization: "Bearer #{"a" * 600}")
 
-      assert_equal 401, status
-      assert_equal "Bearer", headers["www-authenticate"]
-    end
+    assert_equal 401, status
+    assert_equal "Bearer", headers["www-authenticate"]
     assert_not @called
+  ensure
+    restore_singleton(Digest::SHA256, :hexdigest)
   end
 
   test "missing content length returns 411 and does not call the app" do
@@ -145,6 +146,24 @@ class Mcp::GateTest < ActiveSupport::TestCase
   def assert_private_json(headers)
     assert_equal "private, no-store", headers["cache-control"]
     assert_includes headers["content-type"], "application/json"
+  end
+
+  def replace_singleton(klass, name)
+    singleton = klass.singleton_class
+    @replacements ||= []
+    backup = :"_mcp_gate_backup_#{name}_#{@replacements.length}"
+    singleton.alias_method backup, name
+    test_case = self
+    singleton.define_method(name) { |*| test_case.flunk("called #{klass}.#{name}") }
+    @replacements << [ singleton, name, backup ]
+  end
+
+  def restore_singleton(klass, name)
+    singleton, method_name, backup = @replacements&.pop
+    return unless singleton && method_name == name && klass.singleton_class == singleton
+
+    singleton.alias_method method_name, backup
+    singleton.remove_method backup
   end
 
   def restore_token(previous)

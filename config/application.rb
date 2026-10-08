@@ -38,5 +38,11 @@ module Waterlevels
     #
     # config.time_zone = "Central Time (US & Canada)"
     # config.eager_load_paths << Rails.root.join("extras")
+
+    # After Zeitwerk setup so Mcp::Gate autoloads from lib/mcp/gate.rb.
+    # User initializers run before the autoloader and cannot reference it.
+    initializer :insert_mcp_gate, after: :setup_main_autoloader, before: :build_middleware_stack do |app|
+      app.config.middleware.insert 0, Mcp::Gate
+    end
   end
 end
