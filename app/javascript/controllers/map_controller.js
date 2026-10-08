@@ -7,6 +7,7 @@ import { firstPartyApiFetch } from "../lib/api"
 import { CARTO_ATTRIBUTION, cartoStyleUrl, cartoTransformRequest } from "../lib/carto_basemap"
 import { geolocationErrorMessage } from "../lib/geolocation_errors"
 import { formatGaugeValue } from "../lib/gauge_value"
+import { markerIcon, markerStyle } from "../lib/map_markers"
 import {
   convertTemperatureC,
   formatTemperature,
@@ -33,12 +34,6 @@ export default class extends Controller {
   ]
   static outlets = ["dialog"]
 
-  static FLOOD_COLORS = {
-    action: { color: "#fbbf24", fill: "#f59e0b", glyph: "A", shape: "diamond" },
-    minor: { color: "#fb923c", fill: "#f97316", glyph: "1", shape: "square" },
-    moderate: { color: "#f43f5e", fill: "#e11d48", glyph: "2", shape: "triangle" },
-    major: { color: "#ef4444", fill: "#b91c1c", glyph: "3", shape: "triangle" }
-  }
   static values = {
     stationsUrl: String,
     searchUrl: String,
@@ -508,9 +503,9 @@ export default class extends Controller {
 
     const visible = this.visibleStations()
     visible.forEach((station) => {
-      const style = this.markerStyle(station)
+      const style = markerStyle(station)
       const marker = L.marker([station.lat, station.lon], {
-        icon: this.markerIcon(station, style),
+        icon: markerIcon(L, station, style),
         keyboard: false,
         title: `${station.name} — ${this.stationStatusLabel(station)}`
       })
@@ -519,27 +514,6 @@ export default class extends Controller {
       this.cluster.addLayer(marker)
     })
     this.renderStationList(visible)
-  }
-
-  markerStyle(station) {
-    if (station.stale) return { color: "#d4d4d8", fill: "#a1a1aa", glyph: "×", shape: "circle" }
-    const flood = this.constructor.FLOOD_COLORS[station.flood_category]
-    if (flood) return flood
-    return { color: "#22d3ee", fill: "#06b6d4", glyph: "", shape: "circle" }
-  }
-
-  markerIcon(station, style) {
-    const size = station.flood_alert ? 18 : 14
-    const glyph = style.glyph
-      ? `<span class="map-marker-glyph">${this.escapeHtml(style.glyph)}</span>`
-      : ""
-    return L.divIcon({
-      className: `map-marker map-marker--${style.shape}`,
-      html: `<span class="map-marker-shape" style="--marker-color:${style.color};--marker-fill:${style.fill}">${glyph}</span>`,
-      iconSize: [size, size],
-      iconAnchor: [size / 2, size / 2],
-      popupAnchor: [0, -size / 2]
-    })
   }
 
   stationStatusLabel(station) {

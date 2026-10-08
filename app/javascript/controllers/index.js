@@ -11,6 +11,7 @@ import FaqController from "./faq_controller"
 import DialogController from "./dialog_controller"
 import AdminSectionsController from "./admin_sections_controller"
 import SubscriptionTimezoneController from "./subscription_timezone_controller"
+import RelatedMapController from "./related_map_controller"
 
 application.register("map", MapController)
 application.register("hydrograph", HydrographController)
@@ -23,3 +24,4 @@ application.register("faq", FaqController)
 application.register("dialog", DialogController)
 application.register("admin-sections", AdminSectionsController)
 application.register("subscription-timezone", SubscriptionTimezoneController)
+application.register("related-map", RelatedMapController)
