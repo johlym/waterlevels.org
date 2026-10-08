@@ -87,23 +87,27 @@ There is **no public third-party data API**. First-party `/api/*` stays website-
 | Homepage `Link` headers | `rel="api-catalog"` → catalog; `rel="service-doc"` → `/disclosures`, `/faq`; `rel="describedby"` → `/llms.txt`. Only `/` sets the full discovery header. |
 | `/robots.txt` | `Content-Signal: ai-train=no, search=yes, ai-input=no`; `Disallow: /admin`, `/api`, `/mcp`, and `/subscriptions` |
 
-Operators can point Cursor at a private, read-only MCP endpoint: `POST /mcp` (Streamable HTTP, protocol `2025-06-18`) with `Authorization: Bearer <token>`. Set `WATERLEVELS_MCP_TOKEN` to the output of `openssl rand -hex 32` (64 hex characters). If the variable is unset or shorter than 32 bytes, `/mcp` returns 404. The token is not listed in the API catalog or `llms.txt`. Tools: `search_stations`, `get_station`, `station_trend`, `series_summary`, `list_flooding`.
+Operators can point Cursor at a private, read-only MCP endpoint: `POST /mcp` (Streamable HTTP, protocol `2025-06-18`). Send `Authorization: Bearer <token>` and `X-Blue-Alpha-Spooky: <front-door>`. Set `WATERLEVELS_MCP_TOKEN` to the output of `openssl rand -hex 32` (64 hex characters). Set `WATERLEVELS_MCP_FRONT_DOOR` to the same string used in the Cloudflare front-door rule (at least 16 bytes). If either variable is unset or too short (token under 32 bytes, front door under 16), `/mcp` returns 404. Neither secret is listed in the API catalog or `llms.txt`. Tools: `search_stations`, `get_station`, `station_trend`, `series_summary`, `list_flooding`.
 
-Add this in Cursor (do not commit a token):
+Add this in Cursor (do not commit a token or the front-door value):
 
 ```json
 {
   "mcpServers": {
     "waterlevels": {
       "url": "https://waterlevels.org/mcp",
-      "headers": { "Authorization": "Bearer ${env:WATERLEVELS_MCP_TOKEN}" }
+      "headers": {
+        "Authorization": "Bearer ${env:WATERLEVELS_MCP_TOKEN}",
+        "X-Blue-Alpha-Spooky": "${env:WATERLEVELS_MCP_FRONT_DOOR}"
+      }
     }
   }
 }
 ```
 
-Cloudflare Free sits in front of the origin. These are dashboard settings, not app code. Put the same token in Cloudflare, Heroku, and Cursor, and rotate all three together.
+Cloudflare Free sits in front of the origin. These are dashboard settings, not app code. Put both secrets in Cloudflare, Heroku, and Cursor, and rotate all three together.
 
+- Custom rule (edge block): block every request whose path is `/mcp` unless the header `x-blue-alpha-spooky` equals the front-door secret. Header name is lowercase in the expression (`http.request.headers["x-blue-alpha-spooky"]`). Action is Block. This is in addition to the bearer token and hides `/mcp` from traffic that is not holding the header. The same secret is `WATERLEVELS_MCP_FRONT_DOOR` on the app.
 - Custom rule: block path `/mcp` unless the authorization header equals `Bearer <token>` exactly. In the expression the header name is lowercase (`http.request.headers["authorization"]`).
 - Custom rule: block `/mcp` when `http.request.body.size` is greater than 16384.
 - Free rate limiting allows one rule, keyed by IP, with a 10 second window and a 10 second block. Use it only if that slot is free. Match `POST /mcp`, about 30 requests per 10 seconds, action Block. It will not stop a flood from many IPs. Do not wait for a rule that counts only 401s (that needs Business).

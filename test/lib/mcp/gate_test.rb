@@ -2,10 +2,13 @@ require "test_helper"
 
 class Mcp::GateTest < ActiveSupport::TestCase
   TOKEN = "ab" * 32
+  FRONT_DOOR = "mcp-test-front-door"
 
   setup do
     @previous = ENV["WATERLEVELS_MCP_TOKEN"]
+    @previous_front_door = ENV["WATERLEVELS_MCP_FRONT_DOOR"]
     ENV["WATERLEVELS_MCP_TOKEN"] = TOKEN
+    ENV["WATERLEVELS_MCP_FRONT_DOOR"] = FRONT_DOOR
     @called = false
     @gate = Mcp::Gate.new(->(_env) {
       @called = true
@@ -14,7 +17,8 @@ class Mcp::GateTest < ActiveSupport::TestCase
   end
 
   teardown do
-    restore_token(@previous)
+    restore_env("WATERLEVELS_MCP_TOKEN", @previous)
+    restore_env("WATERLEVELS_MCP_FRONT_DOOR", @previous_front_door)
   end
 
   test "short token returns 404 and does not call the app" do
@@ -51,6 +55,41 @@ class Mcp::GateTest < ActiveSupport::TestCase
     assert_equal "Bearer", headers["www-authenticate"]
     assert_equal [], body
     assert_not @called
+  end
+
+  test "short front door is not configured" do
+    ENV["WATERLEVELS_MCP_FRONT_DOOR"] = "too-short"
+    status, = call_gate(authorization: bearer)
+
+    assert_equal 404, status
+    assert_not @called
+  end
+
+  test "missing front door header returns 404 even with the bearer token" do
+    status, headers, body = call_gate(authorization: bearer, front_door: :unset)
+
+    assert_equal 404, status
+    assert_private_json(headers)
+    assert_equal [], body
+    assert_not @called
+  end
+
+  test "wrong front door header returns 404 and does not echo the value" do
+    status, _headers, body = call_gate(authorization: bearer, front_door: "wrong-front-door-value")
+
+    assert_equal 404, status
+    assert_equal [], body
+    assert_not @called
+  end
+
+  test "oversized front door header returns 404 without hashing" do
+    replace_singleton(Digest::SHA256, :hexdigest)
+    status, = call_gate(authorization: bearer, front_door: "z" * 600)
+
+    assert_equal 404, status
+    assert_not @called
+  ensure
+    restore_singleton(Digest::SHA256, :hexdigest)
   end
 
   test "authorization longer than 512 bytes returns 401 without hashing" do
@@ -125,7 +164,7 @@ class Mcp::GateTest < ActiveSupport::TestCase
     "Bearer #{TOKEN}"
   end
 
-  def call_gate(method: "POST", authorization: nil, content_length: "2", content_type: "application/json", path: "/mcp")
+  def call_gate(method: "POST", authorization: nil, front_door: FRONT_DOOR, content_length: "2", content_type: "application/json", path: "/mcp")
     env = {
       "REQUEST_METHOD" => method,
       "PATH_INFO" => path,
@@ -138,6 +177,7 @@ class Mcp::GateTest < ActiveSupport::TestCase
       "rack.errors" => StringIO.new
     }
     env["HTTP_AUTHORIZATION"] = authorization if authorization
+    env["HTTP_X_BLUE_ALPHA_SPOOKY"] = front_door unless front_door == :unset
     env["CONTENT_TYPE"] = content_type if content_type
     env["CONTENT_LENGTH"] = content_length.to_s unless content_length == :unset
     @gate.call(env)
@@ -166,11 +206,11 @@ class Mcp::GateTest < ActiveSupport::TestCase
     singleton.remove_method backup
   end
 
-  def restore_token(previous)
+  def restore_env(key, previous)
     if previous.nil?
-      ENV.delete("WATERLEVELS_MCP_TOKEN")
+      ENV.delete(key)
     else
-      ENV["WATERLEVELS_MCP_TOKEN"] = previous
+      ENV[key] = previous
     end
   end
 

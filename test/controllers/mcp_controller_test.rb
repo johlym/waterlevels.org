@@ -2,19 +2,19 @@ require "test_helper"
 
 class McpControllerTest < ActionDispatch::IntegrationTest
   TOKEN = "ef" * 32
+  FRONT_DOOR = "mcp-test-front-door"
 
   setup do
     @previous = ENV["WATERLEVELS_MCP_TOKEN"]
+    @previous_front_door = ENV["WATERLEVELS_MCP_FRONT_DOOR"]
     ENV["WATERLEVELS_MCP_TOKEN"] = TOKEN
+    ENV["WATERLEVELS_MCP_FRONT_DOOR"] = FRONT_DOOR
     McpController::RATE_LIMIT_STORE.clear
   end
 
   teardown do
-    if @previous.nil?
-      ENV.delete("WATERLEVELS_MCP_TOKEN")
-    else
-      ENV["WATERLEVELS_MCP_TOKEN"] = @previous
-    end
+    restore_env("WATERLEVELS_MCP_TOKEN", @previous)
+    restore_env("WATERLEVELS_MCP_FRONT_DOOR", @previous_front_door)
     Mcp::Inflight.release
   end
 
@@ -33,11 +33,41 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "missing bearer returns 401" do
-    post "/mcp", params: rpc("ping"), as: :json
+    post "/mcp", params: rpc("ping"), headers: { "X-Blue-Alpha-Spooky" => FRONT_DOOR }, as: :json
 
     assert_response :unauthorized
     assert_equal "Bearer", response.headers["WWW-Authenticate"]
     assert_not_includes response.body.to_s, TOKEN
+  end
+
+  test "missing or wrong front door header returns 404 even with the bearer token" do
+    post "/mcp", params: rpc("ping"), headers: { "Authorization" => "Bearer #{TOKEN}" }, as: :json
+    assert_response :not_found
+    assert_not_includes response.body.to_s, FRONT_DOOR
+
+    mcp_post(rpc("ping"), front_door: "wrong-front-door-value")
+    assert_response :not_found
+    assert_not_includes response.body.to_s, FRONT_DOOR
+    assert_not_includes response.body.to_s, "wrong-front-door-value"
+  end
+
+  test "short or unset front door returns 404" do
+    ENV["WATERLEVELS_MCP_FRONT_DOOR"] = "too-short"
+    mcp_post(rpc("ping"))
+    assert_response :not_found
+
+    ENV.delete("WATERLEVELS_MCP_FRONT_DOOR")
+    mcp_post(rpc("ping"))
+    assert_response :not_found
+  end
+
+  test "oversized front door header returns 404 without hashing" do
+    replace_singleton(Digest::SHA256, :hexdigest)
+    mcp_post(rpc("ping"), front_door: "z" * 600)
+
+    assert_response :not_found
+  ensure
+    restore_singletons
   end
 
   test "wrong bearer returns 401" do
@@ -72,7 +102,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "authenticated GET, DELETE, and HEAD are not allowed" do
-    headers = { "Authorization" => "Bearer #{TOKEN}" }
+    headers = { "Authorization" => "Bearer #{TOKEN}", "X-Blue-Alpha-Spooky" => FRONT_DOOR }
     get "/mcp", headers: headers
     assert_response :method_not_allowed
 
@@ -240,20 +270,31 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     rpc("tools/call", id: id, params: { name: name, arguments: arguments })
   end
 
-  def mcp_post(payload, token: TOKEN)
+  def mcp_post(payload, token: TOKEN, front_door: FRONT_DOOR)
     post "/mcp",
       params: payload,
-      headers: { "Authorization" => "Bearer #{token}" },
+      headers: auth_headers(token:, front_door:),
       as: :json
   end
 
-  def mcp_post_raw(body, token: TOKEN)
+  def mcp_post_raw(body, token: TOKEN, front_door: FRONT_DOOR)
     post "/mcp",
       params: body,
-      headers: {
-        "Authorization" => "Bearer #{token}",
-        "Content-Type" => "application/json"
-      }
+      headers: auth_headers(token:, front_door:).merge("Content-Type" => "application/json")
+  end
+
+  def auth_headers(token:, front_door:)
+    headers = { "Authorization" => "Bearer #{token}" }
+    headers["X-Blue-Alpha-Spooky"] = front_door unless front_door.nil?
+    headers
+  end
+
+  def restore_env(key, previous)
+    if previous.nil?
+      ENV.delete(key)
+    else
+      ENV[key] = previous
+    end
   end
 
   def json

@@ -13,10 +13,14 @@ module Mcp
       return @app.call(env) unless env["PATH_INFO"] == PATH
       return finish(404) unless Mcp::Auth.configured?
 
+      front_door = env["HTTP_X_BLUE_ALPHA_SPOOKY"].to_s
       authorization = env["HTTP_AUTHORIZATION"].to_s
+      # Length checks happen before any digest so an oversized header is never hashed.
+      return finish(404) if front_door.bytesize > Mcp::Auth::MAX_HEADER_BYTES
       if authorization.bytesize > Mcp::Auth::MAX_AUTHORIZATION_BYTES
         return finish(401, "www-authenticate" => "Bearer")
       end
+      return finish(404) unless Mcp::Auth.front_door_matches?(front_door)
       unless Mcp::Auth.bearer_matches?(authorization)
         return finish(401, "www-authenticate" => "Bearer")
       end

@@ -43,6 +43,13 @@ class McpController < ApplicationController
       return
     end
 
+    front_door = request.get_header("HTTP_X_BLUE_ALPHA_SPOOKY").to_s
+    if front_door.bytesize > Mcp::Auth::MAX_HEADER_BYTES || !Mcp::Auth.front_door_matches?(front_door)
+      cache_private!
+      head :not_found
+      return
+    end
+
     header = request.get_header("HTTP_AUTHORIZATION").to_s
     if header.bytesize > Mcp::Auth::MAX_AUTHORIZATION_BYTES
       cache_private!
