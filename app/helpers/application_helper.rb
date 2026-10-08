@@ -1,6 +1,7 @@
 module ApplicationHelper
   # Prefer persisted display_name when available; otherwise expand USGS
-  # abbreviations and title-case (keeping trailing ", WA" state codes).
+  # abbreviations and title-case (keeping a trailing state code, with or
+  # without a comma, as "WA" / "CA").
   def display_location_name(name)
     Usgs::LocationNames.format(name)
   end

@@ -28,6 +28,37 @@ module Usgs
     test "is idempotent for already-formatted names" do
       formatted = "Lake Travis Near Austin, TX"
       assert_equal formatted, LocationNames.format(formatted)
+
+      comma_less = "Sacramento River Bl Wilkins Slough Near Grimes CA"
+      assert_equal comma_less, LocationNames.format(comma_less)
+    end
+
+    test "uppercases a trailing state code with no comma" do
+      assert_equal "Sacramento River Bl Wilkins Slough Near Grimes CA",
+        LocationNames.format("SACRAMENTO R BL WILKINS SLOUGH NR GRIMES CA")
+      assert_equal "Castro Valley C A Hayward CA",
+        LocationNames.format("CASTRO VALLEY C A HAYWARD CA")
+    end
+
+    test "uppercases a trailing state code after a comma" do
+      assert_equal "Colorado River Below Yuma Main Canal Ww At Yuma, AZ",
+        LocationNames.format("COLORADO R BLW YUMA MAIN CANAL WW AT YUMA, AZ")
+      assert_equal "Potomac River Near Wash, DC",
+        LocationNames.format("POTOMAC RIVER NEAR WASH, DC")
+    end
+
+    test "leaves mid-name state-shaped words title case" do
+      assert_equal "La Crosse River Near La Crosse, WI",
+        LocationNames.format("LA CROSSE RIVER NEAR LA CROSSE, WI")
+      assert_equal "Nisqually River Near Mt Rainier, WA",
+        LocationNames.format("NISQUALLY RIVER NEAR MT RAINIER, WA")
+      assert_equal "Jefferson Co, CO",
+        LocationNames.format("JEFFERSON CO, CO")
+    end
+
+    test "leaves a trailing token that is not a postal code title case" do
+      assert_equal "Potomac River At Us",
+        LocationNames.format("POTOMAC RIVER AT US")
     end
 
     test "does not expand abbreviations inside longer words" do

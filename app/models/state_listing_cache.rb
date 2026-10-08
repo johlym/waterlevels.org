@@ -1,5 +1,5 @@
 class StateListingCache
-  PREFIX = "state_listing:v7".freeze
+  PREFIX = "state_listing:v8".freeze
   TTL = 6.hours
 
   def self.key_for(state_code)
