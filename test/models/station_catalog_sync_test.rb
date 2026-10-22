@@ -489,6 +489,102 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
     Rails.cache = previous_cache
   end
 
+  test "latest upsert does not regress a newer hourly tip" do
+    location = create(
+      :monitoring_location,
+      site_number: "12101000",
+      usgs_monitoring_location_id: "USGS-12101000"
+    )
+    series = create(
+      :time_series,
+      monitoring_location: location,
+      usgs_time_series_id: "ts-gage",
+      parameter_code: "00065",
+      measurement_kind: "water_level",
+      selected_for_display: true
+    )
+    fresh_at = Time.zone.parse("2026-09-06 04:03:00")
+    stale_at = Time.zone.parse("2026-09-06 03:00:00")
+    LatestObservation.create!(
+      time_series: series,
+      value: 12.5,
+      unit_of_measure: "ft",
+      observed_at: fresh_at,
+      synced_at: fresh_at
+    )
+    location.update!(
+      latest_water_level_value: 12.5,
+      latest_water_level_unit: "ft",
+      latest_observed_at: fresh_at,
+      has_water_level: true
+    )
+
+    StationCatalogSync.new.send(
+      :upsert_latest_observations,
+      [ {
+        time_series_id: "ts-gage",
+        observed_at: stale_at.iso8601,
+        value: 10.0,
+        unit_of_measure: "ft",
+        measurement_kind: "water_level",
+        approval_status: "Approved",
+        qualifier: nil,
+        last_modified: stale_at.iso8601
+      } ]
+    )
+
+    latest = series.reload.latest_observation
+    assert_in_delta 12.5, latest.value.to_f, 0.001
+    assert_equal fresh_at.to_i, latest.observed_at.to_i
+    continuous = series.continuous_observations.to_a
+    assert_equal 1, continuous.size
+    assert_equal stale_at.to_i, continuous.first.observed_at.to_i
+    assert_in_delta 10.0, continuous.first.value.to_f, 0.001
+  end
+
+  test "latest upsert still advances when discovery is newer than the stored tip" do
+    location = create(
+      :monitoring_location,
+      site_number: "12101001",
+      usgs_monitoring_location_id: "USGS-12101001"
+    )
+    series = create(
+      :time_series,
+      monitoring_location: location,
+      usgs_time_series_id: "ts-gage-new",
+      parameter_code: "00065",
+      measurement_kind: "water_level",
+      selected_for_display: true
+    )
+    older_at = Time.zone.parse("2026-09-06 02:00:00")
+    newer_at = Time.zone.parse("2026-09-06 03:15:00")
+    LatestObservation.create!(
+      time_series: series,
+      value: 8.0,
+      unit_of_measure: "ft",
+      observed_at: older_at,
+      synced_at: older_at
+    )
+
+    StationCatalogSync.new.send(
+      :upsert_latest_observations,
+      [ {
+        time_series_id: "ts-gage-new",
+        observed_at: newer_at.iso8601,
+        value: 11.2,
+        unit_of_measure: "ft",
+        measurement_kind: "water_level",
+        approval_status: "Approved",
+        qualifier: nil,
+        last_modified: newer_at.iso8601
+      } ]
+    )
+
+    latest = series.reload.latest_observation
+    assert_in_delta 11.2, latest.value.to_f, 0.001
+    assert_equal newer_at.to_i, latest.observed_at.to_i
+  end
+
   private
 
   def stub_catalog_collections(latest_continuous:, locations:, time_series:)
