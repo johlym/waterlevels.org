@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Washington gauges · WaterLevels.org</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div class="app-shell">
+    <header class="site-header">
+      <div class="inner">
+        <a class="brand" href="home.html">
+          <svg class="mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M12 3s7 8.1 7 12.1A7 7 0 1 1 5 15.1C5 11.1 12 3 12 3z"></path>
+          </svg>
+          <span class="name">WaterLevels.org</span>
+        </a>
+        <nav class="desktop-nav" aria-label="Primary">
+          <a class="nav-link" href="map.html">Map</a>
+          <a class="nav-link" href="alerts.html">Flood Alerts</a>
+          <a class="nav-link" href="home.html">Home</a>
+          <a class="nav-link" href="faq.html">FAQ</a>
+          <a class="nav-link" href="index.html">System</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" class="page">
+      <p class="kicker">Washington</p>
+      <h1 class="page-title">Active monitoring locations</h1>
+      <p class="lede">100 stations · 1 flood alert · 0 stale. Grouped by county, with current stage, flow, and temperature.</p>
+
+      <div class="dir-split" style="margin-top: 2.75rem">
+        <aside class="filter">
+          <label class="sr-only" for="dir-search">Filter stations</label>
+          <input class="filter-search" id="dir-search" type="search" placeholder="Landsburg, Cedar, 12119">
+          <h2>Measurements</h2>
+          <label><input type="checkbox" checked> Gage height</label>
+          <label><input type="checkbox" checked> Discharge</label>
+          <label><input type="checkbox" checked> Temperature</label>
+          <label><input type="checkbox"> Flood alerts only</label>
+          <h2 style="margin-top:1.4rem">Counties</h2>
+          <div class="county-jumps">
+            <a href="#king">King</a>
+            <a href="#pierce">Pierce</a>
+            <a href="#snohomish">Snohomish</a>
+            <a href="#thurston">Thurston</a>
+          </div>
+        </aside>
+
+        <div>
+          <section id="king">
+            <div class="county-head">
+              <h2>King County</h2>
+              <span class="muted">4 stations</span>
+            </div>
+            <a class="station-row" href="gauge.html">
+              <span>
+                <strong>Cedar River near Renton</strong>
+                <span class="id">12119000</span>
+              </span>
+              <span class="reading">18.42 ft</span>
+              <span class="reading">8,420 ft³/s</span>
+              <span class="reading">48.2 °F</span>
+              <span class="badge major"><span class="shape" aria-hidden="true"></span> Major</span>
+            </a>
+            <a class="station-row" href="gauge.html">
+              <span>
+                <strong>Cedar River near Landsburg</strong>
+                <span class="id">12117500</span>
+              </span>
+              <span class="reading">6.18 ft</span>
+              <span class="reading">1,940 ft³/s</span>
+              <span class="reading">46.8 °F</span>
+              <span class="badge normal"><span class="shape" aria-hidden="true"></span> Normal</span>
+            </a>
+            <a class="station-row" href="gauge.html">
+              <span>
+                <strong>Green River near Auburn</strong>
+                <span class="id">12113000</span>
+              </span>
+              <span class="reading">9.04 ft</span>
+              <span class="reading">3,110 ft³/s</span>
+              <span class="reading">49.1 °F</span>
+              <span class="badge action"><span class="shape" aria-hidden="true"></span> Action</span>
+            </a>
+          </section>
+
+          <section id="pierce" style="margin-top:2.5rem">
+            <div class="county-head">
+              <h2>Pierce County</h2>
+              <span class="muted">2 stations</span>
+            </div>
+            <a class="station-row" href="gauge.html">
+              <span>
+                <strong>Puyallup River at Puyallup</strong>
+                <span class="id">12101500</span>
+              </span>
+              <span class="reading">11.62 ft</span>
+              <span class="reading">6,080 ft³/s</span>
+              <span class="reading">47.4 °F</span>
+              <span class="badge normal"><span class="shape" aria-hidden="true"></span> Normal</span>
+            </a>
+            <a class="station-row" href="gauge.html">
+              <span>
+                <strong>Nisqually River at McKenna</strong>
+                <span class="id">12089500</span>
+              </span>
+              <span class="reading">5.91 ft</span>
+              <span class="reading">2,240 ft³/s</span>
+              <span class="reading">45.9 °F</span>
+              <span class="badge normal"><span class="shape" aria-hidden="true"></span> Normal</span>
+            </a>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="inner">
+        <p>© 2026 WaterLevels.org</p>
+        <nav aria-label="Footer">
+          <a href="faq.html">FAQ</a>
+          <a href="index.html">System</a>
+        </nav>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

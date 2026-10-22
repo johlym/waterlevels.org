@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Map · WaterLevels.org</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div class="map-shell">
+    <header class="site-header">
+      <div class="inner">
+        <a class="brand" href="home.html">
+          <svg class="mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M12 3s7 8.1 7 12.1A7 7 0 1 1 5 15.1C5 11.1 12 3 12 3z"></path>
+          </svg>
+          <span class="name">WaterLevels.org</span>
+        </a>
+        <nav class="desktop-nav" aria-label="Primary">
+          <a class="nav-link" href="map.html" aria-current="page">Map</a>
+          <a class="nav-link" href="alerts.html">Flood Alerts</a>
+          <a class="nav-link" href="home.html">Home</a>
+          <a class="nav-link" href="faq.html">FAQ</a>
+          <a class="nav-link" href="index.html">System</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" class="map-main">
+      <div class="field" aria-hidden="true">
+        <span class="dot normal" style="left:18%;top:28%;width:10px;height:10px"></span>
+        <span class="dot normal" style="left:24%;top:36%;width:10px;height:10px"></span>
+        <span class="dot normal" style="left:31%;top:22%;width:10px;height:10px"></span>
+        <span class="dot action" style="left:38%;top:41%;width:9px;height:9px"></span>
+        <span class="dot normal" style="left:46%;top:33%;width:10px;height:10px"></span>
+        <span class="dot normal" style="left:52%;top:48%;width:10px;height:10px"></span>
+        <span class="dot major" style="left:58%;top:39%;width:12px;height:12px"></span>
+        <span class="dot normal" style="left:64%;top:27%;width:10px;height:10px"></span>
+        <span class="dot normal" style="left:71%;top:44%;width:10px;height:10px"></span>
+        <span class="dot action" style="left:76%;top:58%;width:9px;height:9px"></span>
+        <span class="dot normal" style="left:43%;top:61%;width:10px;height:10px"></span>
+        <span class="dot normal" style="left:29%;top:57%;width:10px;height:10px"></span>
+        <span class="dot normal" style="left:67%;top:63%;width:10px;height:10px"></span>
+      </div>
+
+      <div class="tools">
+        <button type="button" aria-label="Zoom in">+</button>
+        <button type="button" aria-label="Zoom out">−</button>
+        <div class="rule" aria-hidden="true"></div>
+        <button type="button" aria-label="Use my location">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M12 3v2M12 19v2M3 12h2M19 12h2"></path>
+          </svg>
+        </button>
+        <button type="button" id="settings-toggle" aria-expanded="false" aria-controls="map-settings" aria-label="Map settings">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M4 12h2M18 12h2M12 4v2M12 18v2"></path>
+          </svg>
+        </button>
+      </div>
+
+      <aside class="settings" id="map-settings" hidden>
+        <h2>Data layers</h2>
+        <label><input type="checkbox" checked> Gage height</label>
+        <label><input type="checkbox" checked> Discharge</label>
+        <label><input type="checkbox" checked> Temperature</label>
+        <label><input type="checkbox"> Flood alerts only</label>
+        <p class="muted" style="margin:0.8rem 0 0;font-size:0.85rem">Stations in view: 128</p>
+        <p class="muted" style="margin:0.3rem 0 0;font-size:0.85rem"><a href="state.html">Open Washington directory</a></p>
+      </aside>
+
+      <aside class="legend">
+        <h2>Flood category</h2>
+        <div class="legend-row"><span class="swatch" style="border-radius:9999px;color:#346538"></span> Normal</div>
+        <div class="legend-row"><span class="swatch" style="transform:rotate(45deg);color:#956400"></span> Action</div>
+        <div class="legend-row"><span class="swatch" style="clip-path:polygon(50% 0,100% 100%,0 100%);color:#8a5a16"></span> Minor</div>
+        <div class="legend-row"><span class="swatch" style="border-radius:2px;color:#9f2f2d"></span> Moderate / major</div>
+      </aside>
+    </main>
+  </div>
+  <script>
+    const toggle = document.getElementById('settings-toggle');
+    const panel = document.getElementById('map-settings');
+    toggle.addEventListener('click', () => {
+      const open = panel.hasAttribute('hidden');
+      panel.toggleAttribute('hidden', !open);
+      toggle.setAttribute('aria-expanded', String(open));
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WaterLevels.org — proposed visual system</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div class="app-shell">
+    <header class="site-header">
+      <div class="inner">
+        <a class="brand" href="home.html">
+          <svg class="mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M12 3s7 8.1 7 12.1A7 7 0 1 1 5 15.1C5 11.1 12 3 12 3z"></path>
+          </svg>
+          <span class="name">WaterLevels.org</span>
+        </a>
+        <nav class="desktop-nav" aria-label="Primary">
+          <a class="nav-link" href="map.html">Map</a>
+          <a class="nav-link" href="alerts.html">Flood Alerts</a>
+          <a class="nav-link" href="home.html">Home</a>
+          <a class="nav-link" href="faq.html">FAQ</a>
+          <a class="nav-link" aria-current="page" href="index.html">System</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero">
+        <div class="hero-inner">
+          <p class="kicker">Proposed visual system</p>
+          <h1>A field notebook, not a dashboard.</h1>
+          <p class="lede">
+            Warm paper, editorial type, and hairline structure. Color is reserved for flood state and measurement identity. The map stays a dark instrument; everything around it becomes a document.
+          </p>
+        </div>
+      </section>
+
+      <section class="band" aria-labelledby="screens-heading">
+        <div class="band-inner">
+          <div class="band-head">
+            <h2 id="screens-heading">Screens</h2>
+            <p>Click through the proposed public surfaces. Copy uses real product names and USGS site numbers.</p>
+          </div>
+          <div class="screen-index">
+            <a href="home.html">
+              <strong>Home</strong>
+              <span class="muted">Search, network counts, well-known waterways.</span>
+            </a>
+            <a href="gauge.html">
+              <strong>Gauge</strong>
+              <span class="muted">Cedar River near Renton, with a major-flood reading.</span>
+            </a>
+            <a href="state.html">
+              <strong>State directory</strong>
+              <span class="muted">Washington stations as a document list.</span>
+            </a>
+            <a href="map.html">
+              <strong>Map chrome</strong>
+              <span class="muted">Paper controls over a dark instrument field.</span>
+            </a>
+            <a href="alerts.html">
+              <strong>Flood alerts</strong>
+              <span class="muted">National action-and-above list.</span>
+            </a>
+            <a href="faq.html">
+              <strong>FAQ</strong>
+              <span class="muted">Hairline accordion, no boxed items.</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="band" aria-labelledby="type-heading">
+        <div class="band-inner">
+          <div class="band-head">
+            <h2 id="type-heading">Type</h2>
+            <p>Serif for titles, Cantarell for UI, JetBrains Mono for site IDs and readings.</p>
+          </div>
+          <div class="bento">
+            <article class="card wide type-sample">
+              <p class="kicker">Display</p>
+              <p class="serif">Cedar River near Renton</p>
+              <p class="muted">Liberation Serif · tracking −0.035em · line-height 1.1</p>
+            </article>
+            <article class="card type-sample">
+              <p class="kicker">Body</p>
+              <p>Streamflow, gage height, and temperature from USGS and selected partner gauges.</p>
+            </article>
+            <article class="card type-sample">
+              <p class="kicker">Meta</p>
+              <p class="mono">12119000 · 47.4821° N, 122.1958° W</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="band" aria-labelledby="color-heading">
+        <div class="band-inner">
+          <div class="band-head">
+            <h2 id="color-heading">Color</h2>
+            <p>Warm monochrome for structure. Pastels only for status.</p>
+          </div>
+          <div class="token-grid">
+            <div class="swatch-card">
+              <div class="chip" style="background:#f7f6f3"></div>
+              <div>Paper</div>
+              <div class="mono muted">#F7F6F3</div>
+            </div>
+            <div class="swatch-card">
+              <div class="chip" style="background:#2f3437"></div>
+              <div>Ink</div>
+              <div class="mono muted">#2F3437</div>
+            </div>
+            <div class="swatch-card">
+              <div class="chip" style="background:#eaeaea"></div>
+              <div>Line</div>
+              <div class="mono muted">#EAEAEA</div>
+            </div>
+            <div class="swatch-card">
+              <div class="chip" style="background:#111111"></div>
+              <div>Action</div>
+              <div class="mono muted">#111111</div>
+            </div>
+            <div class="swatch-card">
+              <div class="chip" style="background:#edf3ec"></div>
+              <div>Normal</div>
+              <div class="mono muted">#EDF3EC / #346538</div>
+            </div>
+            <div class="swatch-card">
+              <div class="chip" style="background:#fbf3db"></div>
+              <div>Action stage</div>
+              <div class="mono muted">#FBF3DB / #956400</div>
+            </div>
+            <div class="swatch-card">
+              <div class="chip" style="background:#e1f3fe"></div>
+              <div>Measurement</div>
+              <div class="mono muted">#E1F3FE / #1F6C9F</div>
+            </div>
+            <div class="swatch-card">
+              <div class="chip" style="background:#fdebec"></div>
+              <div>Flood</div>
+              <div class="mono muted">#FDEBEC / #9F2F2D</div>
+            </div>
+          </div>
+          <p class="note">Flood state still pairs color with shape: circle, diamond, triangle, square. That contract stays.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="inner">
+        <p>Proposed visual system for WaterLevels.org</p>
+        <nav aria-label="Footer">
+          <a href="home.html">Home</a>
+          <a href="faq.html">FAQ</a>
+          <a href="../minimalist-redesign.md">Written proposal</a>
+        </nav>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>
