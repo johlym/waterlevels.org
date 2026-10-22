@@ -67,7 +67,7 @@ Invariant: **never prune IV for local day D until R2 has D (USGS or derived) or 
    - Else derive a local-midnight mean from IV (coverage-gated) and store with `s: "derived"`.
    - Else leave IV in place and count as `retrying` while inside the 35-day window.
 3. When a day reaches IV prune age still uncovered: **alert** (`gaps_alerted`, log + Sentry), then allow prune.
-4. When `DAILY_ARCHIVE_PRUNE=1`, delete **any** leftover Postgres `daily_observations` row whose day already exists in R2 (full drain — no scratch tip). Export deletes those rows immediately after a successful shuttle; `DailyArchiveDrainJob` repeats the already-in-R2 delete every 6 hours so ingest-fallback leftovers do not wait for the nightly pass.
+4. When `DAILY_ARCHIVE_PRUNE=1`, delete leftover Postgres `daily_observations` whose day already exists in R2 at equal-or-better provenance (USGS leftovers stay until R2 has `s: "usgs"`; derived leftovers may drain against any archived copy). Export deletes rows immediately after a successful shuttle; `DailyArchiveDrainJob` repeats the already-in-R2 delete every 6 hours so ingest-fallback leftovers do not wait for the nightly pass.
 5. After a large delete (or when `pg_stat_user_tables.n_dead_tup` is already high), `VACUUM (ANALYZE)` the observation table(s) so Postgres reclaims space and refreshes planner stats instead of waiting on autovacuum.
 
 UI copy for derived points: **Estimated** (chart footnote + history-table status). Not conflated with Provisional.

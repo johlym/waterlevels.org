@@ -46,6 +46,42 @@ module DailyArchive
       assert_nil DailyObservation.find_by(time_series_id: @series.id, observed_on: @day)
     end
 
+    test "keeps official USGS leftover when the archive only has a derived mean" do
+      ENV["DAILY_ARCHIVE_PRUNE"] = "1"
+      AppConfig.bust!
+      DailyObservation.create!(time_series: @series, observed_on: @day, value: 12.0)
+      Writer.new(store: @store).upsert(
+        time_series_id: @series.id,
+        points: [ { "d" => @day.iso8601, "v" => 8.0, "s" => "derived" } ]
+      )
+
+      result = Drain.new(store: @store).perform
+      assert_equal 0, result[:deleted]
+      assert_equal 1, result[:blocked]
+      leftover = DailyObservation.find_by!(time_series_id: @series.id, observed_on: @day)
+      assert_in_delta 12.0, leftover.value, 0.01
+    end
+
+    test "deletes derived leftover when the archive already has that day" do
+      ENV["DAILY_ARCHIVE_PRUNE"] = "1"
+      AppConfig.bust!
+      DailyObservation.create!(
+        time_series: @series,
+        observed_on: @day,
+        value: 8.0,
+        qualifier: "derived_continuous"
+      )
+      Writer.new(store: @store).upsert(
+        time_series_id: @series.id,
+        points: [ { "d" => @day.iso8601, "v" => 8.0, "s" => "derived" } ]
+      )
+
+      result = Drain.new(store: @store).perform
+      assert_equal 1, result[:deleted]
+      assert_equal 0, result[:blocked]
+      assert_nil DailyObservation.find_by(time_series_id: @series.id, observed_on: @day)
+    end
+
     test "counts days still only in postgres as blocked" do
       ENV["DAILY_ARCHIVE_PRUNE"] = "1"
       AppConfig.bust!
