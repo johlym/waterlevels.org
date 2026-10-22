@@ -30,8 +30,8 @@ Related: [`postgres-r2-daily-archive.md`](./postgres-r2-daily-archive.md) (curre
 | Continuous retention | `CONTINUOUS_RETENTION = 90.days` |
 | Year-ready signal | Daily point at/older than `DAILY_HISTORY_ANCHOR` (11 months) |
 | Chart ranges | `24h` / `7d` / `30d` / `1y` (`HydrographSeries`) |
-| Batch schedule | `HistoryBackfillBatchJob` Mon–Sat hourly `:30`, default `HISTORY_BACKFILL_BATCH=40` |
-| Lazy enqueue | `GaugesController#show` → `HistoryBackfillJob` when `needs_history_backfill?` |
+| Batch schedule | `HistoryBackfillBatchJob` Mon–Sat every **10 minutes** (`5-59/10 * * * 1-6`), default `HISTORY_BACKFILL_BATCH=50` |
+| Lazy enqueue | `GaugesController#show` → `HistoryBackfillJob` when `needs_history_backfill?` (no `usgs?` guard on this path) |
 | Prune | `ContinuousPruneJob` deletes daily older than `DAILY_RETENTION` |
 | Budget guards | Sunday pause, `Usgs::RateLimitCircuit` on 429, no 429 retries, `USGS_REQUEST_PAUSE_MS`, per-station lock + 6h cooldown |
 
