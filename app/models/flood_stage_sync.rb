@@ -342,6 +342,7 @@ class FloodStageSync
     matched = 0
     unmatched = 0
     skipped = 0
+    kept_after_miss = 0
     errors = 0
 
     due = detail_scope
@@ -365,10 +366,16 @@ class FloodStageSync
         "(#{matched + unmatched + errors + 1}/#{budget})"
       )
       begin
-        gauge = client.gauge(location.site_number)
+        gauge = client.gauge(detail_identifier(location))
         if gauge.present?
           apply_match!(location, gauge)
           matched += 1
+        elsif location.nwps_matched?
+          # 404 / blank detail must not tear down a working LID crosswalk.
+          # Hourly list refresh and stale-unseen expiry already handle gauges
+          # that left NWPS. Stamp synced_at so this row leaves the due set.
+          keep_match_after_detail_miss!(location)
+          kept_after_miss += 1
         else
           apply_miss!(location)
           unmatched += 1
@@ -381,7 +388,7 @@ class FloodStageSync
       progress&.increment
     end
 
-    skipped = [ due_count - matched - unmatched - errors, 0 ].max
+    skipped = [ due_count - matched - unmatched - errors - kept_after_miss, 0 ].max
     if skipped.positive?
       progress&.step("detail sync deferred=#{skipped} (budget); resumes next run")
     end
@@ -480,6 +487,17 @@ class FloodStageSync
       flood_category_observed_at: nil
     )
     StationSnapshotCache.warm(location)
+  end
+
+  # Prefer the LID we already crosswalked — alert matching stores it, and
+  # USGS site-number lookup 404s when NWPS only indexes the NWS identifier
+  # (or uses different zero-padding than our catalog).
+  def detail_identifier(location)
+    location.nwps_lid.presence || location.site_number
+  end
+
+  def keep_match_after_detail_miss!(location)
+    location.update_columns(nwps_synced_at: Time.current, updated_at: Time.current)
   end
 
   def category_from_status(status)
