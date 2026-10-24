@@ -2,6 +2,10 @@ require "test_helper"
 
 class CdecHistoryIngestionTest < ActiveSupport::TestCase
   setup do
+    # Daily timestamps are fixed in mid-September 2026. The 30-day hydrograph
+    # window is `30.days.ago`, so freeze the clock while those points are still inside it.
+    travel_to Time.zone.parse("2026-09-18 12:00:00 UTC")
+
     @entry = Cdec::ReservoirCatalog.find_by_site_number("cdecoro")
     @store = DailyArchive::MemoryStore.new
     DailyArchive.store = @store
@@ -24,6 +28,7 @@ class CdecHistoryIngestionTest < ActiveSupport::TestCase
   end
 
   teardown do
+    travel_back
     DailyArchive.reset_store!
     ENV.delete("DAILY_ARCHIVE_READS")
     ENV.delete("DAILY_ARCHIVE_DUAL_WRITE")
