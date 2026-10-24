@@ -28,7 +28,7 @@ These principles explain *why* the code is shaped the way it is. New work should
 
 ## 3. Technology stack
 
-- **Runtime:** Ruby 4.0.4, Rails 8.1, Puma.
+- **Runtime:** Ruby 4.0.9, Rails 8.1, Puma.
 - **Data:** PostgreSQL (no PostGIS — lat/lon B-tree indexes + haversine precompute), Redis (cache store, Sidekiq broker, locks, circuit breaker).
 - **Background:** Sidekiq 8 + sidekiq-scheduler.
 - **View layer:** ViewComponent (sidecar), Propshaft, Hotwired Turbo + Stimulus.

@@ -2,10 +2,10 @@
 
 ## Cursor Cloud specific instructions
 
-WaterLevels.org is a single Rails 8.1 / Ruby 4.0.7 app (USGS water-monitoring map). See `README.md` for the full stack and the canonical setup/run/test commands; this section only records non-obvious cloud-environment caveats.
+WaterLevels.org is a single Rails 8.1 / Ruby 4.0.9 app (USGS water-monitoring map). See `README.md` for the full stack and the canonical setup/run/test commands; this section only records non-obvious cloud-environment caveats.
 
 ### Toolchain
-- Ruby 4.0.7 is pinned by `.ruby-version` / `mise.toml` and managed by `mise`. Interactive shells activate it via `~/.bashrc` (`eval "$(mise activate bash)"`). Non-interactive shells need the same `eval` (or `export PATH="$HOME/.local/bin:$PATH"` then `eval "$(mise activate bash)"`). `ruby`, `bundle`, `rubocop`, `foreman`, `sidekiq` resolve through mise.
+- Ruby 4.0.9 is pinned by `.ruby-version` / `mise.toml` and managed by `mise`. Interactive shells activate it via `~/.bashrc` (`eval "$(mise activate bash)"`). Non-interactive shells need the same `eval` (or `export PATH="$HOME/.local/bin:$PATH"` then `eval "$(mise activate bash)"`). `ruby`, `bundle`, `rubocop`, `foreman`, `sidekiq` resolve through mise.
 - Node/Yarn come from `nvm` (Node 24, pinned by `.nvmrc`, which satisfies `bin/dev`'s Node 20+ requirement); `corepack enable` provides Yarn 1.22.x. `/exec-daemon/node` may still be Node 22 on PATH — run `nvm use` (or `bin/dev`, which does that) when you need Node 24.
 - The environment install script refreshes gems/JS deps, prepares the DBs, and runs `bin/rails archive:export_daily`, so those don't need reinstalling by hand on a fresh agent.
 
