@@ -10,32 +10,30 @@ module DailyArchive
     test "means continuous points in station-local midnight window" do
       zone = ActiveSupport::TimeZone["America/Los_Angeles"]
       day = Date.new(2026, 1, 15)
-      # 00:00 and 12:00 local on that day
-      ContinuousObservation.create!(
-        time_series: @series,
-        observed_at: zone.local(2026, 1, 15, 0, 0, 0),
-        value: 10.0
-      )
-      ContinuousObservation.create!(
-        time_series: @series,
-        observed_at: zone.local(2026, 1, 15, 12, 0, 0),
-        value: 20.0
-      )
-      # Outside local day (previous evening local)
-      ContinuousObservation.create!(
-        time_series: @series,
-        observed_at: zone.local(2026, 1, 14, 23, 0, 0),
-        value: 999.0
-      )
-
-      # Force coverage gate by adding enough filler points at 15-min cadence
+      noon = zone.local(2026, 1, 15, 12, 0, 0)
+      now = Time.current
+      rows = [
+        { observed_at: zone.local(2026, 1, 15, 0, 0, 0), value: 10.0 },
+        { observed_at: noon, value: 20.0 },
+        # Outside local day (previous evening local)
+        { observed_at: zone.local(2026, 1, 14, 23, 0, 0), value: 999.0 }
+      ]
+      # Force coverage gate by adding filler points at 15-min cadence.
+      # Noon is already present, so skip that slot.
       t = zone.local(2026, 1, 15, 0, 15, 0)
       while t < zone.local(2026, 1, 16, 0, 0, 0)
-        ContinuousObservation.find_or_create_by!(time_series: @series, observed_at: t) do |row|
-          row.value = 15.0
-        end
+        rows << { observed_at: t, value: 15.0 } unless t == noon
         t += 15.minutes
       end
+      ContinuousObservation.insert_all(rows.map { |row|
+        {
+          time_series_id: @series.id,
+          observed_at: row[:observed_at],
+          value: row[:value],
+          created_at: now,
+          updated_at: now
+        }
+      })
 
       point = UsgsLikeDailyMean.new(time_series: @series, day: day).compute
       assert_not_nil point

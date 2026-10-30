@@ -72,11 +72,24 @@ module DailyArchive
       AppConfig.bust!
       other = create(:time_series)
       first, second = [ @series, other ].sort_by(&:id)
-      [ first, second ].each do |series|
-        DailyObservation.create!(time_series: series, observed_on: @day, value: 3.0)
-        Writer.new(store: @store).upsert(
+      now = Time.current
+      DailyObservation.insert_all([ first, second ].map { |series|
+        {
           time_series_id: series.id,
-          points: [ { "d" => @day.iso8601, "v" => 3.0, "s" => "usgs" } ]
+          observed_on: @day,
+          value: 3.0,
+          created_at: now,
+          updated_at: now
+        }
+      })
+      writer = Writer.new(store: @store)
+      writer.preload_series!([ first, second ])
+      writer.preload_shards!([ first.id, second.id ])
+      [ first, second ].each do |series|
+        writer.upsert(
+          time_series_id: series.id,
+          points: [ { "d" => @day.iso8601, "v" => 3.0, "s" => "usgs" } ],
+          series: series
         )
       end
 

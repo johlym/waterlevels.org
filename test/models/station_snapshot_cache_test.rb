@@ -263,6 +263,36 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
     AppConfig.bust!(:daily_archive_reads)
   end
 
+  test "archive reads warm several series from one shard-year lookup" do
+    store = DailyArchive::MemoryStore.new
+    previous_store = DailyArchive.instance_variable_get(:@store)
+    previous_reads = ENV["DAILY_ARCHIVE_READS"]
+    DailyArchive.store = store
+    ENV["DAILY_ARCHIVE_READS"] = "1"
+    AppConfig.bust!(:daily_archive_reads)
+
+    observed_at = Time.utc(2026, 8, 4, 18, 0, 0)
+    location = create(:monitoring_location, latest_observed_at: observed_at)
+    writer = DailyArchive::Writer.new(store: store)
+    seed_archived_measurement(location, writer, observed_at, code: "00065", kind: "water_level", unit: "ft", value: 10.0)
+    seed_archived_measurement(location, writer, observed_at, code: "00060", kind: "discharge", unit: "ft3/s", value: 11.0)
+    seed_archived_measurement(location, writer, observed_at, code: "00010", kind: "temperature", unit: "degC", value: 12.0)
+
+    payload = StationSnapshotCache.warm(location.reload)
+    measurements = payload[:measurements].sort_by { |row| row[:value] }
+    assert_equal [ 10.0, 11.0, 12.0 ], measurements.map { |row| row[:value] }
+    assert_equal [ 8.0, 8.0, 8.0 ], measurements.map { |row| row.dig(:trends, :yoy) }
+    assert_equal [ 1.0, 2.0, 3.0 ], measurements.map { |row| row.dig(:extremes, :low, :value) }
+  ensure
+    DailyArchive.store = previous_store
+    if previous_reads.nil?
+      ENV.delete("DAILY_ARCHIVE_READS")
+    else
+      ENV["DAILY_ARCHIVE_READS"] = previous_reads
+    end
+    AppConfig.bust!(:daily_archive_reads)
+  end
+
   test "nearby payload includes all available measurements for a neighbor" do
     origin = create(:monitoring_location, site_number: "00000001", provider_location_id: "USGS-00000001")
     neighbor = create(
@@ -412,5 +442,30 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
     assert_equal [ "00000042" ], payload[:nearby].map { |row| row[:site_number] }
     assert_empty payload[:network][:upstream]
     assert_equal [ "00000045" ], payload[:network][:downstream].map { |row| row[:site_number] }
+  end
+
+  def seed_archived_measurement(location, writer, observed_at, code:, kind:, unit:, value:)
+    series = create(
+      :time_series,
+      monitoring_location: location,
+      parameter_code: code,
+      measurement_kind: kind,
+      unit_of_measure: unit,
+      selected_for_display: true
+    )
+    LatestObservation.create!(
+      time_series: series,
+      value: value,
+      unit_of_measure: unit,
+      observed_at: observed_at,
+      synced_at: Time.current
+    )
+    writer.upsert(
+      time_series_id: series.id,
+      points: [
+        { "d" => 20.days.ago.to_date.iso8601, "v" => value - 9.0, "s" => "usgs" },
+        { "d" => (observed_at.to_date - 1.year).iso8601, "v" => value - 8.0, "s" => "usgs" }
+      ]
+    )
   end
 end

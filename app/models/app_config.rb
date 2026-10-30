@@ -1,3 +1,5 @@
+require "monitor"
+
 # Runtime reader for admin-tunable settings.
 # Resolution: DB override → ENV (when the setting declares env:) → code default.
 class AppConfig
@@ -52,6 +54,7 @@ class AppConfig
     end
 
     def bust!(key = nil)
+      @overrides_cache = nil
       if key
         Rails.cache.delete(cache_key(key))
       else
@@ -94,10 +97,34 @@ class AppConfig
     end
 
     def override_raw(key)
-      AppSetting.find_by(key: key.to_s)&.value
+      overrides_map[key.to_s]
+    end
+
+    # One read of every override, shared for CACHE_TTL. Per-key find_by made a
+    # dashboard or job that touched several settings look like an N+1, and the
+    # test null_store cannot absorb those reads.
+    def overrides_map
+      now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      cached = @overrides_cache
+      return cached[:rows] if cached && now < cached[:expires_at]
+
+      overrides_mutex.synchronize do
+        now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        cached = @overrides_cache
+        return cached[:rows] if cached && now < cached[:expires_at]
+
+        rows = AppSetting.pluck(:key, :value).to_h
+        @overrides_cache = { rows: rows, expires_at: now + CACHE_TTL.to_f }
+        rows
+      end
     rescue ActiveRecord::StatementInvalid, ActiveRecord::ConnectionNotEstablished
       # Boot / migrate before the table exists.
-      nil
+      {}
+    end
+
+    def overrides_mutex
+      # Reentrant: a coverage flush can read AppConfig while this cache is loading.
+      @overrides_mutex ||= Monitor.new
     end
 
     def env_raw(definition)

@@ -112,7 +112,9 @@ class StationCatalogSync
     StateListingCache.warm_all
     AlertsListingCache.warm
     progress&.step("warming station snapshots")
-    location_scope.find_each { |location| StationSnapshotCache.warm(location) }
+    location_scope.find_in_batches(batch_size: 100) do |locations|
+      StationSnapshotCache.warm_many(locations)
+    end
     progress&.step("purging edge cache tags")
     EdgeCacheInvalidation.after_catalog_sync!(state: state)
     location_count = location_scope.count
@@ -426,7 +428,7 @@ class StationCatalogSync
     kept = 0
     scope.find_each do |location|
       DisplaySeriesSelection.apply!(location)
-      kept += 1 if location.time_series.selected.exists?
+      kept += 1 if location.time_series.any?(&:selected_for_display?)
       progress&.increment
     end
 

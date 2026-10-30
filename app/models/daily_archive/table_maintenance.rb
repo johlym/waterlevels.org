@@ -35,25 +35,32 @@ module DailyArchive
 
       def tables_to_vacuum(daily_deleted: 0, continuous_deleted: 0, dead_tuples: nil)
         threshold = min_deleted
+        counts = dead_tuples || dead_tuple_counts
         [
           [ TABLES[:daily], daily_deleted ],
           [ TABLES[:continuous], continuous_deleted ]
         ].filter_map do |name, deleted|
-          dead = if dead_tuples
-            dead_tuples[name].to_i
-          else
-            dead_tuple_count(name)
-          end
-          name if needs_vacuum?(deleted.to_i, dead, threshold)
+          name if needs_vacuum?(deleted.to_i, counts[name].to_i, threshold)
         end
       end
 
-      def dead_tuple_count(table_name)
-        connection.select_value(
-          "SELECT n_dead_tup FROM pg_stat_user_tables WHERE relname = #{connection.quote(table_name)}"
-        ).to_i
+      def dead_tuple_counts
+        names = TABLES.values
+        rows = connection.select_rows(
+          ActiveRecord::Base.sanitize_sql_array([
+            "SELECT relname, n_dead_tup FROM pg_stat_user_tables WHERE relname IN (?)",
+            names
+          ])
+        )
+        counts = names.index_with(0)
+        rows.each { |relname, dead| counts[relname] = dead.to_i if counts.key?(relname) }
+        counts
       rescue ActiveRecord::StatementInvalid
-        0
+        TABLES.values.index_with(0)
+      end
+
+      def dead_tuple_count(table_name)
+        dead_tuple_counts[table_name].to_i
       end
 
       def vacuum!(tables, progress: nil, force: false)

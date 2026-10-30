@@ -33,15 +33,26 @@ class StationSnapshotCache
     payload.with_indifferent_access
   end
 
+  def self.warm_many(locations)
+    list = Array(locations)
+    return [] if list.empty?
+
+    preload_snapshot_series!(list)
+    list.map { |location| warm(location) }
+  end
+
   def self.warm_stale_batch(limit: nil)
     warmed = 0
-    MonitoringLocation.includes(:time_series).find_each do |location|
-      cached = read(location)
-      next unless cached.nil? || stale_snapshot?(cached, location)
+    MonitoringLocation.find_in_batches(batch_size: 100) do |locations|
+      preload_snapshot_series!(locations)
+      locations.each do |location|
+        cached = read(location)
+        next unless cached.nil? || stale_snapshot?(cached, location)
 
-      warm(location)
-      warmed += 1
-      break if limit&.positive? && warmed >= limit
+        warm(location)
+        warmed += 1
+        return warmed if limit&.positive? && warmed >= limit
+      end
     end
     warmed
   end
@@ -71,8 +82,8 @@ class StationSnapshotCache
   # "last updated" timestamp.
   def self.stale_snapshot?(cached, location)
     measurements = Array(cached[:measurements])
-    selected = location.time_series.selected
-    selected_count = selected.count
+    selected = selected_series(location, associations: [ :latest_observation ])
+    selected_count = selected.size
     return true if selected_count.positive? && measurements.size < selected_count
     # Deselected params (discontinued tip) must drop off cards/table columns.
     return true if measurements.size > selected_count
@@ -111,14 +122,16 @@ class StationSnapshotCache
   private_class_method :stale_snapshot?, :network_mismatch?, :live_neighbor_ids
 
   def self.build_payload(location)
-    selected = location.time_series.selected
-      .includes(:latest_observation, :peak_observations, :daily_observations)
-      .to_a
-      .sort_by { |s| [ kind_order(s.measurement_kind), ParameterLabels.preference_rank(s.parameter_code) ] }
+    selected = selected_series(
+      location,
+      associations: [ :latest_observation, :peak_observations, :daily_observations ]
+    ).sort_by { |s| [ kind_order(s.measurement_kind), ParameterLabels.preference_rank(s.parameter_code) ] }
 
     prior_24h_by_series_id = TrendComparison.prior_24h_continuous_by_series(selected)
-    measurements = selected.filter_map do |series|
-      measurement_payload(series, prior_continuous: prior_24h_by_series_id[series.id])
+    measurements = with_archive_shard_years(selected) do
+      selected.filter_map do |series|
+        measurement_payload(series, prior_continuous: prior_24h_by_series_id[series.id])
+      end
     end
     measurements = denormalized_measurements(location) if measurements.empty?
 
@@ -191,14 +204,59 @@ class StationSnapshotCache
   end
   private_class_method :latest_observed_at_for
 
-  def self.newest_collected_at(location)
-    selected_ids = location.time_series.selected.select(:id)
-    [
-      LatestObservation.where(time_series_id: selected_ids).maximum(:observed_at),
-      location.latest_observed_at
-    ].compact.max
+  def self.newest_collected_at(location, selected = nil)
+    selected ||= selected_series(location, associations: [ :latest_observation ])
+    from_series = selected.filter_map { |series| series.latest_observation&.observed_at }.max
+    [ from_series, location.latest_observed_at ].compact.max
   end
   private_class_method :newest_collected_at
+
+  def self.preload_snapshot_series!(locations)
+    ActiveRecord::Associations::Preloader.new(
+      records: locations,
+      associations: { time_series: [ :latest_observation, :peak_observations, :daily_observations ] }
+    ).call
+  end
+  private_class_method :preload_snapshot_series!
+
+  def self.selected_series(location, associations:)
+    assoc = location.association(:time_series)
+    rows = if assoc.loaded?
+      assoc.target.select(&:selected_for_display?)
+    else
+      loaded = location.time_series.includes(:latest_observation).to_a
+      assoc.target = loaded
+      assoc.loaded!
+      loaded.select(&:selected_for_display?)
+    end
+    missing = rows.reject { |row| associations.all? { |name| row.association(name).loaded? } }
+    if missing.any?
+      ActiveRecord::Associations::Preloader.new(records: missing, associations: associations).call
+    end
+    rows
+  end
+  private_class_method :selected_series
+
+  # YoY looks up one day a year ago; extremes read the trailing year. Both go
+  # through Reader#points_for, which otherwise plucks shard years per series.
+  def self.with_archive_shard_years(selected)
+    return yield unless DailyArchive.reads_enabled?
+    return yield if selected.empty?
+
+    DailyArchive::Reader.with_shard_years(selected.map(&:id), years: archive_read_years(selected)) { yield }
+  end
+
+  def self.archive_read_years(selected)
+    span = (1.year.ago.to_date.year..Date.current.year).to_a
+    yoy = selected.filter_map do |series|
+      observed_at = series.latest_observation&.observed_at
+      next if observed_at.blank?
+
+      (observed_at.to_date - 1.year).year
+    end
+    (span + yoy).uniq
+  end
+  private_class_method :with_archive_shard_years, :archive_read_years
 
   def self.coerce_time(value)
     case value

@@ -15,8 +15,8 @@ Rails.application.config.after_initialize do
     Prosopite.github_annotations = ENV["GITHUB_ACTIONS"].present?
     # Factory inserts repeat by design and only set the test up.
     Prosopite.pause_during("factory_bot.run_factory")
-    # Existing N+1s are listed here so new ones still fail the suite.
-    # Rebuild the list with PROSOPITE_RECORD_TODO=1 bin/rails test
+    # Optional allowlist. Missing or empty means every repeated query fails.
+    # Rebuild with PROSOPITE_RECORD_TODO=1 bin/rails test
     Prosopite.todo_file = Rails.root.join(".prosopite_todo.yml")
     Prosopite.record_todo = ENV["PROSOPITE_RECORD_TODO"].present?
   end

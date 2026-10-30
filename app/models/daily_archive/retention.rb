@@ -237,13 +237,22 @@ module DailyArchive
       end
 
       usgs_by_day = fetch_usgs_dailies_for_days!(series, missing_days)
+      means = if missing_days.any?
+        UsgsLikeDailyMean.means_for(
+          time_series: series,
+          days: missing_days,
+          location: series.monitoring_location
+        )
+      else
+        {}
+      end
       missing_days.each do |day|
         if (point = usgs_by_day[day])
           pending << { point: point, kind: :usgs }
           next
         end
 
-        point = UsgsLikeDailyMean.new(time_series: series, day: day).compute
+        point = means[day]
         if point
           pending << { point: point, kind: :derived }
         else
@@ -387,6 +396,7 @@ module DailyArchive
       )
 
       processed = 0
+      refresh_ids = []
       scope = @checkpoint.series_scope(
         TimeSeries.where(id: series_ids).includes(:monitoring_location)
       )
@@ -407,8 +417,9 @@ module DailyArchive
         end
         deleted += series_deleted
         blocked += series_blocked
-        # Prune removes aged IV (near the 32d anchor) — refresh tip/prev/anchor denorm.
-        TimeSeries.refresh_continuous_coverage!([ series.id ], as_of: @as_of) if series_deleted.positive?
+        # Prune removes aged IV (near the 32d anchor) — refresh tip/prev/anchor denorm
+        # once for the whole pass, not once per series.
+        refresh_ids << series.id if series_deleted.positive?
         @checkpoint.mark_series!(
           series.id,
           iv_deleted: series_deleted,
@@ -423,6 +434,8 @@ module DailyArchive
           )
         end
       end
+
+      TimeSeries.refresh_continuous_coverage!(refresh_ids, as_of: @as_of) if refresh_ids.any?
 
       gaps_alerted = @gap_days.size
       @checkpoint.complete_phase!(

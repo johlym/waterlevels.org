@@ -38,20 +38,35 @@ module DailyArchive
       drain = Drain.new(store: @store, progress: @progress)
 
       scope.find_in_batches(batch_size: @batch_size) do |batch|
+        observation_scope = DailyObservation.where(time_series_id: batch.map(&:id))
+        observation_scope = observation_scope.where("observed_on < ?", Date.current) if only_cold
+        grouped = observation_scope.order(:time_series_id, :observed_on)
+          .pluck(:time_series_id, :observed_on, :value, :approval_status)
+          .group_by(&:first)
+        @writer.preload_series!(batch)
+        @writer.preload_shards!(batch.map(&:id))
+
         batch.each do |series|
-          relation = series.daily_observations.order(:observed_on)
-          # only_cold: settled calendar days (legacy leftover drain), not "today".
-          relation = relation.where("observed_on < ?", Date.current) if only_cold
-          unless relation.exists?
+          rows = grouped[series.id]
+          unless rows
             checkpoint.mark_series!(series.id, exported_points: 0, exported_series: 0)
             next
           end
 
+          relation = series.daily_observations.order(:observed_on)
+          # only_cold: settled calendar days (legacy leftover drain), not "today".
+          relation = relation.where("observed_on < ?", Date.current) if only_cold
+
           begin
-            count = @writer.upsert_from_daily_observations(
-              time_series_id: series.id,
-              relation: relation
-            )
+            points = rows.map do |_id, day, value, approval|
+              {
+                "d" => day.iso8601,
+                "v" => value.to_f,
+                "s" => DailyArchive::SOURCE_USGS,
+                "a" => approval
+              }
+            end
+            count = @writer.upsert(time_series_id: series.id, points: points, series: series)
           rescue Writer::LockBusyError => e
             # Leave the cursor before this series so a retry re-attempts it.
             @progress&.step("series=#{series.id} lock busy: #{e.message}")

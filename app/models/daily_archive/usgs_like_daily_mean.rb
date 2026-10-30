@@ -9,24 +9,31 @@ module DailyArchive
     end
 
     def compute
-      zone = Usgs::TimeZones.resolve(@location.time_zone, state_code: @location.state_code)
-      return nil if zone.blank?
+      self.class.means_for(time_series: @time_series, days: [ @day ], location: @location)[@day]
+    end
 
-      starts = zone.local(@day.year, @day.month, @day.day).beginning_of_day
-      ends = starts + 1.day
-      values = @time_series.continuous_observations
-        .where(observed_at: starts...ends)
-        .pluck(:value)
-        .map(&:to_f)
-      return nil if values.empty?
-      return nil unless adequate_coverage?(values, starts, ends)
+    # One continuous read for every requested local day on this series.
+    def self.means_for(time_series:, days:, location: nil)
+      days = Array(days).map(&:to_date).uniq.sort
+      return {} if days.empty?
 
-      mean = values.sum / values.size
-      {
-        "d" => @day.iso8601,
-        "v" => mean.round(6),
-        "s" => DailyArchive::SOURCE_DERIVED
-      }
+      location ||= time_series.monitoring_location
+      zone = Usgs::TimeZones.resolve(location.time_zone, state_code: location.state_code)
+      return {} if zone.blank?
+
+      range_start = zone.local(days.first.year, days.first.month, days.first.day).beginning_of_day
+      range_end = zone.local(days.last.year, days.last.month, days.last.day).beginning_of_day + 1.day
+      wanted = days.to_set
+      buckets = Hash.new { |hash, key| hash[key] = [] }
+      time_series.continuous_observations
+        .where(observed_at: range_start...range_end)
+        .pluck(:observed_at, :value)
+        .each do |observed_at, value|
+          day = observed_at.in_time_zone(zone).to_date
+          buckets[day] << value.to_f if wanted.include?(day)
+        end
+
+      days.index_with { |day| point_for(day, buckets[day], zone) }
     end
 
     def self.rollup_day_for(location, as_of: Time.current)
@@ -37,7 +44,21 @@ module DailyArchive
 
     private
 
-    def adequate_coverage?(values, starts, ends)
+    def self.point_for(day, values, zone)
+      return nil if values.blank?
+
+      starts = zone.local(day.year, day.month, day.day).beginning_of_day
+      ends = starts + 1.day
+      return nil unless adequate_coverage?(values, starts, ends)
+
+      {
+        "d" => day.iso8601,
+        "v" => (values.sum / values.size).round(6),
+        "s" => DailyArchive::SOURCE_DERIVED
+      }
+    end
+
+    def self.adequate_coverage?(values, starts, ends)
       # Infer cadence from first/last spacing when possible; else assume 15 minutes.
       expected_slot = 15.minutes
       span = ends - starts

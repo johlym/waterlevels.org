@@ -50,11 +50,28 @@ class StateListingCache
   end
 
   def self.warm(state_code)
-    rows = MonitoringLocation.in_state(state_code).ordered_for_state_table.map { |loc| serialize_location(loc) }
-    state_name = MonitoringLocation.in_state(state_code).limit(1).pick(:state_name)
+    warm_states([ state_code ]).first
+  end
+
+  # One read for every requested state. warm_all and multi-entry provider syncs
+  # used to repeat the listing query and a state_name lookup per code.
+  def self.warm_states(state_codes)
+    codes = Array(state_codes).compact.map { |code| code.to_s.downcase }.uniq
+    return [] if codes.empty?
+
+    grouped = MonitoringLocation.where(state_code: codes).ordered_for_state_table.group_by(&:state_code)
+    codes.map { |code| write_payload(code, Array(grouped[code])) }
+  end
+
+  def self.warm_all
+    warm_states(MonitoringLocation.distinct.pluck(:state_code))
+  end
+
+  def self.write_payload(state_code, locations)
+    rows = locations.map { |loc| serialize_location(loc) }
     payload = {
       state_code: state_code.to_s.downcase,
-      state_name: state_name,
+      state_name: locations.first&.state_name,
       locations: rows,
       total_count: rows.size,
       offline_count: rows.count { |row| row[:stale] },
@@ -63,10 +80,7 @@ class StateListingCache
     Rails.cache.write(key_for(state_code), payload, expires_in: TTL)
     payload
   end
-
-  def self.warm_all
-    MonitoringLocation.distinct.pluck(:state_code).each { |code| warm(code) }
-  end
+  private_class_method :write_payload
 
   def self.fetch(state_code)
     cached = read(state_code)

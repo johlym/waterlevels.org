@@ -12,6 +12,9 @@ class ContinuousObservation < ApplicationRecord
   private
 
   def refresh_time_series_coverage
-    TimeSeries.refresh_continuous_coverage!([ time_series_id ])
+    # Coalesce a loop of creates into one coverage UPDATE. The flush runs
+    # before the next statement that is not itself a continuous_observations
+    # read/write, and again at the end of the request or example.
+    TimeSeries.enqueue_coverage_refresh!(time_series_id)
   end
 end

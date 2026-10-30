@@ -316,10 +316,17 @@ class FloodStageSync
     raw = usgs_id.to_s.strip
     return if raw.blank?
 
-    candidates = site_number_candidates(raw)
-    # Point lookup — avoid loading the whole active catalog into memory on the
-    # 512MB sync dyno (national index_by was a silent stall / GC thrash risk).
-    sync_scope.find_by(site_number: candidates)
+    # One state-scoped load. A national index stalled the 512MB sync dyno;
+    # repeating find_by per alert LID was an N+1 inside that state.
+    site_number_candidates(raw).each do |candidate|
+      location = locations_by_site_number[candidate]
+      return location if location
+    end
+    nil
+  end
+
+  def locations_by_site_number
+    @locations_by_site_number ||= sync_scope.index_by(&:site_number)
   end
 
   def site_number_candidates(raw)
@@ -357,7 +364,7 @@ class FloodStageSync
 
     # limit + each (not find_each): find_each ignores order/limit, and the
     # budget is small enough to load in one pass.
-    due.limit(budget).each do |location|
+    due.limit(budget).preload(time_series: [ :latest_observation, :peak_observations, :daily_observations ]).each do |location|
       break unless consume_detail_request!
 
       progress&.step(

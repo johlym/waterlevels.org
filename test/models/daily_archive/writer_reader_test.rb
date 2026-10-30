@@ -98,5 +98,61 @@ module DailyArchive
       assert_operator sleeps.size, :>=, 1
       assert_nil DailyArchiveShard.find_by(time_series_id: @series.id, year: 2003)
     end
+
+    test "with_shard_years reads every series from one shard lookup" do
+      second = create(:time_series)
+      third = create(:time_series)
+      writer = Writer.new(store: @store)
+      write_june_point(writer, @series, 1.0)
+      write_june_point(writer, second, 2.0)
+      write_june_point(writer, third, 3.0)
+
+      reader = Reader.new(store: @store)
+      shard_sql = []
+      callback = lambda do |_name, _start, _finish, _id, payload|
+        sql = payload[:sql].to_s
+        shard_sql << sql if sql.include?("daily_archive_shards")
+      end
+      points = {}
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        Reader.with_shard_years([ @series.id, second.id, third.id ], years: [ 2024 ]) do
+          [ @series, second, third ].each do |series|
+            points[series.id] = reader.points_for(
+              time_series_id: series.id,
+              start_on: Date.new(2024, 6, 1),
+              end_on: Date.new(2024, 6, 1)
+            )
+          end
+        end
+      end
+
+      assert_equal [ 1.0, 2.0, 3.0 ], [ @series, second, third ].map { |series| points[series.id].first[:v] }
+      assert_equal 1, shard_sql.size
+    end
+
+    test "points_for still queries a year the shard cache did not preload" do
+      Writer.new(store: @store).upsert(
+        time_series_id: @series.id,
+        points: [ { "d" => "2024-06-01", "v" => 7.5, "s" => "usgs" } ]
+      )
+      reader = Reader.new(store: @store)
+
+      points = Reader.with_shard_years([ @series.id ], years: [ 1999 ]) do
+        reader.points_for(
+          time_series_id: @series.id,
+          start_on: Date.new(2024, 6, 1),
+          end_on: Date.new(2024, 6, 1)
+        )
+      end
+
+      assert_equal 7.5, points.first[:v]
+    end
+
+    def write_june_point(writer, series, value)
+      writer.upsert(
+        time_series_id: series.id,
+        points: [ { "d" => "2024-06-01", "v" => value, "s" => "usgs" } ]
+      )
+    end
   end
 end

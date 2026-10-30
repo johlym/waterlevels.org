@@ -107,7 +107,9 @@ class HistoryIngestion
     ) do
       progress&.step("site=#{monitoring_location.site_number} range=#{range} mode=#{mode}")
       series_list = monitoring_location.time_series.selected.includes(:latest_observation).to_a
+      @series_list_by_id = series_list.index_by(&:id)
       progress&.step("selected_series=#{series_list.size}")
+      preload_series_reads!(series_list)
       clear_stale_usgs_daily_absent_flags!(series_list) unless iv_repair?
 
       active_series = series_list.select(&:eligible_for_recent_history_backfill?)
@@ -260,7 +262,11 @@ class HistoryIngestion
   def needs_peaks?(series)
     return false unless series.measurement_kind.in?(%w[water_level discharge])
 
-    series.peak_observations.none?
+    if series.instance_variable_defined?(:@has_peak_observation)
+      !series.instance_variable_get(:@has_peak_observation)
+    else
+      series.peak_observations.none?
+    end
   end
 
   def continuous_window_start
@@ -310,7 +316,7 @@ class HistoryIngestion
 
     # Leading hole: retention start → oldest local point (per-series MIN).
     # Tip-only archives (no ~32d anchor) still use this rather than tip→now.
-    oldest = series.continuous_observations.minimum(:observed_at)&.utc
+    oldest = series.continuous_oldest_at&.utc
     if oldest && oldest > window_start
       ranges << [ window_start, oldest ] if window_start < oldest
     end
@@ -327,10 +333,73 @@ class HistoryIngestion
   # [prev - overlap, next + overlap] for each consecutive pair spaced further
   # apart than continuous_gap_threshold inside the retention window.
   def continuous_interior_gap_ranges(series, window_start:, ends:)
-    times = series.continuous_observations
-      .where(observed_at: window_start..ends)
+    times = self.class.continuous_gap_times_for(series, window_start: window_start, ends: ends)
+    self.class.gap_ranges_from_times(times, window_start: window_start, ends: ends)
+  end
+
+  # Class helper for backfill eligibility / batch scopes.
+  def self.series_has_continuous_coverage_gap?(series, window_start: continuous_retention.ago, ends: Time.current.utc)
+    newest = series.continuous_newest_at
+    return true if newest.blank?
+    return true if newest < continuous_gap_threshold.before(ends)
+    return true unless series.has_continuous_anchor?
+
+    continuous_gap_times_for(series, window_start: window_start, ends: ends)
+      .then { |times| gap_ranges_from_times(times, window_start: window_start, ends: ends) }
+      .any?
+  end
+
+  def self.preload_continuous_gap_times!(series_list, window_start:, ends:)
+    series_list = Array(series_list).compact
+    return if series_list.empty?
+
+    pending = series_list.reject { |series| continuous_gap_window_matches?(series, window_start, ends) }
+    return if pending.empty?
+
+    ids = pending.map(&:id)
+    grouped = Hash.new { |hash, key| hash[key] = [] }
+    ContinuousObservation.where(time_series_id: ids, observed_at: window_start..ends)
       .order(:observed_at)
-      .pluck(:observed_at)
+      .pluck(:time_series_id, :observed_at)
+      .each { |id, observed_at| grouped[id] << observed_at }
+
+    stamp = [ window_start.to_i, ends.to_i ]
+    pending.each do |series|
+      series.instance_variable_set(:@continuous_gap_times, [ stamp, grouped[series.id] ])
+    end
+  end
+
+  def self.continuous_gap_times_for(series, window_start:, ends:)
+    if continuous_gap_window_matches?(series, window_start, ends)
+      series.preloaded_continuous_gap_times.last
+    else
+      series.continuous_observations
+        .where(observed_at: window_start..ends)
+        .order(:observed_at)
+        .pluck(:observed_at)
+    end
+  end
+
+  def self.continuous_gap_window_matches?(series, window_start, ends)
+    preloaded = series.preloaded_continuous_gap_times
+    return false unless preloaded
+
+    start_i, end_i = preloaded.first
+    (window_start.to_i - start_i).abs <= 2 && (ends.to_i - end_i).abs <= 2
+  end
+
+  def self.latest_continuous_rows(ids)
+    ids = Array(ids).map(&:to_i).uniq
+    return {} if ids.empty?
+
+    ContinuousObservation
+      .select("DISTINCT ON (continuous_observations.time_series_id) continuous_observations.*")
+      .where(time_series_id: ids)
+      .order(Arel.sql("continuous_observations.time_series_id, continuous_observations.observed_at DESC"))
+      .index_by(&:time_series_id)
+  end
+
+  def self.gap_ranges_from_times(times, window_start:, ends:)
     return [] if times.size < 2
 
     threshold = continuous_gap_threshold
@@ -344,22 +413,6 @@ class HistoryIngestion
       gaps << [ gap_start.utc, gap_end.utc ] if gap_start < gap_end
     end
     gaps
-  end
-
-  # Class helper for backfill eligibility / batch scopes.
-  def self.series_has_continuous_coverage_gap?(series, window_start: continuous_retention.ago, ends: Time.current.utc)
-    newest = series.continuous_newest_at
-    return true if newest.blank?
-    return true if newest < continuous_gap_threshold.before(ends)
-    return true unless series.has_continuous_anchor?
-
-    ingestion = new(monitoring_location: series.monitoring_location, range: DEFAULT_RANGE)
-    ingestion.send(
-      :continuous_interior_gap_ranges,
-      series,
-      window_start: window_start,
-      ends: ends
-    ).any?
   end
 
   # Anchored series with a stale tip or tip-vs-previous hollow middle. Matches
@@ -524,15 +577,22 @@ class HistoryIngestion
   end
 
   def advance_latest_tips!(series_list)
-    series_list.each do |series|
-      tip_at = series.continuous_newest_at || series.continuous_observations.maximum(:observed_at)
-      next if tip_at.blank?
+    needing = series_list.select do |series|
+      latest = series.latest_observation
+      newest = series.continuous_newest_at
+      newest.blank? || latest.nil? || latest.observed_at.to_i < newest.to_i
+    end
+    tips = self.class.latest_continuous_rows(needing.map(&:id))
+
+    needing.each do |series|
+      tip = tips[series.id]
+      next unless tip
+
+      tip_at = series.continuous_newest_at || tip.observed_at
+      next if series.continuous_newest_at.present? && tip.observed_at.to_i != series.continuous_newest_at.to_i
 
       latest = series.latest_observation
       next if latest && latest.observed_at.to_i >= tip_at.to_i
-
-      tip = series.continuous_observations.find_by(observed_at: tip_at)
-      next unless tip
       next if temperature_outlier?(series, tip.value)
 
       LatestObservation.upsert(
@@ -561,7 +621,17 @@ class HistoryIngestion
       TimeSeries.record_iv_scar_check!(attempted_series.map(&:id))
     end
     monitoring_location.time_series.reset
-    attempted_series.each(&:reload)
+    return if attempted_series.empty?
+
+    fresh = TimeSeries.where(id: attempted_series.map(&:id)).index_by(&:id)
+    attempted_series.each do |series|
+      row = fresh[series.id]
+      next unless row
+
+      series.assign_attributes(row.attributes.except("id"))
+      series.clear_changes_information
+      series.clear_daily_bounds!
+    end
   end
 
   def ingest_continuous_for(series_list)
@@ -677,6 +747,7 @@ class HistoryIngestion
         )
       end
       flush_continuous_buffer!(buffer)
+      TimeSeries.flush_coverage_refresh!
       Telemetry.add_attributes(
         "app.observation_count" => count,
         "app.circuit_key" => client.circuit_key
@@ -704,7 +775,7 @@ class HistoryIngestion
       unique_by: %i[time_series_id observed_at],
       update_only: %i[value approval_status qualifier]
     )
-    TimeSeries.refresh_continuous_coverage!(series_ids)
+    series_ids.each { |id| TimeSeries.enqueue_coverage_refresh!(id) }
     buffer.clear
   end
 
@@ -829,6 +900,8 @@ class HistoryIngestion
   def mark_usgs_daily_availability!(series_list, per_series_counts, rate_limited:)
     return if rate_limited
 
+    year_anchor = DAILY_HISTORY_ANCHOR.ago.to_date
+    pending = []
     series_list.each do |series|
       received = per_series_counts[series.id].to_i
       if received.positive?
@@ -841,9 +914,14 @@ class HistoryIngestion
 
       series.daily_archive_shards.reset
       series.association(:daily_observations).reset
+      series.clear_daily_bounds!
+      pending << series
+    end
+
+    TimeSeries.preload_daily_bounds!(pending)
+    pending.each do |series|
       # Only treat as IV-only when there is no ~1y daily at all. An empty deep
       # (3y) gap fetch must not brand a series that already has year DV as absent.
-      year_anchor = DAILY_HISTORY_ANCHOR.ago.to_date
       next if series.has_daily_on_or_before?(year_anchor)
       next if series.usgs_daily_absent?
       next unless series.recent_continuous_evidence?
@@ -857,7 +935,7 @@ class HistoryIngestion
   end
 
   def upsert_postgres_daily!(series, day, item)
-    DailyObservation.upsert(
+      DailyObservation.upsert(
       {
         time_series_id: series.id,
         observed_on: day,
@@ -869,14 +947,23 @@ class HistoryIngestion
       },
       unique_by: %i[time_series_id observed_on]
     )
+    series.clear_daily_bounds!
+    MonitoringLocation.invalidate_selected_series_cache!
   end
 
   def flush_daily_archive!(archive_buffer)
     return if archive_buffer.blank?
 
     writer = DailyArchive::Writer.new
+    ids = archive_buffer.keys
+    writer.preload_series!(series_list_by_id.values_at(*ids).compact)
+    writer.preload_shards!(ids)
     archive_buffer.each do |time_series_id, points|
-      writer.upsert(time_series_id: time_series_id, points: points)
+      writer.upsert(
+        time_series_id: time_series_id,
+        points: points,
+        series: series_list_by_id[time_series_id]
+      )
     end
   rescue Cloudflare::R2Client::Error => e
     Rails.logger.warn("[HistoryIngestion] daily archive write failed; falling back to Postgres: #{e.message}")
@@ -901,6 +988,24 @@ class HistoryIngestion
 
   def series_list_by_id
     @series_list_by_id ||= monitoring_location.time_series.selected.index_by(&:id)
+  end
+
+  def preload_series_reads!(series_list)
+    return if series_list.empty?
+
+    TimeSeries.preload_daily_bounds!(series_list)
+    ids = series_list.map(&:id)
+    present_peaks = PeakObservation.where(time_series_id: ids).distinct.pluck(:time_series_id).to_set
+    oldest = ContinuousObservation.where(time_series_id: ids).group(:time_series_id).minimum(:observed_at)
+    series_list.each do |series|
+      series.instance_variable_set(:@has_peak_observation, present_peaks.include?(series.id))
+      series.instance_variable_set(:@continuous_oldest_at, oldest[series.id])
+    end
+    self.class.preload_continuous_gap_times!(
+      series_list,
+      window_start: continuous_window_start,
+      ends: Time.current.utc
+    )
   end
 
   def ingest_peaks_for(series_list)

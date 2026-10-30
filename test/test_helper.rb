@@ -33,13 +33,16 @@ module ActiveSupport
       end
       AppSetting.delete_all if ActiveRecord::Base.connection.data_source_exists?("app_settings")
       AppConfig.bust!
+      AdminCounter.bust_request_cache!
     end
 
     # Registered after fixtures and the setup above, so each example is its own
-    # scan and fixture load stays outside it. Teardown runs in reverse, so this
-    # finish runs before the cleanup teardown above.
+    # scan and fixture load stays outside it. Teardown runs in reverse, so the
+    # coverage flush runs before Prosopite.finish, and finish runs before the
+    # cleanup teardown above.
     setup { Prosopite.scan("#{self.class}##{name}") }
     teardown { Prosopite.finish }
+    teardown { TimeSeries.flush_coverage_refresh! }
 
     # Rails.application.load_tasks re-loads every .rake file and appends another
     # action each call. A second invoke in the same process then runs the task
@@ -74,7 +77,13 @@ module ActiveSupport
       end
       ContinuousObservation.insert_all(rows) if rows.any?
       TimeSeries.refresh_continuous_coverage!([ series.id ])
-      series.reload
+      attrs = TimeSeries.coverage_attributes_for(series.id)
+      if attrs
+        series.assign_attributes(attrs)
+        series.clear_changes_information
+      else
+        series.reload
+      end
     end
   end
 end

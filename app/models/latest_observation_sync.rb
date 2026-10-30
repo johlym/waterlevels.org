@@ -11,12 +11,24 @@ class LatestObservationSync
     :id,
     :monitoring_location_id,
     :measurement_kind,
-    :unit_of_measure
+    :unit_of_measure,
+    :continuous_newest_at,
+    :has_continuous_anchor
   ) do
     def selected_for_display?
       true
     end
   end
+
+  SERIES_COLUMNS = %i[
+    provider_series_id
+    id
+    monitoring_location_id
+    measurement_kind
+    unit_of_measure
+    continuous_newest_at
+    has_continuous_anchor
+  ].freeze
 
   attr_accessor :client, :state, :progress
 
@@ -98,32 +110,36 @@ class LatestObservationSync
   end
 
   def sync_scoped!
-    @selected_series_by_usgs_id = build_selected_series_index
+    scope = TimeSeries.selected
+    if postal_code
+      scope = scope.joins(:monitoring_location).merge(MonitoringLocation.in_state(postal_code))
+    end
+    install_selected_series!(scope.pluck(*SERIES_COLUMNS))
     sync_parameters!
   ensure
-    @selected_series_by_usgs_id = nil
+    clear_selected_series!
   end
 
-  # Cap peak memory: one state's selected-series index + one parameter stream at
-  # a time, with incremental denormalize and GC between states.
+  # One pluck of selected-series tuples (not AR graphs), then one parameter
+  # stream per state. Denormalize runs once after every state, from perform_locked.
   def sync_national_by_state!
-    state_codes = MonitoringLocation.distinct.order(:state_code).pluck(:state_code)
+    grouped = national_selected_rows.group_by(&:last)
+    state_codes = grouped.keys.compact.sort
     progress&.step("national states=#{state_codes.size}")
 
     state_codes.each do |code|
       @state = code
       @postal_code = nil
       progress&.step("state=#{code}")
-      @selected_series_by_usgs_id = build_selected_series_index
+      install_selected_series!(grouped[code])
       sync_parameters!
-      denormalize_locations
-      @selected_series_by_usgs_id = nil
+      clear_selected_series!
       GC.start
     end
   ensure
     @state = nil
     @postal_code = nil
-    @selected_series_by_usgs_id = nil
+    clear_selected_series!
   end
 
   def sync_parameters!
@@ -133,21 +149,35 @@ class LatestObservationSync
     end
   end
 
-  def build_selected_series_index
-    scope = TimeSeries.selected
-    if postal_code
-      scope = scope.joins(:monitoring_location).merge(MonitoringLocation.in_state(postal_code))
-    end
+  def national_selected_rows
+    TimeSeries.selected.joins(:monitoring_location).pluck(
+      *SERIES_COLUMNS,
+      Arel.sql("monitoring_locations.state_code")
+    )
+  end
 
-    scope.pluck(
-      :provider_series_id,
-      :id,
-      :monitoring_location_id,
-      :measurement_kind,
-      :unit_of_measure
-    ).each_with_object({}) do |(usgs_id, id, location_id, kind, unit), memo|
-      memo[usgs_id.to_s] = SelectedSeries.new(id, location_id, kind, unit)
+  def install_selected_series!(rows)
+    by_usgs = {}
+    by_id = {}
+    Array(rows).each do |usgs_id, id, location_id, kind, unit, newest_at, anchored, *_rest|
+      series = SelectedSeries.new(
+        id: id,
+        monitoring_location_id: location_id,
+        measurement_kind: kind,
+        unit_of_measure: unit,
+        continuous_newest_at: newest_at,
+        has_continuous_anchor: anchored
+      )
+      by_usgs[usgs_id.to_s] = series
+      by_id[id] = series
     end
+    @selected_series_by_usgs_id = by_usgs
+    @selected_series_by_id = by_id
+  end
+
+  def clear_selected_series!
+    @selected_series_by_usgs_id = nil
+    @selected_series_by_id = nil
   end
 
   def record_tip_refresh_stats!
@@ -313,6 +343,7 @@ class LatestObservationSync
         hash[row[:time_series_id]] = row[:observed_at]
       }
       TimeSeries.advance_continuous_tips!(tips)
+      remember_advanced_tips!(tips)
       continuous_buffer.clear
     end
   end
@@ -324,11 +355,23 @@ class LatestObservationSync
     series_ids = continuous_rows.map { |row| row[:time_series_id] }.uniq
     return if series_ids.empty?
 
-    previous_by_id = TimeSeries.where(id: series_ids)
-      .pluck(:id, :monitoring_location_id, :continuous_newest_at, :has_continuous_anchor)
-      .each_with_object({}) { |(id, location_id, newest_at, anchored), memo|
-        memo[id] = [ location_id, newest_at, anchored ]
-      }
+    previous_by_id = {}
+    missing = []
+    series_ids.each do |id|
+      series = @selected_series_by_id&.[](id)
+      if series
+        previous_by_id[id] = [ series.monitoring_location_id, series.continuous_newest_at, series.has_continuous_anchor ]
+      else
+        missing << id
+      end
+    end
+    if missing.any?
+      TimeSeries.where(id: missing).pluck(
+        :id, :monitoring_location_id, :continuous_newest_at, :has_continuous_anchor
+      ).each do |id, location_id, newest_at, anchored|
+        previous_by_id[id] = [ location_id, newest_at, anchored ]
+      end
+    end
 
     threshold = HistoryIngestion.continuous_gap_threshold
     location_ids = Set.new
@@ -361,6 +404,18 @@ class LatestObservationSync
 
   def find_series(provider_series_id)
     @selected_series_by_usgs_id&.[](provider_series_id)
+  end
+
+  def remember_advanced_tips!(tips)
+    return if @selected_series_by_id.blank?
+
+    tips.each do |id, observed_at|
+      series = @selected_series_by_id[id.to_i]
+      next unless series
+      next if series.continuous_newest_at.present? && observed_at <= series.continuous_newest_at
+
+      @selected_series_by_id[series.id] = series.with(continuous_newest_at: observed_at)
+    end
   end
 
   def denormalize_locations

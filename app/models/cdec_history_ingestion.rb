@@ -52,11 +52,12 @@ class CdecHistoryIngestion
 
     total = 0
     cursor = start_on
+    writer = DailyArchive::Writer.new
     while cursor <= end_on
       chunk_end = [ cursor + DEFAULT_CHUNK_DAYS.days - 1.day, end_on ].min
       points = fetch_points(entry, after: cursor, before: chunk_end)
       if points.any?
-        written = DailyArchive::Writer.new.upsert(time_series_id: series.id, points: points)
+        written = writer.upsert(time_series_id: series.id, points: points, series: series)
         total += written
         progress&.step(
           "series=#{series.id} #{cursor}..#{chunk_end} points=#{points.size} written=#{written}"
