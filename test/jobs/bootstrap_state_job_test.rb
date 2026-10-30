@@ -4,7 +4,7 @@ class BootstrapStateJobTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
   test "enqueue_bootstrap rake task enqueues staggered state jobs" do
-    Rails.application.load_tasks
+    load_rake_tasks_once!
 
     task = Rake::Task["usgs:enqueue_bootstrap"]
     task.reenable
@@ -23,7 +23,7 @@ class BootstrapStateJobTest < ActiveSupport::TestCase
   end
 
   test "enqueue_sync rake task enqueues a flood stage job for STATE" do
-    Rails.application.load_tasks
+    load_rake_tasks_once!
 
     task = Rake::Task["nwps:enqueue_sync"]
     task.reenable
@@ -40,7 +40,7 @@ class BootstrapStateJobTest < ActiveSupport::TestCase
   end
 
   test "enqueue_sync without STATE enqueues the national paced flood job" do
-    Rails.application.load_tasks
+    load_rake_tasks_once!
 
     task = Rake::Task["nwps:enqueue_sync"]
     task.reenable

@@ -44,4 +44,15 @@ class ApplicationJob < ActiveJob::Base
     end
     raise
   end
+
+  # `bin/dev` runs jobs with the async adapter, on a thread the request scan
+  # does not cover. A nested Prosopite.finish would close a scan that is already
+  # open (a request, or a test), so only start one when nothing is scanning.
+  around_perform do |job, block|
+    if defined?(Prosopite) && Rails.env.development? && !Prosopite.scan?
+      Prosopite.scan(job.class.name) { block.call }
+    else
+      block.call
+    end
+  end
 end

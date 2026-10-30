@@ -40,6 +40,8 @@ group :development, :test do
   gem "rubocop-rails-omakase", require: false
   gem "factory_bot_rails"
   gem "webmock"
+  # N+1 detection. Development shows them on the page; tests raise.
+  gem "prosopite", "~> 2.5"
 end
 
 group :development do
