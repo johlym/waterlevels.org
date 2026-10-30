@@ -66,7 +66,7 @@ class DailyArchiveExportJobTest < ActiveSupport::TestCase
   test "archive:export_daily rake records admin last-done" do
     series = create(:time_series)
     DailyObservation.create!(time_series: series, observed_on: Date.current - 1, value: 1.5)
-    Rails.application.load_tasks
+    load_rake_tasks_once!
     task = Rake::Task["archive:export_daily"]
     task.reenable
 

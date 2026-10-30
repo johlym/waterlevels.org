@@ -3,6 +3,7 @@ require_relative "../config/environment"
 require "rails/test_help"
 require "rake"
 require "webmock/minitest"
+require "prosopite/minitest"
 Dir[Rails.root.join("test/support/**/*.rb")].each { |f| require f }
 
 module ActiveSupport
@@ -32,6 +33,27 @@ module ActiveSupport
       end
       AppSetting.delete_all if ActiveRecord::Base.connection.data_source_exists?("app_settings")
       AppConfig.bust!
+    end
+
+    # Registered after fixtures and the setup above, so each example is its own
+    # scan and fixture load stays outside it. Teardown runs in reverse, so this
+    # finish runs before the cleanup teardown above.
+    setup { Prosopite.scan("#{self.class}##{name}") }
+    teardown { Prosopite.finish }
+
+    # Rails.application.load_tasks re-loads every .rake file and appends another
+    # action each call. A second invoke in the same process then runs the task
+    # twice, which Prosopite reports as an N+1. The flag lives on this class,
+    # not the example's subclass, so every example in the process shares it.
+    def load_rake_tasks_once!
+      return if ActiveSupport::TestCase.rake_tasks_loaded
+
+      Rails.application.load_tasks
+      ActiveSupport::TestCase.rake_tasks_loaded = true
+    end
+
+    class << self
+      attr_accessor :rake_tasks_loaded
     end
 
     # Seed IV points dense enough that interior-gap repair won't re-fetch.
