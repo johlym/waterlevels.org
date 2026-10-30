@@ -48,7 +48,7 @@ group :development do
   gem "web-console"
 end
 
-gem "aws-sdk-s3", "~> 1.0"
+gem "aws-sdk-s3", "~> 1.233"
 gem "lograge", "~> 0.14"
 
 gem "meta-tags", ">= 2.1"
