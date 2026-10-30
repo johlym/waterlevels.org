@@ -2,7 +2,7 @@ source "https://rubygems.org"
 
 ruby File.read(".ruby-version").strip
 
-gem "rails", "~> 8.1.3", ">= 8.1.3.1"
+gem "rails", "~> 8.1.4"
 # json 3.0 made JSON.parse keywords-only.
 # ActiveSupport 8.1 still calls JSON.parse(json, options), which
 # cannot dump jsonb tables and then breaks db:test:prepare.
