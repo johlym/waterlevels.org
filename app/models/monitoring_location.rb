@@ -571,25 +571,29 @@ class MonitoringLocation < ApplicationRecord
     size = Integer(batch_size)
     raise ArgumentError, "continuous batch size must be positive" unless size.positive?
 
-    connection.execute(<<~SQL.squish)
-      DO $purge$
-      DECLARE
-        removed integer;
-      BEGIN
-        LOOP
-          DELETE FROM continuous_observations
-          WHERE id IN (
-            SELECT id FROM continuous_observations
-            WHERE time_series_id IN (#{ids.join(",")})
-            ORDER BY id
-            LIMIT #{size}
-          );
-          GET DIAGNOSTICS removed = ROW_COUNT;
-          EXIT WHEN removed = 0;
-        END LOOP;
-      END
-      $purge$;
-    SQL
+    connection.execute(sanitize_sql_array([
+      <<~SQL.squish,
+        DO $purge$
+        DECLARE
+          removed integer;
+        BEGIN
+          LOOP
+            DELETE FROM continuous_observations
+            WHERE id IN (
+              SELECT id FROM continuous_observations
+              WHERE time_series_id IN (?)
+              ORDER BY id
+              LIMIT ?
+            );
+            GET DIAGNOSTICS removed = ROW_COUNT;
+            EXIT WHEN removed = 0;
+          END LOOP;
+        END
+        $purge$;
+      SQL
+      ids,
+      size
+    ]))
   end
   private_class_method :purge_continuous_for_series!
 

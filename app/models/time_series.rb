@@ -137,57 +137,58 @@ class TimeSeries < ApplicationRecord
 
     consume_coverage_refresh!(ids)
 
-    anchor = connection.quote(HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.before(as_of))
-    window_start = connection.quote(HistoryIngestion.continuous_retention.before(as_of))
-    id_list = ids.join(",")
-    now = connection.quote(Time.current)
-    sql = <<~SQL.squish
-      UPDATE time_series AS ts
-      SET continuous_newest_at = s.newest,
-          continuous_prev_at = s.prev_at,
-          has_continuous_anchor = s.has_anchor,
-          continuous_max_gap_seconds = s.max_gap_seconds,
-          updated_at = #{now}
-      FROM (
-        SELECT ts2.id AS time_series_id,
-               tips.newest,
-               tips.prev_at,
-               tips.has_anchor,
-               COALESCE(gap.max_gap_seconds, 0) AS max_gap_seconds
-        FROM time_series ts2
-        LEFT JOIN LATERAL (
-          SELECT MAX(co.observed_at) AS newest,
-                 (
-                   ARRAY_AGG(co.observed_at ORDER BY co.observed_at DESC)
-                 )[2] AS prev_at,
-                 COALESCE(
-                   BOOL_OR(co.observed_at <= #{anchor}),
-                   FALSE
-                 ) AS has_anchor
-          FROM continuous_observations co
-          WHERE co.time_series_id = ts2.id
-        ) tips ON TRUE
-        LEFT JOIN LATERAL (
-          SELECT MAX(g.gap_seconds) AS max_gap_seconds
-          FROM (
-            SELECT EXTRACT(EPOCH FROM (
-                     co.observed_at - LAG(co.observed_at) OVER (ORDER BY co.observed_at)
-                   ))::integer AS gap_seconds
+    result = connection.exec_query(sanitize_sql_array([
+      <<~SQL.squish,
+        UPDATE time_series AS ts
+        SET continuous_newest_at = s.newest,
+            continuous_prev_at = s.prev_at,
+            has_continuous_anchor = s.has_anchor,
+            continuous_max_gap_seconds = s.max_gap_seconds,
+            updated_at = ?
+        FROM (
+          SELECT ts2.id AS time_series_id,
+                 tips.newest,
+                 tips.prev_at,
+                 tips.has_anchor,
+                 COALESCE(gap.max_gap_seconds, 0) AS max_gap_seconds
+          FROM time_series ts2
+          LEFT JOIN LATERAL (
+            SELECT MAX(co.observed_at) AS newest,
+                   (
+                     ARRAY_AGG(co.observed_at ORDER BY co.observed_at DESC)
+                   )[2] AS prev_at,
+                   COALESCE(
+                     BOOL_OR(co.observed_at <= ?),
+                     FALSE
+                   ) AS has_anchor
             FROM continuous_observations co
             WHERE co.time_series_id = ts2.id
-              AND co.observed_at >= #{window_start}
-          ) g
-        ) gap ON TRUE
-        WHERE ts2.id IN (#{id_list})
-      ) AS s
-      WHERE ts.id = s.time_series_id
-      RETURNING ts.id,
-                ts.continuous_newest_at,
-                ts.continuous_prev_at,
-                ts.has_continuous_anchor,
-                ts.continuous_max_gap_seconds
-    SQL
-    result = connection.exec_query(sql)
+          ) tips ON TRUE
+          LEFT JOIN LATERAL (
+            SELECT MAX(g.gap_seconds) AS max_gap_seconds
+            FROM (
+              SELECT EXTRACT(EPOCH FROM (
+                       co.observed_at - LAG(co.observed_at) OVER (ORDER BY co.observed_at)
+                     ))::integer AS gap_seconds
+              FROM continuous_observations co
+              WHERE co.time_series_id = ts2.id
+                AND co.observed_at >= ?
+            ) g
+          ) gap ON TRUE
+          WHERE ts2.id IN (?)
+        ) AS s
+        WHERE ts.id = s.time_series_id
+        RETURNING ts.id,
+                  ts.continuous_newest_at,
+                  ts.continuous_prev_at,
+                  ts.has_continuous_anchor,
+                  ts.continuous_max_gap_seconds
+      SQL
+      Time.current,
+      HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.before(as_of),
+      HistoryIngestion.continuous_retention.before(as_of),
+      ids
+    ]))
     @coverage_rows_by_id = result.to_a.index_by { |row| row["id"].to_i }
     MonitoringLocation.invalidate_selected_series_cache!
     result.rows.size
