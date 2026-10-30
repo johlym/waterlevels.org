@@ -289,7 +289,7 @@ class MonitoringLocation < ApplicationRecord
   # Anchored series with a stale tip or tip-vs-previous hollow middle — tip IV
   # repair lane (not cold year/daily backlog, not deeper scar lane).
   def needs_iv_repair?
-    series = time_series.selected.select(&:eligible_for_recent_history_backfill?)
+    series = recent_selected_series
     return false if series.none?
 
     series.any? { |s| HistoryIngestion.series_needs_iv_repair?(s) }
@@ -298,7 +298,7 @@ class MonitoringLocation < ApplicationRecord
   # Anchored series with a healthy tip adjacency but a deeper interior IV hole
   # inside CONTINUOUS_RETENTION — scar lane on USGS_API_HISTORY_IVREPAIR2_KEY.
   def needs_iv_scar_repair?
-    series = time_series.selected.select(&:eligible_for_recent_history_backfill?)
+    series = recent_selected_series
     return false if series.none?
 
     series.any? { |s| HistoryIngestion.series_needs_iv_scar_repair?(s) }
@@ -306,7 +306,7 @@ class MonitoringLocation < ApplicationRecord
 
   # Selected series whose interior IV hole USGS already confirmed it cannot fill.
   def known_missing_usgs_iv_series
-    time_series.selected.select { |series| HistoryIngestion.series_iv_scar_recently_checked?(series) }
+    selected_display_series.select { |series| HistoryIngestion.series_iv_scar_recently_checked?(series) }
   end
 
   def known_missing_usgs_iv?
@@ -320,15 +320,17 @@ class MonitoringLocation < ApplicationRecord
   end
 
   def needs_history_backfill?
-    series = time_series.selected.select(&:eligible_for_recent_history_backfill?)
+    series = recent_selected_series
     return false if series.none?
 
     daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
     window_start = HistoryIngestion.continuous_retention.ago
+    ends = Time.current.utc
+    HistoryIngestion.preload_continuous_gap_times!(series, window_start: window_start, ends: ends)
 
     series.any? do |s|
-      HistoryIngestion.series_has_continuous_coverage_gap?(s, window_start: window_start) ||
+      HistoryIngestion.series_has_continuous_coverage_gap?(s, window_start: window_start, ends: ends) ||
         (
           s.expects_daily_history? && (
             !s.has_daily_on_or_before?(daily_anchor) ||
@@ -342,9 +344,7 @@ class MonitoringLocation < ApplicationRecord
   # the ~1-year anchor — i.e. the 1 Year chart is not fully loaded yet.
   # IV-only / long-inactive parameters do not keep this callout up.
   def missing_year_history?
-    series = time_series.selected.select { |s|
-      s.expects_daily_history? && s.eligible_for_recent_history_backfill?
-    }
+    series = recent_daily_series
     return false if series.none?
 
     daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
@@ -354,9 +354,7 @@ class MonitoringLocation < ApplicationRecord
   # True when year history is present but a selected series still lacks daily
   # points near the ~3-year deep anchor (Postgres hot tip or cold archive).
   def missing_deep_history?
-    series = time_series.selected.select { |s|
-      s.expects_daily_history? && s.eligible_for_recent_history_backfill?
-    }
+    series = recent_daily_series
     return false if series.none?
     return false if missing_year_history?
 
@@ -367,9 +365,7 @@ class MonitoringLocation < ApplicationRecord
   # True when every selected series that expects daily has points near the
   # ~3-year anchor — used to expose the 3 Years chart tab.
   def has_deep_history?
-    series = time_series.selected.select { |s|
-      s.expects_daily_history? && s.eligible_for_recent_history_backfill?
-    }
+    series = recent_daily_series
     return false if series.none?
 
     deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
@@ -380,9 +376,7 @@ class MonitoringLocation < ApplicationRecord
   # the 3y chart window — used to expose the 10 Years chart tab (POR may be
   # shorter than 10 years; the chart still requests a 10y daily window).
   def has_10y_history?
-    series = time_series.selected.select { |s|
-      s.expects_daily_history? && s.eligible_for_recent_history_backfill?
-    }
+    series = recent_daily_series
     return false if series.none?
 
     long_anchor = HistoryIngestion::DAILY_10Y_HISTORY_ANCHOR.ago.to_date
@@ -393,7 +387,7 @@ class MonitoringLocation < ApplicationRecord
   # Only surface when recent continuous exists — otherwise the flag may be a
   # false positive from an empty recent-window fetch on a long-dead POR series.
   def daily_history_unavailable_series
-    time_series.selected.where(usgs_daily_absent: true).select(&:recent_continuous_evidence?)
+    selected_display_series.select { |series| series.usgs_daily_absent? && series.recent_continuous_evidence? }
   end
 
   def daily_history_unavailable_labels
@@ -417,7 +411,7 @@ class MonitoringLocation < ApplicationRecord
   def daily_only?
     return false if usgs?
 
-    selected = time_series.selected.to_a
+    selected = selected_display_series
     return true if selected.empty?
 
     selected.none? { |series| series.continuous_newest_at.present? || series.has_continuous_anchor? }
@@ -452,7 +446,7 @@ class MonitoringLocation < ApplicationRecord
   # True when any selected series has daily values old enough for the 1 Year chart.
   def year_history_available?
     anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
-    time_series.selected.any? { |series| series.has_daily_on_or_before?(anchor) }
+    selected_display_series.any? { |series| series.has_daily_on_or_before?(anchor) }
   end
 
   # Parameter codes USGS does not publish daily history for. Long chart ranges
@@ -535,9 +529,7 @@ class MonitoringLocation < ApplicationRecord
       ts_ids = TimeSeries.where(monitoring_location_id: ids).pluck(:id)
       if ts_ids.any?
         LatestObservation.where(time_series_id: ts_ids).delete_all
-        ts_ids.each do |ts_id|
-          purge_continuous_for_series!(ts_id, batch_size: continuous_batch_size)
-        end
+        purge_continuous_for_series!(ts_ids, batch_size: continuous_batch_size)
         DailyObservation.where(time_series_id: ts_ids).delete_all
         PeakObservation.where(time_series_id: ts_ids).delete_all
         # Catalog rows for R2 year objects — must go before time_series (FK).
@@ -570,15 +562,93 @@ class MonitoringLocation < ApplicationRecord
   end
   private_class_method :purge_alert_dependents!
 
-  def self.purge_continuous_for_series!(time_series_id, batch_size: PURGE_CONTINUOUS_BATCH)
-    scope = ContinuousObservation.where(time_series_id: time_series_id)
-    scope.in_batches(of: batch_size) do |batch|
-      batch.delete_all
-    end
+  # One statement so a multi-page keyset delete is not an N+1 from Rails.
+  # Postgres still deletes PURGE_CONTINUOUS_BATCH rows at a time.
+  def self.purge_continuous_for_series!(time_series_ids, batch_size: PURGE_CONTINUOUS_BATCH)
+    ids = Array(time_series_ids).map(&:to_i).uniq
+    return if ids.empty?
+
+    size = Integer(batch_size)
+    raise ArgumentError, "continuous batch size must be positive" unless size.positive?
+
+    connection.execute(sanitize_sql_array([
+      <<~SQL.squish,
+        DO $purge$
+        DECLARE
+          removed integer;
+        BEGIN
+          LOOP
+            DELETE FROM continuous_observations
+            WHERE id IN (
+              SELECT id FROM continuous_observations
+              WHERE time_series_id IN (?)
+              ORDER BY id
+              LIMIT ?
+            );
+            GET DIAGNOSTICS removed = ROW_COUNT;
+            EXIT WHEN removed = 0;
+          END LOOP;
+        END
+        $purge$;
+      SQL
+      ids,
+      size
+    ]))
   end
   private_class_method :purge_continuous_for_series!
 
+  def self.selected_series_cache_generation
+    @selected_series_cache_generation ||= 0
+  end
+
+  def self.invalidate_selected_series_cache!
+    @selected_series_cache_generation = selected_series_cache_generation + 1
+  end
+
+  def reload(...)
+    reset_selected_display_series!
+    super
+  end
+
   private
+
+  def recent_selected_series
+    selected_display_series.select(&:eligible_for_recent_history_backfill?)
+  end
+
+  def recent_daily_series
+    selected_display_series.select { |series|
+      series.expects_daily_history? && series.eligible_for_recent_history_backfill?
+    }
+  end
+
+  # Selected series plus daily bounds and latest tips, reused by every history
+  # gate on a gauge request. Invalidated when coverage or selection changes.
+  def selected_display_series
+    generation = self.class.selected_series_cache_generation
+    if defined?(@selected_display_series) && @selected_display_series_generation == generation
+      return @selected_display_series
+    end
+
+    series = if association(:time_series).loaded?
+      time_series.select(&:selected_for_display?)
+    else
+      time_series.selected.includes(:latest_observation).to_a
+    end
+    missing_latest = series.reject { |row| row.association(:latest_observation).loaded? }
+    if missing_latest.any?
+      ActiveRecord::Associations::Preloader.new(records: missing_latest, associations: :latest_observation).call
+    end
+    TimeSeries.preload_daily_bounds!(series)
+    @selected_display_series = series
+    @selected_display_series_generation = generation
+    series
+  end
+
+  def reset_selected_display_series!
+    remove_instance_variable(:@selected_display_series) if defined?(@selected_display_series)
+    remove_instance_variable(:@selected_display_series_generation) if defined?(@selected_display_series_generation)
+  end
 
   def assign_derived_names
     return if name.blank?

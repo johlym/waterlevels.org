@@ -231,6 +231,10 @@ class HistoryBackfillBatchJob < ApplicationJob
           skipped += 1
         end
       end
+      # A short page is the last page. Fetching again only to see an empty
+      # result repeats this keyset query. Stop once the budget is filled too,
+      # so a full page does not trigger a trailing page we will not read.
+      break if enqueued >= budget || ids.size < CANDIDATE_PAGE
     end
 
     Rails.logger.info(

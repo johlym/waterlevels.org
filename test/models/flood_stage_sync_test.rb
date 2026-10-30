@@ -507,7 +507,7 @@ class FloodStageSyncTest < ActiveSupport::TestCase
 
     FloodStageSync.new(state: "wa").perform
 
-    synced = [ @location, @unmatched, third ].count { |loc| loc.reload.nwps_synced_at.present? }
+    synced = MonitoringLocation.where(id: [ @location.id, @unmatched.id, third.id ]).where.not(nwps_synced_at: nil).count
     assert_equal 1, synced
     assert_equal 1, detail_gets
   ensure

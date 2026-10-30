@@ -598,13 +598,16 @@ class HistoryIngestionTest < ActiveSupport::TestCase
       .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
 
     # Dense continuous coverage so only daily gates would keep needs_history_backfill.
-    [ stage, flow ].each do |series|
-      seed_continuous_coverage!(
-        series,
-        from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
-        to: 2.hours.ago
-      )
-    end
+    seed_continuous_coverage!(
+      stage,
+      from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+      to: 2.hours.ago
+    )
+    seed_continuous_coverage!(
+      flow,
+      from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+      to: 2.hours.ago
+    )
 
     HistoryIngestion.new(monitoring_location: @location, range: "1y").perform
 

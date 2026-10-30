@@ -28,6 +28,7 @@ class StationInspector
   end
 
   def report
+    preload_series_stats!(series_list)
     series_reports = series_list.map { |series| series_report(series) }
     selected = series_reports.select { |row| row[:selected] }
     findings = build_findings(selected, series_reports)
@@ -160,11 +161,43 @@ class StationInspector
     }
   end
 
+  def preload_series_stats!(series)
+    return if series.empty?
+
+    ids = series.map(&:id)
+    continuous = ContinuousObservation.where(time_series_id: ids).group(:time_series_id).pluck(
+      :time_series_id,
+      Arel.sql("COUNT(*)"),
+      Arel.sql("MIN(observed_at)"),
+      Arel.sql("MAX(observed_at)")
+    )
+    daily_counts = DailyObservation.where(time_series_id: ids).group(:time_series_id).count
+    peak_counts = PeakObservation.where(time_series_id: ids).group(:time_series_id).count
+    TimeSeries.preload_daily_bounds!(series)
+    HistoryIngestion.preload_continuous_gap_times!(
+      series,
+      window_start: HistoryIngestion.continuous_retention.ago,
+      ends: Time.current.utc
+    )
+    continuous_by_id = continuous.to_h { |id, count, oldest_at, newest_at|
+      [ id, { count: count.to_i, oldest_at: oldest_at, newest_at: newest_at } ]
+    }
+    series.each do |row|
+      row.instance_variable_set(
+        :@inspector_continuous,
+        continuous_by_id[row.id] || { count: 0, oldest_at: nil, newest_at: nil }
+      )
+      row.instance_variable_set(:@inspector_daily_count, daily_counts[row.id].to_i)
+      row.instance_variable_set(:@inspector_peak_count, peak_counts[row.id].to_i)
+    end
+  end
+
   def series_report(series)
-    continuous_oldest = series.continuous_observations.minimum(:observed_at)
-    continuous_newest = series.continuous_observations.maximum(:observed_at)
-    continuous_count = series.continuous_observations.count
-    daily_pg_count = series.daily_observations.count
+    continuous = series.instance_variable_get(:@inspector_continuous) || {}
+    continuous_oldest = continuous[:oldest_at]
+    continuous_newest = continuous[:newest_at]
+    continuous_count = continuous[:count].to_i
+    daily_pg_count = series.instance_variable_defined?(:@inspector_daily_count) ? series.instance_variable_get(:@inspector_daily_count) : series.daily_observations.count
     shard_count = series.daily_archive_shards.size
     oldest_daily = series.oldest_daily_on
     newest_daily = series.newest_daily_on
@@ -206,7 +239,7 @@ class StationInspector
         has_year_anchor: series.has_daily_on_or_before?(DAILY_HISTORY_ANCHOR.ago.to_date),
         has_deep_anchor: series.has_daily_on_or_before?(DAILY_DEEP_HISTORY_ANCHOR.ago.to_date)
       },
-      peaks_count: series.peak_observations.count,
+      peaks_count: series.instance_variable_defined?(:@inspector_peak_count) ? series.instance_variable_get(:@inspector_peak_count) : series.peak_observations.count,
       latest: tip && {
         value: tip.value,
         unit_of_measure: tip.unit_of_measure,

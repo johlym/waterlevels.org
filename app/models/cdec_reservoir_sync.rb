@@ -12,11 +12,19 @@ class CdecReservoirSync
     @progress = progress
   end
 
-  def perform(entries: Cdec::ReservoirCatalog.active_entries)
-    Array(entries).sum { |entry| sync_entry!(entry) }
+  def perform(entries: Cdec::ReservoirCatalog.active_entries, warm_listing: true)
+    entries = Array(entries)
+    synced_codes = []
+    count = entries.sum do |entry|
+      synced = sync_entry!(entry, warm_listing: false)
+      synced_codes << entry.state_code if synced.to_i.positive?
+      synced
+    end
+    StateListingCache.warm_states(synced_codes) if warm_listing
+    count
   end
 
-  def sync_entry!(entry)
+  def sync_entry!(entry, warm_listing: true)
     Telemetry.in_span(
       "cdec.reservoir_sync",
       attributes: {
@@ -36,7 +44,7 @@ class CdecReservoirSync
       end
 
       StationSnapshotCache.warm(location.reload)
-      StateListingCache.warm(entry.state_code)
+      StateListingCache.warm(entry.state_code) if warm_listing
       progress&.step("site=#{entry.site_number} tip=#{tip ? tip[:value] : 'nil'}")
       1
     end

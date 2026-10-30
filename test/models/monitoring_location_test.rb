@@ -697,13 +697,16 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     doomed = create(:monitoring_location, site_number: "30000003")
     series = create(:time_series, monitoring_location: doomed)
     observed_at = 40.days.ago.beginning_of_hour
-    120.times do |i|
-      ContinuousObservation.create!(
-        time_series: series,
+    now = Time.current
+    ContinuousObservation.insert_all(Array.new(120) do |i|
+      {
+        time_series_id: series.id,
         observed_at: observed_at + (i * 15).minutes,
-        value: i
-      )
-    end
+        value: i,
+        created_at: now,
+        updated_at: now
+      }
+    end)
     DailyObservation.create!(time_series: series, observed_on: Date.current - 40, value: 9.0)
     PeakObservation.create!(
       time_series: series,

@@ -11,7 +11,12 @@ class AdminCounter < ApplicationRecord
 
   class << self
     def set!(name, value: 0, source: "job", computed_at: Time.current, **payload)
-      row = find_or_initialize_by(name: name.to_s)
+      key = name.to_s
+      row = rows_by_name[key]
+      unless row
+        row = new(name: key)
+        rows_by_name[key] = row
+      end
       row.assign_attributes(
         value: value.to_i,
         payload: stringify_payload(payload),
@@ -23,7 +28,14 @@ class AdminCounter < ApplicationRecord
     end
 
     def fetch(name)
-      find_by(name: name.to_s)
+      rows_by_name[name.to_s]
+    end
+
+    # The counters table is tiny. Load it once per request/job instead of
+    # find_by per dashboard tile (fetch + payload_for used to hit the same row).
+    def bust_request_cache!
+      Thread.current[:admin_counter_rows_loaded] = false
+      Thread.current[:admin_counter_rows] = nil
     end
 
     # Symbol-keyed payload hash, or nil when the counter row is missing.
@@ -46,10 +58,22 @@ class AdminCounter < ApplicationRecord
       scope = names.flatten.compact.map(&:to_s)
       return 0 if scope.empty?
 
-      where(name: scope).delete_all
+      deleted = where(name: scope).delete_all
+      if Thread.current[:admin_counter_rows_loaded]
+        scope.each { |key| Thread.current[:admin_counter_rows].delete(key) }
+      end
+      deleted
     end
 
     private
+
+    def rows_by_name
+      return Thread.current[:admin_counter_rows] if Thread.current[:admin_counter_rows_loaded]
+
+      Thread.current[:admin_counter_rows] = all.index_by(&:name)
+      Thread.current[:admin_counter_rows_loaded] = true
+      Thread.current[:admin_counter_rows]
+    end
 
     def stringify_payload(payload)
       JSON.parse(payload.deep_stringify_keys.to_json)

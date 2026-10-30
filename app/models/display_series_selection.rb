@@ -1,6 +1,6 @@
 class DisplaySeriesSelection
   def self.apply!(location)
-    series = location.time_series.includes(:latest_observation).to_a
+    series = series_with_latest(location)
     station_reporting = series.any?(&:reporting?)
 
     water_levels = pick_water_levels(series, station_reporting: station_reporting)
@@ -11,6 +11,13 @@ class DisplaySeriesSelection
 
     location.time_series.update_all(selected_for_display: false)
     TimeSeries.where(id: selected_ids).update_all(selected_for_display: true) if selected_ids.any?
+    assign_selection_flags!(series, selected_ids)
+    # update_all resets the association. Put the in-memory rows back so callers
+    # can read selected_for_display without another query per location.
+    assoc = location.association(:time_series)
+    assoc.target = series
+    assoc.loaded!
+    MonitoringLocation.invalidate_selected_series_cache!
 
     preferred_water_level = water_levels.first
     location.update!(
@@ -77,6 +84,30 @@ class DisplaySeriesSelection
     location.update!(tip_attributes(location, selected: selected))
     location
   end
+
+  def self.series_with_latest(location)
+    assoc = location.association(:time_series)
+    loaded = if assoc.loaded?
+      assoc.target
+    else
+      rows = location.time_series.includes(:latest_observation).to_a
+      assoc.target = rows
+      assoc.loaded!
+      rows
+    end
+    missing = loaded.reject { |row| row.association(:latest_observation).loaded? }
+    if missing.any?
+      ActiveRecord::Associations::Preloader.new(records: missing, associations: :latest_observation).call
+    end
+    loaded
+  end
+  private_class_method :series_with_latest
+
+  def self.assign_selection_flags!(series, selected_ids)
+    chosen = selected_ids.to_set
+    series.each { |row| row.selected_for_display = chosen.include?(row.id) }
+  end
+  private_class_method :assign_selection_flags!
 
   def self.pick_water_levels(series, station_reporting:)
     series

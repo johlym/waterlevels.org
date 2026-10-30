@@ -25,7 +25,8 @@ class DisplaySeriesSelectionTest < ActiveSupport::TestCase
 
     DisplaySeriesSelection.apply!(location.reload)
 
-    assert_equal [ true, true ], [ gage.reload.selected_for_display, ngvd.reload.selected_for_display ]
+    flags = TimeSeries.where(id: [ gage.id, ngvd.id ]).pluck(:id, :selected_for_display).to_h
+    assert_equal [ true, true ], [ flags[gage.id], flags[ngvd.id] ]
     assert_equal "00065", location.reload.latest_water_level_parameter_code
     assert_in_delta 541.24, location.latest_water_level_value, 0.001
   end

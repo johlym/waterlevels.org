@@ -246,17 +246,27 @@ module DailyArchive
       series_b = create(:time_series, monitoring_location: location_b)
       first, second = [ @series, series_b ].sort_by(&:id)
 
+      writer = Writer.new(store: @store)
+      writer.preload_series!([ first, second ])
+      writer.preload_shards!([ first.id, second.id ])
       [ first, second ].each do |series|
-        Writer.new(store: @store).upsert(
+        writer.upsert(
           time_series_id: series.id,
-          points: [ { "d" => old_day.iso8601, "v" => 4.0, "s" => "usgs" } ]
-        )
-        ContinuousObservation.create!(
-          time_series: series,
-          observed_at: zone.local(old_day.year, old_day.month, old_day.day, 12, 0, 0),
-          value: 4.0
+          points: [ { "d" => old_day.iso8601, "v" => 4.0, "s" => "usgs" } ],
+          series: series
         )
       end
+      now = Time.current
+      observed_at = zone.local(old_day.year, old_day.month, old_day.day, 12, 0, 0)
+      ContinuousObservation.insert_all([ first, second ].map { |series|
+        {
+          time_series_id: series.id,
+          observed_at: observed_at,
+          value: 4.0,
+          created_at: now,
+          updated_at: now
+        }
+      })
 
       # Simulate cancel after handoff + first series IV prune completed.
       ContinuousObservation.where(time_series_id: first.id).delete_all
