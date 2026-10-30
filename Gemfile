@@ -8,7 +8,7 @@ gem "rails", "~> 8.1.3", ">= 8.1.3.1"
 # cannot dump jsonb tables and then breaks db:test:prepare.
 gem "json", "~> 2.18"
 gem "propshaft"
-gem "pg", "~> 1.1"
+gem "pg", "~> 1.7"
 gem "puma", ">= 5.0"
 gem "jsbundling-rails"
 gem "turbo-rails"
