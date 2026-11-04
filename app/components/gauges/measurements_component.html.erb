@@ -38,9 +38,18 @@
         trends = m[:trends] || m["trends"] || {}
         extremes = m[:extremes] || m["extremes"] || {}
         change_24h = trends[:change_24h] || trends["change_24h"]
+        change_24h_percent = trends[:change_24h_percent] || trends["change_24h_percent"]
         yoy = trends[:yoy] || trends["yoy"]
         high = extremes.dig(:high, :value) || extremes.dig("high", "value")
         low = extremes.dig(:low, :value) || extremes.dig("low", "value")
+        high_year = extremes.dig(:high, :water_year) || extremes.dig("high", "water_year")
+        peak = m[:peak] || m["peak"] || {}
+        margin = peak[:margin] || peak["margin"]
+        peak_year = peak[:water_year] || peak["water_year"]
+        year_min = peak[:year_min] || peak["year_min"]
+        year_max = peak[:year_max] || peak["year_max"]
+        record = peak[:record] || peak["record"]
+        year_span = year_min == year_max ? year_min : "#{year_min}–#{year_max}"
         selected = index.zero?
       %>
       <button
@@ -87,7 +96,12 @@
             <% end %>
           <% else %>
             <% if change_24h %>
-              <p>24h <%= helpers.signed_number(change_24h, precision: precision) %> <%= unit %></p>
+              <p>
+                24h <%= helpers.signed_number(change_24h, precision: precision) %> <%= unit %>
+                <% if kind == "discharge" && change_24h_percent %>
+                  (<%= format("%+.1f", change_24h_percent.to_f) %>%)
+                <% end %>
+              </p>
             <% end %>
             <% if yoy %>
               <p>YoY <%= helpers.signed_number(yoy, precision: precision) %> <%= unit %></p>
@@ -95,7 +109,24 @@
             <% if high || low %>
               <p>
                 High <%= high ? helpers.display_gauge_value(high, precision: precision) : "—" %>
+                <% if high_year %>· water year <%= high_year %><% end %>
                 · Low <%= low ? helpers.display_gauge_value(low, precision: precision) : "—" %>
+              </p>
+            <% end %>
+            <% if record %>
+              <p>
+                <%= helpers.display_gauge_value(margin, precision: precision) %> <%= unit %>
+                above every annual peak on file (<%= year_span %>)
+              </p>
+            <% elsif margin && margin.to_f.negative? && peak_year %>
+              <p>
+                <%= helpers.display_gauge_value(margin.to_f.abs, precision: precision) %> <%= unit %>
+                below the water year <%= peak_year %> peak
+              </p>
+            <% elsif margin && margin.to_f.positive? && peak_year %>
+              <p>
+                <%= helpers.display_gauge_value(margin, precision: precision) %> <%= unit %>
+                above the water year <%= peak_year %> peak
               </p>
             <% end %>
           <% end %>
@@ -103,4 +134,10 @@
       </button>
     <% end %>
   </div>
+  <% mention = featured_mention %>
+  <% if mention %>
+    <p class="featured-trend">
+      <%= helpers.link_to mention[:text], helpers.root_path(anchor: mention[:anchor]) %>
+    </p>
+  <% end %>
 </section>

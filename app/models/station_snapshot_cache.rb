@@ -1,5 +1,5 @@
 class StationSnapshotCache
-  PREFIX = "station_snapshot:v18".freeze
+  PREFIX = "station_snapshot:v19".freeze
   TTL = 2.hours
   MILES_PER_KM = 0.621371
 
@@ -285,6 +285,8 @@ class StationSnapshotCache
     # daily-only reservoirs have no peak rows, so use the same daily window
     # that already supplies the low.
     daily = daily_extremes_payload(series)
+    peaks = high_peak_rows(series)
+    high = peaks.max_by { |peak| [ peak.value.to_f, peak.water_year.to_i ] }
     label = ParameterLabels.label_for(series.parameter_code, fallback: series.parameter_description)
 
     {
@@ -300,26 +302,54 @@ class StationSnapshotCache
       precision: series.measurement_kind == "discharge" ? 0 : 2,
       trends: {
         change_24h: trend_24h.delta,
+        change_24h_percent: trend_24h.percent_change,
         yoy: yoy.prior_value.nil? ? nil : yoy.delta
       },
       extremes: {
-        high: peak_high_payload(series) || daily[:high],
+        high: peak_high_from(high) || daily[:high],
         low: daily[:low]
-      }
+      },
+      peak: peak_comparison(series, peaks, high, obs.value)
     }
   end
 
-  def self.peak_high_payload(series)
-    high = if series.association(:peak_observations).loaded?
-      series.peak_observations.select { |p| p.peak_kind == "high" }.max_by { |p| p.value.to_f }
+  def self.high_peak_rows(series)
+    rows = if series.association(:peak_observations).loaded?
+      series.peak_observations
     else
-      series.peak_observations.where(peak_kind: "high").order(value: :desc).first
+      series.peak_observations.to_a
     end
+    rows.select { |peak| peak.peak_kind == "high" }
+  end
+  private_class_method :high_peak_rows
+
+  def self.peak_high_from(high)
     return unless high
 
     { value: high.value.to_f, water_year: high.water_year, observed_at: high.observed_at&.iso8601 }
   end
-  private_class_method :peak_high_payload
+  private_class_method :peak_high_from
+
+  # Stage and discharge only. Record requires a strictly higher latest value
+  # and at least TrendHighlights::RECORD_MIN_WATER_YEARS distinct water years.
+  def self.peak_comparison(series, peaks, high, current_value)
+    return if high.nil?
+    return unless series.measurement_kind.in?(%w[water_level discharge])
+
+    years = peaks.map(&:water_year).uniq
+    margin = current_value.to_f - high.value.to_f
+    {
+      value: high.value.to_f,
+      water_year: high.water_year,
+      observed_at: high.observed_at&.iso8601,
+      year_min: years.min,
+      year_max: years.max,
+      year_count: years.size,
+      margin: margin,
+      record: years.size >= TrendHighlights::RECORD_MIN_WATER_YEARS && margin.positive?
+    }
+  end
+  private_class_method :peak_comparison
 
   def self.daily_extremes_payload(series)
     if DailyArchive.reads_enabled?
@@ -385,8 +415,9 @@ class StationSnapshotCache
         observed_at: location.latest_observed_at&.iso8601,
         approval_status: location.latest_approval_status,
         precision: 2,
-        trends: { change_24h: nil, yoy: nil },
-        extremes: { high: nil, low: nil }
+        trends: { change_24h: nil, change_24h_percent: nil, yoy: nil },
+        extremes: { high: nil, low: nil },
+        peak: nil
       }
     end
     if location.latest_discharge_value.present?
@@ -401,8 +432,9 @@ class StationSnapshotCache
         observed_at: location.latest_observed_at&.iso8601,
         approval_status: location.latest_approval_status,
         precision: 0,
-        trends: { change_24h: nil, yoy: nil },
-        extremes: { high: nil, low: nil }
+        trends: { change_24h: nil, change_24h_percent: nil, yoy: nil },
+        extremes: { high: nil, low: nil },
+        peak: nil
       }
     end
     if location.latest_temperature_c.present?
@@ -417,8 +449,9 @@ class StationSnapshotCache
         observed_at: location.latest_observed_at&.iso8601,
         approval_status: location.latest_approval_status,
         precision: 1,
-        trends: { change_24h: nil, yoy: nil },
-        extremes: { high: nil, low: nil }
+        trends: { change_24h: nil, change_24h_percent: nil, yoy: nil },
+        extremes: { high: nil, low: nil },
+        peak: nil
       }
     end
     measurements

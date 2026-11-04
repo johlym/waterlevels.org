@@ -94,6 +94,8 @@ class LatestObservationSync
         StateListingCache.warm_all
         AlertsListingCache.warm
         SiteStats.warm!
+        progress&.step("warming trend highlights")
+        TrendHighlights.warm
         AdminDashboardStats.schedule_inventory_refresh!
       end
 
