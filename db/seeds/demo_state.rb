@@ -14,6 +14,9 @@ module DemoStateSeed
   # One station kept in major flood with gage height above the major threshold so
   # map/state/detail/chart UIs all have a coherent flood-alert example offline.
   FLOOD_DEMO_N = 20
+  # Gage height at this station sits above ten older annual peaks so the
+  # homepage "New highs" list and the station record line are visible offline.
+  RECORD_DEMO_N = 21
   FLOOD_DEMO_STAGES = {
     action: 8.0,
     minor: 10.0,
@@ -174,6 +177,10 @@ module DemoStateSeed
     n == FLOOD_DEMO_N
   end
 
+  def record_demo?(n)
+    n == RECORD_DEMO_N
+  end
+
   def flood_category_for(n)
     return "major" if flood_demo?(n)
     return unless nwps_station?(n)
@@ -313,7 +320,9 @@ module DemoStateSeed
           updated_at: now
         }
 
-        if series.measurement_kind.in?(%w[water_level discharge])
+        if record_demo?(n) && series.measurement_kind == "water_level"
+          peak_batch.concat(record_demo_peaks(series, tip_value, ends_at, now))
+        elsif series.measurement_kind.in?(%w[water_level discharge])
           peak_value = daily_values.values.flatten.max
           peak_batch << {
             time_series_id: series.id,
@@ -357,6 +366,29 @@ module DemoStateSeed
     end
   end
 
+  # Ten approved annual peaks, each just under the seeded gage-height tip, so
+  # the latest reading qualifies as a new high against our stored peaks.
+  def record_demo_peaks(series, tip_value, ends_at, now)
+    return [] if tip_value.blank?
+
+    peak_value = (tip_value.to_f - 0.25).round(3)
+    return [] if peak_value <= 0
+
+    water_year = ends_at.month >= 10 ? ends_at.year + 1 : ends_at.year
+    (1..TrendHighlights::RECORD_MIN_WATER_YEARS).map do |ago|
+      {
+        time_series_id: series.id,
+        water_year: water_year - ago,
+        observed_at: ends_at - ago.years,
+        value: peak_value,
+        peak_kind: "high",
+        approval_status: "Approved",
+        created_at: now,
+        updated_at: now
+      }
+    end
+  end
+
   def finalize!(locations)
     MonitoringLocation.where(id: locations.map(&:id)).includes(time_series: :latest_observation).find_each do |location|
       DisplaySeriesSelection.apply!(location)
@@ -372,6 +404,7 @@ module DemoStateSeed
     StateListingCache.warm(STATE_CODE)
     AlertsListingCache.warm
     SiteStats.warm!
+    TrendHighlights.warm
   end
 
   # Offline 5-station mainstem so the gauge-page timeline is visible without NLDI.

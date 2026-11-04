@@ -161,7 +161,16 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
       payload[:measurements].each_with_index do |measurement, index|
         assert_not_nil measurement.dig(:trends, :change_24h)
         assert_not_nil measurement.dig(:trends, :yoy)
+        expected_percent = 1.0 / (series_specs[index][:value] - 1) * 100.0
+        assert_in_delta expected_percent, measurement.dig(:trends, :change_24h_percent), 0.001
         assert_in_delta series_specs[index][:value] + 10, measurement.dig(:extremes, :high, :value), 0.001
+        if measurement[:kind] == "temperature"
+          assert_nil measurement[:peak]
+        else
+          refute measurement.dig(:peak, :record)
+          assert_in_delta(-10, measurement.dig(:peak, :margin), 0.001)
+          assert_equal 1, measurement.dig(:peak, :year_count)
+        end
         assert_not_nil measurement.dig(:extremes, :low)
       end
     end
@@ -177,6 +186,66 @@ class StationSnapshotCacheTest < ActiveSupport::TestCase
     assert_equal 0, peak_scoped, "expected peaks from preload, got:\n#{sql.join("\n")}"
     assert_equal 0, daily_ordered, "expected daily extremes from preload, got:\n#{sql.join("\n")}"
     assert_equal 0, daily_yoy, "expected YoY from preload, got:\n#{sql.join("\n")}"
+  end
+
+  test "ten water years above the stored peak is a record" do
+    observed_at = Time.utc(2026, 8, 4, 18, 0, 0)
+    location = create(:monitoring_location, latest_observed_at: observed_at)
+    series = create(
+      :time_series,
+      monitoring_location: location,
+      parameter_code: "00065",
+      measurement_kind: "water_level",
+      selected_for_display: true
+    )
+    LatestObservation.create!(
+      time_series: series,
+      value: 12.5,
+      unit_of_measure: "ft",
+      observed_at: observed_at,
+      synced_at: Time.current
+    )
+    (2000..2009).each do |year|
+      PeakObservation.create!(time_series: series, water_year: year, value: 9.0, peak_kind: "high")
+    end
+
+    peak = StationSnapshotCache.warm(location.reload)[:measurements].first[:peak]
+
+    assert peak[:record]
+    assert_in_delta 3.5, peak[:margin], 0.001
+    assert_equal 2000, peak[:year_min]
+    assert_equal 2009, peak[:year_max]
+    assert_equal 2009, peak[:water_year]
+    assert_equal 10, peak[:year_count]
+  end
+
+  test "nine water years above the stored peak is not a record" do
+    observed_at = Time.utc(2026, 8, 4, 18, 0, 0)
+    location = create(:monitoring_location, latest_observed_at: observed_at)
+    series = create(
+      :time_series,
+      monitoring_location: location,
+      parameter_code: "00065",
+      measurement_kind: "water_level",
+      selected_for_display: true,
+      provider_series_id: "ts-thin-peaks"
+    )
+    LatestObservation.create!(
+      time_series: series,
+      value: 12.5,
+      unit_of_measure: "ft",
+      observed_at: observed_at,
+      synced_at: Time.current
+    )
+    (2000..2008).each do |year|
+      PeakObservation.create!(time_series: series, water_year: year, value: 9.0, peak_kind: "high")
+    end
+
+    peak = StationSnapshotCache.warm(location.reload)[:measurements].first[:peak]
+
+    refute peak[:record]
+    assert_equal 9, peak[:year_count]
+    assert peak[:margin].positive?
   end
 
   test "daily maximum supplies high when the series has no peak" do

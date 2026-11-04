@@ -1,0 +1,30 @@
+<% rows = Array(local_assigns[:rows]) %>
+<% mode = mode.to_sym %>
+<% if rows.empty? %>
+  <p class="empty"><%= empty_message %></p>
+<% else %>
+  <ul>
+    <% rows.each do |row| %>
+      <% precision = row[:precision] || 2 %>
+      <% unit = display_unit(row[:unit]) %>
+      <% year_span = row[:year_min] == row[:year_max] ? row[:year_min] : "#{row[:year_min]}–#{row[:year_max]}" %>
+      <li>
+        <%= link_to row[:path] do %>
+          <span class="name"><%= row[:name] %></span>
+          <span class="meta">
+            <%= row[:state_code].to_s.upcase %>
+            <% if mode == :record %>
+              · <%= row[:label] %>
+              · <%= display_gauge_value(row[:margin], precision: precision) %> <%= unit %> above <%= year_span %> peaks
+            <% elsif mode == :discharge %>
+              · <%= format("%+.1f", row[:percent].to_f) %>%
+              · <%= signed_number(row[:delta], precision: precision) %> <%= unit %>
+            <% else %>
+              · <%= signed_number(row[:delta], precision: precision) %> <%= unit %>
+            <% end %>
+          </span>
+        <% end %>
+      </li>
+    <% end %>
+  </ul>
+<% end %>

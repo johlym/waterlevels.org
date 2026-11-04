@@ -298,6 +298,14 @@
   }
 }
 
+.measurements .featured-trend {
+  @apply mt-4 text-sm text-zinc-400;
+
+  a {
+    @apply font-medium text-cyan-400 no-underline hover:text-cyan-300;
+  }
+}
+
 .measurements-history .status-pill,
 .history-table .status-pill,
 td.status .status-pill {

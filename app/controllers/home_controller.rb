@@ -3,6 +3,7 @@ class HomeController < ApplicationController
 
   def show
     @stats = SiteStats.snapshot
+    @trends = TrendHighlights.fetch
     @popular_regions = PopularWaterways.regions
     Telemetry.add_attributes("app.page" => "home", "app.operation" => "page.home")
     # Match other public pages: longer edge TTL + SWR so idle origin boots are rarer.

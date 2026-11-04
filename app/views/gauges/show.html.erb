@@ -155,7 +155,7 @@
       <% end %>
     </div>
 
-    <%= render Gauges::MeasurementsComponent.new(measurements: measurements) %>
+    <%= render Gauges::MeasurementsComponent.new(measurements: measurements, site_number: @location.site_number) %>
 
     <section id="graph-panel" class="section-block" aria-labelledby="graph-heading">
       <div class="section-head">

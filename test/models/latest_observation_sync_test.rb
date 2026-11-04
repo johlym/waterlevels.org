@@ -120,8 +120,15 @@ class LatestObservationSyncTest < ActiveSupport::TestCase
         end
       end
 
-    assert_raises(Usgs::Client::RateLimitError) do
-      LatestObservationSync.new(state: "wa").perform
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    begin
+      assert_raises(Usgs::Client::RateLimitError) do
+        LatestObservationSync.new(state: "wa").perform
+      end
+      assert_nil TrendHighlights.read
+    ensure
+      Rails.cache = previous_cache
     end
 
     @location.reload
@@ -451,5 +458,25 @@ class LatestObservationSyncTest < ActiveSupport::TestCase
   ensure
     Rails.cache = previous_cache
     previous_key ? ENV["USGS_API_HISTORY_IVREPAIR_KEY"] = previous_key : ENV.delete("USGS_API_HISTORY_IVREPAIR_KEY")
+  end
+
+  test "warms trend highlights after a successful tip sync" do
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/latest-continuous/items})
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/geo+json" },
+        body: { features: [], links: [] }.to_json
+      )
+
+    assert_nil TrendHighlights.read
+    assert LatestObservationSync.new(state: "wa").perform
+    payload = TrendHighlights.read
+    assert payload.key?(:stage_movers)
+    assert payload.key?(:discharge_movers)
+    assert payload.key?(:records)
+  ensure
+    Rails.cache = previous_cache
   end
 end

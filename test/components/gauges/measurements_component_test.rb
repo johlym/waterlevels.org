@@ -66,5 +66,128 @@ class Gauges::MeasurementsComponentTest < ViewComponent::TestCase
     assert_includes html, "Low 200"
     assert_not_includes html, "data-temp-delta-c"
     assert_not_includes html, "temperature-unit#setF"
+    assert_not_includes html, "water year"
+  end
+
+  test "discharge shows the 24h percent and the peak water year" do
+    html = render_inline(
+      Gauges::MeasurementsComponent.new(
+        measurements: [
+          {
+            kind: "discharge",
+            label: "Discharge",
+            value: 1200,
+            unit: "ft3/s",
+            parameter_code: "00060",
+            precision: 0,
+            trends: { change_24h: 50, change_24h_percent: 4.2, yoy: nil },
+            extremes: {
+              high: { value: 5000, water_year: 2011 },
+              low: { value: 200 }
+            },
+            peak: {
+              margin: -3800,
+              water_year: 2011,
+              year_min: 1990,
+              year_max: 2011,
+              year_count: 22,
+              record: false
+            }
+          }
+        ]
+      )
+    ).to_html
+
+    assert_includes html, "+50 ft³/s"
+    assert_includes html, "(+4.2%)"
+    assert_includes html, "water year 2011"
+    assert_includes html, "3,800 ft³/s"
+    assert_includes html, "below the water year 2011 peak"
+  end
+
+  test "a qualifying peak margin is called a record and a short history is not" do
+    html = render_inline(
+      Gauges::MeasurementsComponent.new(
+        measurements: [
+          {
+            kind: "water_level",
+            label: "Gage height",
+            value: 12.4,
+            unit: "ft",
+            parameter_code: "00065",
+            precision: 2,
+            trends: { change_24h: nil },
+            extremes: { high: { value: 12.0, water_year: 2009 }, low: nil },
+            peak: {
+              margin: 0.4,
+              water_year: 2009,
+              year_min: 2000,
+              year_max: 2009,
+              year_count: 10,
+              record: true
+            }
+          },
+          {
+            kind: "water_level",
+            label: "Gage height",
+            value: 8.4,
+            unit: "ft",
+            parameter_code: "00062",
+            precision: 2,
+            trends: {},
+            extremes: { high: { value: 8.0, water_year: 2011 }, low: nil },
+            peak: {
+              margin: 0.4,
+              water_year: 2011,
+              year_min: 2011,
+              year_max: 2011,
+              year_count: 1,
+              record: false
+            }
+          }
+        ]
+      )
+    ).to_html
+
+    assert_includes html, "0.40 ft"
+    assert_includes html, "above every annual peak on file (2000–2009)"
+    assert_includes html, "above the water year 2011 peak"
+    assert_not_includes html, "above every annual peak on file (2011–2011)"
+  end
+
+  test "featured mention links back to the homepage list" do
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    Rails.cache.write(
+      TrendHighlights::CACHE_KEY,
+      {
+        stage_movers: [ { site_number: "12101000" } ],
+        discharge_movers: [],
+        records: []
+      }
+    )
+
+    html = render_inline(
+      Gauges::MeasurementsComponent.new(
+        site_number: "12101000",
+        measurements: [
+          {
+            kind: "water_level",
+            label: "Gage height",
+            value: 4,
+            unit: "ft",
+            parameter_code: "00065",
+            precision: 2,
+            trends: {},
+            extremes: {}
+          }
+        ]
+      )
+    ).to_html
+
+    assert_includes html, "Featured in today's rising stations"
+    assert_includes html, 'href="/#rising-fastest"'
+  ensure
+    Rails.cache = previous_cache
   end
 end

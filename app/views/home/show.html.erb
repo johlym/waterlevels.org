@@ -165,6 +165,47 @@
     </div>
   </section>
 
+  <section class="home-trends" id="home-trends" aria-labelledby="home-trends-heading">
+    <% band_hours = TrendHighlights::PRIOR_BAND.in_hours.to_i %>
+    <div class="inner">
+      <div class="trends-header">
+        <div>
+          <p class="eyebrow">Trends</p>
+          <h2 id="home-trends-heading">Where the water is moving</h2>
+        </div>
+        <p class="lede">Largest rises in the last 24 hours, and stations above every annual peak we have on file.</p>
+      </div>
+
+      <div class="trends-grid">
+        <article id="rising-fastest">
+          <h3>Rising fastest</h3>
+          <p>
+            Prior reading from <%= 24 - band_hours %> to <%= 24 + band_hours %> hours before the latest tip.
+            Tips older than <%= TrendHighlights::TIP_MAX_AGE.in_hours.to_i %> hours are left off.
+          </p>
+
+          <h4>Gage height</h4>
+          <%= render "home/trend_rows", rows: @trends[:stage_movers], mode: :stage, empty_message: "No gage height rises in the last 24 hours." %>
+
+          <h4>Streamflow</h4>
+          <%= render "home/trend_rows",
+                rows: @trends[:discharge_movers],
+                mode: :discharge,
+                empty_message: "No streamflow rises in the last 24 hours. Rises count when the earlier reading was at least #{TrendHighlights::DISCHARGE_PRIOR_FLOOR} ft³/s." %>
+        </article>
+
+        <article id="new-highs">
+          <h3>New highs</h3>
+          <p>
+            Latest reading above every annual peak we have on file, for series with at least
+            <%= TrendHighlights::RECORD_MIN_WATER_YEARS %> water years of peaks.
+          </p>
+          <%= render "home/trend_rows", rows: @trends[:records], mode: :record, empty_message: "No stations are above the annual peaks on file." %>
+        </article>
+      </div>
+    </div>
+  </section>
+
   <section class="home-popular" aria-labelledby="home-popular-heading">
     <div class="inner">
       <div class="popular-header">

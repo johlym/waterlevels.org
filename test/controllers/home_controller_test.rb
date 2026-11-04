@@ -21,6 +21,16 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Total measurements"
     assert_includes response.body, "Updates today"
     assert_includes response.body, "Flood alerts"
+    assert_includes response.body, "Where the water is moving"
+    assert_includes response.body, "Rising fastest"
+    assert_includes response.body, "New highs"
+    assert_includes response.body, "No gage height rises in the last 24 hours."
+    assert_includes response.body, "No streamflow rises in the last 24 hours."
+    assert_includes response.body, "No stations are above the annual peaks on file."
+    assert_includes response.body, 'id="rising-fastest"'
+    assert_includes response.body, 'id="new-highs"'
+    assert_operator response.body.index("Flood alerts"), :<, response.body.index("Rising fastest")
+    assert_operator response.body.index("Rising fastest"), :<, response.body.index("Well-known waterways")
     assert_includes response.body, 'class="value alert">1</p>'
     assert_includes response.body, 'href="/alerts"'
 
@@ -68,6 +78,78 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.headers["Link"], "</llms.txt>"
     assert_includes response.headers["Vary"], "Accept"
     assert_includes response.media_type, "html"
+  end
+
+  test "features a 24 hour rise and a new high" do
+    observed_at = Time.zone.at(Time.current.to_i) - 1.hour
+    rising = create(
+      :monitoring_location,
+      name: "Rising Demo Creek",
+      latest_water_level_parameter_code: "00065",
+      latest_observed_at: observed_at
+    )
+    rising_series = create(
+      :time_series,
+      monitoring_location: rising,
+      parameter_code: "00065",
+      measurement_kind: "water_level",
+      selected_for_display: true,
+      unit_of_measure: "ft"
+    )
+    LatestObservation.create!(
+      time_series: rising_series,
+      value: 8.4,
+      unit_of_measure: "ft",
+      observed_at: observed_at,
+      synced_at: Time.current
+    )
+    ContinuousObservation.create!(
+      time_series: rising_series,
+      value: 5.1,
+      observed_at: observed_at - 24.hours
+    )
+
+    record = create(
+      :monitoring_location,
+      name: "Record Demo Creek",
+      latest_water_level_parameter_code: "00065",
+      latest_observed_at: observed_at
+    )
+    record_series = create(
+      :time_series,
+      monitoring_location: record,
+      parameter_code: "00065",
+      measurement_kind: "water_level",
+      selected_for_display: true,
+      unit_of_measure: "ft",
+      provider_series_id: "ts-home-record"
+    )
+    LatestObservation.create!(
+      time_series: record_series,
+      value: 12.4,
+      unit_of_measure: "ft",
+      observed_at: observed_at,
+      synced_at: Time.current
+    )
+    (2000..2009).each do |year|
+      PeakObservation.create!(
+        time_series: record_series,
+        water_year: year,
+        value: 9,
+        peak_kind: "high"
+      )
+    end
+
+    get root_path
+
+    assert_response :success
+    assert_includes response.body, rising.display_name
+    assert_includes response.body, "+3.30 ft"
+    assert_includes response.body, record.display_name
+    assert_includes response.body, "3.40 ft above 2000–2009 peaks"
+    assert_includes response.body, "/gauges/wa/#{rising.site_number}-"
+    assert_not_includes response.body, "No gage height rises in the last 24 hours."
+    assert_not_includes response.body, "No stations are above the annual peaks on file."
   end
 
   test "returns markdown when agents request it" do
