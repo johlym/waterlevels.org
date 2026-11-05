@@ -271,7 +271,7 @@
 }
 
 .measurement-card {
-  @apply relative flex flex-col gap-3 rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-6 text-left transition-all hover:border-cyan-500/30 hover:bg-zinc-900/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-500;
+  @apply relative flex min-w-0 w-full flex-col gap-4 rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-6 text-left transition-all hover:border-cyan-500/30 hover:bg-zinc-900/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-500;
 
   &[aria-selected="true"] {
     @apply border-cyan-500/40 bg-zinc-900 ring-2 ring-cyan-500/20;
@@ -294,7 +294,67 @@
   }
 
   .trends {
-    @apply flex flex-col gap-1 text-sm text-zinc-400;
+    @apply mt-1 flex flex-col gap-2;
+  }
+
+  .stat-grid {
+    @apply grid grid-cols-2 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950/50;
+  }
+
+  .stat-cell {
+    @apply min-w-0 px-3 py-3;
+
+    &:nth-child(odd) {
+      @apply border-r border-zinc-800;
+    }
+
+    &:only-child {
+      @apply col-span-2 border-r-0;
+    }
+  }
+
+  .stat-label {
+    @apply text-xs font-medium tracking-wide text-zinc-500 uppercase;
+  }
+
+  .stat-value {
+    @apply mt-1.5 flex flex-wrap items-baseline gap-x-1.5;
+  }
+
+  .stat-figure {
+    @apply font-display text-base font-semibold tracking-tight text-white tabular-nums;
+  }
+
+  .stat-unit {
+    @apply text-xs font-medium text-zinc-500;
+  }
+
+  .stat-meta {
+    @apply mt-1 basis-full text-xs leading-snug font-normal text-zinc-500;
+  }
+
+  .peak-note {
+    @apply rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-3;
+
+    .stat-value {
+      @apply mt-0;
+    }
+
+    .stat-label + .stat-value {
+      @apply mt-1.5;
+    }
+  }
+
+  .peak-note--record {
+    @apply border-emerald-500/30 bg-emerald-500/10;
+
+    .stat-label {
+      @apply text-emerald-300;
+    }
+  }
+
+  .peak-caption {
+    @apply mt-1.5 text-xs leading-snug text-pretty text-zinc-400;
   }
 }
 
