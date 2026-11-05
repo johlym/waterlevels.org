@@ -60,7 +60,7 @@ Schema names, rule kinds, and event payloads locked for parallel implementation.
 | alert_event_id | fk, optional |
 | alert_rule_id | fk, optional |
 | mailer_action | string |
-| status | string | `queued`, `sent`, `failed`, `skipped` |
+| status | string | `queued`, `sending`, `sent`, `failed`, `skipped` |
 | sent_at | datetime |
 | metadata | jsonb |
 
@@ -89,6 +89,8 @@ Schema names, rule kinds, and event payloads locked for parallel implementation.
 
 // flood_category_change
 { "notify_clear": true, "min_severity": "action" }
+// No implicit cooldown. action → minor → major still sends.
+// Threshold, rate-of-rise, and in-range default to 360 minutes when cooldown_minutes is omitted.
 
 // rate_of_rise (Phase F)
 { "parameter": "water_level", "window_hours": 3, "delta": 1.5, "cooldown_minutes": 360 }

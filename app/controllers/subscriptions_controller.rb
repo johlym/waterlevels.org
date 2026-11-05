@@ -91,10 +91,14 @@ class SubscriptionsController < ApplicationController
     subscriber.time_zone = time_zone if params[:time_zone].present?
     subscriber.time_zone = SubscriberTimeZones::DEFAULT if subscriber.time_zone.blank?
     subscriber.digest_enabled = digest_enabled if subscriber.new_record?
-    # Re-subscribe soft-unsubscribed addresses.
-    if subscriber.unsubscribed?
+    # Re-subscribe soft-unsubscribed addresses and turn their default rules
+    # back on. A subscriber who only disabled a rule while still subscribed
+    # keeps that choice.
+    was_unsubscribed = subscriber.unsubscribed?
+    if was_unsubscribed
       subscriber.unsubscribed_at = nil
       subscriber.verified_at = nil
+      subscriber.digest_enabled = digest_enabled
     end
 
     unless subscriber.save
@@ -109,7 +113,11 @@ class SubscriptionsController < ApplicationController
       end
       watch = subscriber.station_watches.create!(monitoring_location: location)
     end
-    watch.ensure_default_rules!
+    if was_unsubscribed
+      watch.reactivate_defaults!(digest: digest_enabled)
+    else
+      watch.ensure_default_rules!
+    end
 
     deliver_subscription_confirmation!(subscriber, watch, location)
 

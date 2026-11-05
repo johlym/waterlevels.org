@@ -15,32 +15,36 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
 
     stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/latest-continuous/items})
       .to_return do |request|
+        query = request.uri.query.to_s
+        foreign = {
+          id: "ts-foreign",
+          properties: {
+            monitoring_location_id: foreign_location_id,
+            time_series_id: "ts-foreign",
+            parameter_code: "00065",
+            time: "2026-08-02T18:00:00Z",
+            value: 3.2,
+            unit_of_measure: "ft"
+          }
+        }
+        domestic = {
+          id: "ts-domestic",
+          properties: {
+            monitoring_location_id: domestic_location_id,
+            time_series_id: "ts-domestic",
+            parameter_code: "00065",
+            time: "2026-08-02T18:00:00Z",
+            value: 12.5,
+            unit_of_measure: "ft"
+          }
+        }
+        # 00060 must be non-empty (required) but only the unsupported-state
+        # site, so the domestic gage-height path stays a single upsert.
         features =
-          if request.uri.query.to_s.include?("parameter_code=00065")
-            [
-              {
-                id: "ts-foreign",
-                properties: {
-                  monitoring_location_id: foreign_location_id,
-                  time_series_id: "ts-foreign",
-                  parameter_code: "00065",
-                  time: "2026-08-02T18:00:00Z",
-                  value: 3.2,
-                  unit_of_measure: "ft"
-                }
-              },
-              {
-                id: "ts-domestic",
-                properties: {
-                  monitoring_location_id: domestic_location_id,
-                  time_series_id: "ts-domestic",
-                  parameter_code: "00065",
-                  time: "2026-08-02T18:00:00Z",
-                  value: 12.5,
-                  unit_of_measure: "ft"
-                }
-              }
-            ]
+          if query.include?("parameter_code=00060")
+            [ foreign ]
+          elsif query.include?("parameter_code=00065")
+            [ foreign, domestic ]
           else
             []
           end
@@ -51,42 +55,45 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
         }
       end
 
+    location_features = [
+      {
+        id: foreign_location_id,
+        geometry: { type: "Point", coordinates: [ -75.7, 45.4 ] },
+        properties: {
+          agency_code: "USGS",
+          monitoring_location_number: "09500000",
+          monitoring_location_name: "OTTAWA RIVER AT DEMO, ON",
+          site_type_code: "ST",
+          site_type: "Stream",
+          state_code: "95",
+          state_name: "Ontario"
+        }
+      },
+      {
+        id: domestic_location_id,
+        geometry: { type: "Point", coordinates: [ -122.2, 47.6 ] },
+        properties: {
+          agency_code: "USGS",
+          monitoring_location_number: "12101000",
+          monitoring_location_name: "CEDAR RIVER NEAR DEMO, WA",
+          site_type_code: "ST",
+          site_type: "Stream",
+          state_code: "53",
+          state_name: "Washington",
+          county_name: "King",
+          time_zone_abbreviation: "PST"
+        }
+      }
+    ]
     stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/monitoring-locations/items})
-      .to_return do |_request|
+      .to_return do |request|
+        query = request.uri.query.to_s
+        matched = location_features.select { |feature| query.include?(feature[:id]) }
         {
           status: 200,
           headers: { "Content-Type" => "application/geo+json" },
           body: {
-            features: [
-              {
-                id: foreign_location_id,
-                geometry: { type: "Point", coordinates: [ -75.7, 45.4 ] },
-                properties: {
-                  agency_code: "USGS",
-                  monitoring_location_number: "09500000",
-                  monitoring_location_name: "OTTAWA RIVER AT DEMO, ON",
-                  site_type_code: "ST",
-                  site_type: "Stream",
-                  state_code: "95",
-                  state_name: "Ontario"
-                }
-              },
-              {
-                id: domestic_location_id,
-                geometry: { type: "Point", coordinates: [ -122.2, 47.6 ] },
-                properties: {
-                  agency_code: "USGS",
-                  monitoring_location_number: "12101000",
-                  monitoring_location_name: "CEDAR RIVER NEAR DEMO, WA",
-                  site_type_code: "ST",
-                  site_type: "Stream",
-                  state_code: "53",
-                  state_name: "Washington",
-                  county_name: "King",
-                  time_zone_abbreviation: "PST"
-                }
-              }
-            ],
+            features: matched.presence || location_features,
             links: []
           }.to_json
         }
@@ -391,6 +398,14 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
               value: 4.13,
               unit_of_measure: "ft3/s"
             ) ]
+          elsif code == "00065"
+            [ catalog_feature(
+              id: "ts-stage",
+              monitoring_location_id: flow_location_id,
+              parameter_code: "00065",
+              value: 2.5,
+              unit_of_measure: "ft"
+            ) ]
           else
             []
           end
@@ -487,6 +502,134 @@ class StationCatalogSyncTest < ActiveSupport::TestCase
   ensure
     StationCatalogCheckpoint.clear_all!
     Rails.cache = previous_cache
+  end
+
+  test "empty required latest-continuous does not mark complete or prune" do
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    StationCatalogCheckpoint.clear_all!
+
+    orphan = create(
+      :monitoring_location,
+      site_number: "99999991",
+      provider_location_id: "USGS-99999991",
+      has_discharge: true,
+      latest_observed_at: 1.hour.ago
+    )
+    usbr = create(
+      :monitoring_location,
+      data_provider: DataProviders::USBR,
+      provider_location_id: "USBR-3514",
+      site_number: "usbr3514",
+      name: "Lake Mead at Hoover Dam",
+      slug: "lake-mead-at-hoover-dam"
+    )
+
+    stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/latest-continuous/items})
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/geo+json" },
+        body: { features: [], links: [] }.to_json
+      )
+
+    error = assert_raises(Usgs::Client::Error) { StationCatalogSync.new.perform }
+    assert_match(/required parameter=00060/, error.message)
+    assert MonitoringLocation.exists?(orphan.id)
+    assert MonitoringLocation.exists?(usbr.id)
+    raw = StationCatalogCheckpoint.read_raw(state: nil)
+    assert_equal [], Array(raw && raw["completed_parameter_codes"])
+  ensure
+    StationCatalogCheckpoint.clear_all!
+    Rails.cache = previous_cache
+  end
+
+  test "prune keeps discovered locations that have no denormalized tip and ignores non-usgs reservoirs" do
+    kept = create(
+      :monitoring_location,
+      provider_location_id: "USGS-12101000",
+      site_number: "12101000",
+      latest_observed_at: nil,
+      has_water_level: false,
+      has_discharge: false,
+      has_temperature: false
+    )
+    orphan = create(
+      :monitoring_location,
+      provider_location_id: "USGS-99999992",
+      site_number: "99999992",
+      has_discharge: true,
+      latest_observed_at: 1.hour.ago
+    )
+    usbr = create(
+      :monitoring_location,
+      data_provider: DataProviders::USBR,
+      provider_location_id: "USBR-35993",
+      site_number: "usbr35993",
+      name: "Lake Mead",
+      slug: "lake-mead"
+    )
+
+    StationCatalogSync.new.send(:prune_inactive_locations!, [ "USGS-12101000" ])
+
+    assert MonitoringLocation.exists?(kept.id)
+    assert MonitoringLocation.exists?(usbr.id)
+    assert_nil MonitoringLocation.find_by(id: orphan.id)
+  end
+
+  test "latest upsert does not regress a newer hourly tip" do
+    location = create(:monitoring_location, provider_location_id: "USGS-12099550", site_number: "12099550")
+    series = create(:time_series, monitoring_location: location, provider_series_id: "ts-hourly")
+    newer = 1.hour.ago.change(usec: 0)
+    older = 6.hours.ago.change(usec: 0)
+    LatestObservation.create!(
+      time_series: series,
+      observed_at: newer,
+      value: 10.0,
+      unit_of_measure: "ft",
+      synced_at: newer
+    )
+
+    StationCatalogSync.new.send(:upsert_latest_observations, [ {
+      monitoring_location_id: location.provider_location_id,
+      time_series_id: series.provider_series_id,
+      parameter_code: "00065",
+      measurement_kind: "water_level",
+      value: 1.0,
+      observed_at: older.iso8601,
+      unit_of_measure: "ft"
+    } ])
+
+    latest = LatestObservation.find_by!(time_series_id: series.id)
+    assert_equal newer.to_i, latest.observed_at.to_i
+    assert_in_delta 10.0, latest.value, 0.001
+  end
+
+  test "latest upsert still advances when discovery is newer than the stored tip" do
+    location = create(:monitoring_location, provider_location_id: "USGS-12099551", site_number: "12099551")
+    series = create(:time_series, monitoring_location: location, provider_series_id: "ts-newer")
+    older = 6.hours.ago.change(usec: 0)
+    newer = 1.hour.ago.change(usec: 0)
+    LatestObservation.create!(
+      time_series: series,
+      observed_at: older,
+      value: 1.0,
+      unit_of_measure: "ft",
+      synced_at: older
+    )
+
+    StationCatalogSync.new.send(:upsert_latest_observations, [ {
+      monitoring_location_id: location.provider_location_id,
+      time_series_id: series.provider_series_id,
+      parameter_code: "00065",
+      measurement_kind: "water_level",
+      value: 12.5,
+      observed_at: newer.iso8601,
+      unit_of_measure: "ft"
+    } ])
+
+    latest = LatestObservation.find_by!(time_series_id: series.id)
+    assert_equal newer.to_i, latest.observed_at.to_i
+    assert_in_delta 12.5, latest.value, 0.001
   end
 
   private

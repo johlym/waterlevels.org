@@ -105,4 +105,37 @@ class AlertDeliveryJobTest < ActiveSupport::TestCase
     AlertDeliveryJob.perform_now(digest.id)
     assert_not_nil @subscriber.reload.digest_last_sent_on
   end
+
+  test "retries a delivery still marked sending instead of dropping it" do
+    @delivery.update_columns(status: "sending", updated_at: Time.current)
+
+    assert_enqueued_with(job: AlertDeliveryJob, args: [ @delivery.id ]) do
+      assert_emails 0 do
+        AlertDeliveryJob.perform_now(@delivery.id)
+      end
+    end
+
+    assert_equal "sending", @delivery.reload.status
+  end
+
+  test "reclaims a stale sending delivery and sends" do
+    @delivery.update_columns(status: "sending", updated_at: 11.minutes.ago)
+
+    assert_emails 1 do
+      AlertDeliveryJob.perform_now(@delivery.id)
+    end
+
+    assert_equal "sent", @delivery.reload.status
+    assert_not_nil @delivery.sent_at
+  end
+
+  test "leaves an already-sent delivery untouched" do
+    @delivery.update!(status: "sent", sent_at: Time.current)
+
+    assert_emails 0 do
+      AlertDeliveryJob.perform_now(@delivery.id)
+    end
+
+    assert_equal "sent", @delivery.reload.status
+  end
 end

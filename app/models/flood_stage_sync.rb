@@ -349,6 +349,7 @@ class FloodStageSync
     matched = 0
     unmatched = 0
     skipped = 0
+    kept_after_miss = 0
     errors = 0
 
     due = detail_scope
@@ -372,10 +373,16 @@ class FloodStageSync
         "(#{matched + unmatched + errors + 1}/#{budget})"
       )
       begin
-        gauge = client.gauge(location.site_number)
+        gauge = client.gauge(detail_identifier(location))
         if gauge.present?
           apply_match!(location, gauge)
           matched += 1
+        elsif location.nwps_matched?
+          # 404 / blank detail must not tear down a working LID crosswalk.
+          # Hourly list refresh and stale-unseen expiry already handle gauges
+          # that left NWPS. Stamp synced_at so this row leaves the due set.
+          keep_match_after_detail_miss!(location)
+          kept_after_miss += 1
         else
           apply_miss!(location)
           unmatched += 1
@@ -388,7 +395,7 @@ class FloodStageSync
       progress&.increment
     end
 
-    skipped = [ due_count - matched - unmatched - errors, 0 ].max
+    skipped = [ due_count - matched - unmatched - errors - kept_after_miss, 0 ].max
     if skipped.positive?
       progress&.step("detail sync deferred=#{skipped} (budget); resumes next run")
     end
@@ -409,16 +416,8 @@ class FloodStageSync
   end
 
   def apply_list_status!(location, gauge)
-    category, category_at = category_from_status(gauge["status"])
     attrs = { nwps_matched: true }
-    if category.present?
-      attrs[:flood_category] = category
-      attrs[:flood_category_observed_at] = category_at || location.flood_category_observed_at
-    elsif stale_alert?(location)
-      # Sentinels only (obs_not_current / fcst_not_current). Keep a recent
-      # category to avoid flicker; drop it once the last current status ages out.
-      attrs[:flood_category] = "no_flooding"
-    end
+    assign_category_from_status!(attrs, location, gauge["status"])
 
     # Avoid rewrite + snapshot warm when the list status did not change.
     return false if list_status_unchanged?(location, attrs)
@@ -451,26 +450,26 @@ class FloodStageSync
 
   def apply_match!(location, gauge)
     categories = gauge.dig("flood", "categories") || {}
-    category, category_at = category_from_status(gauge["status"])
     old_category = location.flood_category
-
-    location.update!(
+    attrs = {
       nwps_lid: gauge["lid"].presence || location.nwps_lid,
       nwps_matched: true,
       nwps_synced_at: Time.current,
       flood_stage_action: Nwps::FloodCategories.stage_value(categories.dig("action", "stage")),
       flood_stage_minor: Nwps::FloodCategories.stage_value(categories.dig("minor", "stage")),
       flood_stage_moderate: Nwps::FloodCategories.stage_value(categories.dig("moderate", "stage")),
-      flood_stage_major: Nwps::FloodCategories.stage_value(categories.dig("major", "stage")),
-      flood_category: category,
-      flood_category_observed_at: category_at
-    )
-    AlertEventRecorder.flood_category_change!(
-      location: location,
-      from: old_category,
-      to: category,
-      observed_at: category_at || Time.current
-    )
+      flood_stage_major: Nwps::FloodCategories.stage_value(categories.dig("major", "stage"))
+    }
+    assign_category_from_status!(attrs, location, gauge["status"])
+    location.update!(attrs)
+    if attrs.key?(:flood_category)
+      AlertEventRecorder.flood_category_change!(
+        location: location,
+        from: old_category,
+        to: attrs[:flood_category],
+        observed_at: attrs[:flood_category_observed_at] || Time.current
+      )
+    end
     StationSnapshotCache.warm(location)
   end
 
@@ -489,13 +488,45 @@ class FloodStageSync
     StationSnapshotCache.warm(location)
   end
 
+  # Prefer the LID we already crosswalked. USGS site-number lookup 404s when
+  # NWPS only indexes the NWS identifier (or pads the site number differently).
+  def detail_identifier(location)
+    location.nwps_lid.presence || location.site_number
+  end
+
+  def keep_match_after_detail_miss!(location)
+    location.update_columns(nwps_synced_at: Time.current, updated_at: Time.current)
+  end
+
+  # Observed/forecast sentinels (obs_not_current / fcst_not_current) carry a
+  # dummy validTime of 0001-01-01. Only credit a clock from a side that still
+  # has a real category, or stale-alert expiry treats year 1 as "24h old" and
+  # drops live forecast-backed floods.
+  def assign_category_from_status!(attrs, location, status)
+    category, category_at = category_from_status(status)
+    if category.present?
+      attrs[:flood_category] = category
+      attrs[:flood_category_observed_at] = category_at || location.flood_category_observed_at
+    elsif stale_alert?(location)
+      # Sentinels only. Keep a recent category to avoid flicker; drop it once
+      # the last current status ages out.
+      attrs[:flood_category] = "no_flooding"
+    end
+  end
+
   def category_from_status(status)
     status ||= {}
     observed = status["observed"] || {}
     forecast = status["forecast"] || {}
     category = Nwps::FloodCategories.effective(observed["floodCategory"], forecast["floodCategory"])
-    category_at = parse_time(observed["validTime"]) || parse_time(forecast["validTime"])
+    category_at = current_category_time(observed) || current_category_time(forecast)
     [ category, category_at ]
+  end
+
+  def current_category_time(side)
+    return if Nwps::FloodCategories.normalize(side["floodCategory"]).blank?
+
+    parse_time(side["validTime"])
   end
 
   def warm_caches(changed:)
