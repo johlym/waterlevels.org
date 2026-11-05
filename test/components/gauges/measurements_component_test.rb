@@ -105,7 +105,7 @@ class Gauges::MeasurementsComponentTest < ViewComponent::TestCase
 
     assert_includes html, "+50"
     assert_includes html, "ft³/s"
-    assert_includes html, "(+4.2%)"
+    assert_includes html, 'class="stat-percent">(+4.2%)'
     assert_includes html, "water year 2011"
     assert_includes html, ">3,800<"
     assert_includes html, "below the water year 2011 peak"

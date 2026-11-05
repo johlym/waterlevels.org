@@ -94,7 +94,7 @@
                       <span class="stat-unit"><%= unit %></span>
                     <% end %>
                     <% if kind == "discharge" && change_24h_percent %>
-                      <span class="stat-meta">(<%= format("%+.1f", change_24h_percent.to_f) %>%)</span>
+                      <span class="stat-percent">(<%= format("%+.1f", change_24h_percent.to_f) %>%)</span>
                     <% end %>
                   </div>
                 </div>

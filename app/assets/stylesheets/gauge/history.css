@@ -319,6 +319,10 @@
 
   .stat-value {
     @apply mt-1.5 flex flex-wrap items-baseline gap-x-1.5;
+
+    &:not(:has(.stat-meta)) {
+      @apply flex-nowrap;
+    }
   }
 
   .stat-figure {
@@ -327,6 +331,10 @@
 
   .stat-unit {
     @apply text-xs font-medium text-zinc-500;
+  }
+
+  .stat-percent {
+    @apply text-xs font-medium whitespace-nowrap text-zinc-500;
   }
 
   .stat-meta {
