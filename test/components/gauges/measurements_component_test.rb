@@ -60,10 +60,15 @@ class Gauges::MeasurementsComponentTest < ViewComponent::TestCase
       )
     ).to_html
 
-    assert_includes html, "+50 ft³/s"
-    assert_includes html, "-100 ft³/s"
-    assert_includes html, "High 5,000"
-    assert_includes html, "Low 200"
+    assert_includes html, "+50"
+    assert_includes html, "ft³/s"
+    assert_includes html, "-100"
+    assert_includes html, ">High<"
+    assert_includes html, ">5,000<"
+    assert_includes html, ">Low<"
+    assert_includes html, ">200<"
+    assert_not_includes html, "High 5,000 ·"
+    assert_not_includes html, "· Low"
     assert_not_includes html, "data-temp-delta-c"
     assert_not_includes html, "temperature-unit#setF"
     assert_not_includes html, "water year"
@@ -98,11 +103,17 @@ class Gauges::MeasurementsComponentTest < ViewComponent::TestCase
       )
     ).to_html
 
-    assert_includes html, "+50 ft³/s"
-    assert_includes html, "(+4.2%)"
-    assert_includes html, "water year 2011"
-    assert_includes html, "3,800 ft³/s"
+    assert_includes html, "+50"
+    assert_includes html, "ft³/s"
+    assert_includes html, 'class="stat-percent">(+4.2%)'
+    assert_includes html, 'class="stat-year">'
+    assert_includes html, "(2011)"
+    assert_includes html, ">3,800<"
     assert_includes html, "below the water year 2011 peak"
+    assert_not_includes html, "stat-meta"
+    assert_includes html, 'class="peak-caption">below the water year 2011 peak'
+    assert_not_includes html, "· water year"
+    assert_not_includes html, "· Low"
   end
 
   test "a qualifying peak margin is called a record and a short history is not" do
@@ -149,9 +160,11 @@ class Gauges::MeasurementsComponentTest < ViewComponent::TestCase
       )
     ).to_html
 
-    assert_includes html, "0.40 ft"
+    assert_includes html, ">0.40<"
+    assert_includes html, "New high"
     assert_includes html, "above every annual peak on file (2000–2009)"
     assert_includes html, "above the water year 2011 peak"
+    assert_includes html, "peak-note--record"
     assert_not_includes html, "above every annual peak on file (2011–2011)"
   end
 

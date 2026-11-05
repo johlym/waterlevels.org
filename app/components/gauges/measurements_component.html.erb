@@ -81,54 +81,103 @@
           </div>
         <% end %>
         <div class="trends">
-          <% if kind == "temperature" %>
-            <% if change_24h %>
-              <p>24h <span data-temperature-unit-target="display" data-temp-delta-c="<%= change_24h %>"><%= helpers.display_temperature_delta_c(change_24h) %></span></p>
-            <% end %>
-            <% if yoy %>
-              <p>YoY <span data-temperature-unit-target="display" data-temp-delta-c="<%= yoy %>"><%= helpers.display_temperature_delta_c(yoy) %></span></p>
-            <% end %>
-            <% if high || low %>
-              <p>
-                High <% if high %><span data-temperature-unit-target="display" data-temp-c="<%= high %>" data-temp-hide-unit="true"><%= helpers.display_temperature_c(high, hide_unit: true) %></span><% else %>—<% end %>
-                · Low <% if low %><span data-temperature-unit-target="display" data-temp-c="<%= low %>" data-temp-hide-unit="true"><%= helpers.display_temperature_c(low, hide_unit: true) %></span><% else %>—<% end %>
-              </p>
-            <% end %>
-          <% else %>
-            <% if change_24h %>
-              <p>
-                24h <%= helpers.signed_number(change_24h, precision: precision) %> <%= unit %>
-                <% if kind == "discharge" && change_24h_percent %>
-                  (<%= format("%+.1f", change_24h_percent.to_f) %>%)
-                <% end %>
-              </p>
-            <% end %>
-            <% if yoy %>
-              <p>YoY <%= helpers.signed_number(yoy, precision: precision) %> <%= unit %></p>
-            <% end %>
-            <% if high || low %>
-              <p>
-                High <%= high ? helpers.display_gauge_value(high, precision: precision) : "—" %>
-                <% if high_year %>· water year <%= high_year %><% end %>
-                · Low <%= low ? helpers.display_gauge_value(low, precision: precision) : "—" %>
-              </p>
-            <% end %>
-            <% if record %>
-              <p>
-                <%= helpers.display_gauge_value(margin, precision: precision) %> <%= unit %>
-                above every annual peak on file (<%= year_span %>)
-              </p>
-            <% elsif margin && margin.to_f.negative? && peak_year %>
-              <p>
-                <%= helpers.display_gauge_value(margin.to_f.abs, precision: precision) %> <%= unit %>
-                below the water year <%= peak_year %> peak
-              </p>
-            <% elsif margin && margin.to_f.positive? && peak_year %>
-              <p>
-                <%= helpers.display_gauge_value(margin, precision: precision) %> <%= unit %>
-                above the water year <%= peak_year %> peak
-              </p>
-            <% end %>
+          <% if change_24h || yoy %>
+            <div class="stat-grid">
+              <% if change_24h %>
+                <div class="stat-cell">
+                  <div class="stat-label">24h</div>
+                  <div class="stat-value">
+                    <% if kind == "temperature" %>
+                      <span class="stat-figure" data-temperature-unit-target="display" data-temp-delta-c="<%= change_24h %>"><%= helpers.display_temperature_delta_c(change_24h) %></span>
+                    <% else %>
+                      <span class="stat-figure"><%= helpers.signed_number(change_24h, precision: precision) %></span>
+                      <span class="stat-unit"><%= unit %></span>
+                    <% end %>
+                    <% if kind == "discharge" && change_24h_percent %>
+                      <span class="stat-percent">(<%= format("%+.1f", change_24h_percent.to_f) %>%)</span>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
+              <% if yoy %>
+                <div class="stat-cell">
+                  <div class="stat-label">YoY</div>
+                  <div class="stat-value">
+                    <% if kind == "temperature" %>
+                      <span class="stat-figure" data-temperature-unit-target="display" data-temp-delta-c="<%= yoy %>"><%= helpers.display_temperature_delta_c(yoy) %></span>
+                    <% else %>
+                      <span class="stat-figure"><%= helpers.signed_number(yoy, precision: precision) %></span>
+                      <span class="stat-unit"><%= unit %></span>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+
+          <% if high || low %>
+            <div class="stat-grid">
+              <div class="stat-cell">
+                <div class="stat-label">
+                  <span>High</span>
+                  <% if kind != "temperature" && high_year %>
+                    <span class="stat-year"><span class="sr-only">water year </span>(<%= high_year %>)</span>
+                  <% end %>
+                </div>
+                <div class="stat-value">
+                  <% if kind == "temperature" %>
+                    <% if high %>
+                      <span class="stat-figure" data-temperature-unit-target="display" data-temp-c="<%= high %>" data-temp-hide-unit="true"><%= helpers.display_temperature_c(high, hide_unit: true) %></span>
+                    <% else %>
+                      <span class="stat-figure">—</span>
+                    <% end %>
+                  <% else %>
+                    <span class="stat-figure"><%= high ? helpers.display_gauge_value(high, precision: precision) : "—" %></span>
+                  <% end %>
+                </div>
+              </div>
+              <div class="stat-cell">
+                <div class="stat-label">Low</div>
+                <div class="stat-value">
+                  <% if kind == "temperature" %>
+                    <% if low %>
+                      <span class="stat-figure" data-temperature-unit-target="display" data-temp-c="<%= low %>" data-temp-hide-unit="true"><%= helpers.display_temperature_c(low, hide_unit: true) %></span>
+                    <% else %>
+                      <span class="stat-figure">—</span>
+                    <% end %>
+                  <% else %>
+                    <span class="stat-figure"><%= low ? helpers.display_gauge_value(low, precision: precision) : "—" %></span>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+          <% end %>
+
+          <% if kind != "temperature" && record %>
+            <div class="peak-note peak-note--record">
+              <div class="stat-label">New high</div>
+              <div class="stat-value">
+                <span class="stat-figure"><%= helpers.display_gauge_value(margin, precision: precision) %></span>
+                <span class="stat-unit"><%= unit %></span>
+              </div>
+              <p class="peak-caption">above every annual peak on file (<%= year_span %>)</p>
+            </div>
+          <% elsif kind != "temperature" && margin && margin.to_f.negative? && peak_year %>
+            <div class="peak-note">
+              <div class="stat-value">
+                <span class="stat-figure"><%= helpers.display_gauge_value(margin.to_f.abs, precision: precision) %></span>
+                <span class="stat-unit"><%= unit %></span>
+              </div>
+              <p class="peak-caption">below the water year <%= peak_year %> peak</p>
+            </div>
+          <% elsif kind != "temperature" && margin && margin.to_f.positive? && peak_year %>
+            <div class="peak-note">
+              <div class="stat-value">
+                <span class="stat-figure"><%= helpers.display_gauge_value(margin, precision: precision) %></span>
+                <span class="stat-unit"><%= unit %></span>
+              </div>
+              <p class="peak-caption">above the water year <%= peak_year %> peak</p>
+            </div>
           <% end %>
         </div>
       </button>
