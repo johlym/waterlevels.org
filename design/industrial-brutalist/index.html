@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WL.ORG / Redesign proposal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="proposal.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to main content</a>
+  <div class="shell">
+    <header class="bar">
+      <a class="brand" href="home.html">
+        <span class="mark" aria-hidden="true"></span>
+        <span class="brand-id">
+          <strong>WL.ORG</strong>
+          <span>Rev 0.1 / Proposal</span>
+        </span>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="home.html">Home</a>
+        <a href="map.html">Map</a>
+        <a href="alerts.html">Flood alerts</a>
+        <a href="directory.html">Directory</a>
+        <a href="gauge.html">Gauge</a>
+      </nav>
+      <div class="status">
+        <span class="pip" aria-hidden="true"></span>
+        <span>Mode / Tactical telemetry</span>
+      </div>
+    </header>
+
+    <main id="main" class="cover-main">
+      <section class="cover-hero">
+        <p class="kicker">[ Audit / Redesign ] · WaterLevels.org</p>
+        <hr class="rule-hazard" style="margin: 20px 0 24px; max-width: 8rem;">
+        <h1 class="mega">Stage<br>net</h1>
+        <p class="cover-copy">
+          Locked direction: <strong>Tactical Telemetry</strong> (dark CRT). Hazard red is the only accent.
+          Terminal green is reserved for the live pip. This cover and the five screens
+          next to it are a visual proposal — they are not mounted on the Rails app.
+        </p>
+        <p class="cover-copy">
+          Read the written audit in <a href="README.md">README.md</a>. Open a screen to judge density, flood language, and the command-row search.
+        </p>
+      </section>
+
+      <aside class="cover-meta">
+        <div class="frame-head">[ Palette / Locked ]</div>
+        <div class="swatches">
+          <div class="swatch">
+            <span class="dim">Bg</span>
+            <span class="chip" style="background:#0a0a0a"></span>
+            #0A0A0A
+          </div>
+          <div class="swatch">
+            <span class="dim">Ink</span>
+            <span class="chip" style="background:#eaeaea"></span>
+            #EAEAEA
+          </div>
+          <div class="swatch">
+            <span class="dim">Hazard</span>
+            <span class="chip" style="background:#e61919"></span>
+            #E61919
+          </div>
+          <div class="swatch">
+            <span class="dim">Live pip</span>
+            <span class="chip" style="background:#4af626"></span>
+            #4AF626 · one use
+          </div>
+          <div class="swatch">
+            <span class="dim">Line</span>
+            <span class="chip" style="background:#2a2a2a"></span>
+            #2A2A2A
+          </div>
+          <div class="swatch">
+            <span class="dim">Dim</span>
+            <span class="chip" style="background:#8a8a8a"></span>
+            #8A8A8A
+          </div>
+        </div>
+        <nav class="links" aria-label="Mockups">
+          <a href="home.html"><span>[ 01 ] Home / command index</span><span>›››</span></a>
+          <a href="map.html"><span>[ 02 ] Map / HUD</span><span>›››</span></a>
+          <a href="gauge.html"><span>[ 03 ] Gauge / unit 99000020</span><span>›››</span></a>
+          <a href="directory.html"><span>[ 04 ] Directory / WA</span><span>›››</span></a>
+          <a href="alerts.html"><span>[ 05 ] Flood board</span><span>›››</span></a>
+        </nav>
+      </aside>
+    </main>
+
+    <footer class="foot">
+      <p>© 2026 WaterLevels.org · Proposal chassis · + + +</p>
+      <nav aria-label="Footer">
+        <a href="README.md">Spec</a>
+        <a href="home.html">Home</a>
+        <a href="map.html">Map</a>
+      </nav>
+    </footer>
+  </div>
+</body>
+</html>
