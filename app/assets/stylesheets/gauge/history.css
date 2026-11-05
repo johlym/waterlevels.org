@@ -314,15 +314,15 @@
   }
 
   .stat-label {
-    @apply text-xs font-medium tracking-wide text-zinc-500 uppercase;
+    @apply flex items-baseline gap-1 text-xs font-medium tracking-wide whitespace-nowrap text-zinc-500 uppercase;
+  }
+
+  .stat-year {
+    @apply font-normal tracking-normal;
   }
 
   .stat-value {
-    @apply mt-1.5 flex flex-wrap items-baseline gap-x-1.5;
-
-    &:not(:has(.stat-meta)) {
-      @apply flex-nowrap;
-    }
+    @apply mt-1.5 flex flex-nowrap items-baseline gap-x-1.5;
   }
 
   .stat-figure {
@@ -335,10 +335,6 @@
 
   .stat-percent {
     @apply text-xs font-medium whitespace-nowrap text-zinc-500;
-  }
-
-  .stat-meta {
-    @apply mt-1 basis-full text-xs leading-snug font-normal text-zinc-500;
   }
 
   .peak-note {

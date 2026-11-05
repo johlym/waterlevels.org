@@ -118,7 +118,12 @@
           <% if high || low %>
             <div class="stat-grid">
               <div class="stat-cell">
-                <div class="stat-label">High</div>
+                <div class="stat-label">
+                  <span>High</span>
+                  <% if kind != "temperature" && high_year %>
+                    <span class="stat-year"><span class="sr-only">water year </span>(<%= high_year %>)</span>
+                  <% end %>
+                </div>
                 <div class="stat-value">
                   <% if kind == "temperature" %>
                     <% if high %>
@@ -128,9 +133,6 @@
                     <% end %>
                   <% else %>
                     <span class="stat-figure"><%= high ? helpers.display_gauge_value(high, precision: precision) : "—" %></span>
-                    <% if high_year %>
-                      <span class="stat-meta">water year <%= high_year %></span>
-                    <% end %>
                   <% end %>
                 </div>
               </div>
