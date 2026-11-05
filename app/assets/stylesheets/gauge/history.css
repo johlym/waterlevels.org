@@ -314,7 +314,7 @@
   }
 
   .stat-label {
-    @apply flex items-baseline gap-1 text-xs font-medium tracking-wide whitespace-nowrap text-zinc-500 uppercase;
+    @apply flex items-baseline gap-1 text-xs font-medium tracking-wide whitespace-nowrap text-zinc-400 uppercase;
   }
 
   .stat-year {
@@ -330,11 +330,11 @@
   }
 
   .stat-unit {
-    @apply text-xs font-medium text-zinc-500;
+    @apply text-xs font-medium text-zinc-400;
   }
 
   .stat-percent {
-    @apply text-xs font-medium whitespace-nowrap text-zinc-500;
+    @apply text-xs font-medium whitespace-nowrap text-zinc-400;
   }
 
   .peak-note {
