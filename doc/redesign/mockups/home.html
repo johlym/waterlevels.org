@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WaterLevels.org — US water observations</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div class="app-shell">
+    <header class="site-header">
+      <div class="inner">
+        <a class="brand" href="home.html" aria-current="page">
+          <svg class="mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M12 3s7 8.1 7 12.1A7 7 0 1 1 5 15.1C5 11.1 12 3 12 3z"></path>
+          </svg>
+          <span class="name">WaterLevels.org</span>
+        </a>
+        <nav class="desktop-nav" aria-label="Primary">
+          <a class="nav-link" href="map.html">Map</a>
+          <a class="nav-link" href="alerts.html">Flood Alerts</a>
+          <a class="nav-link" href="home.html" aria-current="page">Home</a>
+          <a class="nav-link" href="faq.html">FAQ</a>
+          <a class="nav-link" href="index.html">System</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero">
+        <div class="hero-inner">
+          <p class="kicker">12,847 active stations</p>
+          <h1>US water observations, kept current.</h1>
+          <p class="lede">
+            Streamflow, gage height, and temperature from USGS stations and selected Reclamation, Corps, NWS, and CDEC gauges.
+          </p>
+          <form class="search" role="search" action="state.html" method="get">
+            <label class="sr-only" for="home-search">Search stations</label>
+            <input id="home-search" type="search" name="q" placeholder="Cedar River near Renton, WA" autocomplete="off">
+            <button type="submit">Search</button>
+          </form>
+          <p class="popular-links">
+            <a href="#colorado-river">Colorado River</a>
+            ·
+            <a href="#mississippi-basin">Mississippi Basin</a>
+            ·
+            <a href="#great-lakes">Great Lakes</a>
+            ·
+            <a href="#pacific-northwest">Pacific Northwest</a>
+          </p>
+        </div>
+      </section>
+
+      <section class="band" aria-labelledby="network-heading">
+        <div class="band-inner">
+          <div class="band-head">
+            <h2 id="network-heading">A national network</h2>
+            <p>Counts from the latest catalog and tip sync. Flood alerts open the national action-and-above list.</p>
+          </div>
+          <div class="bento">
+            <article class="card wide">
+              <p class="kicker">Stations</p>
+              <p class="stat-value">12,847</p>
+              <p class="stat-label">Active continuous water-body sites</p>
+            </article>
+            <article class="card">
+              <p class="kicker">Readings</p>
+              <p class="stat-value">4.2M</p>
+              <p class="stat-label">Stored measurements</p>
+            </article>
+            <article class="card">
+              <p class="kicker">Today</p>
+              <p class="stat-value">96,410</p>
+              <p class="stat-label">Updates in the last 24 hours</p>
+            </article>
+            <a class="card" href="alerts.html">
+              <p class="kicker">Flood</p>
+              <p class="stat-value">18</p>
+              <p class="stat-label">Stations at action stage or above</p>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="band" aria-labelledby="waterways-heading">
+        <div class="band-inner">
+          <div class="band-head">
+            <h2 id="waterways-heading">Well-known waterways</h2>
+            <p>Reference gauges on the Colorado, Mississippi, Great Lakes, and Pacific Northwest.</p>
+          </div>
+          <div class="bento">
+            <article class="card wide waterway" id="colorado-river">
+              <h3>Colorado River</h3>
+              <p>Major gauges along the Colorado and its lower basin.</p>
+              <ul class="station-list">
+                <li>
+                  <a href="gauge.html">
+                    <span>Colorado River at Lees Ferry, AZ</span>
+                    <span class="id">09380000</span>
+                  </a>
+                </li>
+                <li>
+                  <a href="gauge.html">
+                    <span>Colorado River below Hoover Dam, AZ-NV</span>
+                    <span class="id">09421500</span>
+                  </a>
+                </li>
+                <li>
+                  <a href="gauge.html">
+                    <span>Colorado River below Parker Dam, AZ-CA</span>
+                    <span class="id">09427520</span>
+                  </a>
+                </li>
+                <li>
+                  <a href="gauge.html">
+                    <span>Lake Mead at Hoover Dam</span>
+                    <span class="id">usbr3514</span>
+                  </a>
+                </li>
+              </ul>
+              <a class="more-link" href="state.html">Arizona and Nevada directories</a>
+            </article>
+            <article class="card waterway" id="mississippi-basin">
+              <h3>Mississippi Basin</h3>
+              <p>Key measuring points from the Midwest to the Gulf.</p>
+              <ul class="station-list">
+                <li>
+                  <a href="gauge.html">
+                    <span>Mississippi River at St. Louis</span>
+                    <span class="id">07010000</span>
+                  </a>
+                </li>
+                <li>
+                  <a href="gauge.html">
+                    <span>Mississippi River at Memphis</span>
+                    <span class="id">07032000</span>
+                  </a>
+                </li>
+              </ul>
+            </article>
+            <article class="card waterway" id="great-lakes">
+              <h3>Great Lakes</h3>
+              <p>Connecting-channel and shoreline stations.</p>
+              <ul class="station-list">
+                <li>
+                  <a href="gauge.html">
+                    <span>St. Clair River at Port Huron</span>
+                    <span class="id">04159130</span>
+                  </a>
+                </li>
+                <li>
+                  <a href="gauge.html">
+                    <span>Niagara River at Buffalo</span>
+                    <span class="id">04216000</span>
+                  </a>
+                </li>
+              </ul>
+            </article>
+            <article class="card waterway" id="pacific-northwest" style="grid-column: 2 / -1">
+              <h3>Pacific Northwest</h3>
+              <p>Columbia, Willamette, and Snake River reference gauges.</p>
+              <ul class="station-list">
+                <li>
+                  <a href="gauge.html">
+                    <span>Columbia River at The Dalles, OR</span>
+                    <span class="id">14105700</span>
+                  </a>
+                </li>
+                <li>
+                  <a href="gauge.html">
+                    <span>Willamette River at Portland, OR</span>
+                    <span class="id">14211720</span>
+                  </a>
+                </li>
+                <li>
+                  <a href="gauge.html">
+                    <span>Snake River near Anatone, WA</span>
+                    <span class="id">13334300</span>
+                  </a>
+                </li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="inner">
+        <p>© 2026 WaterLevels.org</p>
+        <nav aria-label="Footer">
+          <a href="faq.html">FAQ</a>
+          <a href="index.html">System</a>
+        </nav>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

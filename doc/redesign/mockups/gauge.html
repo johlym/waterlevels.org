@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cedar River near Renton · WA · WaterLevels.org</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div class="app-shell">
+    <header class="site-header">
+      <div class="inner">
+        <a class="brand" href="home.html">
+          <svg class="mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M12 3s7 8.1 7 12.1A7 7 0 1 1 5 15.1C5 11.1 12 3 12 3z"></path>
+          </svg>
+          <span class="name">WaterLevels.org</span>
+        </a>
+        <nav class="desktop-nav" aria-label="Primary">
+          <a class="nav-link" href="map.html">Map</a>
+          <a class="nav-link" href="alerts.html">Flood Alerts</a>
+          <a class="nav-link" href="home.html">Home</a>
+          <a class="nav-link" href="faq.html">FAQ</a>
+          <a class="nav-link" href="index.html">System</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" class="page">
+      <nav aria-label="Breadcrumb">
+        <ol class="crumb">
+          <li><a href="map.html">Map</a></li>
+          <li aria-hidden="true">/</li>
+          <li><a href="state.html">Washington</a></li>
+          <li aria-hidden="true">/</li>
+          <li>King County</li>
+        </ol>
+      </nav>
+
+      <header class="identity">
+        <div>
+          <h1 class="page-title">Cedar River near Renton</h1>
+          <p class="ids">12119000 · USGS · King County, WA</p>
+        </div>
+        <span class="badge major"><span class="shape" aria-hidden="true"></span> Major flood</span>
+      </header>
+
+      <section class="measures" aria-label="Measurements" role="tablist">
+        <button class="measure" type="button" role="tab" aria-selected="true" aria-controls="graph-panel" id="tab-gh">
+          <p class="label">Gage height</p>
+          <p class="value">18.42 <span class="unit">ft</span></p>
+          <p class="trend">+2.18 ft in 24h</p>
+        </button>
+        <button class="measure" type="button" role="tab" aria-selected="false" aria-controls="graph-panel" id="tab-q">
+          <p class="label">Discharge</p>
+          <p class="value">8,420 <span class="unit">ft³/s</span></p>
+          <p class="trend">+1,160 ft³/s in 24h</p>
+        </button>
+        <button class="measure" type="button" role="tab" aria-selected="false" aria-controls="graph-panel" id="tab-t">
+          <p class="label">Water temperature</p>
+          <p class="value">48.2 <span class="unit">°F</span></p>
+          <p class="trend">−0.6 °F in 24h</p>
+        </button>
+      </section>
+
+      <div class="toolbar">
+        <h2 class="section-title" id="graph-heading">Historical trends</h2>
+        <div style="display:flex;flex-wrap:wrap;gap:0.5rem">
+          <div class="seg" role="group" aria-label="Time range">
+            <button type="button" aria-pressed="false">7d</button>
+            <button type="button" aria-pressed="true">30d</button>
+            <button type="button" aria-pressed="false">1y</button>
+            <button type="button" aria-pressed="false">3y</button>
+          </div>
+          <div class="seg" role="group" aria-label="History view">
+            <button type="button" aria-pressed="true">Chart</button>
+            <button type="button" aria-pressed="false">Table</button>
+          </div>
+          <button class="ghost" type="button">Export CSV</button>
+        </div>
+      </div>
+
+      <section class="chart" id="graph-panel" aria-labelledby="graph-heading">
+        <svg viewBox="0 0 640 220" role="img" aria-label="Gage height for the last 30 days, rising into major flood.">
+          <line x1="36" y1="24" x2="620" y2="24" stroke="#fdebec" stroke-width="1"></line>
+          <line x1="36" y1="72" x2="620" y2="72" stroke="#f7efe0" stroke-width="1"></line>
+          <line x1="36" y1="110" x2="620" y2="110" stroke="#fbf3db" stroke-width="1"></line>
+          <text x="40" y="18" fill="#9f2f2d" font-size="10" font-family="JetBrains Mono, monospace">Major 17.5</text>
+          <text x="40" y="66" fill="#8a5a16" font-size="10" font-family="JetBrains Mono, monospace">Moderate 15.0</text>
+          <text x="40" y="104" fill="#956400" font-size="10" font-family="JetBrains Mono, monospace">Action 13.0</text>
+          <polyline fill="none" stroke="#2f3437" stroke-width="1.75" points="36,168 90,171 140,166 190,158 240,149 290,141 340,128 390,104 440,78 490,52 540,38 590,30 620,28"></polyline>
+        </svg>
+        <div class="stats-row">
+          <div>
+            <div class="label">Latest</div>
+            <div class="value">18.42 ft</div>
+          </div>
+          <div>
+            <div class="label">Period high</div>
+            <div class="value">18.51 ft</div>
+          </div>
+          <div>
+            <div class="label">Period low</div>
+            <div class="value">8.04 ft</div>
+          </div>
+          <div>
+            <div class="label">Updated</div>
+            <div class="value">4 min ago</div>
+          </div>
+        </div>
+      </section>
+
+      <dl class="meta-grid">
+        <div>
+          <dt>Flood category</dt>
+          <dd>Major</dd>
+        </div>
+        <div>
+          <dt>Data status</dt>
+          <dd>Provisional</dd>
+        </div>
+        <div>
+          <dt>Coordinates</dt>
+          <dd>47.4821° N, 122.1958° W</dd>
+        </div>
+        <div>
+          <dt>NWS stages</dt>
+          <dd>Action 13.0 · Minor 14.0 · Mod 15.0 · Major 17.5</dd>
+        </div>
+      </dl>
+
+      <div class="related">
+        <section>
+          <h2>On-stream</h2>
+          <a href="gauge.html"><span>Upstream · Cedar River near Landsburg</span><span class="id">12117500</span></a>
+          <div class="here"><span>This station · Cedar River near Renton</span><span class="id">12119000</span></div>
+          <a href="gauge.html"><span>Downstream · Cedar River at Renton</span><span class="id">12119070</span></a>
+        </section>
+        <section>
+          <h2>Nearby</h2>
+          <a href="gauge.html"><span>Green River near Auburn</span><span class="id">12113000</span></a>
+          <a href="gauge.html"><span>Duwamish River at Golf Course</span><span class="id">12113390</span></a>
+        </section>
+      </div>
+
+      <p class="note">Data courtesy of the U.S. Geological Survey.</p>
+    </main>
+
+    <footer class="site-footer">
+      <div class="inner">
+        <p>© 2026 WaterLevels.org</p>
+        <nav aria-label="Footer">
+          <a href="faq.html">FAQ</a>
+          <a href="index.html">System</a>
+        </nav>
+      </div>
+    </footer>
+  </div>
+  <script>
+    const tabs = document.querySelectorAll('.measure');
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        tabs.forEach((other) => other.setAttribute('aria-selected', String(other === tab)));
+      });
+    });
+    document.querySelectorAll('.seg').forEach((group) => {
+      group.querySelectorAll('button').forEach((button) => {
+        button.addEventListener('click', () => {
+          group.querySelectorAll('button').forEach((other) => other.setAttribute('aria-pressed', String(other === button)));
+        });
+      });
+    });
+  </script>
+</body>
+</html>
