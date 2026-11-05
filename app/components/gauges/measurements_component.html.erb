@@ -127,12 +127,13 @@
                 <div class="stat-value">
                   <% if kind == "temperature" %>
                     <% if high %>
-                      <span class="stat-figure" data-temperature-unit-target="display" data-temp-c="<%= high %>" data-temp-hide-unit="true"><%= helpers.display_temperature_c(high, hide_unit: true) %></span>
+                      <span class="stat-figure" data-temperature-unit-target="display" data-temp-c="<%= high %>"><%= helpers.display_temperature_c(high) %></span>
                     <% else %>
                       <span class="stat-figure">—</span>
                     <% end %>
                   <% else %>
                     <span class="stat-figure"><%= high ? helpers.display_gauge_value(high, precision: precision) : "—" %></span>
+                    <% if high %><span class="stat-unit"><%= unit %></span><% end %>
                   <% end %>
                 </div>
               </div>
@@ -141,12 +142,13 @@
                 <div class="stat-value">
                   <% if kind == "temperature" %>
                     <% if low %>
-                      <span class="stat-figure" data-temperature-unit-target="display" data-temp-c="<%= low %>" data-temp-hide-unit="true"><%= helpers.display_temperature_c(low, hide_unit: true) %></span>
+                      <span class="stat-figure" data-temperature-unit-target="display" data-temp-c="<%= low %>"><%= helpers.display_temperature_c(low) %></span>
                     <% else %>
                       <span class="stat-figure">—</span>
                     <% end %>
                   <% else %>
                     <span class="stat-figure"><%= low ? helpers.display_gauge_value(low, precision: precision) : "—" %></span>
+                    <% if low %><span class="stat-unit"><%= unit %></span><% end %>
                   <% end %>
                 </div>
               </div>

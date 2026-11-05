@@ -27,7 +27,9 @@ class Gauges::MeasurementsComponentTest < ViewComponent::TestCase
     assert_includes html, 'data-temp-delta-c="-2.5"'
     assert_includes html, 'data-temp-c="18.0"'
     assert_includes html, 'data-temp-c="6.0"'
-    assert_includes html, 'data-temp-hide-unit="true"'
+    assert_includes html, "64.4 °F"
+    assert_includes html, "42.8 °F"
+    assert_not_includes html, "data-temp-hide-unit"
     assert_includes html, "temperature-unit#setF"
     assert_includes html, "temperature-unit#setC"
 
@@ -67,6 +69,8 @@ class Gauges::MeasurementsComponentTest < ViewComponent::TestCase
     assert_includes html, ">5,000<"
     assert_includes html, ">Low<"
     assert_includes html, ">200<"
+    assert_match(%r{stat-figure">5,000</span>\s*<span class="stat-unit">ft³/s</span>}, html)
+    assert_match(%r{stat-figure">200</span>\s*<span class="stat-unit">ft³/s</span>}, html)
     assert_not_includes html, "High 5,000 ·"
     assert_not_includes html, "· Low"
     assert_not_includes html, "data-temp-delta-c"
