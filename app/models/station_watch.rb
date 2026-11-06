@@ -17,6 +17,14 @@ class StationWatch < ApplicationRecord
     end
   end
 
+  # Unsubscribe-all disables existing rules. find_or_create leaves them off,
+  # so a later signup never mailed flood alerts again.
+  def reactivate_defaults!(digest: true)
+    ensure_default_rules!
+    rule_for("flood_category_change")&.update!(enabled: true)
+    rule_for("digest")&.update!(enabled: digest)
+  end
+
   def rule_for(kind)
     alert_rules.find_by(kind: kind)
   end

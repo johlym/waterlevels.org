@@ -12,9 +12,14 @@ class AlertEvaluationJob < ApplicationJob
     location = MonitoringLocation.find_by(id: location_id)
     return unless location
 
+    # NWPS validTime can be hours older than the moment we recorded the event
+    # (forecast-backed floods, delayed list refresh). A window on occurred_at
+    # alone dropped those emails. Also keep events whose occurred_at is recent
+    # even if the row was recorded earlier.
+    cutoff = PENDING_WINDOW.ago
     events = AlertEvent
       .where(monitoring_location_id: location.id)
-      .where(occurred_at: PENDING_WINDOW.ago..)
+      .where("alert_events.created_at >= :cutoff OR alert_events.occurred_at >= :cutoff", cutoff: cutoff)
       .order(:occurred_at)
 
     watches = StationWatch

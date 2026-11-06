@@ -6,6 +6,10 @@ class AlertDigestSchedulerJob < ApplicationJob
   def perform
     return unless AlertsConfig.enabled?
 
+    # A worker killed mid-send leaves status=sending. Nothing else retries
+    # that row, and a digest in that state blocks the subscriber forever.
+    AlertDeliveryJob.requeue_stale_sending!
+
     Subscriber.digest_due.find_each do |subscriber|
       next unless subscriber.due_for_digest?
 

@@ -146,7 +146,7 @@ Encapsulate domain knowledge in small, well-named objects rather than scattering
 
 - Minitest with `ActiveSupport::TestCase` / `ActionDispatch::IntegrationTest`, parallelized.
 - **FactoryBot only** (no fixtures) under `test/factories`.
-- **WebMock** with `disable_net_connect!(allow_localhost: true)`; all USGS/NWPS/Turnstile calls are stubbed. `TURNSTILE_SECRET` is stripped in setup so the form path is testable.
+- **WebMock** with `disable_net_connect!(allow_localhost: true)`; all USGS/NWPS/USBR/USACE/CDEC/Turnstile calls are stubbed. `TURNSTILE_SECRET` is stripped in setup so the form path is testable.
 - Controller tests assert `Cache-Tag` headers, HTML content, and JSON API shapes; mailer tests use `assert_enqueued_emails`.
 - **Accessibility CI (do not skip or weaken):**
   - Rails: `test/integration/accessibility_smoke_test.rb` (included in `bin/rails test`) — skip link / `#main` / `<main>` on public pages, home + map combobox wiring, FAQ button semantics (not incomplete tabs), mobile nav `aria-expanded`, nav `aria-current="page"`, contact `aria-invalid` / `aria-describedby`, gauge measurement `role="tablist"`.

@@ -84,6 +84,40 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
     assert subscriber.station_watches.exists?(monitoring_location_id: @location.id)
   end
 
+  test "create after unsubscribe-all re-enables flood and digest rules" do
+    subscriber = create(:subscriber, :verified, email: "again@example.com")
+    watch = create(:station_watch, subscriber: subscriber, monitoring_location: @location)
+    subscriber.unsubscribe_all!
+    refute watch.rule_for("flood_category_change").reload.enabled?
+
+    post subscriptions_path, params: {
+      email: subscriber.email,
+      monitoring_location_id: @location.id,
+      time_zone: "America/Los_Angeles",
+      digest_enabled: "1"
+    }
+
+    assert_redirected_to gauge_signup_path("sent")
+    assert watch.rule_for("flood_category_change").reload.enabled?
+    assert watch.rule_for("digest").reload.enabled?
+    assert subscriber.reload.digest_enabled?
+  end
+
+  test "create does not re-enable rules the subscriber turned off" do
+    subscriber = create(:subscriber, :verified, email: "still.on@example.com")
+    watch = create(:station_watch, subscriber: subscriber, monitoring_location: @location)
+    watch.rule_for("flood_category_change").update!(enabled: false)
+
+    post subscriptions_path, params: {
+      email: subscriber.email,
+      monitoring_location_id: @location.id,
+      time_zone: "America/Los_Angeles"
+    }
+
+    assert_redirected_to gauge_signup_path("subscribed")
+    refute watch.rule_for("flood_category_change").reload.enabled?
+  end
+
   test "create updates time zone when existing subscriber provides one" do
     subscriber = create(
       :subscriber,

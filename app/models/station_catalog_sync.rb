@@ -4,6 +4,12 @@ class StationCatalogSync
   include ActiveModel::Model
 
   ID_BATCH_SIZE = 100
+  # Discharge and gage height back the map, listings, and hydrographs. An empty
+  # latest-continuous page for either is a USGS failure (200 + empty body, missing
+  # JSON, or truncated collection) — never a real national/state catalog. Marking
+  # that code complete and pruning would delete every station only seen in the
+  # missing parameter, including IV, dailies, peaks, and R2 shard rows.
+  REQUIRED_PARAMETER_CODES = %w[00060 00065].freeze
 
   attr_accessor :client, :state, :progress
 
@@ -68,6 +74,10 @@ class StationCatalogSync
         end
 
         rows = discover_active_series_for(parameter_code)
+        if rows.empty? && required_parameter?(parameter_code)
+          raise Usgs::Client::Error,
+            "latest-continuous returned 0 rows for required parameter=#{parameter_code}"
+        end
         parameter_discovered = rows.size
         discovered_rows += parameter_discovered
         progress&.step("parameter=#{parameter_code} active series=#{parameter_discovered}")
@@ -367,7 +377,12 @@ class StationCatalogSync
       .to_h { |usgs_id, id, unit| [ usgs_id, [ id, unit ] ] }
 
     count = 0
+    skipped_stale = 0
     continuous_tips = {}
+    existing_observed_at = LatestObservation
+      .where(time_series_id: series_ids.values.map(&:first))
+      .pluck(:time_series_id, :observed_at)
+      .to_h
     active_rows.each do |row|
       series_id, unit = series_ids[row[:time_series_id]]
       next unless series_id
@@ -378,21 +393,30 @@ class StationCatalogSync
         next
       end
 
-      LatestObservation.upsert(
-        {
-          time_series_id: series_id,
-          observed_at: observed_at,
-          value: row[:value],
-          unit_of_measure: row[:unit_of_measure] || unit,
-          approval_status: row[:approval_status],
-          qualifier: row[:qualifier],
-          source_last_modified_at: parse_time(row[:last_modified]),
-          synced_at: Time.current,
-          created_at: Time.current,
-          updated_at: Time.current
-        },
-        unique_by: :time_series_id
-      )
+      # Sunday catalog pages can return an older latest-continuous value than
+      # the hourly tip sync already stored. Never walk the map tip backwards.
+      current_at = existing_observed_at[series_id]
+      if current_at && current_at.to_i >= observed_at.to_i
+        skipped_stale += 1
+      else
+        LatestObservation.upsert(
+          {
+            time_series_id: series_id,
+            observed_at: observed_at,
+            value: row[:value],
+            unit_of_measure: row[:unit_of_measure] || unit,
+            approval_status: row[:approval_status],
+            qualifier: row[:qualifier],
+            source_last_modified_at: parse_time(row[:last_modified]),
+            synced_at: Time.current,
+            created_at: Time.current,
+            updated_at: Time.current
+          },
+          unique_by: :time_series_id
+        )
+        existing_observed_at[series_id] = observed_at
+        count += 1
+      end
       ContinuousObservation.upsert(
         {
           time_series_id: series_id,
@@ -405,12 +429,14 @@ class StationCatalogSync
         },
         unique_by: %i[time_series_id observed_at]
       )
-      continuous_tips[series_id] = observed_at
-      count += 1
+      previous_tip = continuous_tips[series_id]
+      if previous_tip.nil? || observed_at > previous_tip
+        continuous_tips[series_id] = observed_at
+      end
       progress&.increment
     end
     TimeSeries.advance_continuous_tips!(continuous_tips)
-    progress&.step("latest observations upserted=#{count}")
+    progress&.step("latest observations upserted=#{count} skipped_stale=#{skipped_stale}")
   end
 
   def select_display_series(usgs_ids: nil)
@@ -444,21 +470,17 @@ class StationCatalogSync
 
     # Stream candidates instead of plucking the whole catalog into one id list
     # and issuing a single giant purge (IV tip deletes dominate).
+    # USGS-only: kept_set is latest-continuous monitoring_location_id values.
+    # Curated USBR/USACE/CDEC/NWPS rows are never in that collection; their
+    # lifecycle is the provider sync jobs, not this prune.
+    # Allow-list membership is the only prune signal. A kept location can
+    # still have a nil tip (blank USGS value, temperature sentinel) — that
+    # is not a reason to delete its history.
     location_scope
-      .select(
-        :id,
-        :provider_location_id,
-        :has_water_level,
-        :has_discharge,
-        :has_temperature,
-        :latest_observed_at
-      )
+      .usgs
+      .select(:id, :provider_location_id)
       .find_each do |location|
-        inactive =
-          kept_set.exclude?(location.provider_location_id) ||
-          location.latest_observed_at.nil? ||
-          !(location.has_water_level? || location.has_discharge? || location.has_temperature?)
-        next unless inactive
+        next if kept_set.include?(location.provider_location_id)
 
         batch << location.id
         next if batch.size < MonitoringLocation::PURGE_LOCATION_BATCH
@@ -470,6 +492,10 @@ class StationCatalogSync
 
     deleted += MonitoringLocation.purge_ids!(batch) if batch.any?
     progress&.step("pruned locations=#{deleted}")
+  end
+
+  def required_parameter?(parameter_code)
+    REQUIRED_PARAMETER_CODES.include?(parameter_code.to_s)
   end
 
   def primary_series?(value)

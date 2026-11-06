@@ -471,6 +471,68 @@ class HistoryIngestionTest < ActiveSupport::TestCase
     assert_equal newer, @location.latest_observed_at
   end
 
+  test "advances latest tips when ingest writes points newer than loaded coverage" do
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do
+      older = 6.hours.ago.utc.change(sec: 0)
+      newer = 1.hour.ago.utc.change(sec: 0)
+      @location.update!(
+        latest_water_level_value: 500.0,
+        latest_water_level_parameter_code: "62614",
+        latest_water_level_unit: "ft",
+        latest_observed_at: older
+      )
+      LatestObservation.create!(
+        time_series: @series,
+        value: 500.0,
+        unit_of_measure: "ft",
+        observed_at: older,
+        synced_at: older
+      )
+      seed_continuous_coverage!(
+        @series,
+        from: older,
+        to: older,
+        step: 1.hour,
+        value: 500.0
+      )
+
+      stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/continuous/items})
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/geo+json" },
+          body: {
+            features: [
+              {
+                id: "1",
+                properties: {
+                  time_series_id: @series.provider_series_id,
+                  parameter_code: "62614",
+                  time: newer.iso8601,
+                  value: 541.5,
+                  approval_status: "Provisional"
+                }
+              }
+            ],
+            links: []
+          }.to_json
+        )
+      stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/peaks/items})
+        .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+      stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/daily/items})
+        .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+
+      HistoryIngestion.new(monitoring_location: @location, range: "7d").perform
+
+      latest = LatestObservation.find_by!(time_series_id: @series.id)
+      assert_equal newer, latest.observed_at
+      assert_in_delta 541.5, latest.value, 0.001
+
+      @location.reload
+      assert_in_delta 541.5, @location.latest_water_level_value, 0.001
+      assert_equal newer, @location.latest_observed_at
+    end
+  end
+
   test "skips USGS temperature fault sentinels during continuous ingest and tip denormalize" do
     temperature = create(
       :time_series,

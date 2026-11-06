@@ -1,8 +1,13 @@
 module DailyArchive
   # Delete leftover Postgres daily_observations whose local day already exists
-  # in the R2 (or local) year shard. Used by nightly retention, the periodic
-  # drain job, and export-after-shuttle cleanup.
+  # in the R2 (or local) year shard at equal-or-better provenance. Official
+  # USGS leftovers must not be dropped while the shard still only has a
+  # derived mean — that row is the handoff/backfill upgrade path, and 1y/3y
+  # charts read R2 only. Used by nightly retention, the periodic drain job,
+  # and export-after-shuttle cleanup.
   class Drain
+    DERIVED_POSTGRES_QUALIFIER = "derived_continuous"
+
     def initialize(store: DailyArchive.store, progress: nil)
       @store = store
       @progress = progress
@@ -46,15 +51,21 @@ module DailyArchive
     def drain_series!(time_series_id)
       series_deleted = 0
       series_blocked = 0
-      days_by_year = DailyObservation
+      rows_by_year = DailyObservation
         .where(time_series_id: time_series_id)
-        .pluck(:observed_on)
-        .group_by(&:year)
+        .pluck(:observed_on, :qualifier)
+        .group_by { |day, _qualifier| day.year }
 
-      days_by_year.each do |year, days|
-        archived_days = archived_days_for(time_series_id, year)
-        deletable_days = days.select { |day| archived_days.include?(day.iso8601) }
-        series_blocked += days.size - deletable_days.size
+      rows_by_year.each do |year, rows|
+        archived_points = archived_points_for(time_series_id, year)
+        deletable_days = []
+        rows.each do |day, qualifier|
+          if archive_covers_postgres_row?(archived_points[day.iso8601], qualifier)
+            deletable_days << day
+          else
+            series_blocked += 1
+          end
+        end
         next if deletable_days.empty?
 
         series_deleted += DailyObservation
@@ -75,8 +86,11 @@ module DailyArchive
 
     private
 
-    def archived_days_for(time_series_id, year)
-      archived_points_for(time_series_id, year).keys.to_set
+    def archive_covers_postgres_row?(archived_point, qualifier)
+      return false if archived_point.blank?
+      return true if qualifier.to_s == DERIVED_POSTGRES_QUALIFIER
+
+      archived_point["s"] == DailyArchive::SOURCE_USGS
     end
 
     def archived_points_for(time_series_id, year)

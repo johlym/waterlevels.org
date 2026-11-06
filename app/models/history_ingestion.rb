@@ -577,22 +577,17 @@ class HistoryIngestion
   end
 
   def advance_latest_tips!(series_list)
-    needing = series_list.select do |series|
-      latest = series.latest_observation
-      newest = series.continuous_newest_at
-      newest.blank? || latest.nil? || latest.observed_at.to_i < newest.to_i
-    end
-    tips = self.class.latest_continuous_rows(needing.map(&:id))
+    # series_list still has the pre-ingest continuous_newest_at. Coverage was
+    # flushed after continuous upserts, so the live MAX(observed_at) is the tip
+    # that map/gauge denorm must catch up to — not the stale in-memory denorm.
+    tips = self.class.latest_continuous_rows(series_list.map(&:id))
 
-    needing.each do |series|
+    series_list.each do |series|
       tip = tips[series.id]
       next unless tip
 
-      tip_at = series.continuous_newest_at || tip.observed_at
-      next if series.continuous_newest_at.present? && tip.observed_at.to_i != series.continuous_newest_at.to_i
-
       latest = series.latest_observation
-      next if latest && latest.observed_at.to_i >= tip_at.to_i
+      next if latest && latest.observed_at.to_i >= tip.observed_at.to_i
       next if temperature_outlier?(series, tip.value)
 
       LatestObservation.upsert(

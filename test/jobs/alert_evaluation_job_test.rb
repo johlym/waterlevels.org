@@ -61,4 +61,43 @@ class AlertEvaluationJobTest < ActiveSupport::TestCase
       AlertEvaluationJob.perform_now(@location.id)
     end
   end
+
+  test "evaluates flood events whose NWPS validTime is older than the pending window" do
+    @event.update!(occurred_at: 3.days.ago, payload: @event.payload.merge("observed_at" => 3.days.ago.iso8601))
+
+    assert_difference("AlertDelivery.count", 1) do
+      AlertEvaluationJob.perform_now(@location.id)
+    end
+  end
+
+  test "still evaluates an event recorded earlier when its occurred_at is recent" do
+    @event.update_columns(created_at: 5.hours.ago, occurred_at: 20.minutes.ago)
+
+    assert_difference("AlertDelivery.count", 1) do
+      AlertEvaluationJob.perform_now(@location.id)
+    end
+  end
+
+  test "still mails a flood escalation after a recent earlier-stage alert" do
+    assert_difference("AlertDelivery.count", 1) do
+      AlertEvaluationJob.perform_now(@location.id)
+    end
+
+    @event.update_columns(created_at: 5.hours.ago, occurred_at: 5.hours.ago)
+    escalation = create(
+      :alert_event,
+      monitoring_location: @location,
+      kind: "flood_category_change",
+      occurred_at: 2.minutes.ago,
+      payload: { "from" => "minor", "to" => "major", "observed_at" => 2.minutes.ago.iso8601 }
+    )
+
+    assert_difference("AlertDelivery.count", 1) do
+      AlertEvaluationJob.perform_now(@location.id)
+    end
+
+    delivery = AlertDelivery.order(:id).last
+    assert_equal escalation.id, delivery.alert_event_id
+    assert_equal "major", escalation.payload["to"]
+  end
 end
