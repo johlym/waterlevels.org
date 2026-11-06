@@ -5,6 +5,12 @@ updates:
   schedule:
     interval: weekly
   open-pull-requests-limit: 10
+  ignore:
+    # json 3.0 made JSON.parse keywords-only. ActiveSupport 8.1 still calls
+    # JSON.parse(json, options), which breaks jsonb dumps and db:test:prepare.
+    - dependency-name: json
+      update-types:
+        - version-update:semver-major
 - package-ecosystem: github-actions
   directory: "/"
   schedule:
