@@ -1,6 +1,8 @@
 # sync_worker: catalog, latest tip, flood, bootstrap (queue: sync).
-# Two threads so tip/catalog can proceed while FloodStageSyncJob paces states;
-# that job holds FloodStageSyncLock for the whole national loop.
+# Two threads so tip/catalog can proceed while FloodStageSyncJob paces states.
+# That job claims FloodStageSyncLock at enqueue, so a second copy is never
+# queued and cannot take the other thread. The lock is held for the whole
+# national loop.
 # StationCatalogSyncLock / LatestObservationSyncLock / NetworkRefreshBatchLock
 # keep a second catalog, tip, or NLDI batch from taking the other thread.
 :concurrency: 2
