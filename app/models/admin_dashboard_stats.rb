@@ -481,6 +481,8 @@ class AdminDashboardStats
       last_prune_retrying: prune[:retrying].to_i,
       last_prune_gaps_alerted: prune[:gaps_alerted].to_i,
       last_prune_iv_deleted: (prune[:iv_deleted] || prune[:continuous_deleted]).to_i,
+      last_prune_expired_iv_deleted: prune[:expired_iv_deleted].to_i,
+      last_prune_readings_deleted: prune[:readings_deleted].to_i,
       last_prune_iv_blocked: prune[:iv_prune_blocked].to_i,
       last_prune_daily_deleted: prune[:daily_deleted].to_i,
       last_prune_daily_blocked: prune[:daily_prune_blocked].to_i,

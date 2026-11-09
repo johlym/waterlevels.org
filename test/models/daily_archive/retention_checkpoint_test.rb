@@ -26,14 +26,15 @@ module DailyArchive
       assert_equal 3, second.stats["usgs_ensured"]
     end
 
-    test "resume_or_start discards checkpoint from a different UTC day" do
+    test "resume_or_start keeps an unfinished checkpoint from a previous UTC day" do
       stale = RetentionCheckpoint.resume_or_start!(as_of: @as_of)
       stale.mark_series!(99, derived: 1)
 
       fresh = RetentionCheckpoint.resume_or_start!(as_of: @as_of + 1.day)
-      refute fresh.resumed
-      assert_equal 0, fresh.after_series_id
-      assert_equal 0, fresh.stats["derived"]
+      assert fresh.resumed
+      assert_equal @as_of, fresh.as_of
+      assert_equal 99, fresh.after_series_id
+      assert_equal 1, fresh.stats["derived"]
     end
 
     test "complete_phase advances cursor and phase" do

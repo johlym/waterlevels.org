@@ -8,14 +8,27 @@ module DailyArchive
   # indexed time/date ranges. Avoids scanning every tip row into a giant Ruby
   # id list on large fleets.
   #
-  # Progress is checkpointed per series so a canceled/retried job on the same
-  # UTC day resumes instead of redoing completed handoff/prune work.
+  # Rows older than retention by more than a day are deleted in id batches
+  # before handoff. A fleet that is months behind cannot spend the whole
+  # night re-archiving that backlog, and IV prune used to be unreachable
+  # until that walk finished. The one-day margin keeps the local-day boundary
+  # (a timestamp can fall on the cutoff date in a US zone) on the per-series
+  # path, which still refuses to drop a day inside the retry window.
+  #
+  # Progress is checkpointed per series and resumed across UTC days. A
+  # national handoff does not finish inside one calendar day; discarding the
+  # cursor at midnight left this delete unreachable.
   #
   # Handoff batches archive writes per series (Writer groups by year) so a
   # multi-day backlog does one R2 read-modify-write per year shard instead of
   # one per local day. Year shards are cached in-process for presence/source
   # checks to avoid repeated get/decode.
   class Retention
+    # Timestamp margin past the retention cutoff. Wide enough that a row still
+    # on the cutoff's local calendar day in any US zone is not batch-deleted.
+    EXPIRED_IV_MARGIN = 1.day
+    EXPIRED_IV_BATCH = 5_000
+
     def initialize(store: DailyArchive.store, writer: nil, as_of: Time.current, client: nil, progress: nil, checkpoint: nil, on_phase: nil)
       @store = store
       @writer = writer || Writer.new(store: store)
@@ -42,6 +55,7 @@ module DailyArchive
         @progress&.step("starting retention handoff + postgres prune as_of=#{@as_of.utc.iso8601}")
       end
 
+      expired_deleted = delete_expired_continuous!
       handoff = ensure_aged_days!
       @progress&.step(
         "handoff done usgs_ensured=#{handoff[:usgs_ensured]} " \
@@ -51,10 +65,12 @@ module DailyArchive
         "handoff",
         usgs_ensured: handoff[:usgs_ensured],
         derived: handoff[:derived],
-        retrying: handoff[:retrying]
+        retrying: handoff[:retrying],
+        expired_iv_deleted: expired_deleted
       )
 
       iv_result = prune_continuous!
+      iv_deleted = iv_result[:deleted] + expired_deleted
       @progress&.step(
         "iv prune done deleted=#{iv_result[:deleted]} " \
         "blocked=#{iv_result[:blocked]} gaps_alerted=#{iv_result[:gaps_alerted]}"
@@ -65,9 +81,10 @@ module DailyArchive
         derived: handoff[:derived],
         retrying: handoff[:retrying],
         gaps_alerted: iv_result[:gaps_alerted],
-        iv_deleted: iv_result[:deleted],
+        iv_deleted: iv_deleted,
         iv_prune_blocked: iv_result[:blocked],
-        continuous_deleted: iv_result[:deleted]
+        continuous_deleted: iv_deleted,
+        expired_iv_deleted: expired_deleted
       )
 
       daily_result = prune_daily!
@@ -80,16 +97,17 @@ module DailyArchive
         derived: handoff[:derived],
         retrying: handoff[:retrying],
         gaps_alerted: iv_result[:gaps_alerted],
-        iv_deleted: iv_result[:deleted],
+        iv_deleted: iv_deleted,
         iv_prune_blocked: iv_result[:blocked],
-        continuous_deleted: iv_result[:deleted],
+        continuous_deleted: iv_deleted,
+        expired_iv_deleted: expired_deleted,
         daily_deleted: daily_result[:deleted],
         daily_prune_blocked: daily_result[:blocked]
       )
 
       vacuum = TableMaintenance.vacuum_after_deletes!(
         daily_deleted: daily_result[:deleted],
-        continuous_deleted: iv_result[:deleted],
+        continuous_deleted: iv_deleted,
         progress: @progress
       )
 
@@ -100,8 +118,9 @@ module DailyArchive
         derived: handoff[:derived],
         retrying: handoff[:retrying],
         gaps_alerted: iv_result[:gaps_alerted],
-        iv_deleted: iv_result[:deleted],
+        iv_deleted: iv_deleted,
         iv_prune_blocked: iv_result[:blocked],
+        expired_iv_deleted: expired_deleted,
         daily_deleted: daily_result[:deleted],
         daily_prune_blocked: daily_result[:blocked],
         vacuumed: vacuum[:vacuumed],
@@ -110,7 +129,7 @@ module DailyArchive
         # Back-compat aliases for existing job/admin wiring.
         rolled_up: handoff[:derived],
         rollup_skipped: handoff[:usgs_ensured] + handoff[:retrying],
-        continuous_deleted: iv_result[:deleted]
+        continuous_deleted: iv_deleted
       }
     end
 
@@ -149,14 +168,15 @@ module DailyArchive
       end
 
       frontier = DailyArchive::CONTINUOUS_ROLLUP_AFTER.ago(@as_of)
+      floor = expired_continuous_cutoff
       series_ids = ContinuousObservation
-        .where("observed_at < ?", frontier)
+        .where("observed_at >= ? AND observed_at < ?", floor, frontier)
         .distinct
         .pluck(:time_series_id)
       total_series = series_ids.size
       @progress&.step(
         "handoff series=#{total_series} frontier=#{frontier.utc.iso8601} " \
-        "after_series_id=#{@checkpoint.after_series_id}"
+        "floor=#{floor.utc.iso8601} after_series_id=#{@checkpoint.after_series_id}"
       )
 
       processed = 0
@@ -164,7 +184,7 @@ module DailyArchive
         TimeSeries.where(id: series_ids).includes(:monitoring_location)
       )
       scope.find_each do |series|
-        counts = ensure_series_days!(series, aged_local_days(series, frontier))
+        counts = ensure_series_days!(series, aged_local_days(series, frontier, after: floor))
         usgs_ensured += counts[:usgs_ensured]
         derived += counts[:derived]
         retrying += counts[:retrying]
@@ -192,16 +212,64 @@ module DailyArchive
       { usgs_ensured: usgs_ensured, derived: derived, retrying: retrying }
     end
 
-    def aged_local_days(series, frontier)
+    def aged_local_days(series, before, after: nil)
       zone = local_zone(series.monitoring_location)
       tz = postgres_time_zone_name(zone)
-      ContinuousObservation
+      scope = ContinuousObservation
         .where(time_series_id: series.id)
-        .where("observed_at < ?", frontier)
+        .where("observed_at < ?", before)
+      scope = scope.where("observed_at >= ?", after) if after
+      scope
         .distinct
         .order(Arel.sql("1"))
         .pluck(Arel.sql(local_date_sql(tz)))
         .map { |day| day.is_a?(Date) ? day : Date.parse(day.to_s) }
+    end
+
+    # Batch-delete IV that is already past the local-day retry margin.
+    # Per-series handoff never reaches this backlog when the fleet is months
+    # behind: each series re-reads R2 for every aged day before any delete.
+    def delete_expired_continuous!
+      cutoff = expired_continuous_cutoff
+      deleted = 0
+      loop do
+        count = ContinuousObservation.connection.delete(
+          ContinuousObservation.sanitize_sql_array([
+            <<~SQL.squish,
+              DELETE FROM continuous_observations
+              WHERE id IN (
+                SELECT id FROM continuous_observations
+                WHERE observed_at < ?
+                ORDER BY observed_at
+                LIMIT ?
+              )
+            SQL
+            cutoff,
+            EXPIRED_IV_BATCH
+          ])
+        )
+        deleted += count
+        break if count < EXPIRED_IV_BATCH
+        if (deleted % 50_000).zero?
+          @progress&.step("expired iv deleted=#{deleted} cutoff=#{cutoff.utc.iso8601}")
+        end
+      end
+
+      if deleted.positive?
+        @progress&.step("expired iv delete done deleted=#{deleted} cutoff=#{cutoff.utc.iso8601}")
+        message = "[DailyArchive::Retention] deleted #{deleted} continuous rows older than #{cutoff.utc.iso8601}"
+        Rails.logger.info(message)
+        # Steady state removes about one day per night. Page only when a
+        # backlog was still sitting past the margin.
+        if deleted >= 1_000_000 && defined?(Sentry)
+          Sentry.capture_message(message, level: :warning)
+        end
+      end
+      deleted
+    end
+
+    def expired_continuous_cutoff
+      HistoryIngestion.continuous_retention.ago(@as_of) - EXPIRED_IV_MARGIN
     end
 
     # Ensure every aged local day for one series, buffering archive writes so

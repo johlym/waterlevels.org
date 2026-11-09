@@ -120,17 +120,20 @@ module DailyArchive
       assert_equal "derived", points.first[:s]
     end
 
-    test "alerts and prunes IV past retention when day never archived" do
+    test "deletes IV past the retention margin without a per-day gap alert" do
       zone = ActiveSupport::TimeZone["America/Los_Angeles"]
-      # Older than 35-day retention relative to @as_of (2026-08-07).
+      # Older than 35 days + the 1-day local-zone margin relative to @as_of.
       day = Date.new(2026, 6, 20)
       t = zone.local(day.year, day.month, day.day, 12, 0, 0)
       ContinuousObservation.create!(time_series: @series, observed_at: t, value: 2.0)
+      kept = @as_of - 2.days
+      ContinuousObservation.create!(time_series: @series, observed_at: kept, value: 9.0)
 
       stats = Retention.new(store: @store, as_of: @as_of, client: nil).perform
-      assert_operator stats[:gaps_alerted], :>=, 1
-      assert_operator stats[:iv_deleted], :>=, 1
-      assert_equal 0, ContinuousObservation.where(time_series_id: @series.id).count
+      assert_equal 0, stats[:gaps_alerted]
+      assert_equal 1, stats[:expired_iv_deleted]
+      assert_equal 1, stats[:iv_deleted]
+      assert_equal [ kept ], ContinuousObservation.where(time_series_id: @series.id).pluck(:observed_at)
     end
 
     test "logs candidate counts and phase progress" do

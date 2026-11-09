@@ -12,6 +12,8 @@ class ContinuousPruneJob < ApplicationJob
     end
 
     progress = SyncProgress.new("ContinuousPruneJob", io: nil)
+    readings_deleted = AlertEvent.prune_reading_changes!
+    progress.step("reading_change pruned=#{readings_deleted}")
     Telemetry.in_span(
       "daily_archive.retention",
       attributes: { "app.operation" => "daily_archive.retention" }
@@ -29,6 +31,8 @@ class ContinuousPruneJob < ApplicationJob
         "app.retrying" => stats[:retrying],
         "app.gaps_alerted" => stats[:gaps_alerted],
         "app.iv_deleted" => stats[:iv_deleted],
+        "app.expired_iv_deleted" => stats[:expired_iv_deleted],
+        "app.readings_deleted" => readings_deleted,
         "app.iv_prune_blocked" => stats[:iv_prune_blocked],
         "app.daily_deleted" => stats[:daily_deleted],
         "app.daily_prune_blocked" => stats[:daily_prune_blocked],
@@ -42,6 +46,8 @@ class ContinuousPruneJob < ApplicationJob
         retrying: stats[:retrying],
         gaps_alerted: stats[:gaps_alerted],
         iv_deleted: stats[:iv_deleted],
+        expired_iv_deleted: stats[:expired_iv_deleted],
+        readings_deleted: readings_deleted,
         iv_prune_blocked: stats[:iv_prune_blocked],
         daily_deleted: stats[:daily_deleted],
         daily_prune_blocked: stats[:daily_prune_blocked],
@@ -55,7 +61,8 @@ class ContinuousPruneJob < ApplicationJob
       progress.finish(
         "usgs_ensured=#{stats[:usgs_ensured]} derived=#{stats[:derived]} " \
         "retrying=#{stats[:retrying]} gaps_alerted=#{stats[:gaps_alerted]} " \
-        "iv_deleted=#{stats[:iv_deleted]} iv_blocked=#{stats[:iv_prune_blocked]} " \
+        "iv_deleted=#{stats[:iv_deleted]} expired_iv=#{stats[:expired_iv_deleted]} " \
+        "readings_deleted=#{readings_deleted} iv_blocked=#{stats[:iv_prune_blocked]} " \
         "daily_deleted=#{stats[:daily_deleted]} daily_blocked=#{stats[:daily_prune_blocked]} " \
         "vacuumed=#{stats[:vacuumed]}"
       )
