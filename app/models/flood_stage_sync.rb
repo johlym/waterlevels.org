@@ -535,7 +535,10 @@ class FloodStageSync
 
     if changed
       progress&.step("warming national site stats + alerts caches")
-      SiteStats.warm!
+      # Category changes do not insert observations. Recounting continuous
+      # rows and leftover dailies already stored in a gap-free archive shard
+      # once per state pushed a national run past an hour.
+      SiteStats.warm!(refresh_measurements: false)
       AlertsListingCache.warm
       AdminDashboardStats.schedule_inventory_refresh!
     else

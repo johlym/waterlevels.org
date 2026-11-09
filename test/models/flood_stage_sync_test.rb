@@ -298,6 +298,58 @@ class FloodStageSyncTest < ActiveSupport::TestCase
     assert_raises(ArgumentError) { FloodStageSync.new.perform }
   end
 
+  test "state sync refreshes flood counts without recounting archived measurements" do
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    SiteStats.bust!
+    Rails.cache.write(
+      SiteStats::MEASUREMENT_CACHE_KEY,
+      { measurement_count: 11, updates_today: 4 },
+      expires_in: SiteStats::MEASUREMENT_TTL
+    )
+
+    @location.update!(
+      nwps_lid: "WAAL1",
+      nwps_matched: true,
+      nwps_synced_at: 1.hour.ago,
+      flood_category: "no_flooding",
+      state_code: "wa"
+    )
+    @unmatched.update!(nwps_matched: true, nwps_synced_at: 1.hour.ago, nwps_lid: "KEEPOR")
+
+    stub_nwps_gauges(
+      gauges: [
+        {
+          lid: "WAAL1",
+          state: { abbreviation: "WA" },
+          status: {
+            observed: { floodCategory: "minor", validTime: "2026-08-03T04:15:00Z" }
+          }
+        }
+      ]
+    )
+    stub_request(:get, %r{\Ahttps://api\.water\.noaa\.gov/nwps/v1/gauges/[A-Za-z0-9]+\z})
+      .to_return(status: 404, body: "{}")
+
+    sql = []
+    callback = ->(*, payload) { sql << payload[:sql].to_s }
+    ActiveRecord::Base.connection.uncached do
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        FloodStageSync.new(state: "wa").perform
+      end
+    end
+
+    assert sql.none? { |query| query.include?("daily_archive_shards") && query.include?("daily_observations") }
+    assert sql.none? { |query| query.include?('FROM "continuous_observations"') }
+    cached = Rails.cache.read(SiteStats::CACHE_KEY)
+    assert_equal 11, cached[:measurement_count]
+    assert_equal 4, cached[:updates_today]
+    assert_equal 1, cached[:flood_alert_count]
+  ensure
+    SiteStats.bust!
+    Rails.cache = previous_cache
+  end
+
   test "expires a stale alert when the LID is absent from a successful list" do
     @location.update!(
       nwps_lid: "BRKM2",

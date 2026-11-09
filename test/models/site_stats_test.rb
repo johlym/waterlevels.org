@@ -133,6 +133,37 @@ class SiteStatsTest < ActiveSupport::TestCase
     assert_equal 8_000, collector_quiet
   end
 
+  test "refresh_measurements false reuses totals and still counts new flood alerts" do
+    with_memory_cache do
+      create(:monitoring_location, flood_category: "minor", latest_observed_at: 1.hour.ago)
+      first = SiteStats.warm!
+      assert_equal 1, first[:flood_alert_count]
+
+      create(:monitoring_location, flood_category: "major", latest_observed_at: 1.hour.ago)
+      sql = capture_sql do
+        ActiveRecord::Base.connection.uncached do
+          second = SiteStats.warm!(refresh_measurements: false)
+          assert_equal 2, second[:flood_alert_count]
+          assert_equal first[:measurement_count], second[:measurement_count]
+          assert_equal first[:updates_today], second[:updates_today]
+        end
+      end
+
+      assert_not measurement_scan?(sql), "observation tables were recounted"
+    end
+  end
+
+  test "refresh_measurements false scans observation tables once when the snapshot is cold" do
+    with_memory_cache do
+      ActiveRecord::Base.connection.uncached do
+        first_sql = capture_sql { SiteStats.warm!(refresh_measurements: false) }
+        second_sql = capture_sql { SiteStats.warm!(refresh_measurements: false) }
+        assert measurement_scan?(first_sql)
+        assert_not measurement_scan?(second_sql)
+      end
+    end
+  end
+
   test "warm! returns a freshly computed snapshot" do
     create(:monitoring_location)
 
@@ -141,6 +172,27 @@ class SiteStatsTest < ActiveSupport::TestCase
 
     assert_equal 1, stats[:station_count]
     assert_equal recomputed, stats
+  end
+
+  def with_memory_cache
+    previous = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    SiteStats.bust!
+    yield
+  ensure
+    SiteStats.bust!
+    Rails.cache = previous
+  end
+
+  def capture_sql
+    queries = []
+    callback = ->(*, payload) { queries << payload[:sql].to_s }
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
+  end
+
+  def measurement_scan?(queries)
+    queries.any? { |sql| sql.include?('FROM "continuous_observations"') || sql.include?("daily_archive_shards") }
   end
 
   test "compute emits inventory counts for active and non-stale stations" do
