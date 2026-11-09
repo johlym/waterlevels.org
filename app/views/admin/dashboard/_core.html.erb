@@ -24,6 +24,9 @@
       <p class="hint">
         Phase-1 backlog ·
         <%= number_with_delimiter(stats[:stations_missing_year_history]) %> missing ~1y daily (R2)
+        <% if stats[:stations_daily_tip_refresh].to_i.positive? %>
+          · <%= number_with_delimiter(stats[:stations_daily_tip_refresh]) %> daily tips older than 2 days stay off this list
+        <% end %>
       </p>
     </article>
 

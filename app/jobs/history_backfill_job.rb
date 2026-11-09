@@ -78,6 +78,7 @@ class HistoryBackfillJob < ApplicationJob
       # Only cooldown after a successful attempt that still left gaps. Failed
       # writes (e.g. read-only DB) must not park the station for 6 hours.
       still_needs = location.needs_history_backfill? ||
+        location.needs_daily_tip_refresh? ||
         (range.to_s == HistoryIngestion::DEEP_RANGE && location.missing_deep_history?)
       Telemetry.add_attributes("app.still_needs_backfill" => still_needs)
       if still_needs
