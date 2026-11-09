@@ -92,7 +92,10 @@ class MonitoringLocationTest < ActiveSupport::TestCase
     iv_ids = MonitoringLocation.needing_iv_repair.pluck(:id)
     assert_includes history_ids, needs_continuous.id
     assert_includes history_ids, needs_daily.id
-    assert_includes history_ids, needs_daily_tip.id
+    refute_includes history_ids, needs_daily_tip.id
+    assert_includes MonitoringLocation.needing_daily_tip_refresh.pluck(:id), needs_daily_tip.id
+    assert needs_daily_tip.needs_daily_tip_refresh?
+    refute needs_daily_tip.needs_history_backfill?
     assert_includes history_ids, needs_continuous_anchor.id
     refute_includes history_ids, needs_interior_gap.id
     refute_includes history_ids, complete.id

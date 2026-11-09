@@ -217,6 +217,34 @@ class HistoryBackfillBatchJobTest < ActiveSupport::TestCase
     end
   end
 
+  test "stale daily tip uses leftover phase-1 slots and does not crowd out cold fills" do
+    cold = create(:monitoring_location, site_number: "30000070")
+    create(:time_series, monitoring_location: cold, selected_for_display: true)
+
+    tip_only = create(:monitoring_location, site_number: "30000071")
+    series = create(:time_series, monitoring_location: tip_only, selected_for_display: true)
+    seed_continuous_coverage!(
+      series,
+      from: HistoryIngestion::CONTINUOUS_RETENTION.ago,
+      to: 1.hour.ago
+    )
+    DailyObservation.create!(time_series: series, observed_on: 11.months.ago.to_date, value: 1.0)
+
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do
+      assert_enqueued_with(job: HistoryBackfillJob, args: [ cold.id, "1y" ]) do
+        assert_equal 1, HistoryBackfillBatchJob.perform_now(1)
+      end
+      refute_includes enqueued_jobs.map { |job| job[:args] }, [ tip_only.id, "1y" ]
+    end
+
+    clear_enqueued_jobs
+    travel_to Time.zone.parse("2026-08-03 12:10:00") do
+      assert_enqueued_with(job: HistoryBackfillJob, args: [ tip_only.id, "1y" ]) do
+        HistoryBackfillBatchJob.perform_now(10)
+      end
+    end
+  end
+
   test "skips when batch lock already held" do
     needs = create(:monitoring_location, site_number: "30000030")
     create(:time_series, monitoring_location: needs, selected_for_display: true)

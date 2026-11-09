@@ -77,6 +77,17 @@ class HistoryBackfillBatchJob < ApplicationJob
       )
     end
 
+    # Stale daily tips are not the phase-1 list. Refresh them only with slots
+    # the cold queue did not take, so a 2-day USGS lag cannot pin the fleet.
+    tip_budget = [ phase1_budget - phase1_enqueued, 0 ].max
+    tip_enqueued = timed_phase("daily_tip_scope_and_enqueue") do
+      enqueue_candidates(
+        build_daily_tip_scope,
+        range: range,
+        budget: tip_budget
+      )
+    end
+
     deep_enqueued = timed_phase("deep_scope_and_enqueue") do
       enqueue_candidates(
         build_deep_scope,
@@ -85,10 +96,11 @@ class HistoryBackfillBatchJob < ApplicationJob
       )
     end
 
-    total = phase1_enqueued + deep_enqueued
+    total = phase1_enqueued + tip_enqueued + deep_enqueued
     Telemetry.add_attributes(
       "app.batch_size" => total,
       "app.phase1_enqueued" => phase1_enqueued,
+      "app.daily_tip_enqueued" => tip_enqueued,
       "app.deep_enqueued" => deep_enqueued,
       "app.phase1_budget" => phase1_budget,
       "app.deep_budget" => deep_budget,
@@ -98,6 +110,7 @@ class HistoryBackfillBatchJob < ApplicationJob
     )
     Rails.logger.info(
       "HistoryBackfillBatchJob enqueued=#{total} phase1_enqueued=#{phase1_enqueued} " \
+      "daily_tip_enqueued=#{tip_enqueued} tip_budget=#{tip_budget} " \
       "deep_enqueued=#{deep_enqueued} phase1_budget=#{phase1_budget} " \
       "deep_budget=#{deep_budget} continuous=#{Usgs::HistoryKeyPool.available?(:continuous)} " \
       "daily=#{Usgs::HistoryKeyPool.available?(:daily)} " \
@@ -170,6 +183,15 @@ class HistoryBackfillBatchJob < ApplicationJob
     scope = MonitoringLocation.needing_history_backfill
     elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
     Rails.logger.info("HistoryBackfillBatchJob needing_history_backfill scope ready elapsed_ms=#{elapsed_ms}")
+    scope
+  end
+
+  def build_daily_tip_scope
+    Rails.logger.info("HistoryBackfillBatchJob building needing_daily_tip_refresh scope")
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    scope = MonitoringLocation.needing_daily_tip_refresh
+    elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+    Rails.logger.info("HistoryBackfillBatchJob needing_daily_tip_refresh scope ready elapsed_ms=#{elapsed_ms}")
     scope
   end
 

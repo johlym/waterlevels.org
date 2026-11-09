@@ -204,7 +204,6 @@ class MonitoringLocation < ApplicationRecord
     # already-anchored stations lives in needing_iv_repair so the long history
     # queue cannot starve IV completeness.
     daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
-    daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
 
     # Ignore long-inactive / POR-ended series via denorm continuous_newest_at
     # (and latest tip / ends_at). Brand-new catalog rows with no tip and no
@@ -218,6 +217,22 @@ class MonitoringLocation < ApplicationRecord
     missing_daily_anchor = expecting_daily.where.not(
       id: DailyArchive.time_series_ids_with_daily_on_or_before(daily_anchor)
     )
+    # A daily tip older than DAILY_FRESHNESS is not phase-1. USGS often publishes
+    # dailies a couple of days late, and that gate kept the whole fleet on this
+    # list after the year was already filled. Tip refresh is needing_daily_tip_refresh.
+    usgs.and(
+      where(id: missing_continuous_anchor.select(:monitoring_location_id))
+        .or(where(id: missing_daily_anchor.select(:monitoring_location_id)))
+    ).distinct
+  }
+
+  # Year and ~35d continuous depth are already present. Newest daily is older
+  # than DAILY_FRESHNESS. HistoryBackfillBatchJob spends leftover phase-1 slots
+  # on these so the cold queue is not stuck re-fetching a 2-day tip.
+  scope :needing_daily_tip_refresh, lambda {
+    daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
+    daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
+    has_year = DailyArchive.time_series_ids_with_daily_on_or_before(daily_anchor)
     fresh_daily_tip_ids = DailyArchive.time_series_ids_with_fresh_daily_tip(daily_fresh_since)
     fresh_daily_tip_ids = DailyObservation
       .select(:time_series_id)
@@ -226,12 +241,12 @@ class MonitoringLocation < ApplicationRecord
           "(#{fresh_daily_tip_ids.to_sql} UNION #{DailyObservation.where(observed_on: daily_fresh_since..).select(:time_series_id).to_sql}) AS daily_observations"
         )
       )
-    stale_daily_tip = expecting_daily.where.not(id: fresh_daily_tip_ids)
-    usgs.and(
-      where(id: missing_continuous_anchor.select(:monitoring_location_id))
-        .or(where(id: missing_daily_anchor.select(:monitoring_location_id)))
-        .or(where(id: stale_daily_tip.select(:monitoring_location_id)))
-    ).distinct
+    stale_tip = TimeSeries.selected_recently_active
+      .merge(TimeSeries.expecting_daily)
+      .with_continuous_anchor
+      .where(id: has_year)
+      .where.not(id: fresh_daily_tip_ids)
+    usgs.where(id: stale_tip.select(:monitoring_location_id)).distinct
   }
   # Year-ready stations that still lack ~3-year daily history. Excludes phase-1
   # candidates so the deep batch never competes with cold/lazy 1y fills.
@@ -329,20 +344,30 @@ class MonitoringLocation < ApplicationRecord
     return false if series.none?
 
     daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
-    daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
     window_start = HistoryIngestion.continuous_retention.ago
     ends = Time.current.utc
     HistoryIngestion.preload_continuous_gap_times!(series, window_start: window_start, ends: ends)
 
     series.any? do |s|
       HistoryIngestion.series_has_continuous_coverage_gap?(s, window_start: window_start, ends: ends) ||
-        (
-          s.expects_daily_history? && (
-            !s.has_daily_on_or_before?(daily_anchor) ||
-            s.newest_daily_on.blank? || s.newest_daily_on < daily_fresh_since
-          )
-        )
+        (s.expects_daily_history? && !s.has_daily_on_or_before?(daily_anchor))
     end
+  end
+
+  # Year and continuous depth are in place; only the daily tip is older than
+  # DAILY_FRESHNESS. Not the phase-1 backlog.
+  def needs_daily_tip_refresh?
+    return false unless usgs?
+    return false if needs_history_backfill?
+
+    series = recent_daily_series.select(&:has_continuous_anchor?)
+    return false if series.none?
+
+    daily_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
+    fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
+    return false if series.any? { |row| !row.has_daily_on_or_before?(daily_anchor) }
+
+    series.any? { |row| row.newest_daily_on.blank? || row.newest_daily_on < fresh_since }
   end
 
   # True when a selected series that expects USGS daily still lacks points near

@@ -388,6 +388,7 @@ class AdminDashboardStats
       station_count: backfill[:station_count],
       stations_needing_history: backfill[:stations_needing_history],
       stations_missing_year_history: backfill[:stations_missing_year_history],
+      stations_daily_tip_refresh: backfill[:stations_daily_tip_refresh].to_i,
       measurement_count: inventory[:measurement_count],
       continuous_observation_count: inventory[:continuous_observation_count],
       daily_observation_count: inventory[:daily_observation_count],
@@ -703,6 +704,7 @@ class AdminDashboardStats
 
     needing_history_by_state = {}
     needing_deep_by_state = {}
+    daily_tip_refresh_by_state = {}
     missing_year_by_state = {}
     missing_continuous_tip_by_state = {}
     missing_continuous_anchor_by_state = {}
@@ -728,7 +730,10 @@ class AdminDashboardStats
       missing_deep = daily.any? { |row| !has_deep.include?(row[:id]) }
       missing_tip = daily.any? { |row| !has_daily_tip.include?(row[:id]) }
       phase1_anchor = usgs && missing_cont_anchor
-      phase1 = phase1_anchor || missing_year || missing_tip
+      # A daily tip older than 2 days does not keep the station on Need ≤1y.
+      # That refresh runs on leftover backfill slots (needing_daily_tip_refresh).
+      phase1 = phase1_anchor || missing_year
+      daily_tip_refresh = !phase1 && usgs && missing_tip && daily.any?
       deep_queue = !phase1 && daily.any? { |row|
         has_year.include?(row[:id]) &&
           !has_deep.include?(row[:id]) &&
@@ -753,6 +758,8 @@ class AdminDashboardStats
         needing_history_by_state[state] = needing_history_by_state[state].to_i + 1
       elsif deep_queue
         needing_deep_by_state[state] = needing_deep_by_state[state].to_i + 1
+      elsif daily_tip_refresh
+        daily_tip_refresh_by_state[state] = daily_tip_refresh_by_state[state].to_i + 1
       end
     end
 
@@ -770,6 +777,7 @@ class AdminDashboardStats
       stations_needing_history: stations_needing_history,
       stations_needing_deep_history: stations_needing_deep_history,
       stations_missing_year_history: missing_year_by_state.values.sum,
+      stations_daily_tip_refresh: daily_tip_refresh_by_state.values.sum,
       stations_history_ready: [
         station_count - stations_needing_history - stations_needing_deep_history,
         0

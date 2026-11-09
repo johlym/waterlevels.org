@@ -10,8 +10,9 @@
         in R2, ~3y daily in R2). Long-inactive series and parameters USGS does
         not publish as daily values are left out of the daily columns.
         Backlog columns are mutually exclusive queues: Need ≤1y is phase-1 work
-        (USGS missing ~35d continuous depth, or a recent series missing ~1y daily
-        or a fresh daily tip). Have ~1y → need 3y is year-ready and still short
+        (USGS missing ~35d continuous depth, or a recent series missing ~1y daily).
+        A daily tip older than 2 days does not keep a station here.
+        Have ~1y → need 3y is year-ready and still short
         of ~3y. Outside queues = active stations minus both backlog queues.
         <% if stats[:inventory_computed_at] %>
           Counters as of <%= time_ago_in_words(stats[:inventory_computed_at]) %> ago.
@@ -41,7 +42,7 @@
             <th scope="col" title="Recently reporting series that expect daily, all with history near the ~3y anchor (R2 or leftover Postgres)">
               Have ~3y
             </th>
-            <th scope="col" title="Phase-1 backlog: USGS missing continuous ~35d, or a recent series missing ~1y daily or a fresh daily tip. IV-only and long-inactive series are excluded.">
+            <th scope="col" title="Phase-1 backlog: USGS missing continuous ~35d, or a recent series missing ~1y daily. A daily tip older than 2 days does not count. IV-only and long-inactive series are excluded.">
               Need ≤1y
             </th>
             <th scope="col" title="Already have ~1y daily; waiting on deep 3y backfill only">
