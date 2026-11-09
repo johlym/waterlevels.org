@@ -132,15 +132,16 @@ module Admin
 
           action :clear_pipeline_run_locks,
             label: "Clear pipeline running locks",
-            description: "Release catalog, latest, flood, network-refresh, history-batch, and archive-export run locks after a killed job.",
+            description: "Release catalog, latest, flood, network-refresh, history-batch, archive-export, and continuous-prune run locks after a killed job.",
             danger: true,
-            confirm: "Clear pipeline running locks? Overlapping catalog/tip/flood/backfill/export work may start immediately." do
+            confirm: "Clear pipeline running locks? Overlapping catalog/tip/flood/backfill/export/prune work may start immediately." do
             StationCatalogSyncLock.release!
             LatestObservationSyncLock.release!
             FloodStageSyncLock.release!
             NetworkRefreshBatchLock.release!
             HistoryBackfillBatchLock.release!
             DailyArchiveExportLock.release!
+            ContinuousPruneLock.release!
             :ok
           end
 

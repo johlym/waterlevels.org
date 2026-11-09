@@ -31,6 +31,30 @@ class ContinuousPruneJobTest < ActiveSupport::TestCase
     assert AdminDashboardStats.new.jobs_section[:last_prune_at]
   end
 
+  test "releases the lock after a successful pass" do
+    ContinuousPruneJob.perform_now
+
+    refute ContinuousPruneLock.locked?
+  end
+
+  test "skips when another prune already holds the lock" do
+    assert ContinuousPruneLock.claim!
+
+    ContinuousPruneJob.perform_now
+
+    assert ContinuousPruneLock.locked?
+    assert_nil AdminDashboardStats.last_job(:prune)
+  end
+
+  test "releases the lock when retention raises" do
+    job = ContinuousPruneJob.new
+    job.define_singleton_method(:perform_retention) { raise "retention failed" }
+
+    assert_raises(RuntimeError) { job.perform }
+
+    refute ContinuousPruneLock.locked?
+  end
+
   test "records last-done when disabled by admin settings" do
     AppConfig.write!(:continuous_prune_enabled, false)
 
