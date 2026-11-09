@@ -106,6 +106,46 @@ class FloodStageSyncJobTest < ActiveSupport::TestCase
     assert_equal 0, synced
   end
 
+  test "enqueue keeps a single instance while one is reserved" do
+    first = FloodStageSyncJob.perform_later
+    assert_instance_of FloodStageSyncJob, first
+    assert FloodStageSyncLock.owned_by?(first.job_id)
+
+    assert_no_enqueued_jobs only: FloodStageSyncJob do
+      assert_equal false, FloodStageSyncJob.perform_later
+      assert_equal false, FloodStageSyncJob.perform_later("wa")
+    end
+
+    synced = []
+    first.define_singleton_method(:states_to_sync) { %w[tx] }
+    first.define_singleton_method(:run_state_sync) { |code, _progress| synced << code }
+    first.define_singleton_method(:sleep_for_pacing) { |_seconds| nil }
+    first.perform
+
+    assert_equal %w[tx], synced
+    refute FloodStageSyncLock.locked?
+
+    assert_enqueued_jobs 1, only: FloodStageSyncJob do
+      assert_instance_of FloodStageSyncJob, FloodStageSyncJob.perform_later
+    end
+  end
+
+  test "a failed run keeps the slot so a second enqueue is rejected" do
+    job = FloodStageSyncJob.new
+    job.define_singleton_method(:sync_all_states!) { raise "nwps down" }
+
+    assert_raises(RuntimeError) { job.perform }
+    assert FloodStageSyncLock.owned_by?(job.job_id)
+
+    assert_no_enqueued_jobs only: FloodStageSyncJob do
+      assert_equal false, FloodStageSyncJob.perform_later
+    end
+
+    assert_enqueued_jobs 1, only: FloodStageSyncJob do
+      assert_instance_of FloodStageSyncJob, job.enqueue
+    end
+  end
+
   test "legacy no-arg perform runs the national loop" do
     synced = []
     job = FloodStageSyncJob.new

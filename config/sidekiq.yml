@@ -20,7 +20,9 @@
       queue: sync
     flood_stage_sync:
       # Bottom of the hour — opposes latest tip sync near :00. One job loops
-      # every state with ≥30s between states.
+      # every state with ≥30s between states. FloodStageSyncLock is claimed at
+      # enqueue, so a run that is still queued or working drops this tick
+      # instead of placing a second copy on sync.
       cron: "30 * * * *"
       class: FloodStageSyncJob
       queue: sync
