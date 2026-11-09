@@ -13,8 +13,6 @@
 #
 # The dashboard loads section snapshots via Turbo Frames so the shell can render
 # before heavy work finishes; section payloads are still Rails.cache'd briefly.
-require "set"
-
 class AdminDashboardStats
   COUNTERS_ENQUEUE_KEY = "admin_dashboard_counters:enqueued"
   COUNTERS_ENQUEUE_TTL = 15.minutes
@@ -41,14 +39,13 @@ class AdminDashboardStats
   JOB_COUNTER_NAMES = (
     JOB_CACHE_KEYS.values + [ IV_REPAIR_CANDIDATES_CACHE_KEY, IV_SCAR_CANDIDATES_CACHE_KEY ]
   ).freeze
-  APPROX_COUNT_THRESHOLD = SiteStats::APPROX_COUNT_THRESHOLD
   SECTIONS = %i[core pipeline growth jobs states health].freeze
   # Cheap sections first so the sequential frame loader warms UI quickly, then
   # core (which may refresh inventory Counters on miss), then remaining panels.
   SECTION_LOAD_ORDER = %i[jobs health core pipeline growth states].freeze
   # Bump when a section payload shape changes so deploys do not serve stale
   # hashes that crash the matching partial (Turbo then shows "Content missing").
-  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v14".freeze
+  SECTION_CACHE_KEY_PREFIX = "admin_dashboard/section/v15".freeze
   SECTION_TTL = 2.minutes
   SECTION_RACE_TTL = 15.seconds
   REDIS_SCAN_MAX_ITERATIONS = 50
@@ -110,8 +107,11 @@ class AdminDashboardStats
     # Merge into the last snapshot and refresh finished_at. Used for skip /
     # in-progress phase writes so /admin keeps a last-done time even when a
     # run does not reach a full successful finish.
-    def record_job_progress!(name, finished_at: Time.current, skip_reason: nil, **extra)
-      previous = (last_job(name) || {}).except(:finished_at)
+    # reset: true drops the previous run's counters. A new prune used to keep
+    # yesterday's iv_deleted next to a fresh timestamp until a later phase
+    # overwrote it, so /admin showed the last cleanup as if it had just happened.
+    def record_job_progress!(name, finished_at: Time.current, skip_reason: nil, reset: false, **extra)
+      previous = reset ? {} : (last_job(name) || {}).except(:finished_at)
       previous.delete(:skip_reason) if skip_reason.blank?
       payload = previous.merge(extra.compact)
       payload[:skip_reason] = skip_reason if skip_reason.present?
@@ -337,11 +337,13 @@ class AdminDashboardStats
 
   def refresh_inventory_counters!(source: "schedule")
     backfill = compute_backfill_aggregates
-    continuous_count = approximate_or_exact_count(ContinuousObservation)
-    daily_count = approximate_or_exact_count(DailyObservation)
-    peak_count = approximate_or_exact_count(PeakObservation)
-    archive_daily_count = DailyArchive.cold_archive_point_count
-    measurement_count = continuous_count + daily_count + peak_count + archive_daily_count
+    totals = SiteStats.observation_totals
+    continuous_count = totals[:continuous]
+    daily_count = totals[:daily]
+    peak_count = totals[:peaks]
+    archive_daily_count = totals[:archive]
+    daily_overlap = totals[:overlap]
+    measurement_count = totals[:measurement_count]
     window_counts = continuous_window_counts
     stale_station_count = [
       backfill[:station_count] - MonitoringLocation.active.not_stale.count,
@@ -358,12 +360,15 @@ class AdminDashboardStats
       backfill: backfill,
       continuous_observation_count: continuous_count,
       daily_observation_count: daily_count,
+      daily_observation_overlap_count: daily_overlap,
       peak_observation_count: peak_count,
       archive_daily_observation_count: archive_daily_count,
       daily_archive_shard_count: DailyArchive.shard_count,
       measurement_count: measurement_count,
       continuous_last_24h: window_counts[:continuous_last_24h],
       continuous_last_7d: window_counts[:continuous_last_7d],
+      continuous_last_24h_selected: window_counts[:continuous_last_24h_selected],
+      continuous_last_24h_selected_series: window_counts[:continuous_last_24h_selected_series],
       stale_station_count: stale_station_count,
       nwps_matched_count: nwps_matched_count
     )
@@ -375,7 +380,7 @@ class AdminDashboardStats
 
   def core_section
     tip = tip_refresh_payload
-    last_station = MonitoringLocation.order(updated_at: :desc).first
+    last_station = MonitoringLocation.active.order(updated_at: :desc).first
     inventory = inventory_payload
     backfill = backfill_aggregates
 
@@ -386,6 +391,7 @@ class AdminDashboardStats
       measurement_count: inventory[:measurement_count],
       continuous_observation_count: inventory[:continuous_observation_count],
       daily_observation_count: inventory[:daily_observation_count],
+      daily_observation_overlap_count: inventory[:daily_observation_overlap_count].to_i,
       peak_observation_count: inventory[:peak_observation_count],
       archive_daily_observation_count: inventory[:archive_daily_observation_count],
       daily_archive_shard_count: inventory[:daily_archive_shard_count],
@@ -418,9 +424,11 @@ class AdminDashboardStats
       stations_history_ready: backfill[:stations_history_ready],
       inventory_computed_at: inventory[:computed_at],
       # Last batch eligibility scan — never live needing_iv_repair / tip_sync_gap.
-      stations_needing_iv_repair: self.class.last_iv_repair_candidates.to_i,
+      # nil (not 0) when no scan has been recorded, so the panel does not
+      # show a false all-clear.
+      stations_needing_iv_repair: self.class.last_iv_repair_candidates,
       iv_repair_candidates_scanned_at: self.class.last_iv_repair_candidates_scanned_at,
-      stations_needing_iv_scar_repair: self.class.last_iv_scar_candidates.to_i,
+      stations_needing_iv_scar_repair: self.class.last_iv_scar_candidates,
       iv_scar_candidates_scanned_at: self.class.last_iv_scar_candidates_scanned_at,
       stale_station_count: inventory[:stale_station_count].to_i,
       flood_alert_count: site[:flood_alert_count],
@@ -439,6 +447,16 @@ class AdminDashboardStats
     inventory = stored_inventory_payload
     last_24h = inventory[:continuous_last_24h].to_i
     recent_iv_series = TimeSeries.selected.where(continuous_newest_at: 24.hours.ago..).count
+    # Spacing uses selected-series points captured with the 24h count. Dividing
+    # every continuous row (including unselected leftovers) by the live selected
+    # series count reported a cadence those series do not have.
+    if inventory.key?(:continuous_last_24h_selected)
+      interval_points = inventory[:continuous_last_24h_selected].to_i
+      interval_series = inventory[:continuous_last_24h_selected_series].to_i
+    else
+      interval_points = last_24h
+      interval_series = recent_iv_series
+    end
 
     {
       continuous_last_24h: last_24h,
@@ -446,7 +464,8 @@ class AdminDashboardStats
       inventory_computed_at: inventory[:computed_at],
       selected_series_count: TimeSeries.selected.count,
       recent_iv_series_count: recent_iv_series,
-      implied_interval_minutes: implied_iv_interval_minutes(last_24h, recent_iv_series),
+      implied_interval_series_count: interval_series,
+      implied_interval_minutes: implied_iv_interval_minutes(interval_points, interval_series),
       tip_freshness: tip_freshness_histogram,
       email_alerts: AlertsAdminStats.snapshot
     }
@@ -529,7 +548,8 @@ class AdminDashboardStats
     inventory = inventory_payload
     {
       per_state: backfill_aggregates[:per_state],
-      inventory_computed_at: inventory[:computed_at]
+      inventory_computed_at: inventory[:computed_at],
+      continuous_freshness_days: (HistoryIngestion.continuous_freshness / 1.day).round
     }
   end
 
@@ -573,7 +593,8 @@ class AdminDashboardStats
     payload.merge(computed_at: row.computed_at)
   end
 
-  # One index range scan for both windows — 7d includes 24h.
+  # One index range scan for both windows — 7d includes 24h. Selected-series
+  # totals are the numerator and denominator for the implied IV spacing.
   def continuous_window_counts
     since_24h = 24.hours.ago
     since_7d = 7.days.ago
@@ -582,11 +603,20 @@ class AdminDashboardStats
         [
           <<~SQL.squish,
             SELECT
-              COUNT(*) FILTER (WHERE observed_at >= ?) AS last_24h,
-              COUNT(*) AS last_7d
-            FROM continuous_observations
-            WHERE observed_at >= ?
+              COUNT(*) FILTER (WHERE co.observed_at >= ?) AS last_24h,
+              COUNT(*) AS last_7d,
+              COUNT(*) FILTER (
+                WHERE co.observed_at >= ? AND ts.selected_for_display
+              ) AS last_24h_selected,
+              COUNT(DISTINCT co.time_series_id) FILTER (
+                WHERE co.observed_at >= ? AND ts.selected_for_display
+              ) AS last_24h_selected_series
+            FROM continuous_observations co
+            LEFT JOIN time_series ts ON ts.id = co.time_series_id
+            WHERE co.observed_at >= ?
           SQL
+          since_24h,
+          since_24h,
           since_24h,
           since_7d
         ]
@@ -595,7 +625,9 @@ class AdminDashboardStats
 
     {
       continuous_last_24h: row["last_24h"].to_i,
-      continuous_last_7d: row["last_7d"].to_i
+      continuous_last_7d: row["last_7d"].to_i,
+      continuous_last_24h_selected: row["last_24h_selected"].to_i,
+      continuous_last_24h_selected_series: row["last_24h_selected_series"].to_i
     }
   end
 
@@ -613,29 +645,59 @@ class AdminDashboardStats
 
   # One pass over selected series + small coverage sets — avoids nested
   # needing_history/deep ActiveRecord scopes that each seq-scan observations.
+  #
+  # Queues follow those scopes, not "any selected series is missing something":
+  # - Only recently active series (same predicate as TimeSeries.selected_recently_active).
+  #   A discharge series that ended years ago must not keep the station in ≤1y.
+  # - Daily gaps ignore usgs_daily_absent series. USGS often publishes IV without
+  #   daily values; those parameters are not a year-history backlog.
+  # - Non-USGS reservoirs are daily-only. Missing continuous IV is not phase-1.
+  # - A stale 7-day IV tip on a series that already has the ~35d anchor is IV
+  #   repair, not the cold history queue.
+  # - "Need 3y" is coverage (year present, deep missing), not the scheduler's
+  #   extra "tip younger than 7 days" gate.
   def compute_backfill_aggregates
     year_anchor = HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
     deep_anchor = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
-    continuous_since = HistoryIngestion.continuous_freshness.ago
+    fresh_since = HistoryIngestion.continuous_freshness.ago
+    retention_since = HistoryIngestion.continuous_retention.ago
     daily_fresh_since = HistoryIngestion::DAILY_FRESHNESS.ago.to_date
 
     stations_by_state = MonitoringLocation.active.group(:state_code).count
-    location_state = MonitoringLocation.active.pluck(:id, :state_code).to_h
-    selected = TimeSeries.selected.pluck(:id, :monitoring_location_id)
-    selected.select! { |_series_id, location_id| location_state.key?(location_id) }
+    location_state = {}
+    location_usgs = {}
+    MonitoringLocation.active.pluck(:id, :state_code, :data_provider).each do |id, state, provider|
+      location_state[id] = state
+      location_usgs[id] = provider == DataProviders::USGS
+    end
+
+    series_rows = TimeSeries.selected.left_joins(:latest_observation).pluck(
+      Arel.sql("time_series.id"),
+      Arel.sql("time_series.monitoring_location_id"),
+      Arel.sql("time_series.continuous_newest_at"),
+      Arel.sql("time_series.has_continuous_anchor"),
+      Arel.sql("time_series.usgs_daily_absent"),
+      Arel.sql("time_series.ends_at"),
+      Arel.sql("latest_observations.id"),
+      Arel.sql("latest_observations.observed_at")
+    )
+    series_by_location = {}
+    series_rows.each do |id, location_id, newest, anchored, daily_absent, ends_at, latest_id, latest_at|
+      next unless location_state.key?(location_id)
+
+      (series_by_location[location_id] ||= []) << {
+        id: id,
+        newest: newest,
+        anchored: ActiveModel::Type::Boolean.new.cast(anchored),
+        daily_absent: ActiveModel::Type::Boolean.new.cast(daily_absent),
+        ends_at: ends_at,
+        latest_id: latest_id,
+        latest_at: latest_at
+      }
+    end
 
     has_year = DailyArchive.daily_coverage_series_ids(year_anchor)
     has_deep = DailyArchive.daily_coverage_series_ids(deep_anchor)
-    # Denorm columns — avoid fleet plucks from continuous_observations.
-    coverage_rows = TimeSeries.selected.pluck(
-      :id, :continuous_newest_at, :has_continuous_anchor
-    )
-    has_continuous_tip = coverage_rows.each_with_object(Set.new) { |(id, newest, _), set|
-      set << id if newest.present? && newest >= continuous_since
-    }
-    has_continuous_anchor = coverage_rows.each_with_object(Set.new) { |(id, _, anchored), set|
-      set << id if anchored
-    }
     # Must include R2 shard tips — after DAILY_ARCHIVE_PRUNE, Postgres daily is empty.
     has_daily_tip = DailyArchive.fresh_daily_tip_series_ids(daily_fresh_since)
 
@@ -652,31 +714,44 @@ class AdminDashboardStats
     has_daily_tip_by_state = {}
     selected_by_state = {}
 
-    selected.group_by(&:last).each do |location_id, rows|
+    series_by_location.each do |location_id, series|
       state = location_state[location_id]
-      series_ids = rows.map(&:first)
-      missing_year = series_ids.any? { |id| !has_year.include?(id) }
-      missing_deep = series_ids.any? { |id| !has_deep.include?(id) }
-      missing_cont_tip = series_ids.any? { |id| !has_continuous_tip.include?(id) }
-      missing_cont_anchor = series_ids.any? { |id| !has_continuous_anchor.include?(id) }
-      missing_tip = series_ids.any? { |id| !has_daily_tip.include?(id) }
-      phase1 = missing_cont_tip || missing_cont_anchor || missing_year || missing_tip
-
       selected_by_state[state] = selected_by_state[state].to_i + 1
+      recent = series.select { |row| series_recently_active?(row, retention_since) }
+      next if recent.empty?
+
+      usgs = location_usgs[location_id]
+      daily = recent.reject { |row| row[:daily_absent] }
+      missing_cont_tip = recent.any? { |row| row[:newest].blank? || row[:newest] < fresh_since }
+      missing_cont_anchor = recent.any? { |row| !row[:anchored] }
+      missing_year = daily.any? { |row| !has_year.include?(row[:id]) }
+      missing_deep = daily.any? { |row| !has_deep.include?(row[:id]) }
+      missing_tip = daily.any? { |row| !has_daily_tip.include?(row[:id]) }
+      phase1_anchor = usgs && missing_cont_anchor
+      phase1 = phase1_anchor || missing_year || missing_tip
+      deep_queue = !phase1 && daily.any? { |row|
+        has_year.include?(row[:id]) &&
+          !has_deep.include?(row[:id]) &&
+          has_daily_tip.include?(row[:id]) &&
+          (!usgs || row[:anchored])
+      }
+
       has_continuous_tip_by_state[state] = has_continuous_tip_by_state[state].to_i + 1 unless missing_cont_tip
       has_continuous_anchor_by_state[state] = has_continuous_anchor_by_state[state].to_i + 1 unless missing_cont_anchor
-      has_year_by_state[state] = has_year_by_state[state].to_i + 1 unless missing_year
-      has_deep_by_state[state] = has_deep_by_state[state].to_i + 1 unless missing_deep
-      has_daily_tip_by_state[state] = has_daily_tip_by_state[state].to_i + 1 unless missing_tip
+      if daily.any?
+        has_year_by_state[state] = has_year_by_state[state].to_i + 1 unless missing_year
+        has_deep_by_state[state] = has_deep_by_state[state].to_i + 1 unless missing_deep
+        has_daily_tip_by_state[state] = has_daily_tip_by_state[state].to_i + 1 unless missing_tip
+      end
 
       missing_year_by_state[state] = missing_year_by_state[state].to_i + 1 if missing_year
       missing_continuous_tip_by_state[state] = missing_continuous_tip_by_state[state].to_i + 1 if missing_cont_tip
-      missing_continuous_anchor_by_state[state] = missing_continuous_anchor_by_state[state].to_i + 1 if missing_cont_anchor
+      missing_continuous_anchor_by_state[state] = missing_continuous_anchor_by_state[state].to_i + 1 if phase1_anchor
       missing_daily_tip_by_state[state] = missing_daily_tip_by_state[state].to_i + 1 if missing_tip
 
       if phase1
         needing_history_by_state[state] = needing_history_by_state[state].to_i + 1
-      elsif missing_deep
+      elsif deep_queue
         needing_deep_by_state[state] = needing_deep_by_state[state].to_i + 1
       end
     end
@@ -717,19 +792,20 @@ class AdminDashboardStats
     }
   end
 
+  # Matches TimeSeries.selected_recently_active without a second query.
+  def series_recently_active?(row, retention_since)
+    return true if row[:latest_id].nil? && row[:ends_at].nil?
+    return true if row[:latest_at].present? && row[:latest_at] >= retention_since
+    return true if row[:ends_at].present? && row[:ends_at] >= retention_since
+    return true if row[:newest].present? && row[:newest] >= retention_since
+
+    false
+  end
+
   def implied_iv_interval_minutes(point_count, series_count)
     return if series_count <= 0 || point_count <= 0
 
     ((24.0 * 60) / (point_count.to_f / series_count)).round(1)
-  end
-
-  def approximate_or_exact_count(model)
-    estimate = connection.select_value(
-      "SELECT reltuples::bigint FROM pg_class WHERE oid = #{connection.quote(model.table_name)}::regclass"
-    ).to_i
-    return estimate if estimate >= APPROX_COUNT_THRESHOLD
-
-    model.count
   end
 
   def tip_freshness_histogram
@@ -804,20 +880,69 @@ class AdminDashboardStats
     code.to_s.upcase
   end
 
+  # Locks live in Rails.cache. Production may point that at REDIS_CACHE_URL,
+  # which is a different database than Sidekiq's REDIS_URL. Scanning the
+  # Sidekiq Redis then reports 0 while workers are actually locked.
   def count_prefixed_redis_keys(prefix)
+    cache = Rails.cache
+    if cache.respond_to?(:redis) && cache.redis
+      count_redis_scan(cache.redis, cache_match_pattern(cache, "#{prefix}*"))
+    elsif cache.is_a?(ActiveSupport::Cache::MemoryStore)
+      count_memory_cache_keys(prefix)
+    else
+      self.class.send(:redis_with_rescue) { |redis| count_redis_scan(redis, "#{prefix}*") } || 0
+    end
+  end
+
+  def cache_match_pattern(cache, pattern)
+    namespace = cache.options[:namespace] if cache.respond_to?(:options)
+    namespace = namespace.call if namespace.respond_to?(:call)
+    return pattern if namespace.blank?
+
+    "#{namespace}:#{pattern}"
+  end
+
+  def count_redis_scan(connection, pattern)
     count = 0
     cursor = "0"
     iterations = 0
-    self.class.send(:redis_with_rescue) do |r|
+    client_scan = lambda do |client|
       loop do
         iterations += 1
-        cursor, keys = r.scan(cursor, match: "#{prefix}*", count: 1_000)
+        cursor, keys = client.scan(cursor, match: pattern, count: 1_000)
         count += keys.size
         break if cursor.to_s == "0"
         break if iterations >= REDIS_SCAN_MAX_ITERATIONS
       end
-      count
-    end || 0
+    end
+
+    if connection.respond_to?(:scan)
+      client_scan.call(connection)
+    elsif connection.respond_to?(:with)
+      connection.with { |client| client_scan.call(client) }
+    end
+    count
+  rescue StandardError => e
+    Rails.logger.warn("[AdminDashboardStats] redis #{e.class}: #{e.message}")
+    0
+  end
+
+  def count_memory_cache_keys(prefix)
+    cache = Rails.cache
+    data = cache.instance_variable_get(:@data)
+    return 0 unless data
+
+    cache.send(:synchronize) do
+      data.count do |key, payload|
+        next false unless key.to_s.start_with?(prefix.to_s)
+
+        entry = cache.send(:deserialize_entry, payload)
+        entry.nil? || !entry.expired?
+      end
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[AdminDashboardStats] memory cache scan #{e.class}: #{e.message}")
+    0
   end
 
   def sidekiq_stats
@@ -826,6 +951,10 @@ class AdminDashboardStats
     queues = Sidekiq::Queue.all.map { |q| [ q.name, q.size ] }.to_h
     workers_by_queue = Hash.new(0)
     Sidekiq::ProcessSet.new.each do |process|
+      # Quiet processes are not fetching. Counting them hides the "no process
+      # is listening" alert while the queue sits untouched.
+      next if process.respond_to?(:stopping?) && process.stopping?
+
       Array(process["queues"]).each { |queue| workers_by_queue[queue.to_s] += 1 }
     end
     {

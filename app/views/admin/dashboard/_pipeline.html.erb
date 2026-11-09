@@ -16,15 +16,18 @@
 
   <div class="stats-grid">
     <article>
-      <p class="value<%= " alert" if stats[:stations_needing_iv_repair].to_i.positive? %>">
-        <%= number_with_delimiter(stats[:stations_needing_iv_repair]) %>
+      <% iv_known = stats[:iv_repair_candidates_scanned_at].present? || !stats[:stations_needing_iv_repair].nil? %>
+      <p class="value<%= " alert" if iv_known && stats[:stations_needing_iv_repair].to_i.positive? %>">
+        <%= iv_known ? number_with_delimiter(stats[:stations_needing_iv_repair].to_i) : "—" %>
       </p>
       <p class="label">Need IV repair (tip)</p>
       <p class="hint">
         <% if stats[:iv_repair_candidates_scanned_at] %>
           Last batch scan <%= time_ago_in_words(stats[:iv_repair_candidates_scanned_at]) %> ago ·
-        <% else %>
+        <% elsif iv_known %>
           From last IV repair batch scan ·
+        <% else %>
+          No batch scan recorded yet ·
         <% end %>
         <%= number_with_delimiter(stats[:iv_repair_locks].to_i) %> locked ·
         <%= number_with_delimiter(stats[:iv_repair_cooldowns].to_i) %> cooling
@@ -32,15 +35,18 @@
     </article>
 
     <article>
-      <p class="value<%= " alert" if stats[:stations_needing_iv_scar_repair].to_i.positive? %>">
-        <%= number_with_delimiter(stats[:stations_needing_iv_scar_repair]) %>
+      <% scar_known = stats[:iv_scar_candidates_scanned_at].present? || !stats[:stations_needing_iv_scar_repair].nil? %>
+      <p class="value<%= " alert" if scar_known && stats[:stations_needing_iv_scar_repair].to_i.positive? %>">
+        <%= scar_known ? number_with_delimiter(stats[:stations_needing_iv_scar_repair].to_i) : "—" %>
       </p>
       <p class="label">Need IV scar repair</p>
       <p class="hint">
         <% if stats[:iv_scar_candidates_scanned_at] %>
           Last scar scan <%= time_ago_in_words(stats[:iv_scar_candidates_scanned_at]) %> ago ·
-        <% else %>
+        <% elsif scar_known %>
           From last IV scar batch scan ·
+        <% else %>
+          No scar scan recorded yet ·
         <% end %>
         Actionable interior holes in ~35d IV (key2). Known-missing USGS scars park until retry.
       </p>
@@ -54,8 +60,8 @@
 
     <article>
       <p class="value"><%= number_with_delimiter(stats[:stations_history_ready]) %></p>
-      <p class="label">History ready (3y)</p>
-      <p class="hint">Neither backlog column — deep daily in hot tip or archive</p>
+      <p class="label">Outside history queues</p>
+      <p class="hint">Active stations in neither the ≤1y nor the 3y backlog</p>
     </article>
 
     <article>

@@ -30,7 +30,7 @@ class ContinuousPruneJob < ApplicationJob
       "daily_archive.retention",
       attributes: { "app.operation" => "daily_archive.retention" }
     ) do
-      AdminDashboardStats.record_job_progress!(:prune, phase: "running")
+      AdminDashboardStats.record_job_progress!(:prune, phase: "running", reset: true)
       stats = DailyArchive::Retention.new(
         progress: progress,
         on_phase: ->(phase, phase_stats) {
