@@ -1,5 +1,7 @@
 class StationCatalogSyncJob < ApplicationJob
+  extend SingletonRunEnqueue
   queue_as :sync
+  reserve_singleton_slot StationCatalogSyncLock
 
   # StationCatalogSync holds StationCatalogSyncLock for the whole run so two
   # catalog jobs cannot consume both sync_worker threads (concurrency 2).
@@ -7,10 +9,12 @@ class StationCatalogSyncJob < ApplicationJob
   def perform(state = nil)
     unless AppConfig.boolean?(:station_catalog_sync_enabled)
       Rails.logger.info("StationCatalogSyncJob skipped: disabled by admin settings")
+      StationCatalogSyncLock.release!(owner: job_id)
       return
     end
     if Usgs::RateLimitCircuit.open?(Usgs::RateLimitCircuit::TIP_KEY)
       Rails.logger.warn("StationCatalogSyncJob skipped: USGS tip rate limit circuit open")
+      StationCatalogSyncLock.release!(owner: job_id)
       return
     end
     if DatabaseReadOnlyCircuit.open?
@@ -18,6 +22,6 @@ class StationCatalogSyncJob < ApplicationJob
     end
 
     progress = SyncProgress.new("StationCatalogSyncJob", io: nil)
-    StationCatalogSync.new(state: state, progress: progress).perform
+    StationCatalogSync.new(state: state, progress: progress).perform(lock_owner: job_id)
   end
 end

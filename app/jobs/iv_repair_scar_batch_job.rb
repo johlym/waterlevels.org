@@ -37,7 +37,7 @@ class IvRepairScarBatchJob < ApplicationJob
       begin
         perform_locked(limit, started, queue_depth: queue_depth, worker_count: worker_count)
       ensure
-        IvRepairScarBatchLock.release!
+        IvRepairScarBatchLock.release!(owner: IvRepairScarBatchLock.default_owner)
       end
     end
   end
@@ -224,6 +224,9 @@ class IvRepairScarBatchJob < ApplicationJob
 
     candidate_ids.each do |id|
       break if enqueued >= budget
+      if (scanned % 10).zero?
+        break unless IvRepairScarBatchLock.renew!(IvRepairScarBatchLock.default_owner)
+      end
 
       scanned += 1
       reason = IvRepairScarJob.enqueue_block_reason(id)

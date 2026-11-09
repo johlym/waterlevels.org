@@ -18,7 +18,7 @@ class ContinuousPruneJob < ApplicationJob
     begin
       perform_retention
     ensure
-      ContinuousPruneLock.release!
+      ContinuousPruneLock.release!(owner: ContinuousPruneLock.default_owner)
     end
   end
 
@@ -33,7 +33,9 @@ class ContinuousPruneJob < ApplicationJob
       AdminDashboardStats.record_job_progress!(:prune, phase: "running", reset: true)
       stats = DailyArchive::Retention.new(
         progress: progress,
+        heartbeat: -> { ContinuousPruneLock.renew!(ContinuousPruneLock.default_owner) },
         on_phase: ->(phase, phase_stats) {
+          ContinuousPruneLock.renew!(ContinuousPruneLock.default_owner)
           AdminDashboardStats.record_job_progress!(:prune, phase: phase, **phase_stats)
         }
       ).perform

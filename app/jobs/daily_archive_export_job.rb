@@ -25,7 +25,10 @@ class DailyArchiveExportJob < ApplicationJob
     begin
       progress = SyncProgress.new("DailyArchiveExportJob", io: nil)
       AdminDashboardStats.record_job_progress!(:daily_archive_export, phase: "running")
-      result = DailyArchive::Exporter.new(progress: progress).perform(
+      result = DailyArchive::Exporter.new(
+        progress: progress,
+        heartbeat: -> { DailyArchiveExportLock.renew!(DailyArchiveExportLock.default_owner) }
+      ).perform(
         time_series_ids: time_series_ids,
         only_cold: only_cold
       )
@@ -36,7 +39,7 @@ class DailyArchiveExportJob < ApplicationJob
         "daily_deleted=#{result[:daily_deleted]} vacuumed=#{result[:vacuumed]}"
       )
     ensure
-      DailyArchiveExportLock.release!
+      DailyArchiveExportLock.release!(owner: DailyArchiveExportLock.default_owner)
     end
   end
 

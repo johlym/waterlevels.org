@@ -38,8 +38,14 @@ class LatestObservationSync
     @progress = progress
   end
 
-  def perform
-    unless LatestObservationSyncLock.claim!
+  def perform(lock_owner: nil)
+    owner = lock_owner.presence || LatestObservationSyncLock.default_owner
+    acquired = if lock_owner.present? && LatestObservationSyncLock.owned_by?(lock_owner)
+      LatestObservationSyncLock.renew!(lock_owner)
+    else
+      LatestObservationSyncLock.claim!(owner: owner)
+    end
+    unless acquired
       progress&.step("skip already running (lock held)")
       Rails.logger.info(
         "LatestObservationSync skipped: lock held state=#{postal_code || "national"}"
@@ -47,10 +53,11 @@ class LatestObservationSync
       return false
     end
 
+    @lock_owner = owner
     begin
       perform_locked
     ensure
-      LatestObservationSyncLock.release!
+      LatestObservationSyncLock.release!(owner: owner)
     end
   end
 
@@ -130,6 +137,8 @@ class LatestObservationSync
     progress&.step("national states=#{state_codes.size}")
 
     state_codes.each do |code|
+      break unless beat_lock!("state=#{code}")
+
       @state = code
       @postal_code = nil
       progress&.step("state=#{code}")
@@ -146,9 +155,19 @@ class LatestObservationSync
 
   def sync_parameters!
     Usgs::ParameterCodes::ALL.each do |parameter_code|
+      break unless beat_lock!("parameter=#{parameter_code}")
+
       sync_parameter(parameter_code)
       GC.start
     end
+  end
+
+  def beat_lock!(label)
+    return true if @lock_owner.blank?
+    return true if LatestObservationSyncLock.renew!(@lock_owner)
+
+    progress&.step("stop #{label} lock lost")
+    false
   end
 
   def national_selected_rows

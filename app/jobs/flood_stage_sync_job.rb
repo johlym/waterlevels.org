@@ -1,5 +1,7 @@
 class FloodStageSyncJob < ApplicationJob
+  extend SingletonRunEnqueue
   queue_as :sync
+  reserve_singleton_slot FloodStageSyncLock
 
   # Minimum wall-clock between state syncs inside one national run. If a state
   # already took longer, start the next immediately (no extra pause).
@@ -11,7 +13,13 @@ class FloodStageSyncJob < ApplicationJob
   # Also accepts blank/omitted args so old Sidekiq retries of the former
   # national cron (`arguments: []`) run the loop instead of failing.
   def perform(state = nil)
+    unless hold_lock!
+      Rails.logger.info("FloodStageSyncJob skipped: another instance is queued or running")
+      return
+    end
+
     unless AppConfig.boolean?(:flood_stage_sync_enabled)
+      FloodStageSyncLock.release!(owner: job_id)
       Rails.logger.info("FloodStageSyncJob skipped: disabled by admin settings")
       return
     end
@@ -25,6 +33,7 @@ class FloodStageSyncJob < ApplicationJob
     else
       sync_all_states!
     end
+    FloodStageSyncLock.release!(owner: job_id)
   end
 
   private
@@ -34,40 +43,30 @@ class FloodStageSyncJob < ApplicationJob
     progress = SyncProgress.new("FloodStageSyncJob", io: nil)
     progress.step("national states=#{states.size} min_state_seconds=#{MIN_STATE_SECONDS}")
 
-    unless FloodStageSyncLock.claim!(ttl: 2.hours)
-      progress.step("skip already running (lock held)")
-      return
-    end
-
-    begin
-      Telemetry.in_root_span(
-        "job.flood_sync_national",
-        attributes: {
-          "app.operation" => "job.flood_sync_national",
-          "app.batch_size" => states.size
-        }
-      ) do
-        states.each_with_index do |code, index|
-          started_at = monotonic_now
-          progress.step("state=#{code} (#{index + 1}/#{states.size})")
-          run_state_sync(code, progress)
-          pad_to_min_cycle!(started_at, progress, label: code)
+    Telemetry.in_root_span(
+      "job.flood_sync_national",
+      attributes: {
+        "app.operation" => "job.flood_sync_national",
+        "app.batch_size" => states.size
+      }
+    ) do
+      states.each_with_index do |code, index|
+        unless FloodStageSyncLock.renew!(job_id)
+          progress.step("stop state=#{code} lock lost")
+          break
         end
-        progress.finish("states=#{states.size}")
+
+        started_at = monotonic_now
+        progress.step("state=#{code} (#{index + 1}/#{states.size})")
+        run_state_sync(code, progress)
+        pad_to_min_cycle!(started_at, progress, label: code)
       end
-    ensure
-      FloodStageSyncLock.release!
+      progress.finish("states=#{states.size}")
     end
   end
 
   def sync_one_state!(postal)
     progress = SyncProgress.new("FloodStageSyncJob[#{postal}]", io: nil)
-
-    unless FloodStageSyncLock.claim!
-      progress.step("lock busy; skip state=#{postal}")
-      return
-    end
-
     started_at = monotonic_now
     begin
       Telemetry.in_span(
@@ -81,8 +80,13 @@ class FloodStageSyncJob < ApplicationJob
       end
     ensure
       pad_to_min_cycle!(started_at, progress, label: postal)
-      FloodStageSyncLock.release!
     end
+  end
+
+  # Enqueue already claimed the slot for this job id. perform_now and a
+  # Sidekiq retry claim here. A different owner means another instance holds it.
+  def hold_lock!
+    FloodStageSyncLock.renew!(job_id) || FloodStageSyncLock.claim!(owner: job_id)
   end
 
   def states_to_sync
