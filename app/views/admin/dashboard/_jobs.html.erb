@@ -79,6 +79,9 @@
             <%= number_with_delimiter(stats[:last_prune_gaps_alerted].to_i) %> gaps
           </span>
           · IV −<%= number_with_delimiter(stats[:last_prune_iv_deleted].to_i) %>
+          <% if stats[:last_prune_readings_deleted].to_i.positive? %>
+            · readings −<%= number_with_delimiter(stats[:last_prune_readings_deleted].to_i) %>
+          <% end %>
           <% if stats[:last_prune_iv_blocked].to_i.positive? %>
             (<%= number_with_delimiter(stats[:last_prune_iv_blocked].to_i) %> blocked)
           <% end %>

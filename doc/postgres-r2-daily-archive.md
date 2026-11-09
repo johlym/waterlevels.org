@@ -62,11 +62,11 @@ Year-shard writes take a short Redis lock (`daily_archive_write:{time_series_id}
 Invariant: **never prune IV for local day D until R2 has D (USGS or derived) or D is an explicit alerted gap.**
 
 1. Tip/gap ingest writes USGS dailies into R2.
-2. Nightly `ContinuousPruneJob` → `DailyArchive::Retention` ensures every local day with IV older than ~30 days is present in R2:
+2. Nightly `ContinuousPruneJob` → `DailyArchive::Retention` first batch-deletes continuous rows older than retention by more than one day. That backlog is already past the retry window, so it does not wait on a per-series R2 walk. Handoff then ensures local days still inside the remaining band (~30–36 days old) are present in R2:
    - Prefer official USGS daily (leftover Postgres row during drain, or bounded USGS fetch).
    - Else derive a local-midnight mean from IV (coverage-gated) and store with `s: "derived"`.
    - Else leave IV in place and count as `retrying` while inside the 35-day window.
-3. When a day reaches IV prune age still uncovered: **alert** (`gaps_alerted`, log + Sentry), then allow prune.
+3. When a day in that band reaches IV prune age still uncovered: **alert** (`gaps_alerted`, log + Sentry), then allow prune. The retention checkpoint resumes across UTC days until the pass finishes.
 4. When `DAILY_ARCHIVE_PRUNE=1`, delete leftover Postgres `daily_observations` whose day already exists in R2 at equal-or-better provenance (USGS leftovers stay until R2 has `s: "usgs"`; derived leftovers may drain against any archived copy). Export deletes rows immediately after a successful shuttle; `DailyArchiveDrainJob` repeats the already-in-R2 delete every 6 hours so ingest-fallback leftovers do not wait for the nightly pass.
 5. After a large delete (or when `pg_stat_user_tables.n_dead_tup` is already high), `VACUUM (ANALYZE)` the observation table(s) so Postgres reclaims space and refreshes planner stats instead of waiting on autovacuum.
 

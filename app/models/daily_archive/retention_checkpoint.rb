@@ -3,7 +3,8 @@ module DailyArchive
   # run can skip work already completed for the same UTC calendar day.
   #
   # Cursor is (phase, after_series_id). Stats and gap alerts accumulate across
-  # resumes. Cleared only when the full retention pass finishes successfully.
+  # resumes, including a later UTC day. Cleared only when the full retention
+  # pass finishes successfully. The cache TTL drops a cursor nothing touches.
   class RetentionCheckpoint
     CACHE_KEY = "daily_archive:retention_checkpoint".freeze
     TTL = 2.days
@@ -59,8 +60,11 @@ module DailyArchive
         checkpoint_as_of = parse_time(raw["as_of"])
         return false unless checkpoint_as_of
         return false unless PHASES.include?(raw["phase"].to_s)
+        # A national handoff outlives one UTC day. Dropping the cursor at
+        # midnight restarted that walk forever and never reached IV delete.
+        return false if checkpoint_as_of > as_of + 1.hour
 
-        checkpoint_as_of.utc.to_date == as_of.utc.to_date
+        true
       end
 
       def parse_time(value)
