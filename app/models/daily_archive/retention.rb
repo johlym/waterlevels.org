@@ -32,7 +32,7 @@ module DailyArchive
     # entries at the left edge of observed_at and gets slower every batch.
     EXPIRED_IV_SLICE = 1.day
 
-    def initialize(store: DailyArchive.store, writer: nil, as_of: Time.current, client: nil, progress: nil, checkpoint: nil, on_phase: nil)
+    def initialize(store: DailyArchive.store, writer: nil, as_of: Time.current, client: nil, progress: nil, checkpoint: nil, on_phase: nil, heartbeat: nil)
       @store = store
       @writer = writer || Writer.new(store: store)
       @as_of = as_of
@@ -40,6 +40,7 @@ module DailyArchive
       @progress = progress
       @checkpoint = checkpoint
       @on_phase = on_phase
+      @heartbeat = heartbeat
       @gap_days = Set.new # [time_series_id, iso_day] alerted this run
       @archived_points_cache = {}
     end
@@ -142,6 +143,14 @@ module DailyArchive
       @on_phase&.call(phase, stats)
     end
 
+    def heartbeat_ok?
+      return true if @heartbeat.nil?
+      return true if @heartbeat.call
+
+      @progress&.step("stop lock lost")
+      false
+    end
+
     def ensure_aged_days!
       if @checkpoint.phase_completed?("handoff")
         stats = @checkpoint.stats
@@ -186,7 +195,11 @@ module DailyArchive
       scope = @checkpoint.series_scope(
         TimeSeries.where(id: series_ids).includes(:monitoring_location)
       )
-      scope.find_each do |series|
+      scope.find_each.with_index do |series, index|
+        if (index % 50).zero?
+          break unless heartbeat_ok?
+        end
+
         counts = ensure_series_days!(series, aged_local_days(series, frontier, after: floor))
         usgs_ensured += counts[:usgs_ensured]
         derived += counts[:derived]
@@ -241,6 +254,7 @@ module DailyArchive
       begin
         cursor = next_expired_observed_at(cutoff)
         while cursor
+          break unless heartbeat_ok?
           break if DatabaseReadOnlyCircuit.open?
 
           slice_end = [ cursor + EXPIRED_IV_SLICE, cutoff ].min
@@ -510,7 +524,11 @@ module DailyArchive
       scope = @checkpoint.series_scope(
         TimeSeries.where(id: series_ids).includes(:monitoring_location)
       )
-      scope.find_each do |series|
+      scope.find_each.with_index do |series, index|
+        if (index % 50).zero?
+          break unless heartbeat_ok?
+        end
+
         zone = local_zone(series.monitoring_location)
         series_deleted = 0
         series_blocked = 0

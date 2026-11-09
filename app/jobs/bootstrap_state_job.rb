@@ -20,7 +20,7 @@ class BootstrapStateJob < ApplicationJob
       begin
         FloodStageSync.new(state: state, progress: progress).perform
       ensure
-        FloodStageSyncLock.release!
+        FloodStageSyncLock.release!(owner: FloodStageSyncLock.default_owner)
       end
     else
       progress.step("skip flood already running (lock held)")

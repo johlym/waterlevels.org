@@ -1,32 +1,11 @@
 class FloodStageSyncJob < ApplicationJob
+  extend SingletonRunEnqueue
   queue_as :sync
+  reserve_singleton_slot FloodStageSyncLock
 
   # Minimum wall-clock between state syncs inside one national run. If a state
   # already took longer, start the next immediately (no extra pause).
   MIN_STATE_SECONDS = 30
-
-  # Reserve the single slot before the job is pushed. The hourly cron otherwise
-  # enqueues another copy while a long run is still in the sync queue, and the
-  # second thread picks it up. A retry of this same job id already owns the slot.
-  before_enqueue do |job|
-    owner = job.job_id
-    next if FloodStageSyncLock.owned_by?(owner)
-
-    if FloodStageSyncLock.claim!(owner: owner)
-      job.instance_variable_set(:@flood_slot_claimed, true)
-    else
-      Rails.logger.info("FloodStageSyncJob enqueue skipped: another instance is queued or running")
-      throw :abort
-    end
-  end
-
-  around_enqueue do |job, block|
-    block.call
-  ensure
-    if job.instance_variable_get(:@flood_slot_claimed) && !job.successfully_enqueued?
-      FloodStageSyncLock.release!(owner: job.job_id)
-    end
-  end
 
   # National run (state omitted): loop every USPS state/territory with the
   # in-process timer. Optional +state+ keeps bootstrap/rake single-state calls.

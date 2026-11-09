@@ -2,11 +2,12 @@ module DailyArchive
   class Exporter
     DEFAULT_BATCH = 50
 
-    def initialize(store: DailyArchive.store, batch_size: DEFAULT_BATCH, progress: nil, writer: nil)
+    def initialize(store: DailyArchive.store, batch_size: DEFAULT_BATCH, progress: nil, writer: nil, heartbeat: nil)
       @store = store
       @batch_size = batch_size
       @progress = progress
       @writer = writer || Writer.new(store: store)
+      @heartbeat = heartbeat
     end
 
     def perform(time_series_ids: nil, only_cold: false)
@@ -38,6 +39,11 @@ module DailyArchive
       drain = Drain.new(store: @store, progress: @progress)
 
       scope.find_in_batches(batch_size: @batch_size) do |batch|
+        if @heartbeat && @heartbeat.call == false
+          @progress&.step("stop lock lost")
+          break
+        end
+
         observation_scope = DailyObservation.where(time_series_id: batch.map(&:id))
         observation_scope = observation_scope.where("observed_on < ?", Date.current) if only_cold
         grouped = observation_scope.order(:time_series_id, :observed_on)

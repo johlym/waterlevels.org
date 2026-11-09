@@ -1,5 +1,7 @@
 class LatestObservationSyncJob < ApplicationJob
+  extend SingletonRunEnqueue
   queue_as :sync
+  reserve_singleton_slot LatestObservationSyncLock
 
   # LatestObservationSync holds LatestObservationSyncLock for the whole run so
   # two tip jobs cannot consume both sync_worker threads (concurrency 2).
@@ -18,11 +20,13 @@ class LatestObservationSyncJob < ApplicationJob
       unless AppConfig.boolean?(:latest_observation_sync_enabled)
         Telemetry.add_attributes("app.skip_reason" => "disabled_by_settings")
         Rails.logger.info("LatestObservationSyncJob skipped: disabled by admin settings")
+        LatestObservationSyncLock.release!(owner: job_id)
         return
       end
       if Usgs::RateLimitCircuit.open?(Usgs::RateLimitCircuit::TIP_KEY)
         Telemetry.add_attributes("app.skip_reason" => "usgs_circuit_open")
         Rails.logger.warn("LatestObservationSyncJob skipped: USGS tip rate limit circuit open")
+        LatestObservationSyncLock.release!(owner: job_id)
         return
       end
       if DatabaseReadOnlyCircuit.open?
@@ -31,7 +35,7 @@ class LatestObservationSyncJob < ApplicationJob
       end
 
       progress = SyncProgress.new("LatestObservationSyncJob", io: nil)
-      LatestObservationSync.new(state: state, progress: progress).perform
+      LatestObservationSync.new(state: state, progress: progress).perform(lock_owner: job_id)
     end
   end
 end

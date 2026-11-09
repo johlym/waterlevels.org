@@ -37,7 +37,7 @@ class IvRepairBatchJob < ApplicationJob
       begin
         perform_locked(limit, started, queue_depth: queue_depth, worker_count: worker_count)
       ensure
-        IvRepairBatchLock.release!
+        IvRepairBatchLock.release!(owner: IvRepairBatchLock.default_owner)
       end
     end
   end
@@ -215,6 +215,9 @@ class IvRepairBatchJob < ApplicationJob
 
     candidate_ids.each do |id|
       break if enqueued >= budget
+      if (scanned % 10).zero?
+        break unless IvRepairBatchLock.renew!(IvRepairBatchLock.default_owner)
+      end
 
       scanned += 1
       reason = IvRepairJob.enqueue_block_reason(id)

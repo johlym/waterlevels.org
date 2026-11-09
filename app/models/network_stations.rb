@@ -7,7 +7,7 @@ class NetworkStations
   UPSTREAM = "UM"
   DOWNSTREAM = "DM"
 
-  def self.refresh(scope = MonitoringLocation.usgs, client: Nldi::Client.new, force: false, limit: nil, progress: nil)
+  def self.refresh(scope = MonitoringLocation.usgs, client: Nldi::Client.new, force: false, limit: nil, progress: nil, heartbeat: nil)
     rows = location_rows(scope)
     return 0 if rows.empty?
 
@@ -33,6 +33,11 @@ class NetworkStations
     refreshed = 0
     attempted = 0
     work.each do |id, usgs_id, _synced_at, _up_ids, _down_ids|
+      if heartbeat && heartbeat.call == false
+        progress&.step("stop lock lost")
+        break
+      end
+
       attempted += 1
       result = refresh_row!(
         id, usgs_id, client: client, id_by_usgs: id_by_usgs, latlon_by_id: latlon_by_id

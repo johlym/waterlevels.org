@@ -54,7 +54,7 @@ class HistoryBackfillBatchJob < ApplicationJob
       begin
         enqueue_locked(limit, range)
       ensure
-        HistoryBackfillBatchLock.release!
+        HistoryBackfillBatchLock.release!(owner: HistoryBackfillBatchLock.default_owner)
       end
     end
   end
@@ -223,6 +223,7 @@ class HistoryBackfillBatchJob < ApplicationJob
 
     loop do
       break if enqueued >= budget
+      break unless HistoryBackfillBatchLock.renew!(HistoryBackfillBatchLock.default_owner)
 
       page += 1
       Rails.logger.info(

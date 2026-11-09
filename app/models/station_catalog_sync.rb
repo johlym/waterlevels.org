@@ -20,8 +20,14 @@ class StationCatalogSync
     @checkpoint = checkpoint
   end
 
-  def perform
-    unless StationCatalogSyncLock.claim!
+  def perform(lock_owner: nil)
+    owner = lock_owner.presence || StationCatalogSyncLock.default_owner
+    acquired = if lock_owner.present? && StationCatalogSyncLock.owned_by?(lock_owner)
+      StationCatalogSyncLock.renew!(lock_owner)
+    else
+      StationCatalogSyncLock.claim!(owner: owner)
+    end
+    unless acquired
       progress&.step("skip already running (lock held)")
       Rails.logger.info(
         "StationCatalogSync skipped: lock held state=#{postal_code || "national"}"
@@ -29,6 +35,7 @@ class StationCatalogSync
       return false
     end
 
+    @lock_owner = owner
     begin
       Telemetry.in_root_span(
         "catalog.sync",
@@ -40,7 +47,7 @@ class StationCatalogSync
         perform_body
       end
     ensure
-      StationCatalogSyncLock.release!
+      StationCatalogSyncLock.release!(owner: owner)
     end
   end
 
@@ -68,6 +75,11 @@ class StationCatalogSync
 
     begin
       Usgs::ParameterCodes::ALL.each do |parameter_code|
+        unless @lock_owner.blank? || StationCatalogSyncLock.renew!(@lock_owner)
+          progress&.step("stop parameter=#{parameter_code} lock lost")
+          break
+        end
+
         if checkpoint.completed?(parameter_code)
           progress&.step("parameter=#{parameter_code} skipped (completed)")
           next

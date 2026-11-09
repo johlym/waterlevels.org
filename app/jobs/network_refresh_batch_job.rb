@@ -1,5 +1,7 @@
 class NetworkRefreshBatchJob < ApplicationJob
+  extend SingletonRunEnqueue
   queue_as :sync
+  reserve_singleton_slot NetworkRefreshBatchLock
 
   def perform(limit = nil, progress: nil)
     Telemetry.in_root_span(
@@ -9,11 +11,13 @@ class NetworkRefreshBatchJob < ApplicationJob
       unless AppConfig.boolean?(:nldi_refresh_enabled)
         Telemetry.add_attributes("app.skip_reason" => "disabled_by_settings")
         Rails.logger.info("NetworkRefreshBatchJob skipped: disabled by admin settings")
+        NetworkRefreshBatchLock.release!(owner: job_id)
         return 0
       end
       if HistoryBackfillJob.paused_for_catalog_sync?
         Telemetry.add_attributes("app.skip_reason" => "sunday_catalog_sync")
         Rails.logger.info("NetworkRefreshBatchJob skipped: Sunday catalog sync window")
+        NetworkRefreshBatchLock.release!(owner: job_id)
         return 0
       end
       if DatabaseReadOnlyCircuit.open?
@@ -23,16 +27,18 @@ class NetworkRefreshBatchJob < ApplicationJob
       if Nldi::RateLimitCircuit.open?
         Telemetry.add_attributes("app.skip_reason" => "nldi_rate_limit")
         Rails.logger.info("NetworkRefreshBatchJob skipped: NLDI rate limit circuit open")
+        NetworkRefreshBatchLock.release!(owner: job_id)
         return 0
       end
 
       budget = station_budget(limit)
       if budget <= 0
         Telemetry.add_attributes("app.skip_reason" => "batch_disabled", "app.batch_size" => 0)
+        NetworkRefreshBatchLock.release!(owner: job_id)
         return 0
       end
 
-      unless NetworkRefreshBatchLock.claim!
+      unless NetworkRefreshBatchLock.renew!(job_id) || NetworkRefreshBatchLock.claim!(owner: job_id)
         Telemetry.add_attributes("app.skip_reason" => "batch_lock_held")
         Rails.logger.info("NetworkRefreshBatchJob skipped: batch lock held")
         return 0
@@ -43,13 +49,14 @@ class NetworkRefreshBatchJob < ApplicationJob
         refreshed = NetworkStations.refresh(
           MonitoringLocation.usgs.order(:id),
           limit: budget,
-          progress: progress
+          progress: progress,
+          heartbeat: -> { NetworkRefreshBatchLock.renew!(job_id) }
         )
         Telemetry.add_attributes("app.batch_size" => refreshed, "app.limit" => budget)
         progress.finish("refreshed=#{refreshed} budget=#{budget}")
         refreshed
       ensure
-        NetworkRefreshBatchLock.release!
+        NetworkRefreshBatchLock.release!(owner: job_id)
       end
     end
   end
