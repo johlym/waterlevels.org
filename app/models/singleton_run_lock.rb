@@ -63,12 +63,16 @@ module SingletonRunLock
   def claim!(owner: default_owner, ttl: nil)
     # ttl is accepted so older callers keep working; the key itself does not expire.
     _ = ttl
-    write_heartbeat!(CLAIM_LUA, owner)
+    with_redis do |redis|
+      redis.eval(CLAIM_LUA, keys: [ redis_key ], argv: heartbeat_argv(owner)) == 1
+    end
   end
 
   def renew!(owner = default_owner, ttl: nil)
     _ = ttl
-    write_heartbeat!(RENEW_LUA, owner)
+    with_redis do |redis|
+      redis.eval(RENEW_LUA, keys: [ redis_key ], argv: heartbeat_argv(owner)) == 1
+    end
   end
 
   def owned_by?(owner)
@@ -98,13 +102,9 @@ module SingletonRunLock
     self::KEY
   end
 
-  def write_heartbeat!(script, owner)
+  def heartbeat_argv(owner)
     owner = owner.to_s
-    value = "#{owner}|#{Time.now.to_i}"
-    stale_before = self::STALE_AFTER.ago.to_i
-    with_redis do |redis|
-      redis.eval(script, keys: [ redis_key ], argv: [ value, owner, stale_before ]) == 1
-    end
+    [ "#{owner}|#{Time.now.to_i}", owner, self::STALE_AFTER.ago.to_i ]
   end
 
   def current_owner
