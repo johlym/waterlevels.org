@@ -1,6 +1,12 @@
 class SiteStats
   CACHE_KEY = "site_stats/v6".freeze
+  MEASUREMENT_CACHE_KEY = "site_stats/measurements/v1".freeze
   TTL = 10.minutes
+  # A national flood run walks every state and used to rebuild this from
+  # scratch each time. Keep the exact totals long enough that those states
+  # share one scan. Tip sync refreshes the snapshot hourly. /admin counts
+  # the observation tables on its own.
+  MEASUREMENT_TTL = 3.hours
   # Used only by the optional ContinuousInventory estimate. /admin and the
   # homepage measurement total use COUNT — reltuples stays frozen until
   # ANALYZE, and n_live_tup is often 0, so either estimate disagrees with
@@ -13,20 +19,24 @@ class SiteStats
       Rails.cache.fetch(CACHE_KEY, expires_in: TTL) { compute }
     end
 
-    def warm!
-      compute.tap { |stats| Rails.cache.write(CACHE_KEY, stats, expires_in: TTL) }
+    def warm!(refresh_measurements: true)
+      compute(refresh_measurements: refresh_measurements).tap do |stats|
+        Rails.cache.write(CACHE_KEY, stats, expires_in: TTL)
+      end
     end
 
     def bust!
       Rails.cache.delete(CACHE_KEY)
+      Rails.cache.delete(MEASUREMENT_CACHE_KEY)
     end
 
-    def compute
+    def compute(refresh_measurements: true)
       active_count = MonitoringLocation.active.count
       non_stale_count = MonitoringLocation.active.not_stale.count
       flood_alert_count = MonitoringLocation.flood_alert.count
-      measurement_count = observation_totals[:measurement_count]
-      updates_today = ContinuousObservation.where(observed_at: pacific_today_range).count
+      measurements = measurement_snapshot(refresh: refresh_measurements)
+      measurement_count = measurements[:measurement_count]
+      updates_today = measurements[:updates_today]
 
       emit_station_inventory!(
         stations_count: active_count,
@@ -67,6 +77,36 @@ class SiteStats
     def row_count(model)
       model.count
     end
+
+    # Exact COUNT of continuous/daily/peak rows plus the archive-overlap
+    # join. Flood sync passes refresh: false so a national run does not
+    # repeat that scan once per state after old daily rows are still present.
+    def measurement_snapshot(refresh:)
+      unless refresh
+        cached = read_measurement_snapshot
+        return cached if cached
+      end
+
+      totals = observation_totals
+      payload = {
+        measurement_count: totals[:measurement_count],
+        updates_today: ContinuousObservation.where(observed_at: pacific_today_range).count
+      }
+      Rails.cache.write(MEASUREMENT_CACHE_KEY, payload, expires_in: MEASUREMENT_TTL)
+      payload
+    end
+
+    def read_measurement_snapshot
+      raw = Rails.cache.read(MEASUREMENT_CACHE_KEY)
+      return unless raw.is_a?(Hash)
+
+      count = raw[:measurement_count] || raw["measurement_count"]
+      updates = raw[:updates_today] || raw["updates_today"]
+      return if count.nil? || updates.nil?
+
+      { measurement_count: count.to_i, updates_today: updates.to_i }
+    end
+    private :measurement_snapshot, :read_measurement_snapshot
 
     # See APPROX_COUNT_THRESHOLD. The block runs only when COUNT is the
     # accurate choice, so large tables do not scan.
