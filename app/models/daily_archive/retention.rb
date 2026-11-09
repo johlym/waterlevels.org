@@ -27,7 +27,10 @@ module DailyArchive
     # Timestamp margin past the retention cutoff. Wide enough that a row still
     # on the cutoff's local calendar day in any US zone is not batch-deleted.
     EXPIRED_IV_MARGIN = 1.day
-    EXPIRED_IV_BATCH = 5_000
+    EXPIRED_IV_BATCH = 10_000
+    # One index range per pass. Deleting "the oldest 5_000" rewalks dead
+    # entries at the left edge of observed_at and gets slower every batch.
+    EXPIRED_IV_SLICE = 1.day
 
     def initialize(store: DailyArchive.store, writer: nil, as_of: Time.current, client: nil, progress: nil, checkpoint: nil, on_phase: nil)
       @store = store
@@ -227,32 +230,25 @@ module DailyArchive
     end
 
     # Batch-delete IV that is already past the local-day retry margin.
-    # Per-series handoff never reaches this backlog when the fleet is months
-    # behind: each series re-reads R2 for every aged day before any delete.
+    # Walk forward by day. Each statement touches one observed_at range, so
+    # dead index entries from earlier days are not re-read.
     def delete_expired_continuous!
       cutoff = expired_continuous_cutoff
       deleted = 0
-      loop do
-        count = ContinuousObservation.connection.delete(
-          ContinuousObservation.sanitize_sql_array([
-            <<~SQL.squish,
-              DELETE FROM continuous_observations
-              WHERE id IN (
-                SELECT id FROM continuous_observations
-                WHERE observed_at < ?
-                ORDER BY observed_at
-                LIMIT ?
-              )
-            SQL
-            cutoff,
-            EXPIRED_IV_BATCH
-          ])
-        )
-        deleted += count
-        break if count < EXPIRED_IV_BATCH
-        if (deleted % 50_000).zero?
-          @progress&.step("expired iv deleted=#{deleted} cutoff=#{cutoff.utc.iso8601}")
+      # Same statement shape once per occupied day. Prosopite treats that as an
+      # N+1; it is the batch walk, not a per-record query.
+      prosopite_pause!
+      begin
+        cursor = next_expired_observed_at(cutoff)
+        while cursor
+          break if DatabaseReadOnlyCircuit.open?
+
+          slice_end = [ cursor + EXPIRED_IV_SLICE, cutoff ].min
+          deleted = delete_expired_slice!(cursor, slice_end, deleted, cutoff)
+          cursor = next_expired_observed_at(cutoff, after: slice_end)
         end
+      ensure
+        prosopite_resume!
       end
 
       if deleted.positive?
@@ -266,6 +262,52 @@ module DailyArchive
         end
       end
       deleted
+    end
+
+    def delete_expired_slice!(slice_start, slice_end, deleted, cutoff)
+      loop do
+        count = ContinuousObservation.connection.delete(
+          ContinuousObservation.sanitize_sql_array([
+            <<~SQL.squish,
+              DELETE FROM continuous_observations
+              WHERE id IN (
+                SELECT id FROM continuous_observations
+                WHERE observed_at >= ? AND observed_at < ?
+                LIMIT ?
+              )
+            SQL
+            slice_start,
+            slice_end,
+            EXPIRED_IV_BATCH
+          ])
+        )
+        break if count.zero?
+
+        previous = deleted
+        deleted += count
+        if (deleted / 50_000) > (previous / 50_000)
+          @progress&.step(
+            "expired iv deleted=#{deleted} through=#{slice_end.utc.iso8601} " \
+            "cutoff=#{cutoff.utc.iso8601}"
+          )
+        end
+        break if count < EXPIRED_IV_BATCH
+      end
+      deleted
+    end
+
+    def next_expired_observed_at(cutoff, after: nil)
+      scope = ContinuousObservation.where("observed_at < ?", cutoff)
+      scope = scope.where("observed_at >= ?", after) if after
+      scope.minimum(:observed_at)
+    end
+
+    def prosopite_pause!
+      Prosopite.pause if defined?(Prosopite)
+    end
+
+    def prosopite_resume!
+      Prosopite.resume if defined?(Prosopite)
     end
 
     def expired_continuous_cutoff
