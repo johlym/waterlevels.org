@@ -2,12 +2,11 @@ require "test_helper"
 
 class FloodStageSyncLockTest < ActiveSupport::TestCase
   setup do
-    @previous_cache = Rails.cache
-    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    FloodStageSyncLock.release!
   end
 
   teardown do
-    Rails.cache = @previous_cache
+    FloodStageSyncLock.release!
   end
 
   test "claim is exclusive until release" do
@@ -36,5 +35,17 @@ class FloodStageSyncLockTest < ActiveSupport::TestCase
     assert FloodStageSyncLock.renew!("job-a")
     refute FloodStageSyncLock.renew!("job-b")
     assert FloodStageSyncLock.owned_by?("job-a")
+  end
+
+  test "a dead heartbeat can be taken over and a fresh one cannot" do
+    redis = Redis.new(**RedisConfig.options)
+    redis.set(FloodStageSyncLock::KEY, "job-a|#{3.hours.ago.to_i}")
+    assert FloodStageSyncLock.claim!(owner: "job-b")
+    assert FloodStageSyncLock.owned_by?("job-b")
+
+    refute FloodStageSyncLock.claim!(owner: "job-c")
+    assert FloodStageSyncLock.owned_by?("job-b")
+  ensure
+    redis&.close
   end
 end

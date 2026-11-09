@@ -34,6 +34,7 @@ module ActiveSupport
       AppSetting.delete_all if ActiveRecord::Base.connection.data_source_exists?("app_settings")
       AppConfig.bust!
       AdminCounter.bust_request_cache!
+      FloodStageSyncLock.release! if defined?(FloodStageSyncLock)
     end
 
     # Registered after fixtures and the setup above, so each example is its own
