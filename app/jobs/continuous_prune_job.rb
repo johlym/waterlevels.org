@@ -10,7 +10,19 @@ class ContinuousPruneJob < ApplicationJob
     if DatabaseReadOnlyCircuit.open?
       raise DatabaseReadOnlyError, "database read-only circuit open"
     end
+    unless ContinuousPruneLock.claim!
+      Rails.logger.info("ContinuousPruneJob skipped: lock held")
+      return
+    end
 
+    begin
+      perform_retention
+    ensure
+      ContinuousPruneLock.release!
+    end
+  end
+
+  def perform_retention
     progress = SyncProgress.new("ContinuousPruneJob", io: nil)
     readings_deleted = AlertEvent.prune_reading_changes!
     progress.step("reading_change pruned=#{readings_deleted}")
