@@ -23,7 +23,7 @@
         By observed_at
         <% if stats[:implied_interval_minutes] %>
           · ≈ <%= number_with_precision(stats[:implied_interval_minutes], precision: 1, strip_insignificant_zeros: true) %> min spacing
-          across <%= number_with_delimiter(stats[:recent_iv_series_count].to_i) %> selected series
+          across <%= number_with_delimiter(stats[:implied_interval_series_count].to_i) %> selected series
         <% end %>
       </p>
     </article>

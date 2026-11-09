@@ -1,7 +1,10 @@
 class SiteStats
   CACHE_KEY = "site_stats/v6".freeze
   TTL = 10.minutes
-  # Marketing totals don't need exact row counts; fall back to COUNT for small tables.
+  # Used only by the optional ContinuousInventory estimate. /admin and the
+  # homepage measurement total use COUNT — reltuples stays frozen until
+  # ANALYZE, and n_live_tup is often 0, so either estimate disagrees with
+  # the table after a load or a prune.
   APPROX_COUNT_THRESHOLD = 1_000
   UPDATES_TIME_ZONE = "America/Los_Angeles".freeze
 
@@ -22,10 +25,7 @@ class SiteStats
       active_count = MonitoringLocation.active.count
       non_stale_count = MonitoringLocation.active.not_stale.count
       flood_alert_count = MonitoringLocation.flood_alert.count
-      measurement_count = approximate_or_exact_count(ContinuousObservation) +
-        approximate_or_exact_count(DailyObservation) +
-        approximate_or_exact_count(PeakObservation) +
-        DailyArchive.cold_archive_point_count
+      measurement_count = observation_totals[:measurement_count]
       updates_today = ContinuousObservation.where(observed_at: pacific_today_range).count
 
       emit_station_inventory!(
@@ -43,6 +43,41 @@ class SiteStats
         updates_today: updates_today,
         flood_alert_count: flood_alert_count
       }
+    end
+
+    # Unique stored measurements. Postgres dailies that already sit in a
+    # gap-free R2 shard are one measurement, not two. Shared with /admin so
+    # the homepage total and the dashboard total cannot drift.
+    def observation_totals
+      daily = row_count(DailyObservation)
+      overlap = DailyArchive.duplicated_postgres_daily_count
+      continuous = row_count(ContinuousObservation)
+      peaks = row_count(PeakObservation)
+      archive = DailyArchive.cold_archive_point_count
+      {
+        continuous: continuous,
+        daily: daily,
+        overlap: overlap,
+        peaks: peaks,
+        archive: archive,
+        measurement_count: continuous + [ daily - overlap, 0 ].max + peaks + archive
+      }
+    end
+
+    def row_count(model)
+      model.count
+    end
+
+    # See APPROX_COUNT_THRESHOLD. The block runs only when COUNT is the
+    # accurate choice, so large tables do not scan.
+    def resolve_row_count(reltuples:, n_live_tup:)
+      rel = reltuples.to_i
+      live = n_live_tup.to_i
+      return yield if rel < APPROX_COUNT_THRESHOLD
+      return yield if live.positive? && live < APPROX_COUNT_THRESHOLD
+      return live if live.positive?
+
+      rel
     end
 
     private
@@ -67,19 +102,6 @@ class SiteStats
     def pacific_today_range
       zone = Time.find_zone!(UPDATES_TIME_ZONE)
       zone.now.all_day
-    end
-
-    def approximate_or_exact_count(model)
-      estimate = connection.select_value(
-        "SELECT reltuples::bigint FROM pg_class WHERE oid = #{connection.quote(model.table_name)}::regclass"
-      ).to_i
-      return estimate if estimate >= APPROX_COUNT_THRESHOLD
-
-      model.count
-    end
-
-    def connection
-      ActiveRecord::Base.connection
     end
   end
 end

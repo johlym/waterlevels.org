@@ -35,6 +35,7 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
       assert_equal 1, freshness[:h24_plus]
       assert_equal 1, freshness[:h72_plus]
       assert_equal 2, freshness[:stale]
+      assert_equal 7, freshness.values.sum
     end
   end
 
@@ -113,6 +114,8 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
       assert_equal 0, stats[:tip_freshness][:h24_plus]
       assert_equal 0, stats[:tip_freshness][:h72_plus]
       assert_equal 1, stats[:tip_freshness][:stale]
+      assert_equal stats[:station_count], stats[:tip_freshness].values.sum
+      assert_equal stats[:stale_station_count], stats[:tip_freshness][:stale]
       assert_equal 1, stats[:continuous_last_24h]
       assert_equal 1, stats[:continuous_last_7d]
       assert_equal 35, stats[:continuous_retention_days]
@@ -619,5 +622,226 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
 
   test "unknown section raises" do
     assert_raises(ArgumentError) { AdminDashboardStats.section(:nope) }
+  end
+
+  test "iv repair counts stay nil until a batch scan is recorded" do
+    stats = AdminDashboardStats.new.pipeline_section
+
+    assert_nil stats[:stations_needing_iv_repair]
+    assert_nil stats[:iv_repair_candidates_scanned_at]
+    assert_nil stats[:stations_needing_iv_scar_repair]
+    assert_nil stats[:iv_scar_candidates_scanned_at]
+  end
+
+  test "a new prune progress reset drops the previous run's delete counts" do
+    AdminDashboardStats.record_job_finish!(
+      :prune,
+      finished_at: 1.day.ago,
+      phase: "complete",
+      iv_deleted: 50_000,
+      expired_iv_deleted: 40_000
+    )
+
+    AdminDashboardStats.record_job_progress!(:prune, phase: "running", reset: true)
+
+    payload = AdminDashboardStats.last_job(:prune)
+    assert_equal "running", payload[:phase]
+    refute payload.key?(:iv_deleted)
+    refute payload.key?(:expired_iv_deleted)
+  end
+
+  test "phase-1 ignores iv-only series, dead series, non-usgs continuous gaps, and stale anchored tips" do
+    travel_to Time.zone.local(2026, 8, 6, 12, 0, 0) do
+      iv_only = create(:monitoring_location, state_code: "wa", latest_observed_at: 1.hour.ago)
+      iv_series = create(
+        :time_series,
+        monitoring_location: iv_only,
+        parameter_code: "00065",
+        usgs_daily_absent: true
+      )
+      ContinuousObservation.create!(time_series: iv_series, value: 1, observed_at: 1.hour.ago)
+      ContinuousObservation.create!(
+        time_series: iv_series,
+        value: 1,
+        observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
+      )
+
+      ready = create(:monitoring_location, state_code: "wa", latest_observed_at: 1.hour.ago)
+      live = create(:time_series, monitoring_location: ready, parameter_code: "00060")
+      create(
+        :time_series,
+        monitoring_location: ready,
+        parameter_code: "00010",
+        ends_at: 10.years.ago,
+        provider_series_id: "dead-temp"
+      )
+      ContinuousObservation.create!(time_series: live, value: 1, observed_at: 1.hour.ago)
+      ContinuousObservation.create!(
+        time_series: live,
+        value: 1,
+        observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
+      )
+      DailyObservation.create!(time_series: live, value: 1, observed_on: Date.current)
+      DailyObservation.create!(
+        time_series: live,
+        value: 1,
+        observed_on: HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
+      )
+      DailyObservation.create!(
+        time_series: live,
+        value: 1,
+        observed_on: HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
+      )
+
+      stale_tip = create(:monitoring_location, state_code: "or", latest_observed_at: 10.days.ago)
+      stale_series = create(:time_series, monitoring_location: stale_tip, parameter_code: "00060")
+      ContinuousObservation.create!(time_series: stale_series, value: 1, observed_at: 10.days.ago)
+      ContinuousObservation.create!(
+        time_series: stale_series,
+        value: 1,
+        observed_at: HistoryIngestion::CONTINUOUS_HISTORY_ANCHOR.ago
+      )
+      DailyObservation.create!(time_series: stale_series, value: 1, observed_on: Date.current)
+      DailyObservation.create!(
+        time_series: stale_series,
+        value: 1,
+        observed_on: HistoryIngestion::DAILY_HISTORY_ANCHOR.ago.to_date
+      )
+
+      reservoir = create(
+        :monitoring_location,
+        state_code: "id",
+        data_provider: DataProviders::USBR,
+        provider_location_id: "USBR-ready",
+        agency_code: "USBR",
+        latest_observed_at: 1.hour.ago
+      )
+      reservoir_series = create(:time_series, monitoring_location: reservoir, parameter_code: "elev")
+      deep_day = HistoryIngestion::DAILY_DEEP_HISTORY_ANCHOR.ago.to_date
+      DailyArchiveShard.create!(
+        time_series: reservoir_series,
+        year: deep_day.year,
+        object_key: "daily/v1/#{reservoir_series.id}/#{deep_day.year}.json.gz",
+        content_sha256: "usbr-deep",
+        point_count: 40,
+        min_on: deep_day,
+        max_on: Date.current,
+        source_mix: "usgs",
+        synced_at: Time.current
+      )
+
+      stats = AdminDashboardStats.snapshot
+      assert_equal 0, stats[:stations_needing_history]
+      assert_equal 1, stats[:stations_needing_deep_history]
+      assert_equal 3, stats[:stations_history_ready]
+      assert_equal 0, stats[:stations_missing_year_history]
+
+      wa = stats[:per_state].find { |row| row[:state_code] == "wa" }
+      assert_equal 2, wa[:station_count]
+      assert_equal 0, wa[:needing_history]
+      assert_equal 2, wa[:history_ready]
+      assert_equal 2, wa[:has_continuous_anchor]
+      assert_equal 1, wa[:has_year_history]
+      assert_equal 1, wa[:has_deep_history]
+      assert_equal 2, wa[:has_continuous_tip]
+
+      oregon = stats[:per_state].find { |row| row[:state_code] == "or" }
+      assert_equal 0, oregon[:needing_history]
+      assert_equal 1, oregon[:needing_deep_history]
+      assert_equal 0, oregon[:has_continuous_tip]
+      assert_equal 1, oregon[:has_year_history]
+      assert_equal 0, oregon[:has_deep_history]
+
+      idaho = stats[:per_state].find { |row| row[:state_code] == "id" }
+      assert_equal 0, idaho[:needing_history]
+      assert_equal 0, idaho[:has_continuous_tip]
+      assert_equal 1, idaho[:has_year_history]
+      assert_equal 1, idaho[:has_deep_history]
+      assert_equal 1, idaho[:history_ready]
+    end
+  end
+
+  test "implied iv spacing ignores unselected continuous points" do
+    travel_to Time.find_zone!("America/Los_Angeles").local(2026, 8, 3, 15, 0, 0) do
+      location = create(:monitoring_location, state_code: "wa", latest_observed_at: 30.minutes.ago)
+      selected = create(:time_series, monitoring_location: location, parameter_code: "00060")
+      leftover = create(
+        :time_series,
+        monitoring_location: location,
+        parameter_code: "00065",
+        selected_for_display: false,
+        provider_series_id: "unselected-iv"
+      )
+      ContinuousObservation.create!(time_series: selected, value: 1, observed_at: 1.hour.ago)
+      10.times do |index|
+        ContinuousObservation.create!(
+          time_series: leftover,
+          value: index,
+          observed_at: (30 + index).minutes.ago
+        )
+      end
+
+      AdminDashboardStats.refresh_inventory_counters!(source: "schedule")
+      stats = AdminDashboardStats.new.growth_section
+
+      assert_equal 11, stats[:continuous_last_24h]
+      assert_equal 1, stats[:implied_interval_series_count]
+      assert_in_delta 1440.0, stats[:implied_interval_minutes], 0.05
+    end
+  end
+
+  test "lock counts follow Rails.cache instead of a different redis" do
+    redis = Redis.new(url: "redis://127.0.0.1:6379/15")
+    begin
+      redis.ping
+    rescue Redis::BaseError
+      skip "Redis unavailable"
+    end
+
+    previous = Rails.cache
+    decoy = Redis.new(RedisConfig.options)
+    decoy.set("history_backfill:999", "1")
+    decoy.set("history_backfill:998", "1")
+    Rails.cache = ActiveSupport::Cache::RedisCacheStore.new(
+      url: "redis://127.0.0.1:6379/15",
+      namespace: "wl-admin-test"
+    )
+    Rails.cache.clear
+
+    assert HistoryBackfillLock.claim!(42)
+    HistoryBackfillLock.cooldown!(7)
+    assert IvRepairLock.claim!(8)
+
+    stats = AdminDashboardStats.new.pipeline_section
+    assert_equal 1, stats[:history_backfill_locks]
+    assert_equal 1, stats[:history_backfill_cooldowns]
+    assert_equal 1, stats[:iv_repair_locks]
+    assert_equal 0, stats[:iv_repair_cooldowns]
+  ensure
+    redis&.flushdb
+    decoy&.del("history_backfill:999", "history_backfill:998") if defined?(decoy) && decoy
+    Rails.cache = previous if previous
+  end
+
+  test "lock counts read the memory cache used in development" do
+    previous = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    decoy = Redis.new(RedisConfig.options)
+    begin
+      decoy.set("history_backfill:999", "1")
+      decoy.set("history_backfill:998", "1")
+    rescue Redis::BaseError
+      decoy = nil
+    end
+
+    assert HistoryBackfillLock.claim!(42)
+    HistoryBackfillLock.cooldown!(7)
+
+    stats = AdminDashboardStats.new.pipeline_section
+    assert_equal 1, stats[:history_backfill_locks]
+    assert_equal 1, stats[:history_backfill_cooldowns]
+  ensure
+    decoy&.del("history_backfill:999", "history_backfill:998")
+    Rails.cache = previous if previous
   end
 end

@@ -24,7 +24,7 @@ module Admin
             min: 1,
             max: 30,
             label: "Continuous freshness (days)",
-            description: "Legacy “tip looks fresh enough” window used by some batch scopes and admin histograms."
+            description: "Legacy “tip looks fresh enough” window for batch scopes. Admin Fresh IV uses it. The tip-freshness bar uses fixed 1h, 6h, 24h, 72h, and 7-day buckets."
 
           integer :continuous_upsert_batch,
             default: 500,

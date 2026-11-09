@@ -5,11 +5,14 @@
       <p class="eyebrow">States</p>
       <h2 id="admin-states-heading">Station data coverage</h2>
       <p class="section-lede">
-        Inventory columns count selected-series stations that already have each
-        layer (fresh IV tip, continuous ~35d depth, ~1y daily in R2, ~3y daily in R2).
-        Backlog columns are mutually exclusive queues: Need ≤1y is phase-1 work;
-        Have ~1y → need 3y is year-ready waiting only on deep R2 fill.
-        Ready = stations minus both backlog queues.
+        Inventory columns count stations whose recently reporting selected series
+        already have each layer (fresh IV tip, continuous ~35d depth, ~1y daily
+        in R2, ~3y daily in R2). Long-inactive series and parameters USGS does
+        not publish as daily values are left out of the daily columns.
+        Backlog columns are mutually exclusive queues: Need ≤1y is phase-1 work
+        (USGS missing ~35d continuous depth, or a recent series missing ~1y daily
+        or a fresh daily tip). Have ~1y → need 3y is year-ready and still short
+        of ~3y. Outside queues = active stations minus both backlog queues.
         <% if stats[:inventory_computed_at] %>
           Counters as of <%= time_ago_in_words(stats[:inventory_computed_at]) %> ago.
         <% end %>
@@ -26,26 +29,26 @@
           <tr>
             <th scope="col">State</th>
             <th scope="col">Stations</th>
-            <th scope="col" title="Selected series with a continuous observation in the last 7 days">
+            <th scope="col" title="Recently reporting selected series, all with a continuous observation in the last <%= stats[:continuous_freshness_days] || 7 %> days">
               Fresh IV
             </th>
-            <th scope="col" title="Selected series with continuous IV reaching the ~35-day anchor">
+            <th scope="col" title="Recently reporting selected series, all with continuous IV reaching the ~35-day anchor">
               Cont. ~35d
             </th>
-            <th scope="col" title="Selected series with daily history near the ~1y anchor (R2 or leftover Postgres)">
+            <th scope="col" title="Recently reporting series that expect daily, all with history near the ~1y anchor (R2 or leftover Postgres)">
               Have ~1y
             </th>
-            <th scope="col" title="Selected series with daily history near the ~3y anchor (R2 or leftover Postgres)">
+            <th scope="col" title="Recently reporting series that expect daily, all with history near the ~3y anchor (R2 or leftover Postgres)">
               Have ~3y
             </th>
-            <th scope="col" title="Phase-1 backlog: missing continuous ~35d, ~1y daily, and/or stale tips">
+            <th scope="col" title="Phase-1 backlog: USGS missing continuous ~35d, or a recent series missing ~1y daily or a fresh daily tip. IV-only and long-inactive series are excluded.">
               Need ≤1y
             </th>
             <th scope="col" title="Already have ~1y daily; waiting on deep 3y backfill only">
               Have ~1y → need 3y
             </th>
-            <th scope="col" title="Neither backlog column — deep daily present">
-              Ready
+            <th scope="col" title="Active stations in neither backlog queue">
+              Outside queues
             </th>
           </tr>
         </thead>
@@ -89,7 +92,6 @@
                 <% if row[:needing_history].positive? %>
                   <span class="cell-hint">
                     <% reasons = [] %>
-                    <% reasons << "#{number_with_delimiter(row[:missing_continuous_tip])} IV tip" if row[:missing_continuous_tip].to_i.positive? %>
                     <% reasons << "#{number_with_delimiter(row[:missing_continuous_anchor])} cont. depth" if row[:missing_continuous_anchor].to_i.positive? %>
                     <% reasons << "#{number_with_delimiter(row[:missing_year_history])} ~1y daily" if row[:missing_year_history].to_i.positive? %>
                     <% reasons << "#{number_with_delimiter(row[:missing_daily_tip])} daily tip" if row[:missing_daily_tip].to_i.positive? %>

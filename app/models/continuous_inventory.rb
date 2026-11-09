@@ -1,8 +1,11 @@
 # Fleet-wide continuous IV storage check.
 #
-# /admin "continuous (~35d)" is a Postgres reltuples estimate of
-# continuous_observations. USGS instantaneous values are typically 15-minute
-# (96 points/day), not hourly — so one full 35-day series is ~3,360 rows.
+# /admin "continuous (~35d)" is an exact COUNT (SiteStats.row_count). This
+# report still shows reltuples and n_live_tup beside it: reltuples stays
+# frozen until ANALYZE, and n_live_tup is often 0, so neither matches the
+# table after a load or a prune.
+# USGS instantaneous values are typically 15-minute (96 points/day), not hourly —
+# so one full 35-day series is ~3,360 rows.
 # Mental math of `stations × 24h × 35d ≈ 15M` undercounts by ~4× and also
 # treats each station as a single series. Gauge cards show at most 3 kinds,
 # but selected_for_display can include multiple water-level parameter codes
@@ -22,7 +25,6 @@
 class ContinuousInventory
   POINTS_PER_DAY_HOURLY = 24
   POINTS_PER_DAY_15MIN = 96
-  APPROX_COUNT_THRESHOLD = SiteStats::APPROX_COUNT_THRESHOLD
   DEFAULT_SAMPLE = 80
   HEALTHY_15MIN_RATIO = (0.35..1.25)
   SAMPLED_15MIN_SECONDS = (4.minutes.to_i..20.minutes.to_i)
@@ -55,7 +57,7 @@ class ContinuousInventory
     lines << "Retention: #{s[:retention_days]} days"
     lines << ""
     lines << "Postgres"
-    lines << "  reltuples (dashboard): #{delim(s[:reltuples])}"
+    lines << "  reltuples (estimate, not the dashboard): #{delim(s[:reltuples])}"
     lines << "  n_live_tup: #{delim(s[:n_live_tup])}"
     lines << "  n_dead_tup: #{delim(s[:n_dead_tup])}"
     lines << "  last_analyze: #{s[:last_analyze] || '—'}"
@@ -111,7 +113,7 @@ class ContinuousInventory
     expected_hourly_one = series[:station_count] * POINTS_PER_DAY_HOURLY * days
     expected_hourly_full = iv_series * POINTS_PER_DAY_HOURLY * days
     expected_15min_full = iv_series * POINTS_PER_DAY_15MIN * days
-    row_count = resolve_row_count(stats[:reltuples])
+    row_count = resolve_row_count(stats)
     ratio = expected_15min_full.positive? ? (row_count.to_f / expected_15min_full) : nil
     span_seconds = span_seconds_for(stats[:oldest_at], stats[:newest_at], retention)
     points_per_series = iv_series.positive? ? (row_count.to_f / iv_series) : nil
@@ -204,10 +206,12 @@ class ContinuousInventory
     }
   end
 
-  def resolve_row_count(reltuples)
-    return ContinuousObservation.count if @exact || reltuples < APPROX_COUNT_THRESHOLD
+  def resolve_row_count(stats)
+    return ContinuousObservation.count if @exact
 
-    reltuples
+    SiteStats.resolve_row_count(reltuples: stats[:reltuples], n_live_tup: stats[:n_live_tup]) do
+      ContinuousObservation.count
+    end
   end
 
   def beyond_retention_count(cutoff)

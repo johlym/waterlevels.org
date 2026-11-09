@@ -124,6 +124,25 @@ module DailyArchive
     archive_point_count
   end
 
+  # Postgres daily rows that are already represented by a gap-free year shard.
+  # A shard counts as gap-free when point_count covers every day from min_on
+  # through max_on, so each overlapping Postgres row is a second copy — not
+  # the only copy. Gapped shards are left alone; subtracting them could hide
+  # a Postgres fallback day that R2 never stored.
+  def duplicated_postgres_daily_count
+    DailyArchiveShard.connection.select_value(<<~SQL.squish).to_i
+      SELECT COUNT(*)
+      FROM daily_observations d
+      INNER JOIN daily_archive_shards s
+        ON s.time_series_id = d.time_series_id
+       AND s.year = EXTRACT(YEAR FROM d.observed_on)::integer
+       AND s.min_on IS NOT NULL
+       AND s.max_on IS NOT NULL
+       AND d.observed_on BETWEEN s.min_on AND s.max_on
+       AND s.point_count >= (s.max_on - s.min_on + 1)
+    SQL
+  end
+
   def shard_count
     DailyArchiveShard.count
   end

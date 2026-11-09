@@ -106,7 +106,9 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     get admin_dashboard_section_path(section: :pipeline)
     assert_response :success
     assert_includes response.body, "Have ~1y, need 3y"
-    assert_includes response.body, "History ready (3y)"
+    assert_includes response.body, "Outside history queues"
+    assert_includes response.body, "No batch scan recorded yet"
+    assert_includes response.body, "No scar scan recorded yet"
 
     get admin_dashboard_section_path(section: :growth)
     assert_response :success

@@ -37,7 +37,7 @@ bin/rails usgs:continuous_inventory
 # or in console: puts ContinuousInventory.report
 ```
 
-`/admin` uses Postgres `reltuples` (ANALYZE estimate). `ContinuousInventory` also reports `n_live_tup`, rows older than retention, unselected leftovers, and a sampled median interval.
+`/admin` counts `continuous_observations` exactly. `ContinuousInventory` also reports `reltuples`, `n_live_tup`, rows older than retention, unselected leftovers, and a sampled median interval. The planner estimates are not the dashboard figure: `reltuples` stays frozen until ANALYZE, and `n_live_tup` is often 0.
 
 ## Object layout
 
