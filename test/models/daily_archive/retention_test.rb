@@ -126,13 +126,17 @@ module DailyArchive
       day = Date.new(2026, 6, 20)
       t = zone.local(day.year, day.month, day.day, 12, 0, 0)
       ContinuousObservation.create!(time_series: @series, observed_at: t, value: 2.0)
+      # A year earlier, so the deleter must jump to the next occupied day
+      # instead of walking every empty day between them.
+      earlier = zone.local(2025, 6, 20, 12, 0, 0)
+      ContinuousObservation.create!(time_series: @series, observed_at: earlier, value: 1.0)
       kept = @as_of - 2.days
       ContinuousObservation.create!(time_series: @series, observed_at: kept, value: 9.0)
 
       stats = Retention.new(store: @store, as_of: @as_of, client: nil).perform
       assert_equal 0, stats[:gaps_alerted]
-      assert_equal 1, stats[:expired_iv_deleted]
-      assert_equal 1, stats[:iv_deleted]
+      assert_equal 2, stats[:expired_iv_deleted]
+      assert_equal 2, stats[:iv_deleted]
       assert_equal [ kept ], ContinuousObservation.where(time_series_id: @series.id).pluck(:observed_at)
     end
 
