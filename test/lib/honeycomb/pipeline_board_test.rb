@@ -143,6 +143,19 @@ class HoneycombPipelineBoardTest < ActiveSupport::TestCase
     assert_includes message, "Token"
   end
 
+  test "the default dataset is waterlevels-org and a 404 names the slug that was requested" do
+    assert_equal "waterlevels-org", Honeycomb::PipelineBoard::DEFAULT_DATASET
+
+    message = Honeycomb::PipelineBoard::Http.explain(
+      404,
+      { "error" => "Dataset not found" },
+      path: "/1/queries/waterlevels"
+    )
+
+    assert_includes message, "waterlevels"
+    assert_includes message, "HONEYCOMB_DATASET"
+  end
+
   test "a key id is rejected before any request" do
     management = assert_raises(Honeycomb::PipelineBoard::Error) do
       Honeycomb::PipelineBoard::Http.new(api_key: "hcamk_example", api_base: "https://api.honeycomb.io")
