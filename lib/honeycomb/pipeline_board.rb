@@ -434,6 +434,7 @@ module Honeycomb
     end
 
     def board_payload
+      ensure_columns!
       {
         name: BOARD_NAME,
         description: self.class::DESCRIPTION,
@@ -501,6 +502,60 @@ module Honeycomb
         query_panel[:visualization_settings] = { overlaid_charts: true }
       end
       { type: "query", position: position, query_panel: query_panel }
+    end
+
+    # Honeycomb rejects a query that names a column the dataset has never stored.
+    # Declare the pipeline fields first so the board can be saved before those
+    # events arrive.
+    def ensure_columns!
+      present = column_names
+      referenced_columns.each do |name|
+        next if present.include?(name)
+        next unless name.start_with?("pipeline.")
+
+        create_column(name, column_type(name))
+        present << name
+      end
+    end
+
+    def referenced_columns
+      self.class.sections.flat_map { |section| section[:queries] }.flat_map do |query|
+        spec = query[:query]
+        columns = Array(spec[:breakdowns]) + Array(spec[:orders]).map { |order| order[:column] }
+        columns += Array(spec[:calculations]).filter_map { |calculation| calculation[:column] }
+        columns += Array(spec[:filters]).map { |filter| filter[:column] }
+        columns.compact
+      end.uniq
+    end
+
+    def column_names
+      names = []
+      page = "/1/columns/#{@dataset}"
+      while page
+        body = @http.request(:get, page)
+        names.concat(collection(body, "columns").filter_map { |column| column["key_name"] || column["name"] })
+        page = body.is_a?(Hash) ? body.dig("links", "next") : nil
+      end
+      names
+    end
+
+    def create_column(name, type)
+      @http.request(:post, "/1/columns/#{@dataset}", { key_name: name, type: type, description: "WaterLevels pipeline attribute" })
+    rescue Error => e
+      raise unless e.message.include?("(409)")
+    end
+
+    def column_type(name)
+      return "float" if name.end_with?("_ratio") || name.include?("latency")
+      return "boolean" if name.match?(/_(available|incomplete)$/) || %w[
+        pipeline.incomplete pipeline.vacuumed pipeline.history_keys_exhausted pipeline.parked_unfillable
+      ].include?(name)
+      return "string" if name.end_with?("_reason") || %w[
+        pipeline.lane pipeline.outcome pipeline.provider pipeline.queue pipeline.range pipeline.scope
+        pipeline.state pipeline.site_number pipeline.signal pipeline.ingest_mode pipeline.slowest_state
+      ].include?(name)
+
+      "integer"
     end
 
     def ensure_query(spec)
@@ -632,11 +687,14 @@ module Honeycomb
       def self.summarize(body)
         return "" if body.nil? || body == {}
 
+        parts = []
         text = body["error"] || body["title"] || body["detail"]
-        if (text.nil? || text.to_s.empty?) && body["errors"]
-          text = Array(body["errors"]).filter_map { |error| error["detail"] || error["title"] }.join("; ")
+        parts << text.to_s unless text.nil? || text.to_s.empty?
+        parts.concat(Array(body["type_detail"]).filter_map { |item| item["description"] || item["field"] })
+        if parts.empty? && body["errors"]
+          parts = Array(body["errors"]).filter_map { |error| error["detail"] || error["title"] }
         end
-        text.to_s[0, 500]
+        parts.join("; ")[0, 800]
       end
 
       def parse_body(raw)

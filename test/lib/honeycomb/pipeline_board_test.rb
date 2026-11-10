@@ -8,6 +8,12 @@ class HoneycombPipelineBoardTest < ActiveSupport::TestCase
 
     def request(method, path, body = nil)
       calls << [ method, path, body ]
+      if method == :get && path == "/1/columns/waterlevels"
+        return { "columns" => [] }
+      end
+      if method == :post && path == "/1/columns/waterlevels"
+        return { "id" => "col", "key_name" => body[:key_name], "type" => body[:type] }
+      end
       if method == :get && path == "/1/boards"
         return { "boards" => boards.map { |board| { "id" => board["id"], "name" => board["name"] } } }
       end
@@ -110,6 +116,16 @@ class HoneycombPipelineBoardTest < ActiveSupport::TestCase
     assert_operator headers[1][:position][:y_coordinate], :<, headers[2][:position][:y_coordinate]
     assert_operator headers[2][:position][:y_coordinate], :<, headers[3][:position][:y_coordinate]
     assert payload[:panels].all? { |panel| panel[:position][:width].positive? }
+
+    columns = http.calls.select { |method, path, _body| method == :post && path == "/1/columns/waterlevels" }
+    types = columns.to_h { |_method, _path, column| [ column[:key_name], column[:type] ] }
+    assert_equal "string", types["pipeline.skip_reason"]
+    assert_equal "integer", types["pipeline.phase.fetch_ms"]
+    assert_equal "integer", types["pipeline.phase.scope_ms"]
+    assert_equal "integer", types["pipeline.retrying"]
+    first_column = http.calls.index { |method, path, _body| method == :post && path == "/1/columns/waterlevels" }
+    first_query = http.calls.index { |method, path, _body| method == :post && path == "/1/queries/waterlevels" }
+    assert_operator first_column, :<, first_query
   end
 
   test "replace deletes the existing board before creating it" do
@@ -154,6 +170,18 @@ class HoneycombPipelineBoardTest < ActiveSupport::TestCase
 
     assert_includes message, "waterlevels"
     assert_includes message, "HONEYCOMB_DATASET"
+  end
+
+  test "validation errors include the rejected field" do
+    message = Honeycomb::PipelineBoard::Http.explain(
+      422,
+      {
+        "error" => "The provided input is invalid.",
+        "type_detail" => [ { "code" => "missing", "description" => "unknown column or derived column \"pipeline.skip_reason\"" } ]
+      }
+    )
+
+    assert_includes message, "pipeline.skip_reason"
   end
 
   test "a key id is rejected before any request" do
