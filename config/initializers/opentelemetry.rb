@@ -21,5 +21,5 @@ if Rails.env.test?
 end
 
 OpenTelemetry::SDK.configure do |c|
-  c.service_name = ENV.fetch("OTEL_SERVICE_NAME", "waterlevels")
+  c.service_name = ENV.fetch("OTEL_SERVICE_NAME", "waterlevels-org")
 end

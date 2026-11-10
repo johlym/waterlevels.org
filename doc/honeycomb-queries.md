@@ -1,6 +1,6 @@
 # Honeycomb query guide (WaterLevels.org)
 
-Dataset: **`waterlevels`** (from `OTEL_SERVICE_NAME`).
+Dataset: **`waterlevels-org`** (from `OTEL_SERVICE_NAME`, override the board with `HONEYCOMB_DATASET`).
 
 Honeycomb is only for data-management performance: how long pipeline work takes, whether queues are backing up, and how complete the datasets are. Page views, HTTP child spans, and homepage counters are not exported. Request timing stays in the structured Rails logs.
 
@@ -9,6 +9,17 @@ The free plan is 20 million events per month. Each span is one event. These quer
 Historical events from before this contract still use the old span names (`history.ingest`, `app.station_inventory`, `app.page`). The filters below apply to traffic after the change.
 
 Connect the [Honeycomb MCP](https://mcp.honeycomb.io/mcp) (US) in Cursor with OAuth. Do not commit an API key. Ask it the questions in this file and give it the WHERE / VISUALIZE lines so it does not invent columns.
+
+## Board
+
+The same queries are grouped into one board, **WaterLevels pipeline**, with a section for duration, unfinished runs, queues, and completeness.
+
+```bash
+bin/honeycomb-board --dry-run
+HONEYCOMB_CONFIG_KEY=... bin/honeycomb-board
+```
+
+`HONEYCOMB_CONFIG_KEY` is the Configuration key **Token**, not the Key ID. In the environment's API keys, create or edit a Configuration key and enable **Manage Queries and Columns** and **Manage Public Boards**. The Key ID only labels the key (`hc…lk_` configuration, `hc…mk_` management, `hc…ik_` ingest) and is not the credential. A Management key cannot create boards. The ingest key in `OTEL_EXPORTER_OTLP_HEADERS` cannot either. Running the command again updates the existing board in place. `REPLACE=1 bin/rails honeycomb:board` deletes it first. EU teams set `HONEYCOMB_API_ENDPOINT=https://api.eu1.honeycomb.io`. `HONEYCOMB_DATASET` overrides the dataset slug (`waterlevels-org` by default). The command prints the board URL.
 
 ## Span names
 
