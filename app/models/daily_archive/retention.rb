@@ -591,7 +591,6 @@ module DailyArchive
       message = "[DailyArchive::Retention] daily gap alerted series=#{series.id} site=#{series.monitoring_location.site_number} day=#{day}"
       Rails.logger.error(message)
       Sentry.capture_message(message, level: :warning) if defined?(Sentry)
-      Telemetry.add_attributes("app.daily_gap_alerted" => 1) if defined?(Telemetry)
     end
 
     def gap_alerted?(time_series_id, day)

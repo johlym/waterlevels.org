@@ -1,153 +1,167 @@
 # Honeycomb query guide (WaterLevels.org)
 
-Dataset: **`waterlevels`** (from `OTEL_SERVICE_NAME`).  
-Environment: whatever your API key targets (local/dev often `test`).
+Dataset: **`waterlevels`** (from `OTEL_SERVICE_NAME`).
 
-Traces are OpenTelemetry spans. Domain dimensions live under the `app.*` namespace so you can GROUP BY / BubbleUp without parsing span names.
+Honeycomb is only for data-management performance: how long pipeline work takes, whether queues are backing up, and how complete the datasets are. Page views, HTTP child spans, and homepage counters are not exported. Request timing stays in the structured Rails logs.
 
-## Field cheat sheet
+The free plan is 20 million events per month. Each span is one event. These queries assume one span per question. Use `MAX` or `AVG` on gauge attributes. Do not `COUNT` gauge events, and do not `AVG` a ratio across states.
 
-| Field | Meaning |
-| --- | --- |
-| `name` | Span name (`history.ingest`, `app.station_inventory`, Rack/Rails route span, …) |
-| `is_root` | Prefer this for user-facing latency (exclude child DB/HTTP spans) |
-| `duration_ms` | Span duration |
-| `app.page` | Public page id: `home`, `map`, `state`, `alerts`, `gauge_detail` |
-| `app.stations_count` | Active stations (inventory snapshot) |
-| `app.stations_non_stale_count` | Active stations with a tip newer than 1 week |
-| `app.observation_count` | Rows upserted (history ingest) or points returned (hydrograph) |
-| `app.batch_size` | Series/stations in a batch |
-| `app.site_number` / `app.state` / `app.range` | Station / state / history window |
+Historical events from before this contract still use the old span names (`history.ingest`, `app.station_inventory`, `app.page`). The filters below apply to traffic after the change.
 
-**Stale definition:** `latest_observed_at` blank or older than 1 week (`MonitoringLocation::STALE_AFTER`) — same as the map “Active” toggle.
+Connect the [Honeycomb MCP](https://mcp.honeycomb.io/mcp) (US) in Cursor with OAuth. Do not commit an API key. Ask it the questions in this file and give it the WHERE / VISUALIZE lines so it does not invent columns.
 
-**Where inventory comes from:** `SiteStats.compute` emits a root span `app.station_inventory` whenever stats are recomputed (hourly tip sync warm, Puma boot, homepage cache miss ~every 10 minutes). Use `MAX`/`AVG` of the count fields over time — not `COUNT` of spans — so extra warmups don’t inflate the graph.
+## Span names
 
----
-
-## 1. Stations over time
-
-**VISUALIZE** `MAX(app.stations_count)`  
-**WHERE** `name = app.station_inventory`  
-**TIME RANGE** last 7 days (granularity auto, or 1 hour)
-
-Optional: also plot `MAX(app.stations_stale_count)` on the same query.
-
-UI steps: New Query → VISUALIZE `MAX` of `app.stations_count` → WHERE `name` `=` `app.station_inventory` → run.
-
----
-
-## 2. Non-stale stations over time
-
-**VISUALIZE** `MAX(app.stations_non_stale_count)`  
-**WHERE** `name = app.station_inventory`  
-**TIME RANGE** last 7 days
-
-Compare freshness vs catalog size:
-
-**VISUALIZE** `MAX(app.stations_count)`, `MAX(app.stations_non_stale_count)`  
-**WHERE** `name = app.station_inventory`
-
----
-
-## 3. Stations getting history backfill per hour
-
-Each completed station backfill is a root span `history.ingest` (one station per span).
-
-**VISUALIZE** `COUNT`  
-**WHERE** `name = history.ingest` **AND** `is_root = true`  
-**TIME RANGE** last 24h  
-**GRANULARITY** `1 hour` (or leave default and read the rate from the graph)
-
-Breakdowns that help:
-
-- **GROUP BY** `app.state` — which states are filling
-- **GROUP BY** `app.range` — `1y` vs `3y` deep fills
-
-Planner volume (stations *enqueued*, not necessarily finished) from the hourly batch job:
-
-**VISUALIZE** `SUM(app.phase1_enqueued)`, `SUM(app.deep_enqueued)`  
-**WHERE** `name = job.history_backfill_batch`
-
----
-
-## 4. History backfill duration over time
-
-**VISUALIZE** `P95(duration_ms)`, `HEATMAP(duration_ms)`, `COUNT`  
-**WHERE** `name = history.ingest` **AND** `is_root = true`  
-**TIME RANGE** last 24h
-
-Use **P95** (not AVG) so a few huge cold fills don’t hide the typical case; keep the heatmap to spot bimodal cold-vs-refresh populations.
-
-Slice further:
-
-- **GROUP BY** `app.range`
-- **GROUP BY** `app.state`
-- Correlate size: **VISUALIZE** `HEATMAP(app.observation_count)` on the same filter
-
-Slowest recent fills: same WHERE, **VISUALIZE** `MAX(duration_ms)`, **GROUP BY** `app.site_number`, order descending, limit 20 — then open a sample trace.
-
----
-
-## 5. P95 request time for home, map, state, alerts, gauge detail
-
-Public HTML controllers set `app.page` on the request span. Filter to roots so child SQL/HTTP spans don’t dilute latency.
-
-**VISUALIZE** `P95(duration_ms)`, `HEATMAP(duration_ms)`, `COUNT`  
-**WHERE** `is_root = true` **AND** `app.page` exists  
-  **AND** `app.page` **in** `home`, `map`, `state`, `alerts`, `gauge_detail`  
-**GROUP BY** `app.page`  
-**TIME RANGE** last 24h
-
-Per-page graphs (one query each), e.g. home only:
-
-**VISUALIZE** `P95(duration_ms)`  
-**WHERE** `is_root = true` **AND** `app.page = home`
-
-| Page | `app.page` | Typical path |
+| `name` | `pipeline.signal` | One event means |
 | --- | --- | --- |
-| Home | `home` | `/` |
-| Map | `map` | `/map` |
-| State directory | `state` | `/gauges/:state` |
-| Alerts | `alerts` | `/alerts` |
-| Gauge detail | `gauge_detail` | `/gauges/:state/:site_number_slug` |
+| `pipeline.work` | `work` | One pipeline run finished, skipped, or errored. Duration is `duration_ms`. |
+| `pipeline.queue` | `queue` | Depth, oldest-job age, and listeners for one data queue. |
+| `pipeline.pressure` | `pressure` | Retry, dead, and scheduled sets, plus locks, cooldowns, and USGS circuits. |
+| `pipeline.coverage` | `coverage` | Station completeness. `pipeline.scope` is `national` or `state`. |
 
-Fallback if `app.page` is missing on older traffic: GROUP BY `http.route` (Rails OTel semantic convention) for `/`, `/map`, `/alerts`, `/gauges/:state`, `/gauges/:state/:site_number_slug`.
+`pipeline.lane` on `pipeline.work`:
 
----
+`history_backfill`, `history_backfill_batch`, `iv_repair`, `iv_repair_batch`, `iv_repair_scar`, `iv_repair_scar_batch`, `latest_sync`, `catalog_sync`, `flood_sync`, `network_refresh`, `daily_archive_export`, `daily_archive_drain`, `continuous_prune`, `admin_dashboard_counters`, `usbr_sync`, `usbr_history`, `usace_sync`, `usace_history`, `nwps_sync`, `nwps_history`, `cdec_sync`, `cdec_history`.
 
-## Query patterns worth remembering
+`pipeline.outcome` is `ok`, `skipped`, or `error`. `pipeline.incomplete` means the run returned and the station was still short (or a USGS rate limit aborted the fill). `pipeline.skip_reason` is the enum for a skipped run (`disabled_by_settings`, `history_keys_exhausted`, `backfill_queue_busy`, `lock_held`, and the other reasons set in the jobs).
 
-1. **Latency → percentiles + heatmap**, never AVG alone.
-2. **User-facing latency → `is_root = true`** (or an explicit business root like `history.ingest`).
-3. **Inventory / gauge values → `MAX`/`AVG` of the attribute**, not `COUNT` of events.
-4. **Combine CALCULATIONS** in one query (`COUNT`, `P95(duration_ms)`, `HEATMAP(duration_ms)`).
-5. After a spike, use BubbleUp on the query run to diff attributes (state, range, cache hit, …).
+Phase timings, in milliseconds, live on the work span. They are not child spans.
 
-## Related instrumentation
-
-| Signal | Span / attributes |
+| Attribute | Run |
 | --- | --- |
-| Catalog health snapshot | `app.station_inventory` + `app.stations_*` |
-| History backfill | `history.ingest` (+ `.continuous` / `.daily` / `.peaks`) |
-| Backfill planner | `job.history_backfill_batch` |
-| Day-31 handoff + retention | `daily_archive.retention` + `app.usgs_ensured` / `app.derived` / `app.retrying` / `app.gaps_alerted` / `app.iv_deleted` / `app.iv_prune_blocked` / `app.vacuumed` |
-| Leftover daily drain | `daily_archive.drain` + `app.daily_deleted` / `app.vacuumed` |
-| Tip / catalog / flood sync | `latest.sync`, `catalog.sync`, `flood.sync` |
-| Page latency | request root + `app.page` |
+| `pipeline.phase.continuous_ms`, `.daily_ms`, `.peaks_ms` | Station history ingest |
+| `pipeline.phase.phase1_scope_ms`, `.daily_tip_scope_ms`, `.deep_scope_ms` | History batch candidate scan and enqueue |
+| `pipeline.phase.scope_ms` | IV repair or scar candidate scan |
+| `pipeline.phase.fetch_ms`, `.upsert_ms` | Latest-observation sync. `pipeline.slowest_state` and `pipeline.slowest_state_ms` name the slowest state in that run |
+| `pipeline.phase.vacuum_ms` | Daily archive export or drain |
+| `pipeline.http_ms`, `pipeline.http_count` | Upstream HTTP rolled onto the work span |
 
-### Day-31 handoff / gap alerts
+`pipeline.site_number` is only on station work spans. Gauge events do not carry it.
 
-**VISUALIZE** `SUM(app.gaps_alerted)` `SUM(app.derived)` `SUM(app.usgs_ensured)` `SUM(app.retrying)`  
-**WHERE** `name = daily_archive.retention`  
-**GROUP BY** `name`  
-**TIME RANGE** last 7d
+Queue events use `pipeline.queue` (`sync`, `backfill`, `iv_repair`, `iv_repair_scar`, `default`), `pipeline.queue.depth`, `pipeline.queue.latency_s` (age of the oldest job, seconds), and `pipeline.queue.workers`. `default` also carries mail and edge-cache purge, so its latency is not only retention work. The notifications queue is not exported.
 
-Alert when `app.gaps_alerted` is persistently > 0 — days that hit IV prune without R2 coverage.
+Coverage counts use the same definitions as `/admin`: recently active selected series, `usgs_daily_absent` series are not a daily backlog, and “need 3y” means year coverage is present and deep coverage is not. `pipeline.history_ready_ratio` exists only on the national event. IV repair and scar candidate counts are omitted until a sweeper has scanned; a missing attribute is not zero. Tip freshness buckets (`pipeline.tip_current`, `pipeline.tip_h1_plus`, `pipeline.tip_h6_plus`, `pipeline.tip_h24_plus`, `pipeline.tip_h72_plus`, `pipeline.tip_stale`) are national only. `pipeline.tip_stale` is stations whose tip is missing or older than 7 days.
 
-**Volume note:** ActiveRecord, PG, Redis, and Net::HTTP auto-instrumentation are
-disabled in `config/initializers/opentelemetry.rb` (per-row upserts and cache
-warms blew past free-plan event budgets). Prefer the domain spans above; outbound
-HTTP still appears via Faraday + `usgs.http.*` / `nwps.http.*`. `/up` is untraced.
+Archive gaps stay on the prune work span: `pipeline.gaps_alerted`, `pipeline.retrying`, `pipeline.iv_prune_blocked`.
 
-Local/dev: set `OTEL_*` / Honeycomb headers as in `.env.example`. Tests force `OTEL_TRACES_EXPORTER=none`.
+## How long does work take?
+
+**VISUALIZE** `P95(duration_ms)`, `HEATMAP(duration_ms)`, `COUNT`
+**WHERE** `name = pipeline.work`
+**GROUP BY** `pipeline.lane`
+**TIME RANGE** last 24h
+
+History fills only:
+
+**VISUALIZE** `P95(duration_ms)`, `HEATMAP(duration_ms)`, `COUNT`
+**WHERE** `name = pipeline.work` **AND** `pipeline.lane = history_backfill`
+**GROUP BY** `pipeline.range`
+
+Which phase:
+
+**VISUALIZE** `P95(pipeline.phase.continuous_ms)`, `P95(pipeline.phase.daily_ms)`, `P95(pipeline.phase.peaks_ms)`
+**WHERE** `name = pipeline.work` **AND** `pipeline.lane = history_backfill`
+
+Upstream versus local write, for tip sync:
+
+**VISUALIZE** `P95(pipeline.phase.fetch_ms)`, `P95(pipeline.phase.upsert_ms)`, `P95(pipeline.http_ms)`
+**WHERE** `name = pipeline.work` **AND** `pipeline.lane = latest_sync`
+
+Slowest stations:
+
+**VISUALIZE** `MAX(duration_ms)`
+**WHERE** `name = pipeline.work` **AND** `pipeline.lane = history_backfill`
+**GROUP BY** `pipeline.site_number`
+**ORDER** `MAX(duration_ms)` descending
+**LIMIT** 20
+
+Planner scope time (the candidate queries, not the station fill):
+
+**VISUALIZE** `P95(duration_ms)`, `P95(pipeline.phase.phase1_scope_ms)`, `P95(pipeline.phase.deep_scope_ms)`
+**WHERE** `name = pipeline.work` **AND** `pipeline.lane = history_backfill_batch`
+
+## What is failing to finish?
+
+**VISUALIZE** `COUNT`
+**WHERE** `name = pipeline.work` **AND** `pipeline.outcome != ok`
+**GROUP BY** `pipeline.lane`, `pipeline.skip_reason`
+
+Runs that returned while the station was still short:
+
+**VISUALIZE** `COUNT`, `P95(duration_ms)`
+**WHERE** `name = pipeline.work` **AND** `pipeline.incomplete = true`
+**GROUP BY** `pipeline.lane`
+
+A high incomplete rate together with a high `P95(pipeline.http_ms)` means the upstream call, not the database, is the long part.
+
+## Are queues backing up?
+
+**VISUALIZE** `MAX(pipeline.queue.depth)`, `MAX(pipeline.queue.latency_s)`
+**WHERE** `name = pipeline.queue`
+**GROUP BY** `pipeline.queue`
+
+Stuck worker: depth is sitting and nobody is listening.
+
+**VISUALIZE** `MAX(pipeline.queue.depth)`, `MAX(pipeline.queue.latency_s)`, `MAX(pipeline.queue.workers)`
+**WHERE** `name = pipeline.queue` **AND** `pipeline.queue.latency_s > 0` **AND** `pipeline.queue.workers = 0`
+**GROUP BY** `pipeline.queue`
+
+Retry and dead sets, locks, and open USGS circuits:
+
+**VISUALIZE** `MAX(pipeline.retry_size)`, `MAX(pipeline.dead_size)`, `MAX(pipeline.history_backfill_cooldowns)`, `MAX(pipeline.iv_repair_cooldowns)`
+**WHERE** `name = pipeline.pressure`
+
+Which circuit is open (1 is open):
+
+**VISUALIZE** `MAX(pipeline.circuit.tip)`, `MAX(pipeline.circuit.continuous)`, `MAX(pipeline.circuit.daily)`, `MAX(pipeline.circuit.peaks)`, `MAX(pipeline.circuit.iv_repair)`, `MAX(pipeline.circuit.iv_repair2)`
+**WHERE** `name = pipeline.pressure`
+
+## Is the backlog moving?
+
+National work still waiting, not the Sidekiq depth. A queue at zero with a large needing-deep count and an open daily circuit means the scheduler is budget-blocked.
+
+**VISUALIZE** `MAX(pipeline.stations_needing_history)`, `MAX(pipeline.stations_needing_deep)`, `MAX(pipeline.stations_daily_tip_refresh)`, `MAX(pipeline.history_ready)`
+**WHERE** `name = pipeline.coverage` **AND** `pipeline.scope = national`
+
+Stations enqueued versus station runs that finished:
+
+**VISUALIZE** `SUM(pipeline.items)`
+**WHERE** `name = pipeline.work` **AND** `pipeline.lane = history_backfill_batch`
+
+**VISUALIZE** `COUNT`
+**WHERE** `name = pipeline.work` **AND** `pipeline.lane = history_backfill` **AND** `pipeline.outcome = ok`
+
+## How complete is a state?
+
+**VISUALIZE** `MAX(pipeline.stations)`, `MAX(pipeline.history_ready)`, `MAX(pipeline.stations_needing_history)`, `MAX(pipeline.stations_needing_deep)`, `MAX(pipeline.stations_missing_year)`, `MAX(pipeline.stations_missing_continuous_anchor)`, `MAX(pipeline.stations_missing_continuous_tip)`, `MAX(pipeline.stations_missing_daily_tip)`, `MAX(pipeline.stations_daily_tip_refresh)`
+**WHERE** `name = pipeline.coverage` **AND** `pipeline.scope = state` **AND** `pipeline.state = wa`
+
+Do not `AVG(pipeline.history_ready_ratio)` across states. That field is only on `pipeline.scope = national`, where `MAX(pipeline.history_ready_ratio)` is the latest ratio.
+
+National tip age:
+
+**VISUALIZE** `MAX(pipeline.tip_current)`, `MAX(pipeline.tip_h1_plus)`, `MAX(pipeline.tip_h6_plus)`, `MAX(pipeline.tip_h24_plus)`, `MAX(pipeline.tip_h72_plus)`, `MAX(pipeline.tip_stale)`
+**WHERE** `name = pipeline.coverage` **AND** `pipeline.scope = national`
+
+IV repair and scar backlog from the last sweeper scan. If the attribute is missing, no scan has been recorded.
+
+**VISUALIZE** `MAX(pipeline.stations_needing_iv_repair)`, `MAX(pipeline.stations_needing_iv_scar)`
+**WHERE** `name = pipeline.coverage` **AND** `pipeline.scope = national`
+
+## Are we deleting history we never archived?
+
+**VISUALIZE** `SUM(pipeline.gaps_alerted)`, `SUM(pipeline.iv_prune_blocked)`, `SUM(pipeline.retrying)`
+**WHERE** `name = pipeline.work` **AND** `pipeline.lane = continuous_prune`
+
+`pipeline.gaps_alerted` above zero means a day hit IV prune without R2 coverage. The same count is on `/admin`.
+
+## Triggers
+
+The free plan includes two triggers. Set them after a week of the new events, from the Honeycomb UI or MCP, not from application code:
+
+1. `pipeline.queue` where `pipeline.queue.latency_s` stays above 30 minutes.
+2. `pipeline.work` where `pipeline.lane = continuous_prune` and `pipeline.gaps_alerted > 0`.
+
+## Local setup
+
+Set `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL`, and `OTEL_EXPORTER_OTLP_HEADERS` as in `.env.example`. The SDK does not read `HONEYCOMB_API_KEY`. Tests force `OTEL_TRACES_EXPORTER=none`. There is no auto-instrumentation: do not add `use_all` or per-request spans. Do not sample `pipeline.work`.

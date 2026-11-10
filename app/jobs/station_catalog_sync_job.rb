@@ -7,21 +7,29 @@ class StationCatalogSyncJob < ApplicationJob
   # catalog jobs cannot consume both sync_worker threads (concurrency 2).
 
   def perform(state = nil)
-    unless AppConfig.boolean?(:station_catalog_sync_enabled)
-      Rails.logger.info("StationCatalogSyncJob skipped: disabled by admin settings")
-      StationCatalogSyncLock.release!(owner: job_id)
-      return
-    end
-    if Usgs::RateLimitCircuit.open?(Usgs::RateLimitCircuit::TIP_KEY)
-      Rails.logger.warn("StationCatalogSyncJob skipped: USGS tip rate limit circuit open")
-      StationCatalogSyncLock.release!(owner: job_id)
-      return
-    end
-    if DatabaseReadOnlyCircuit.open?
-      raise DatabaseReadOnlyError, "database read-only circuit open"
-    end
+    Telemetry.work(
+      "catalog_sync",
+      provider: "usgs",
+      state: state.presence || "national"
+    ) do
+      unless AppConfig.boolean?(:station_catalog_sync_enabled)
+        Telemetry.skip!("disabled_by_settings")
+        Rails.logger.info("StationCatalogSyncJob skipped: disabled by admin settings")
+        StationCatalogSyncLock.release!(owner: job_id)
+        return
+      end
+      if Usgs::RateLimitCircuit.open?(Usgs::RateLimitCircuit::TIP_KEY)
+        Telemetry.skip!("usgs_circuit_open")
+        Rails.logger.warn("StationCatalogSyncJob skipped: USGS tip rate limit circuit open")
+        StationCatalogSyncLock.release!(owner: job_id)
+        return
+      end
+      if DatabaseReadOnlyCircuit.open?
+        raise DatabaseReadOnlyError, "database read-only circuit open"
+      end
 
-    progress = SyncProgress.new("StationCatalogSyncJob", io: nil)
-    StationCatalogSync.new(state: state, progress: progress).perform(lock_owner: job_id)
+      progress = SyncProgress.new("StationCatalogSyncJob", io: nil)
+      StationCatalogSync.new(state: state, progress: progress).perform(lock_owner: job_id)
+    end
   end
 end

@@ -98,14 +98,6 @@ module DailyArchive
         progress: @progress
       )
 
-      Telemetry.add_attributes(
-        "app.operation" => "daily_archive.export",
-        "app.series_count" => exported_series,
-        "app.observation_count" => exported_points,
-        "app.daily_deleted" => daily_deleted,
-        "app.vacuumed" => vacuum[:vacuumed]
-      ) if defined?(Telemetry)
-
       {
         series: exported_series,
         points: exported_points,

@@ -2,10 +2,7 @@ class UsaceProjectSyncJob < ApplicationJob
   queue_as :sync
 
   def perform
-    Telemetry.in_root_span(
-      "job.usace_project_sync",
-      attributes: { "app.operation" => "job.usace_project_sync" }
-    ) do
+    Telemetry.work("usace_sync", provider: "usace") do
       progress = SyncProgress.new("UsaceProjectSyncJob", io: nil, every: 1)
       count = UsaceProjectSync.new(progress: progress).perform
       Usace::ProjectCatalog.active_entries.each do |entry|
@@ -14,7 +11,7 @@ class UsaceProjectSyncJob < ApplicationJob
 
         UsaceHistoryIngestion.new(progress: progress).ingest_recent_tip!(location)
       end
-      Telemetry.add_attributes("app.batch_size" => count)
+      Telemetry.note(items: count)
       progress.finish("synced=#{count}")
       count
     end

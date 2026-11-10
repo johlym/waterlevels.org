@@ -83,18 +83,17 @@ class HydrographSeriesTest < ActiveSupport::TestCase
     assert_in_delta 16.72, payload[:points].first[:v], 0.001
   end
 
-  test "empty series miss records observation_count 0 and series_found false" do
-    attrs = capture_telemetry_attributes do
-      HydrographSeries.for(
-        location: @location,
-        kind: "water_level",
-        parameter_code: "00060",
-        range: "7d"
-      )
-    end
+  test "missing series returns an empty point list" do
+    payload = HydrographSeries.for(
+      location: @location,
+      kind: "water_level",
+      parameter_code: "00060",
+      range: "7d"
+    )
 
-    assert_equal 0, attrs["app.observation_count"]
-    assert_equal false, attrs["app.series_found"]
+    assert_equal [], payload[:points]
+    assert_equal "7d", payload[:range]
+    assert_nil payload[:grain]
   end
 
   test "empty series miss logs when the location still has tip flags" do
@@ -115,28 +114,12 @@ class HydrographSeriesTest < ActiveSupport::TestCase
     Rails.logger = previous
   end
 
-  test "found series records series_found true" do
-    attrs = capture_telemetry_attributes do
-      HydrographSeries.for(location: @location, kind: "water_level", range: "7d")
-    end
+  test "found series returns an empty point list for a selected series" do
+    payload = HydrographSeries.for(location: @location, kind: "water_level", range: "7d")
 
-    assert_equal true, attrs["app.series_found"]
-    assert_equal true, attrs["app.series_selected"]
-    assert_equal 0, attrs["app.observation_count"]
-  end
-
-  def capture_telemetry_attributes
-    recorded = {}
-    eigen = Telemetry.singleton_class
-    original = eigen.instance_method(:add_attributes)
-    eigen.define_method(:add_attributes) do |extra|
-      recorded.merge!(extra)
-      original.bind_call(Telemetry, extra)
-    end
-    yield
-    recorded
-  ensure
-    eigen.define_method(:add_attributes, original)
+    assert_equal "water_level", payload[:kind]
+    assert_equal "00065", payload[:parameter_code]
+    assert_equal [], payload[:points]
   end
 
   test "3y range returns daily points within three years" do

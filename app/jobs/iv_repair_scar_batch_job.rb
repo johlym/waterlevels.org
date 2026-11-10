@@ -9,12 +9,7 @@ class IvRepairScarBatchJob < ApplicationJob
 
   def perform(limit = nil)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    Telemetry.in_root_span(
-      "job.iv_repair_scar_batch",
-      attributes: {
-        "app.operation" => "job.iv_repair_scar_batch"
-      }
-    ) do
+    Telemetry.work("iv_repair_scar_batch", provider: "usgs") do
       queue_depth = scar_queue_depth
       worker_count = scar_worker_count
       Rails.logger.info(
@@ -80,7 +75,6 @@ class IvRepairScarBatchJob < ApplicationJob
       )
     end
     if DatabaseReadOnlyCircuit.open?
-      Telemetry.add_attributes("app.skip_reason" => "db_read_only_circuit")
       raise DatabaseReadOnlyError, "database read-only circuit open"
     end
     if scar_queue_busy?(queue_depth)
@@ -109,14 +103,14 @@ class IvRepairScarBatchJob < ApplicationJob
     elapsed_s = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(2)
     depth_after = scar_queue_depth
 
-    Telemetry.add_attributes(
-      "app.batch_size" => result[:enqueued],
-      "app.iv_scar_budget" => budget,
-      "app.iv_scar_candidates" => candidate_count,
-      "app.iv_repair2_available" => Usgs::HistoryKeyPool.iv_repair2_available?,
-      "app.queue_depth" => depth_after,
-      "app.iv_repair_scar_workers" => worker_count,
-      "app.elapsed_s" => elapsed_s
+    Telemetry.add_milliseconds("pipeline.phase.scope_ms", scope_ms)
+    Telemetry.note(
+      items: result[:enqueued],
+      iv_scar_budget: budget,
+      candidates: candidate_count,
+      iv_repair2_available: Usgs::HistoryKeyPool.iv_repair2_available?,
+      queue_depth: depth_after,
+      workers: worker_count
     )
     Rails.logger.info(
       "IvRepairScarBatchJob finished enqueued=#{result[:enqueued]} " \
@@ -153,7 +147,7 @@ class IvRepairScarBatchJob < ApplicationJob
 
   def finish_skipped!(reason, started, **extra)
     elapsed_s = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(2)
-    Telemetry.add_attributes("app.skip_reason" => reason, "app.elapsed_s" => elapsed_s)
+    Telemetry.skip!(reason)
     Rails.logger.info(
       "IvRepairScarBatchJob skipped reason=#{reason} elapsed_s=#{elapsed_s} #{extra.map { |k, v| "#{k}=#{v}" }.join(" ")}"
     )

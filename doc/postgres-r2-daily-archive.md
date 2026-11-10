@@ -131,6 +131,6 @@ Keep `CLOUDFLARE_ZONE_ID` / `CLOUDFLARE_API_TOKEN` for Cache-Tag purge only — 
 
 1. Credentials in prod + archive writes on; catch up with `archive:export_daily`.
 2. `DAILY_ARCHIVE_READS=1` — `1y` / `3y` (and future `Ny`) read R2 only.
-3. Day-31 ensure/retry/alert live; monitor `gaps_alerted` on `/admin` and Honeycomb.
+3. Day-31 ensure/retry/alert live; monitor `gaps_alerted` on `/admin` and `pipeline.gaps_alerted` on Honeycomb `pipeline.work` where `pipeline.lane = continuous_prune`.
 4. `DAILY_ARCHIVE_PRUNE=1` — drain leftover Postgres `daily_observations`.
 5. Confirm IV stays near 35d, Postgres daily count → 0, gap alerts stay near zero, and `/admin` leftover-drain / VACUUM hints move after large deletes.

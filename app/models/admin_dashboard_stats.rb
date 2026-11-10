@@ -566,6 +566,21 @@ class AdminDashboardStats
     }
   end
 
+  # Lock and cooldown occupancy for the pipeline pressure gauge.
+  # Queues can look idle while stations sit behind a lock or cooldown.
+  def pipeline_lock_counts
+    {
+      history_backfill_locks: count_prefixed_redis_keys(HistoryBackfillLock::KEY_PREFIX),
+      history_backfill_cooldowns: count_prefixed_redis_keys(HistoryBackfillLock::COOLDOWN_PREFIX),
+      iv_repair_locks: count_prefixed_redis_keys(IvRepairLock::KEY_PREFIX),
+      iv_repair_cooldowns: count_prefixed_redis_keys(IvRepairLock::COOLDOWN_PREFIX)
+    }
+  end
+
+  def tip_freshness_counts
+    tip_freshness_histogram
+  end
+
   private
 
   def tip_refresh_payload
@@ -791,6 +806,7 @@ class AdminDashboardStats
         missing_continuous_tip_by_state: missing_continuous_tip_by_state,
         missing_continuous_anchor_by_state: missing_continuous_anchor_by_state,
         missing_daily_tip_by_state: missing_daily_tip_by_state,
+        daily_tip_refresh_by_state: daily_tip_refresh_by_state,
         has_continuous_tip_by_state: has_continuous_tip_by_state,
         has_continuous_anchor_by_state: has_continuous_anchor_by_state,
         has_year_by_state: has_year_by_state,
@@ -838,6 +854,7 @@ class AdminDashboardStats
     missing_continuous_tip_by_state:,
     missing_continuous_anchor_by_state:,
     missing_daily_tip_by_state:,
+    daily_tip_refresh_by_state:,
     has_continuous_tip_by_state:,
     has_continuous_anchor_by_state:,
     has_year_by_state:,
@@ -875,6 +892,7 @@ class AdminDashboardStats
         missing_continuous_anchor: missing_continuous_anchor_by_state[code].to_i,
         missing_year_history: missing_year,
         missing_daily_tip: missing_daily_tip_by_state[code].to_i,
+        daily_tip_refresh: daily_tip_refresh_by_state[code].to_i,
         needing_deep_history: needing_deep,
         # Mutually exclusive with the two backlog columns.
         history_ready: history_ready

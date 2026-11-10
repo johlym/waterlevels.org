@@ -91,19 +91,15 @@ class HistoryIngestion
   end
 
   def perform
-    # Root span: long ingest must not depend on an ambient ActiveJob/Rake parent
-    # that may fail to export (Honeycomb "missing root span").
-    Telemetry.in_root_span(
-      "history.ingest",
-      attributes: {
-        "app.operation" => "history.ingest",
-        "app.site_number" => monitoring_location.site_number,
-        "app.provider_location_id" => monitoring_location.provider_location_id,
-        "app.location_name" => monitoring_location.display_name,
-        "app.state" => monitoring_location.state_code,
-        "app.range" => range.to_s,
-        "app.ingest_mode" => mode.to_s
-      }
+    # The job owns the span when this runs from Sidekiq. Rake and direct
+    # callers open one here so a station ingest is still a single event.
+    Telemetry.ensure_work(
+      "history_backfill",
+      provider: "usgs",
+      site_number: monitoring_location.site_number,
+      state: monitoring_location.state_code,
+      range: range.to_s,
+      ingest_mode: mode.to_s
     ) do
       progress&.step("site=#{monitoring_location.site_number} range=#{range} mode=#{mode}")
       series_list = monitoring_location.time_series.selected.includes(:latest_observation).to_a
@@ -161,18 +157,18 @@ class HistoryIngestion
         continuous_incomplete: @continuous_incomplete
       }
 
-      Telemetry.add_attributes(
-        "app.series_count" => series_list.size,
-        "app.batch_size" => continuous_series.size + daily_series.size + peak_series.size,
-        "app.continuous_series_count" => continuous_series.size,
-        "app.daily_series_count" => daily_series.size,
-        "app.peak_series_count" => peak_series.size,
-        "app.continuous_observation_count" => continuous_count,
-        "app.daily_observation_count" => daily_count,
-        "app.peak_observation_count" => peak_count,
-        "app.observation_count" => observation_count,
-        "app.range_count" => @last_continuous_range_count.to_i,
-        "app.continuous_incomplete" => @continuous_incomplete
+      Telemetry.note(
+        items: continuous_series.size + daily_series.size + peak_series.size,
+        rows_written: observation_count,
+        series_count: series_list.size,
+        continuous_series_count: continuous_series.size,
+        daily_series_count: daily_series.size,
+        peak_series_count: peak_series.size,
+        continuous_rows: continuous_count,
+        daily_rows: daily_count,
+        peak_rows: peak_count,
+        range_count: @last_continuous_range_count.to_i,
+        incomplete: @continuous_incomplete
       )
 
       # History may write fresher continuous points while hourly tip sync lagged.
@@ -652,20 +648,7 @@ class HistoryIngestion
     end
 
     codes = parameter_codes_param(series_list)
-    Telemetry.in_span(
-      "history.ingest.continuous",
-      attributes: {
-        "app.operation" => "history.ingest.continuous",
-        "app.site_number" => monitoring_location.site_number,
-        "app.state" => monitoring_location.state_code,
-        "app.range" => range.to_s,
-        "app.ingest_mode" => mode.to_s,
-        "app.series_count" => series_list.size,
-        "app.batch_size" => series_list.size,
-        "app.range_count" => ranges.size,
-        "app.parameter_code_count" => series_list.map(&:parameter_code).uniq.size
-      }
-    ) do
+    Telemetry.phase("continuous") do
       client = with_purpose_client(:continuous)
       unless client
         @continuous_incomplete = true
@@ -743,10 +726,6 @@ class HistoryIngestion
       end
       flush_continuous_buffer!(buffer)
       TimeSeries.flush_coverage_refresh!
-      Telemetry.add_attributes(
-        "app.observation_count" => count,
-        "app.circuit_key" => client.circuit_key
-      )
       progress&.step("continuous upserted=#{count}")
       Rails.logger.info(
         "HistoryIngestion continuous done site=#{monitoring_location.site_number} " \
@@ -794,19 +773,7 @@ class HistoryIngestion
     end
 
     codes = parameter_codes_param(series_list)
-    Telemetry.in_span(
-      "history.ingest.daily",
-      attributes: {
-        "app.operation" => "history.ingest.daily",
-        "app.site_number" => monitoring_location.site_number,
-        "app.state" => monitoring_location.state_code,
-        "app.range" => range.to_s,
-        "app.series_count" => series_list.size,
-        "app.batch_size" => series_list.size,
-        "app.range_count" => ranges.size,
-        "app.parameter_code_count" => series_list.map(&:parameter_code).uniq.size
-      }
-    ) do
+    Telemetry.phase("daily") do
       client = with_purpose_client(:daily)
       return 0 unless client
 
@@ -864,10 +831,6 @@ class HistoryIngestion
       }.join(",")
       progress&.step(
         "daily upserted=#{count}#{" by_parameter=#{breakdown}" if breakdown.present?}"
-      )
-      Telemetry.add_attributes(
-        "app.observation_count" => count,
-        "app.circuit_key" => client.circuit_key
       )
       count
     end
@@ -1010,17 +973,7 @@ class HistoryIngestion
     end
 
     codes = parameter_codes_param(series_list)
-    Telemetry.in_span(
-      "history.ingest.peaks",
-      attributes: {
-        "app.operation" => "history.ingest.peaks",
-        "app.site_number" => monitoring_location.site_number,
-        "app.state" => monitoring_location.state_code,
-        "app.series_count" => series_list.size,
-        "app.batch_size" => series_list.size,
-        "app.parameter_code_count" => series_list.map(&:parameter_code).uniq.size
-      }
-    ) do
+    Telemetry.phase("peaks") do
       client = with_purpose_client(:peaks)
       return 0 unless client
 
@@ -1061,10 +1014,6 @@ class HistoryIngestion
       rescue Usgs::Client::RateLimitError => e
         progress&.step("peaks stopped (#{e.message})")
       end
-      Telemetry.add_attributes(
-        "app.observation_count" => count,
-        "app.circuit_key" => client.circuit_key
-      )
       progress&.step("peaks upserted=#{count}")
       count
     end

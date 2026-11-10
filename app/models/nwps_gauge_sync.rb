@@ -27,42 +27,32 @@ class NwpsGaugeSync
   end
 
   def sync_entry!(entry, warm_listing: true)
-    Telemetry.in_span(
-      "nwps.gauge_sync",
-      attributes: {
-        "app.operation" => "nwps.gauge_sync",
-        "app.site_number" => entry.site_number,
-        "app.state" => entry.state_code,
-        "app.nwps_lid" => entry.lid
-      }
-    ) do
-      detail = client.gauge(entry.lid)
-      if detail.blank?
-        progress&.step("site=#{entry.site_number} tip=missing detail")
-        return 0
-      end
-
-      usgs_id = detail["usgsId"].to_s.strip
-      if usgs_id.present?
-        progress&.step("site=#{entry.site_number} skipped usgsId=#{usgs_id}")
-        return 0
-      end
-
-      location = upsert_location!(entry, detail)
-      series = upsert_series!(location, entry)
-      tip = tip_from_detail(detail)
-      if tip
-        upsert_tip!(series, tip, entry)
-        DisplaySeriesSelection.apply!(location.reload)
-      else
-        progress&.step("site=#{entry.site_number} tip=missing")
-      end
-
-      StationSnapshotCache.warm(location.reload)
-      StateListingCache.warm(entry.state_code) if warm_listing
-      progress&.step("site=#{entry.site_number} tip=#{tip ? tip[:value] : 'nil'}")
-      1
+    detail = client.gauge(entry.lid)
+    if detail.blank?
+      progress&.step("site=#{entry.site_number} tip=missing detail")
+      return 0
     end
+
+    usgs_id = detail["usgsId"].to_s.strip
+    if usgs_id.present?
+      progress&.step("site=#{entry.site_number} skipped usgsId=#{usgs_id}")
+      return 0
+    end
+
+    location = upsert_location!(entry, detail)
+    series = upsert_series!(location, entry)
+    tip = tip_from_detail(detail)
+    if tip
+      upsert_tip!(series, tip, entry)
+      DisplaySeriesSelection.apply!(location.reload)
+    else
+      progress&.step("site=#{entry.site_number} tip=missing")
+    end
+
+    StationSnapshotCache.warm(location.reload)
+    StateListingCache.warm(entry.state_code) if warm_listing
+    progress&.step("site=#{entry.site_number} tip=#{tip ? tip[:value] : 'nil'}")
+    1
   end
 
   private

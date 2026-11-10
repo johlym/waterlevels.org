@@ -36,14 +36,7 @@ module Nldi
     private
 
     def get_features(path, params)
-      Telemetry.in_span(
-        "nldi.http.get",
-        attributes: {
-          "http.request.method" => "GET",
-          "app.operation" => "nldi.http.get",
-          "app.path" => path
-        }
-      ) do
+      Telemetry.time_http do
         if RateLimitCircuit.open?
           raise RateLimitError, "NLDI rate limit circuit open"
         end
@@ -53,11 +46,6 @@ module Nldi
           req.params.update(stringify_params(params))
           req.headers["Accept"] = "application/geo+json, application/json"
         end
-        Telemetry.add_attributes(
-          "http.response.status_code" => response.status,
-          "app.found" => response.status != 404,
-          "app.rate_limit_remaining" => response.headers["X-RateLimit-Remaining"]
-        )
         return [] if response.status == 404
 
         body = handle_response(response)

@@ -72,21 +72,13 @@ module Usace
     end
 
     def get(path, params = {})
-      Telemetry.in_span(
-        "usace.http.get",
-        attributes: {
-          "http.request.method" => "GET",
-          "app.operation" => "usace.http.get",
-          "app.path" => path
-        }
-      ) do
+      Telemetry.time_http do
         pause_between_requests!
         response = @connection.get(path) do |req|
           # Prefer query format= over Accept — CDA returns 406 if both are set.
           req.headers.delete("Accept")
           params.each { |key, value| req.params[key.to_s] = value }
         end
-        Telemetry.add_attributes("http.response.status_code" => response.status)
         handle_response(response)
       end
     end

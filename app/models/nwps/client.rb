@@ -20,22 +20,11 @@ module Nwps
     # Returns gauge Hash or nil when NWPS has no point for this identifier
     # (USGS site number or NWS LID).
     def gauge(identifier)
-      Telemetry.in_span(
-        "nwps.http.gauge",
-        attributes: {
-          "http.request.method" => "GET",
-          "app.operation" => "nwps.http.gauge",
-          "app.nwps_identifier" => identifier.to_s
-        }
-      ) do
+      Telemetry.time_http do
         pause_between_requests!
         response = @connection.get("gauges/#{identifier}") do |req|
           req.headers["Accept"] = "application/json"
         end
-        Telemetry.add_attributes(
-          "http.response.status_code" => response.status,
-          "app.found" => response.status != 404
-        )
         return nil if response.status == 404
 
         handle_response(response)
@@ -45,23 +34,12 @@ module Nwps
     # Observed (+ forecast) stage/flow time series for a gauge LID or USGS id.
     # Returns the parsed Hash or nil on 404.
     def stageflow(identifier)
-      Telemetry.in_span(
-        "nwps.http.stageflow",
-        attributes: {
-          "http.request.method" => "GET",
-          "app.operation" => "nwps.http.stageflow",
-          "app.nwps_identifier" => identifier.to_s
-        }
-      ) do
+      Telemetry.time_http do
         pause_between_requests!
         response = @connection.get("gauges/#{identifier}/stageflow") do |req|
           req.headers["Accept"] = "application/json"
           req.options.timeout = 60
         end
-        Telemetry.add_attributes(
-          "http.response.status_code" => response.status,
-          "app.found" => response.status != 404
-        )
         return nil if response.status == 404
 
         handle_response(response)
@@ -76,14 +54,7 @@ module Nwps
       postal = Usgs::StateCodes.normalize_postal(state)
       bbox = Usgs::StateCodes.bbox_for(postal)
 
-      Telemetry.in_span(
-        "nwps.http.gauges",
-        attributes: {
-          "http.request.method" => "GET",
-          "app.operation" => "nwps.http.gauges",
-          "app.state" => postal
-        }
-      ) do
+      Telemetry.time_http do
         pause_between_requests!
         response = @connection.get("gauges") do |req|
           req.headers["Accept"] = "application/json"
@@ -95,13 +66,7 @@ module Nwps
           req.params["srid"] = "EPSG_4326"
         end
         body = handle_response(response)
-        gauges = Array(body["gauges"])
-        Telemetry.add_attributes(
-          "http.response.status_code" => response.status,
-          "app.batch_size" => gauges.size,
-          "app.locations_count" => gauges.size
-        )
-        gauges
+        Array(body["gauges"])
       end
     end
 

@@ -23,14 +23,6 @@ module Api
           HydrographSeries.for(location: location, kind: kind, parameter_code: parameter_code, range: range)
         end
 
-        Telemetry.add_attributes(
-          "app.site_number" => location.site_number,
-          "app.state" => location.state_code,
-          "app.parameter_code" => parameter_code,
-          "app.measurement_kind" => kind,
-          "app.range" => range,
-          "app.observation_count" => Array(payload[:points] || payload["points"]).size
-        )
         cache_private!
         render json: payload
       end

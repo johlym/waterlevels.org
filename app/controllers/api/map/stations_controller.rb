@@ -16,12 +16,6 @@ module Api
           { stations: stations }
         end
 
-        Telemetry.add_attributes(
-          "app.operation" => "map.stations.index",
-          "app.bbox" => bbox,
-          "app.station_count" => Array(payload[:stations] || payload["stations"]).size,
-          "app.batch_size" => Array(payload[:stations] || payload["stations"]).size
-        )
         cache_private!
         render json: payload
       end
@@ -38,12 +32,6 @@ module Api
           { stations: results }
         end
 
-        Telemetry.add_attributes(
-          "app.operation" => "map.stations.search",
-          "app.query_length" => query.length,
-          "app.result_count" => Array(payload[:stations] || payload["stations"]).size,
-          "app.batch_size" => Array(payload[:stations] || payload["stations"]).size
-        )
         cache_private!
         render json: payload
       end
@@ -57,12 +45,6 @@ module Api
         end
 
         station = cached.is_a?(Hash) ? (cached[:station] || cached["station"]) : nil
-        Telemetry.add_attributes(
-          "app.operation" => "map.stations.nearest",
-          "app.found" => station.present?,
-          "app.site_number" => station.is_a?(Hash) ? (station[:id] || station["id"]) : nil,
-          "app.state" => station.is_a?(Hash) ? (station[:state] || station["state"]) : nil
-        )
         cache_private!
         if station.present?
           render json: { station: station }

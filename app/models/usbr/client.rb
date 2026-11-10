@@ -70,20 +70,12 @@ module Usbr
     private
 
     def get(path, params = {})
-      Telemetry.in_span(
-        "usbr.http.get",
-        attributes: {
-          "http.request.method" => "GET",
-          "app.operation" => "usbr.http.get",
-          "app.path" => path
-        }
-      ) do
+      Telemetry.time_http do
         pause_between_requests!
         response = @connection.get(path) do |req|
           req.headers["Accept"] = ACCEPT
           params.each { |key, value| req.params[key.to_s] = value }
         end
-        Telemetry.add_attributes("http.response.status_code" => response.status)
         handle_response(response)
       end
     end
