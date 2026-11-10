@@ -19,7 +19,7 @@ bin/honeycomb-board --dry-run
 HONEYCOMB_CONFIG_KEY=... bin/honeycomb-board
 ```
 
-`HONEYCOMB_CONFIG_KEY` is a Honeycomb **configuration** key that can manage queries and boards. The ingest key in `OTEL_EXPORTER_OTLP_HEADERS` cannot create a board. Running the command again updates the existing board in place. `REPLACE=1 bin/rails honeycomb:board` deletes it first. EU teams set `HONEYCOMB_API_ENDPOINT=https://api.eu1.honeycomb.io`. `HONEYCOMB_DATASET` overrides the dataset slug (`waterlevels` by default). The command prints the board URL.
+`HONEYCOMB_CONFIG_KEY` is the Configuration key **Token**, not the Key ID. In the environment's API keys, create or edit a Configuration key and enable **Manage Queries and Columns** and **Manage Public Boards**. The Key ID only labels the key (`hc…lk_` configuration, `hc…mk_` management, `hc…ik_` ingest) and is not the credential. A Management key cannot create boards. The ingest key in `OTEL_EXPORTER_OTLP_HEADERS` cannot either. Running the command again updates the existing board in place. `REPLACE=1 bin/rails honeycomb:board` deletes it first. EU teams set `HONEYCOMB_API_ENDPOINT=https://api.eu1.honeycomb.io`. `HONEYCOMB_DATASET` overrides the dataset slug (`waterlevels` by default). The command prints the board URL.
 
 ## Span names
 

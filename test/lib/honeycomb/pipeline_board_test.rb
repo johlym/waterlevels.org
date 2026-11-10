@@ -122,11 +122,36 @@ class HoneycombPipelineBoardTest < ActiveSupport::TestCase
     assert_equal 2, http.calls.count { |method, path, _body| method == :post && path == "/1/boards" }
   end
 
-  test "auth failures name the configuration key and not the ingest key" do
+  test "auth failures name the configuration token and the missing permissions" do
     message = Honeycomb::PipelineBoard::Http.explain(403, { "error" => "forbidden" })
 
-    assert_includes message, "Configuration key"
-    assert_includes message, "OTEL_EXPORTER_OTLP_HEADERS"
+    assert_includes message, "Configuration key Token"
+    assert_includes message, "Manage Queries and Columns"
+    assert_includes message, "Manage Public Boards"
     assert_includes message, "forbidden"
+  end
+
+  test "a recognized key without query permission names the two board permissions" do
+    message = Honeycomb::PipelineBoard::Http.explain(
+      401,
+      { "error" => "this API key isn't allowed to modify columns or create queries" }
+    )
+
+    assert_includes message, "cannot create queries"
+    assert_includes message, "Manage Queries and Columns"
+    assert_includes message, "Manage Public Boards"
+    assert_includes message, "Token"
+  end
+
+  test "a key id is rejected before any request" do
+    management = assert_raises(Honeycomb::PipelineBoard::Error) do
+      Honeycomb::PipelineBoard::Http.new(api_key: "hcamk_example", api_base: "https://api.honeycomb.io")
+    end
+    configuration = assert_raises(Honeycomb::PipelineBoard::Error) do
+      Honeycomb::PipelineBoard::Http.new(api_key: "hcalk_example", api_base: "https://api.honeycomb.io")
+    end
+
+    assert_includes management.message, "Management key ID"
+    assert_includes configuration.message, "Configuration key ID, not its Token"
   end
 end

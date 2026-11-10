@@ -553,10 +553,35 @@ module Honeycomb
     # Configuration-key client. The key is sent only as a header.
     class Http
       def initialize(api_key:, api_base:)
-        raise Error, "Set HONEYCOMB_CONFIG_KEY to a Honeycomb configuration key." if api_key.to_s.strip.empty?
+        problem = self.class.credential_problem(api_key)
+        raise Error, problem if problem
 
-        @api_key = api_key
+        @api_key = api_key.to_s.strip
         @api_base = api_base
+      end
+
+      # Configuration keys authenticate with the Token alone. The Key ID is only
+      # a label: hc…ik_ ingest, hc…lk_ configuration, hc…mk_ management.
+      def self.credential_problem(value)
+        key = value.to_s.strip
+        if key.empty?
+          return "Set HONEYCOMB_CONFIG_KEY to the Configuration key Token. The Key ID is not the credential."
+        end
+
+        case key
+        when /\Ahc[a-z]mk_/
+          "That value is a Management key ID. It only labels the key in the UI. " \
+            "A Management key cannot create boards, even joined to its secret. " \
+            "Create a Configuration key in the environment, enable Manage Queries and Columns and Manage Public Boards, " \
+            "and set HONEYCOMB_CONFIG_KEY to that key's Token."
+        when /\Ahc[a-z]lk_/
+          "That value is a Configuration key ID, not its Token. " \
+            "Open the key in Honeycomb and copy the Token into HONEYCOMB_CONFIG_KEY. " \
+            "The key needs Manage Queries and Columns and Manage Public Boards."
+        when /\Ahc[a-z]ik_/
+          "That value is an Ingest key ID. Ingest keys send telemetry and cannot create boards. " \
+            "Set HONEYCOMB_CONFIG_KEY to a Configuration key Token with Manage Queries and Columns and Manage Public Boards."
+        end
       end
 
       def request(method, path, body = nil)
@@ -580,9 +605,20 @@ module Honeycomb
 
       def self.explain(status, body)
         detail = summarize(body)
+        if detail.include?("isn't allowed to modify columns") || detail.include?("not allowed to modify columns")
+          return "Honeycomb accepted this key, but it cannot create queries. " \
+            "On that Configuration key, enable Manage Queries and Columns and Manage Public Boards, " \
+            "then set HONEYCOMB_CONFIG_KEY to the Token rather than the Key ID. #{detail}".strip
+        end
+        if detail.include?("unknown API key")
+          return "Honeycomb did not recognize this value (#{status}). " \
+            "A Key ID starts with hc and ik, lk, or mk and is not the credential. " \
+            "Configuration keys use the Token alone. If this is the Token, set HONEYCOMB_API_ENDPOINT for the region. " \
+            "#{detail}".strip
+        end
         if status == 401 || status == 403
-          "Honeycomb refused the key (#{status}). Use a Configuration key that can manage queries and boards, " \
-            "not the ingest key from OTEL_EXPORTER_OTLP_HEADERS. #{detail}".strip
+          "Honeycomb refused the key (#{status}). Use a Configuration key Token with " \
+            "Manage Queries and Columns and Manage Public Boards, not an ingest key. #{detail}".strip
         else
           "Honeycomb request failed (#{status}). #{detail}".strip
         end
