@@ -1,6 +1,6 @@
 # Honeycomb query guide (WaterLevels.org)
 
-Dataset: **`waterlevels`** (from `OTEL_SERVICE_NAME`).
+Dataset: **`waterlevels-org`** (from `OTEL_SERVICE_NAME`, override the board with `HONEYCOMB_DATASET`).
 
 Honeycomb is only for data-management performance: how long pipeline work takes, whether queues are backing up, and how complete the datasets are. Page views, HTTP child spans, and homepage counters are not exported. Request timing stays in the structured Rails logs.
 
@@ -19,7 +19,7 @@ bin/honeycomb-board --dry-run
 HONEYCOMB_CONFIG_KEY=... bin/honeycomb-board
 ```
 
-`HONEYCOMB_CONFIG_KEY` is the Configuration key **Token**, not the Key ID. In the environment's API keys, create or edit a Configuration key and enable **Manage Queries and Columns** and **Manage Public Boards**. The Key ID only labels the key (`hc…lk_` configuration, `hc…mk_` management, `hc…ik_` ingest) and is not the credential. A Management key cannot create boards. The ingest key in `OTEL_EXPORTER_OTLP_HEADERS` cannot either. Running the command again updates the existing board in place. `REPLACE=1 bin/rails honeycomb:board` deletes it first. EU teams set `HONEYCOMB_API_ENDPOINT=https://api.eu1.honeycomb.io`. `HONEYCOMB_DATASET` overrides the dataset slug (`waterlevels` by default). The command prints the board URL.
+`HONEYCOMB_CONFIG_KEY` is the Configuration key **Token**, not the Key ID. In the environment's API keys, create or edit a Configuration key and enable **Manage Queries and Columns** and **Manage Public Boards**. The Key ID only labels the key (`hc…lk_` configuration, `hc…mk_` management, `hc…ik_` ingest) and is not the credential. A Management key cannot create boards. The ingest key in `OTEL_EXPORTER_OTLP_HEADERS` cannot either. Running the command again updates the existing board in place. `REPLACE=1 bin/rails honeycomb:board` deletes it first. EU teams set `HONEYCOMB_API_ENDPOINT=https://api.eu1.honeycomb.io`. `HONEYCOMB_DATASET` overrides the dataset slug (`waterlevels-org` by default). The command prints the board URL.
 
 ## Span names
 

@@ -11,7 +11,7 @@ require "uri"
 module Honeycomb
   class PipelineBoard
     BOARD_NAME = "WaterLevels pipeline"
-    DEFAULT_DATASET = "waterlevels"
+    DEFAULT_DATASET = "waterlevels-org"
     DEFAULT_API_BASE = "https://api.honeycomb.io"
     DAY = 86_400
     WEEK = 604_800
@@ -600,11 +600,16 @@ module Honeycomb
         parsed = parse_body(response.body)
         return parsed if response.is_a?(Net::HTTPSuccess)
 
-        raise Error, self.class.explain(response.code.to_i, parsed)
+        raise Error, self.class.explain(response.code.to_i, parsed, path: path)
       end
 
-      def self.explain(status, body)
+      def self.explain(status, body, path: nil)
         detail = summarize(body)
+        if detail.match?(/dataset not found/i)
+          slug = path.to_s[%r{/1/(?:queries|query_annotations)/([^/?]+)}, 1]
+          where = slug ? " #{slug.inspect}" : ""
+          return "Honeycomb has no dataset#{where}. Set HONEYCOMB_DATASET to the dataset slug. #{detail}".strip
+        end
         if detail.include?("isn't allowed to modify columns") || detail.include?("not allowed to modify columns")
           return "Honeycomb accepted this key, but it cannot create queries. " \
             "On that Configuration key, enable Manage Queries and Columns and Manage Public Boards, " \
