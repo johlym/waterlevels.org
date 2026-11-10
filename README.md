@@ -62,7 +62,7 @@ Local archive iteration (no Cloudflare): `.env.example` sets `DAILY_ARCHIVE_STOR
 
 ## Observability (Honeycomb)
 
-OpenTelemetry exports manual pipeline spans to Honeycomb when `OTEL_EXPORTER_OTLP_*` is set (see `.env.example`). There is no framework auto-instrumentation. The dataset answers three questions: how long data-pipeline work takes (`pipeline.work`), whether Sidekiq queues are backing up (`pipeline.queue`, `pipeline.pressure`), and how complete the station datasets are (`pipeline.coverage`). Query recipes for the Honeycomb MCP: [`doc/honeycomb-queries.md`](doc/honeycomb-queries.md). Request timing stays in the structured logs below.
+OpenTelemetry exports manual pipeline spans to Honeycomb when `OTEL_EXPORTER_OTLP_*` is set (see `.env.example`). There is no framework auto-instrumentation. The dataset answers three questions: how long data-pipeline work takes (`pipeline.work`), whether Sidekiq queues are backing up (`pipeline.queue`, `pipeline.pressure`), and how complete the station datasets are (`pipeline.coverage`). Query recipes for the Honeycomb MCP: [`doc/honeycomb-queries.md`](doc/honeycomb-queries.md). `bin/honeycomb-board` creates the grouped board from those queries once `HONEYCOMB_CONFIG_KEY` is set. Request timing stays in the structured logs below.
 
 ## Logging
 

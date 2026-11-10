@@ -1,0 +1,29 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "optparse"
+require "bundler/setup"
+
+begin
+  require "dotenv"
+  Dotenv.load(File.expand_path("../.env", __dir__))
+rescue LoadError
+  nil
+end
+
+require_relative "../lib/honeycomb/pipeline_board"
+
+options = { dry_run: false, replace: false }
+OptionParser.new do |parser|
+  parser.banner = "Usage: bin/honeycomb-board [--dry-run] [--replace]"
+  parser.on("--dry-run", "Print the grouped panels without calling Honeycomb") { options[:dry_run] = true }
+  parser.on("--replace", "Delete the existing board with this name before creating it") { options[:replace] = true }
+end.parse!
+
+if options[:dry_run]
+  puts Honeycomb::PipelineBoard.outline
+  exit 0
+end
+
+result = Honeycomb::PipelineBoard.new(api_key: ENV["HONEYCOMB_CONFIG_KEY"]).publish!(replace: options[:replace])
+puts result.created ? "Created #{result.url || result.id}" : "Updated #{result.url || result.id}"
