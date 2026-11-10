@@ -12,41 +12,39 @@ class HistoryBackfillBatchJob < ApplicationJob
   # Skip refill when the backfill queue already has this many jobs pending so
   # frequent cron ticks do not pile onto an already-busy worker.
   DEFAULT_QUEUE_BUSY_THRESHOLD = 5
+  PHASE_ATTRIBUTES = {
+    "phase1_scope_and_enqueue" => "phase1_scope",
+    "daily_tip_scope_and_enqueue" => "daily_tip_scope",
+    "deep_scope_and_enqueue" => "deep_scope"
+  }.freeze
 
   def perform(limit = nil, range = HistoryIngestion::DEFAULT_RANGE)
-    Telemetry.in_root_span(
-      "job.history_backfill_batch",
-      attributes: {
-        "app.operation" => "job.history_backfill_batch",
-        "app.range" => range.to_s
-      }
-    ) do
+    Telemetry.work("history_backfill_batch", provider: "usgs", range: range.to_s) do
       unless AppConfig.boolean?(:history_backfill_enabled)
-        Telemetry.add_attributes("app.skip_reason" => "disabled_by_settings")
+        Telemetry.skip!("disabled_by_settings")
         Rails.logger.info("HistoryBackfillBatchJob skipped: disabled by admin settings")
         return 0
       end
       if HistoryBackfillJob.paused_for_catalog_sync?
-        Telemetry.add_attributes("app.skip_reason" => "sunday_catalog_sync")
+        Telemetry.skip!("sunday_catalog_sync")
         Rails.logger.info("HistoryBackfillBatchJob skipped: Sunday catalog sync window")
         return 0
       end
       unless Usgs::HistoryKeyPool.phase1_available? || Usgs::HistoryKeyPool.deep_available?
-        Telemetry.add_attributes("app.skip_reason" => "history_keys_exhausted")
+        Telemetry.skip!("history_keys_exhausted")
         Rails.logger.info("HistoryBackfillBatchJob skipped: USGS history rate limit circuits open")
         return 0
       end
       if DatabaseReadOnlyCircuit.open?
-        Telemetry.add_attributes("app.skip_reason" => "db_read_only_circuit")
         raise DatabaseReadOnlyError, "database read-only circuit open"
       end
       if backfill_queue_busy?
-        Telemetry.add_attributes("app.skip_reason" => "backfill_queue_busy")
+        Telemetry.skip!("backfill_queue_busy")
         Rails.logger.info("HistoryBackfillBatchJob skipped: backfill queue still draining")
         return 0
       end
       unless HistoryBackfillBatchLock.claim!
-        Telemetry.add_attributes("app.skip_reason" => "batch_lock_held")
+        Telemetry.skip!("batch_lock_held")
         Rails.logger.info("HistoryBackfillBatchJob skipped: batch lock held")
         return 0
       end
@@ -97,16 +95,16 @@ class HistoryBackfillBatchJob < ApplicationJob
     end
 
     total = phase1_enqueued + tip_enqueued + deep_enqueued
-    Telemetry.add_attributes(
-      "app.batch_size" => total,
-      "app.phase1_enqueued" => phase1_enqueued,
-      "app.daily_tip_enqueued" => tip_enqueued,
-      "app.deep_enqueued" => deep_enqueued,
-      "app.phase1_budget" => phase1_budget,
-      "app.deep_budget" => deep_budget,
-      "app.continuous_available" => Usgs::HistoryKeyPool.available?(:continuous),
-      "app.daily_available" => Usgs::HistoryKeyPool.available?(:daily),
-      "app.peaks_available" => Usgs::HistoryKeyPool.available?(:peaks)
+    Telemetry.note(
+      items: total,
+      phase1_enqueued: phase1_enqueued,
+      daily_tip_enqueued: tip_enqueued,
+      deep_enqueued: deep_enqueued,
+      phase1_budget: phase1_budget,
+      deep_budget: deep_budget,
+      continuous_available: Usgs::HistoryKeyPool.available?(:continuous),
+      daily_available: Usgs::HistoryKeyPool.available?(:daily),
+      peaks_available: Usgs::HistoryKeyPool.available?(:peaks)
     )
     Rails.logger.info(
       "HistoryBackfillBatchJob enqueued=#{total} phase1_enqueued=#{phase1_enqueued} " \
@@ -208,6 +206,8 @@ class HistoryBackfillBatchJob < ApplicationJob
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     result = yield
     elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+    phase = PHASE_ATTRIBUTES.fetch(label, label)
+    Telemetry.add_milliseconds("pipeline.phase.#{phase}_ms", elapsed_ms)
     Rails.logger.info("HistoryBackfillBatchJob #{label} elapsed_ms=#{elapsed_ms} result=#{result}")
     result
   end

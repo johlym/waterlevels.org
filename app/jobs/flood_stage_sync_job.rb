@@ -13,27 +13,32 @@ class FloodStageSyncJob < ApplicationJob
   # Also accepts blank/omitted args so old Sidekiq retries of the former
   # national cron (`arguments: []`) run the loop instead of failing.
   def perform(state = nil)
-    unless hold_lock!
-      Rails.logger.info("FloodStageSyncJob skipped: another instance is queued or running")
-      return
-    end
+    Telemetry.work("flood_sync", provider: "nwps", state: state.presence) do
+      unless hold_lock!
+        Telemetry.skip!("lock_held")
+        Rails.logger.info("FloodStageSyncJob skipped: another instance is queued or running")
+        return
+      end
 
-    unless AppConfig.boolean?(:flood_stage_sync_enabled)
+      unless AppConfig.boolean?(:flood_stage_sync_enabled)
+        FloodStageSyncLock.release!(owner: job_id)
+        Telemetry.skip!("disabled_by_settings")
+        Rails.logger.info("FloodStageSyncJob skipped: disabled by admin settings")
+        return
+      end
+      if DatabaseReadOnlyCircuit.open?
+        raise DatabaseReadOnlyError, "database read-only circuit open"
+      end
+
+      postal = state.present? ? Usgs::StateCodes.normalize_postal(state) : nil
+      if postal
+        Telemetry.note(state: postal, items: 1)
+        sync_one_state!(postal)
+      else
+        sync_all_states!
+      end
       FloodStageSyncLock.release!(owner: job_id)
-      Rails.logger.info("FloodStageSyncJob skipped: disabled by admin settings")
-      return
     end
-    if DatabaseReadOnlyCircuit.open?
-      raise DatabaseReadOnlyError, "database read-only circuit open"
-    end
-
-    postal = state.present? ? Usgs::StateCodes.normalize_postal(state) : nil
-    if postal
-      sync_one_state!(postal)
-    else
-      sync_all_states!
-    end
-    FloodStageSyncLock.release!(owner: job_id)
   end
 
   private
@@ -43,41 +48,30 @@ class FloodStageSyncJob < ApplicationJob
     progress = SyncProgress.new("FloodStageSyncJob", io: nil)
     progress.step("national states=#{states.size} min_state_seconds=#{MIN_STATE_SECONDS}")
 
-    Telemetry.in_root_span(
-      "job.flood_sync_national",
-      attributes: {
-        "app.operation" => "job.flood_sync_national",
-        "app.batch_size" => states.size
-      }
-    ) do
-      states.each_with_index do |code, index|
-        unless FloodStageSyncLock.renew!(job_id)
-          progress.step("stop state=#{code} lock lost")
-          break
-        end
-
-        started_at = monotonic_now
-        progress.step("state=#{code} (#{index + 1}/#{states.size})")
-        run_state_sync(code, progress)
-        pad_to_min_cycle!(started_at, progress, label: code)
+    Telemetry.note(items: states.size)
+    states.each_with_index do |code, index|
+      unless FloodStageSyncLock.renew!(job_id)
+        progress.step("stop state=#{code} lock lost")
+        break
       end
-      progress.finish("states=#{states.size}")
+
+      started_at = monotonic_now
+      progress.step("state=#{code} (#{index + 1}/#{states.size})")
+      run_state_sync(code, progress)
+      elapsed_ms = ((monotonic_now - started_at) * 1000).round
+      Telemetry.note_slowest_state(code, elapsed_ms)
+      pad_to_min_cycle!(started_at, progress, label: code)
     end
+    progress.finish("states=#{states.size}")
   end
 
   def sync_one_state!(postal)
     progress = SyncProgress.new("FloodStageSyncJob[#{postal}]", io: nil)
     started_at = monotonic_now
     begin
-      Telemetry.in_span(
-        "job.flood_sync",
-        attributes: {
-          "app.operation" => "job.flood_sync",
-          "app.state" => postal
-        }
-      ) do
-        run_state_sync(postal, progress)
-      end
+      started_sync = monotonic_now
+      run_state_sync(postal, progress)
+      Telemetry.note_slowest_state(postal, ((monotonic_now - started_sync) * 1000).round)
     ensure
       pad_to_min_cycle!(started_at, progress, label: postal)
     end

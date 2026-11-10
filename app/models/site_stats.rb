@@ -31,20 +31,11 @@ class SiteStats
     end
 
     def compute(refresh_measurements: true)
-      active_count = MonitoringLocation.active.count
       non_stale_count = MonitoringLocation.active.not_stale.count
       flood_alert_count = MonitoringLocation.flood_alert.count
       measurements = measurement_snapshot(refresh: refresh_measurements)
       measurement_count = measurements[:measurement_count]
       updates_today = measurements[:updates_today]
-
-      emit_station_inventory!(
-        stations_count: active_count,
-        stations_non_stale_count: non_stale_count,
-        flood_alert_count: flood_alert_count,
-        measurement_count: measurement_count,
-        updates_today: updates_today
-      )
 
       {
         # Homepage "active" matches map Active status (not stale), not only the DB flag.
@@ -121,23 +112,6 @@ class SiteStats
     end
 
     private
-
-    # Periodic gauge-like event for Honeycomb time series of catalog health.
-    # Emitted whenever stats are recomputed (hourly tip sync warm, boot, cache miss).
-    def emit_station_inventory!(stations_count:, stations_non_stale_count:, flood_alert_count:, measurement_count:, updates_today:)
-      Telemetry.in_root_span(
-        "app.station_inventory",
-        attributes: {
-          "app.operation" => "station_inventory",
-          "app.stations_count" => stations_count,
-          "app.stations_non_stale_count" => stations_non_stale_count,
-          "app.stations_stale_count" => [ stations_count - stations_non_stale_count, 0 ].max,
-          "app.flood_alert_count" => flood_alert_count,
-          "app.measurement_count" => measurement_count,
-          "app.updates_today" => updates_today
-        }
-      ) { true }
-    end
 
     def pacific_today_range
       zone = Time.find_zone!(UPDATES_TIME_ZONE)

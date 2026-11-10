@@ -53,20 +53,12 @@ module Cdec
     private
 
     def get(path, params = {})
-      Telemetry.in_span(
-        "cdec.http.get",
-        attributes: {
-          "http.request.method" => "GET",
-          "app.operation" => "cdec.http.get",
-          "app.path" => path
-        }
-      ) do
+      Telemetry.time_http do
         pause_between_requests!
         response = @connection.get(path) do |req|
           req.headers["Accept"] = "application/json"
           params.each { |key, value| req.params[key.to_s] = value }
         end
-        Telemetry.add_attributes("http.response.status_code" => response.status)
         handle_response(response)
       end
     end

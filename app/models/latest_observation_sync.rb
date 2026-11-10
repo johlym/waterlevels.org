@@ -64,12 +64,10 @@ class LatestObservationSync
   private
 
   def perform_locked
-    Telemetry.in_root_span(
-      "latest.sync",
-      attributes: {
-        "app.operation" => "latest.sync",
-        "app.state" => postal_code || "national"
-      }
+    Telemetry.ensure_work(
+      "latest_sync",
+      provider: "usgs",
+      state: postal_code || "national"
     ) do
       sync_error = nil
       @upserted_series_ids = Set.new
@@ -90,11 +88,12 @@ class LatestObservationSync
 
       denormalize_locations
       record_tip_refresh_stats!
-      Telemetry.add_attributes(
-        "app.series_count" => @upserted_series_ids.size,
-        "app.observation_count" => @upserted_series_ids.size,
-        "app.locations_count" => @locations_denormalized
+      Telemetry.note(
+        items: @upserted_series_ids.size,
+        rows_written: @upserted_series_ids.size,
+        locations: @locations_denormalized
       )
+      Telemetry.add_milliseconds("pipeline.phase.fetch_ms", Telemetry.accumulated("pipeline.http_ms"))
 
       unless sync_error
         progress&.step("warming state listing caches")
@@ -119,6 +118,7 @@ class LatestObservationSync
   end
 
   def sync_scoped!
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     scope = TimeSeries.selected
     if postal_code
       scope = scope.joins(:monitoring_location).merge(MonitoringLocation.in_state(postal_code))
@@ -126,6 +126,10 @@ class LatestObservationSync
     install_selected_series!(scope.pluck(*SERIES_COLUMNS))
     sync_parameters!
   ensure
+    if started
+      elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+      Telemetry.note_slowest_state(postal_code || "national", elapsed_ms)
+    end
     clear_selected_series!
   end
 
@@ -139,13 +143,19 @@ class LatestObservationSync
     state_codes.each do |code|
       break unless beat_lock!("state=#{code}")
 
-      @state = code
-      @postal_code = nil
-      progress&.step("state=#{code}")
-      install_selected_series!(grouped[code])
-      sync_parameters!
-      clear_selected_series!
-      GC.start
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      begin
+        @state = code
+        @postal_code = nil
+        progress&.step("state=#{code}")
+        install_selected_series!(grouped[code])
+        sync_parameters!
+        clear_selected_series!
+        GC.start
+      ensure
+        elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+        Telemetry.note_slowest_state(code, elapsed_ms)
+      end
     end
   ensure
     @state = nil
@@ -239,16 +249,7 @@ class LatestObservationSync
   end
 
   def sync_parameter(parameter_code)
-    Telemetry.in_span(
-      "latest.sync_parameter",
-      attributes: {
-        "app.operation" => "latest.sync_parameter",
-        "app.state" => postal_code || "national",
-        "app.parameter_code" => parameter_code
-      }
-    ) do
-      sync_parameter_body(parameter_code)
-    end
+    sync_parameter_body(parameter_code)
   end
 
   def sync_parameter_body(parameter_code)
@@ -309,17 +310,11 @@ class LatestObservationSync
       progress&.increment
 
       if latest_buffer.size >= UPSERT_BATCH
-        flush_tip_buffers!(latest_buffer, continuous_buffer)
+        Telemetry.phase("upsert") { flush_tip_buffers!(latest_buffer, continuous_buffer) }
       end
     end
-    flush_tip_buffers!(latest_buffer, continuous_buffer)
+    Telemetry.phase("upsert") { flush_tip_buffers!(latest_buffer, continuous_buffer) }
 
-    Telemetry.add_attributes(
-      "app.observation_count" => count,
-      "app.series_count" => count,
-      "app.skipped_count" => skipped,
-      "app.batch_size" => count + skipped
-    )
     progress&.step("parameter=#{parameter_code} latest upserted=#{count} skipped=#{skipped}")
   end
   private :sync_parameter_body
@@ -417,10 +412,8 @@ class LatestObservationSync
       "LatestObservationSync tip_jump_iv_repair candidates=#{location_ids.size} " \
       "enqueued=#{enqueued} threshold=#{threshold.inspect}"
     )
-    Telemetry.add_attributes(
-      "app.tip_jump_iv_repair_candidates" => location_ids.size,
-      "app.tip_jump_iv_repair_enqueued" => enqueued
-    )
+    Telemetry.add_count("pipeline.tip_jump_candidates", location_ids.size)
+    Telemetry.add_count("pipeline.tip_jump_enqueued", enqueued)
   end
 
   def find_series(provider_series_id)
@@ -440,6 +433,10 @@ class LatestObservationSync
   end
 
   def denormalize_locations
+    Telemetry.phase("upsert") { denormalize_locations_now }
+  end
+
+  def denormalize_locations_now
     progress&.step("denormalizing location latest values")
     location_ids = @denormalize_location_ids.to_a
     if location_ids.empty?
@@ -474,7 +471,6 @@ class LatestObservationSync
 
     @denormalize_location_ids = Set.new
     @locations_denormalized += count
-    Telemetry.add_attributes("app.locations_denormalized" => count)
     progress&.step("locations denormalized=#{count}")
     count
   end

@@ -5,26 +5,13 @@ class GaugesController < ApplicationController
     @location = find_location!
     ensure_canonical_path!(@location)
     @snapshot = StationSnapshotCache.fetch(@location)
-    enqueued = false
-    iv_repair_enqueued = false
-    iv_scar_enqueued = false
     if @location.needs_iv_repair?
-      iv_repair_enqueued = IvRepairJob.enqueue(@location.id)
+      IvRepairJob.enqueue(@location.id)
     elsif @location.needs_iv_scar_repair?
-      iv_scar_enqueued = IvRepairScarJob.enqueue(@location.id)
+      IvRepairScarJob.enqueue(@location.id)
     elsif @location.needs_history_backfill?
-      enqueued = HistoryBackfillJob.enqueue(@location.id)
+      HistoryBackfillJob.enqueue(@location.id)
     end
-    Telemetry.add_attributes(
-      "app.page" => "gauge_detail",
-      "app.operation" => "page.gauge_detail",
-      "app.site_number" => @location.site_number,
-      "app.state" => @location.state_code,
-      "app.location_name" => @location.display_name,
-      "app.backfill_enqueued" => enqueued,
-      "app.iv_repair_enqueued" => iv_repair_enqueued,
-      "app.iv_scar_enqueued" => iv_scar_enqueued
-    )
     @signup_notice = GaugeSignupFeedback.notice_for(params[:signup])
     @signup_alert = GaugeSignupFeedback.alert_for(params[:signup])
     if @signup_notice.present? || @signup_alert.present?

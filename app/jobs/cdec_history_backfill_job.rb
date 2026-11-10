@@ -4,13 +4,11 @@ class CdecHistoryBackfillJob < ApplicationJob
   queue_as :backfill
 
   def perform(site_number, years = HistoryIngestion::DEFAULT_NON_USGS_DAILY_YEARS)
-    Telemetry.in_root_span(
-      "job.cdec_history_backfill",
-      attributes: {
-        "app.operation" => "job.cdec_history_backfill",
-        "app.site_number" => site_number.to_s,
-        "app.range" => "#{years}y"
-      }
+    Telemetry.work(
+      "cdec_history",
+      provider: "cdec",
+      site_number: site_number.to_s,
+      range: "#{years}y"
     ) do
       location = require_synced_location!(site_number)
       raise ArgumentError, "not a CDEC location" unless location.data_provider == DataProviders::CDEC

@@ -23,29 +23,20 @@ class UsbrReservoirSync
   end
 
   def sync_entry!(entry, warm_listing: true)
-    Telemetry.in_span(
-      "usbr.reservoir_sync",
-      attributes: {
-        "app.operation" => "usbr.reservoir_sync",
-        "app.site_number" => entry.site_number,
-        "app.state" => entry.state_code
-      }
-    ) do
-      location = upsert_location!(entry)
-      series = upsert_series!(location, entry)
-      tip = fetch_latest_result(entry)
-      if tip
-        upsert_tip!(series, tip, entry)
-        DisplaySeriesSelection.apply!(location.reload)
-      else
-        progress&.step("site=#{entry.site_number} tip=missing")
-      end
-
-      StationSnapshotCache.warm(location.reload)
-      StateListingCache.warm(entry.state_code) if warm_listing
-      progress&.step("site=#{entry.site_number} tip=#{tip ? tip[:value] : 'nil'}")
-      1
+    location = upsert_location!(entry)
+    series = upsert_series!(location, entry)
+    tip = fetch_latest_result(entry)
+    if tip
+      upsert_tip!(series, tip, entry)
+      DisplaySeriesSelection.apply!(location.reload)
+    else
+      progress&.step("site=#{entry.site_number} tip=missing")
     end
+
+    StationSnapshotCache.warm(location.reload)
+    StateListingCache.warm(entry.state_code) if warm_listing
+    progress&.step("site=#{entry.site_number} tip=#{tip ? tip[:value] : 'nil'}")
+    1
   end
 
   private

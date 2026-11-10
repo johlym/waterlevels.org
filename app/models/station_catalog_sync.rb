@@ -32,17 +32,20 @@ class StationCatalogSync
       Rails.logger.info(
         "StationCatalogSync skipped: lock held state=#{postal_code || "national"}"
       )
+      Telemetry.ensure_work(
+        "catalog_sync",
+        provider: "usgs",
+        state: postal_code || "national"
+      ) { Telemetry.skip!("lock_held") }
       return false
     end
 
     @lock_owner = owner
     begin
-      Telemetry.in_root_span(
-        "catalog.sync",
-        attributes: {
-          "app.operation" => "catalog.sync",
-          "app.state" => postal_code || "national"
-        }
+      Telemetry.ensure_work(
+        "catalog_sync",
+        provider: "usgs",
+        state: postal_code || "national"
       ) do
         perform_body
       end
@@ -68,9 +71,9 @@ class StationCatalogSync
     else
       progress&.step("starting catalog")
     end
-    Telemetry.add_attributes(
-      "app.catalog_resumed" => resumed,
-      "app.completed_parameter_codes" => skipped_parameter_codes.join(",")
+    Telemetry.note(
+      catalog_resumed: resumed,
+      completed_parameter_codes: skipped_parameter_codes.join(",")
     )
 
     begin
@@ -93,10 +96,6 @@ class StationCatalogSync
         parameter_discovered = rows.size
         discovered_rows += parameter_discovered
         progress&.step("parameter=#{parameter_code} active series=#{parameter_discovered}")
-        Telemetry.add_attributes(
-          "app.parameter_code" => parameter_code,
-          "app.batch_size" => parameter_discovered
-        )
 
         kept = upsert_locations_for(rows)
         kept_location_ids.merge(kept)
@@ -141,13 +140,12 @@ class StationCatalogSync
     EdgeCacheInvalidation.after_catalog_sync!(state: state)
     location_count = location_scope.count
     series_count = time_series_scope.count
-    Telemetry.add_attributes(
-      "app.locations_kept" => kept_location_ids.size,
-      "app.locations_count" => location_count,
-      "app.series_count" => series_count,
-      "app.observation_count" => discovered_rows,
-      "app.batch_size" => kept_location_ids.size,
-      "app.catalog_resumed" => resumed
+    Telemetry.note(
+      items: kept_location_ids.size,
+      rows_written: discovered_rows,
+      locations: location_count,
+      series_count: series_count,
+      catalog_resumed: resumed
     )
     progress&.finish("locations=#{location_count} time_series=#{series_count}")
     AdminDashboardStats.record_job_finish!(

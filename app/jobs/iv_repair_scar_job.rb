@@ -38,32 +38,31 @@ class IvRepairScarJob < ApplicationJob
 
   def perform(monitoring_location_id)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    Telemetry.in_span(
-      "job.iv_repair_scar",
-      attributes: {
-        "app.operation" => "job.iv_repair_scar",
-        "app.monitoring_location_id" => monitoring_location_id
-      }
+    Telemetry.work(
+      "iv_repair_scar",
+      provider: "usgs",
+      range: HistoryIngestion::DEFAULT_RANGE,
+      ingest_mode: HistoryIngestion::MODE_IV_REPAIR_SCAR
     ) do
       unless AppConfig.boolean?(:iv_scar_enabled)
-        Telemetry.add_attributes("app.skip_reason" => "disabled_by_settings")
+        Telemetry.skip!("disabled_by_settings")
         Rails.logger.info("IvRepairScarJob skipped: disabled by admin settings id=#{monitoring_location_id}")
         return
       end
       if self.class.paused_for_catalog_sync?
-        Telemetry.add_attributes("app.skip_reason" => "sunday_catalog_sync")
+        Telemetry.skip!("sunday_catalog_sync")
         Rails.logger.info("IvRepairScarJob skipped: Sunday catalog sync window id=#{monitoring_location_id}")
         return
       end
       unless Usgs::HistoryKeyPool.configured?(:iv_repair2)
-        Telemetry.add_attributes("app.skip_reason" => "iv_repair2_key_unconfigured")
+        Telemetry.skip!("iv_repair2_key_unconfigured")
         Rails.logger.info(
           "IvRepairScarJob skipped: USGS_API_HISTORY_IVREPAIR2_KEY unset id=#{monitoring_location_id}"
         )
         return
       end
       unless Usgs::HistoryKeyPool.iv_repair2_available?
-        Telemetry.add_attributes("app.skip_reason" => "iv_repair2_key_unavailable")
+        Telemetry.skip!("iv_repair2_key_unavailable")
         Rails.logger.info(
           "IvRepairScarJob skipped: IV scar rate limit circuit open id=#{monitoring_location_id} " \
           "circuit=#{Usgs::HistoryKeyPool.circuit_key_for(:iv_repair2)}"
@@ -71,16 +70,11 @@ class IvRepairScarJob < ApplicationJob
         return
       end
       if DatabaseReadOnlyCircuit.open?
-        Telemetry.add_attributes("app.skip_reason" => "db_read_only_circuit")
         raise DatabaseReadOnlyError, "database read-only circuit open id=#{monitoring_location_id}"
       end
 
       location = MonitoringLocation.find(monitoring_location_id)
-      Telemetry.add_attributes(
-        "app.site_number" => location.site_number,
-        "app.state" => location.state_code,
-        "app.location_name" => location.display_name
-      )
+      Telemetry.note(site_number: location.site_number, state: location.state_code)
       Rails.logger.info(
         "IvRepairScarJob start id=#{location.id} site=#{location.site_number} " \
         "state=#{location.state_code} name=#{location.display_name.inspect} " \
@@ -103,13 +97,12 @@ class IvRepairScarJob < ApplicationJob
       parked_unfillable = location.known_missing_usgs_iv?
       recheck_at = location.usgs_iv_gap_recheck_at
       elapsed_s = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(2)
-      Telemetry.add_attributes(
-        "app.still_needs_iv_scar_repair" => still_needs,
-        "app.parked_unfillable" => parked_unfillable,
-        "app.continuous_observation_count" => stats[:continuous_observation_count].to_i,
-        "app.continuous_series_count" => stats[:continuous_series_count].to_i,
-        "app.range_count" => stats[:range_count].to_i,
-        "app.elapsed_s" => elapsed_s
+      Telemetry.note(
+        incomplete: still_needs || stats[:continuous_incomplete],
+        parked_unfillable: parked_unfillable,
+        rows_written: stats[:continuous_observation_count].to_i,
+        items: stats[:continuous_series_count].to_i,
+        range_count: stats[:range_count].to_i
       )
 
       if still_needs

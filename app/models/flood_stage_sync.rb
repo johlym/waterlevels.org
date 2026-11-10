@@ -24,13 +24,7 @@ class FloodStageSync
   def perform
     raise ArgumentError, "FloodStageSync requires a state (national runs use FloodStageSyncJob)" if postal_code.blank?
 
-    Telemetry.in_root_span(
-      "flood.sync",
-      attributes: {
-        "app.operation" => "flood.sync",
-        "app.state" => postal_code
-      }
-    ) do
+    Telemetry.ensure_work("flood_sync", provider: "nwps") do
       @detail_requests_remaining = detail_request_budget
       progress&.step("#{scope_label} detail_budget=#{@detail_requests_remaining}")
 
@@ -78,18 +72,14 @@ class FloodStageSync
         elapsed: elapsed_s(phase_start).to_f
       )
 
-      Telemetry.add_attributes(
-        "app.batch_size" => gauges_by_lid.size,
-        "app.list_updated" => list_updated,
-        "app.expired_count" => expired,
-        "app.alert_matched" => alert_matched,
-        "app.matched_count" => matched,
-        "app.unmatched_count" => unmatched,
-        "app.skipped_count" => skipped,
-        "app.error_count" => errors,
-        "app.detail_budget" => detail_request_budget,
-        "app.detail_budget_remaining" => @detail_requests_remaining
-      )
+      Telemetry.add_count("pipeline.gauges", gauges_by_lid.size)
+      Telemetry.add_count("pipeline.list_updated", list_updated)
+      Telemetry.add_count("pipeline.expired", expired)
+      Telemetry.add_count("pipeline.alert_matched", alert_matched)
+      Telemetry.add_count("pipeline.matched", matched)
+      Telemetry.add_count("pipeline.unmatched", unmatched)
+      Telemetry.add_count("pipeline.skipped", skipped)
+      Telemetry.add_count("pipeline.errors", errors)
 
       changed = list_updated.positive? || expired.positive? ||
         alert_matched.positive? || matched.positive? || unmatched.positive?

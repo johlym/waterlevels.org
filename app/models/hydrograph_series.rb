@@ -13,34 +13,13 @@ class HydrographSeries
   attr_accessor :time_series, :range
 
   def self.for(location:, kind: nil, parameter_code: nil, range: "7d")
-    Telemetry.in_span(
-      "hydrograph.build",
-      attributes: {
-        "app.operation" => "hydrograph.build",
-        "app.site_number" => location.site_number,
-        "app.state" => location.state_code,
-        "app.parameter_code" => parameter_code,
-        "app.measurement_kind" => kind,
-        "app.range" => range
-      }
-    ) do
-      series = find_series(location, kind: kind, parameter_code: parameter_code)
-      unless series
-        record_empty!(location, kind: kind, parameter_code: parameter_code, range: range)
-        return empty(kind || parameter_code, range)
-      end
-
-      payload = new(time_series: series, range: range).as_json
-      Telemetry.add_attributes(
-        "app.parameter_code" => series.parameter_code,
-        "app.measurement_kind" => series.measurement_kind,
-        "app.observation_count" => Array(payload[:points]).size,
-        "app.batch_size" => Array(payload[:points]).size,
-        "app.series_found" => true,
-        "app.series_selected" => series.selected_for_display?
-      )
-      payload
+    series = find_series(location, kind: kind, parameter_code: parameter_code)
+    unless series
+      record_empty!(location, kind: kind, parameter_code: parameter_code, range: range)
+      return empty(kind || parameter_code, range)
     end
+
+    new(time_series: series, range: range).as_json
   end
 
   def self.find_series(location, kind:, parameter_code:)
@@ -64,11 +43,6 @@ class HydrographSeries
   end
 
   def self.record_empty!(location, kind:, parameter_code:, range:)
-    Telemetry.add_attributes(
-      "app.observation_count" => 0,
-      "app.batch_size" => 0,
-      "app.series_found" => false
-    )
     return unless location.has_water_level? || location.has_discharge? ||
       location.has_temperature? || location.latest_observed_at.present?
 

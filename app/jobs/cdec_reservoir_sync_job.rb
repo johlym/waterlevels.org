@@ -2,10 +2,7 @@ class CdecReservoirSyncJob < ApplicationJob
   queue_as :sync
 
   def perform
-    Telemetry.in_root_span(
-      "job.cdec_reservoir_sync",
-      attributes: { "app.operation" => "job.cdec_reservoir_sync" }
-    ) do
+    Telemetry.work("cdec_sync", provider: "cdec") do
       progress = SyncProgress.new("CdecReservoirSyncJob", io: nil, every: 1)
       count = CdecReservoirSync.new(progress: progress).perform
       Cdec::ReservoirCatalog.active_entries.each do |entry|
@@ -14,7 +11,7 @@ class CdecReservoirSyncJob < ApplicationJob
 
         CdecHistoryIngestion.new(progress: progress).ingest_recent_tip!(location)
       end
-      Telemetry.add_attributes("app.batch_size" => count)
+      Telemetry.note(items: count)
       progress.finish("synced=#{count}")
       count
     end

@@ -4,12 +4,10 @@ class NwpsHistoryBackfillJob < ApplicationJob
   queue_as :backfill
 
   def perform(site_number)
-    Telemetry.in_root_span(
-      "job.nwps_history_backfill",
-      attributes: {
-        "app.operation" => "job.nwps_history_backfill",
-        "app.site_number" => site_number.to_s
-      }
+    Telemetry.work(
+      "nwps_history",
+      provider: "nwps",
+      site_number: site_number.to_s
     ) do
       location = require_synced_location!(site_number)
       raise ArgumentError, "not an NWPS location" unless location.data_provider == DataProviders::NWPS
