@@ -117,6 +117,15 @@ class HoneycombPipelineBoardTest < ActiveSupport::TestCase
     assert_operator headers[2][:position][:y_coordinate], :<, headers[3][:position][:y_coordinate]
     assert payload[:panels].all? { |panel| panel[:position][:width].positive? }
 
+    graphs = payload[:panels].select { |panel| panel[:type] == "query" && panel[:query_panel][:query_style] != "table" }
+    assert graphs.any?
+    assert graphs.all? { |panel|
+      panel[:query_panel][:visualization_settings][:charts].all? { |chart| chart[:omit_missing_values] }
+    }
+    duration = graphs.find { |panel| panel[:query_panel][:query_style] == "graph" }
+    assert_equal [ 0, 1, 2 ], duration[:query_panel][:visualization_settings][:charts].map { |chart| chart[:chart_index] }
+    assert graphs.any? { |panel| panel[:query_panel][:visualization_settings][:overlaid_charts] }
+
     columns = http.calls.select { |method, path, _body| method == :post && path == "/1/columns/waterlevels" }
     types = columns.to_h { |_method, _path, column| [ column[:key_name], column[:type] ] }
     assert_equal "string", types["pipeline.skip_reason"]

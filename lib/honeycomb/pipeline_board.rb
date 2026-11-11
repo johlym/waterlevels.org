@@ -496,12 +496,23 @@ module Honeycomb
       query_panel = {
         query_id: query_id,
         query_annotation_id: annotation_id,
-        query_style: panel[:style]
+        query_style: panel[:style],
+        visualization_settings: visualization_settings(panel)
       }
-      if panel[:overlaid]
-        query_panel[:visualization_settings] = { overlaid_charts: true }
-      end
       { type: "query", position: position, query_panel: query_panel }
+    end
+
+    # Honeycomb draws a zero for every time bucket with no events. Gauges land
+    # every 10 minutes, so the default looks like a drop to zero between reports.
+    # Omit missing values interpolates across those empty buckets.
+    def visualization_settings(panel)
+      settings = {
+        charts: panel[:query][:calculations].each_index.map { |index|
+          { chart_index: index, omit_missing_values: true }
+        }
+      }
+      settings[:overlaid_charts] = true if panel[:overlaid]
+      settings
     end
 
     # Honeycomb rejects a query that names a column the dataset has never stored.
