@@ -504,11 +504,17 @@ module Honeycomb
 
     # Honeycomb draws a zero for every time bucket with no events. Gauges land
     # every 10 minutes, so the default looks like a drop to zero between reports.
-    # Omit missing values interpolates across those empty buckets.
+    # Omit missing values interpolates across those empty buckets. A HEATMAP
+    # chart must stay chart_type "default"; omit-missing is a line-chart control
+    # and Honeycomb rejects any other type on a heatmap.
     def visualization_settings(panel)
       settings = {
-        charts: panel[:query][:calculations].each_index.map { |index|
-          { chart_index: index, omit_missing_values: true }
+        charts: panel[:query][:calculations].each_with_index.map { |calculation, index|
+          if calculation[:op] == "HEATMAP"
+            { chart_index: index, chart_type: "default" }
+          else
+            { chart_index: index, omit_missing_values: true }
+          end
         }
       }
       settings[:overlaid_charts] = true if panel[:overlaid]

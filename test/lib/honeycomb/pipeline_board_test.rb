@@ -119,11 +119,22 @@ class HoneycombPipelineBoardTest < ActiveSupport::TestCase
 
     graphs = payload[:panels].select { |panel| panel[:type] == "query" && panel[:query_panel][:query_style] != "table" }
     assert graphs.any?
-    assert graphs.all? { |panel|
-      panel[:query_panel][:visualization_settings][:charts].all? { |chart| chart[:omit_missing_values] }
-    }
     duration = graphs.find { |panel| panel[:query_panel][:query_style] == "graph" }
-    assert_equal [ 0, 1, 2 ], duration[:query_panel][:visualization_settings][:charts].map { |chart| chart[:chart_index] }
+    duration_charts = duration[:query_panel][:visualization_settings][:charts]
+    assert_equal [ 0, 1, 2 ], duration_charts.map { |chart| chart[:chart_index] }
+    assert duration_charts[0][:omit_missing_values]
+    assert_equal "default", duration_charts[1][:chart_type]
+    refute duration_charts[1].key?(:omit_missing_values)
+    assert duration_charts[2][:omit_missing_values]
+    graphs.each do |panel|
+      panel[:query_panel][:visualization_settings][:charts].each do |chart|
+        if chart[:chart_type] == "default"
+          refute chart.key?(:omit_missing_values)
+        else
+          assert chart[:omit_missing_values]
+        end
+      end
+    end
     assert graphs.any? { |panel| panel[:query_panel][:visualization_settings][:overlaid_charts] }
 
     columns = http.calls.select { |method, path, _body| method == :post && path == "/1/columns/waterlevels" }
