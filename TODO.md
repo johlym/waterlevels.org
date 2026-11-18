@@ -1,4 +1,8 @@
-# Missing features vs HydroTrace mockups
+# TODO
+
+- [ ] Replace live `COUNT(*)` scans of observation tables with an hourly `observation_rollups` table. A statement-level trigger on insert and delete maintains `point_count` and `selected_point_count` per hour, sharded by `time_series_id % 16`. Seed once from the fact tables, rebuild weekly beside retention, and publish the sums (lifetime, 24h, 7d, today) on the `admin:inventory` counter. Homepage, `/admin`, and Puma boot read that row. `AdminDashboardCountersJob` stops scanning `continuous_observations`. Daily and peak totals use the same rollup. Redis may cache the snapshot; a restart reloads the counter row.
+
+## Missing features vs HydroTrace mockups
 
 Gaps between the Shuffle/HydroTrace mockups (`shuffle 2`) and what WaterLevels.org currently ships. Items below are not implemented unless noted as partial.
 
