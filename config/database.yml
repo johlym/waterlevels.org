@@ -16,4 +16,9 @@ test:
 
 production:
   <<: *default
-  url: <%= ENV["DATABASE_URL"] %>
+  # PlanetScale pooler (port 6432). Unset PS_DATABASE_URL until cutover — while
+  # it is set, production uses it instead of the Heroku DATABASE_URL attachment.
+  # Release clears PS_DATABASE_URL and points DATABASE_URL at
+  # PS_DATABASE_DIRECT_URL so db:prepare does not run through PgBouncer.
+  url: <%= ENV["PS_DATABASE_URL"].presence || ENV["DATABASE_URL"] %>
+  prepared_statements: false
