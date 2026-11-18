@@ -17,12 +17,27 @@ test:
 production:
   <<: *default
   # PS_DATABASE_URL is the lasting app connection (PlanetScale pooler, port
-  # 6432). It stays after cutover; do not copy it onto DATABASE_URL.
-  # DATABASE_URL is only the Heroku attachment, used while PS_DATABASE_URL is
-  # unset. Leave PS_DATABASE_URL unset until the mirror is ready to take
-  # traffic — a deploy with it set points the app at PlanetScale.
-  # The release process hides PS_DATABASE_URL for that one command and points
-  # DATABASE_URL at PS_DATABASE_DIRECT_URL so db:prepare does not use the pooler.
-  # That does not change the config var the dynos read.
-  url: <%= ENV["PS_DATABASE_URL"].presence || ENV["DATABASE_URL"] %>
+  # 6432). DATABASE_URL is only the leftover Heroku attachment.
+  # PlanetScale dashboard URLs use sslrootcert=system, which libpq on Heroku
+  # does not resolve. Drop those params and pin the distro CA bundle so
+  # verify-full succeeds. The URL query overrides keys in this file, so the
+  # params have to be removed from the URL itself.
+  <%
+    database_url = ENV["PS_DATABASE_URL"].presence || ENV["DATABASE_URL"]
+    planetscale = false
+    if database_url.present?
+      uri = URI.parse(database_url)
+      planetscale = uri.host.to_s.end_with?("psdb.cloud")
+      if planetscale && uri.query
+        kept = URI.decode_www_form(uri.query).reject { |key, _| %w[sslmode sslrootcert].include?(key) }
+        uri.query = kept.empty? ? nil : URI.encode_www_form(kept)
+        database_url = uri.to_s
+      end
+    end
+  %>
+  url: <%= database_url %>
   prepared_statements: false
+  <% if planetscale %>
+  sslmode: verify-full
+  sslrootcert: /etc/ssl/certs/ca-certificates.crt
+  <% end %>
