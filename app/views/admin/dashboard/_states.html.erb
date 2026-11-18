@@ -58,7 +58,10 @@
             <% selected = row[:selected_count].to_i %>
             <tr>
               <td>
-                <%= link_to "#{row[:state_name]} (#{row[:state_code].upcase})", state_gauges_path(row[:state_code]), class: "station-link" %>
+                <%= link_to "#{row[:state_name]} (#{row[:state_code].upcase})",
+                      state_gauges_path(row[:state_code]),
+                      class: "station-link",
+                      data: { turbo_frame: "_top" } %>
                 <% if selected.positive? && selected != row[:station_count] %>
                   <span class="cell-hint"><%= number_with_delimiter(selected) %> with selected series</span>
                 <% end %>
