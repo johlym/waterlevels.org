@@ -69,6 +69,12 @@ Rails.application.configure do
   # Only use :id for inspections in production.
   config.active_record.attributes_for_inspect = [ :id ]
 
+  # Send SQLCommenter tags to PlanetScale, including
+  # release='Release <HEROKU_RELEASE_VERSION>'. Enabling query log tags also
+  # disables prepared statements; the PlanetScale pooler already requires that.
+  config.active_record.query_log_tags_enabled = true
+  config.active_record.query_log_tags_format = :sqlcommenter
+
   if ENV["APP_HOST"].present?
     host = ENV["APP_HOST"].to_s.strip.downcase.delete_prefix("https://").delete_prefix("http://").split("/").first
     config.hosts << host
