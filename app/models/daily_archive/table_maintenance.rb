@@ -125,8 +125,8 @@ module DailyArchive
         end
       end
 
-      # Heroku has no pooler. Once PS_DATABASE_URL is the PlanetScale pooler,
-      # VACUUM must go to PS_DATABASE_DIRECT_URL (port 5432) or be skipped.
+      # PS_DATABASE_URL stays the pooler. VACUUM cannot run there, so it uses
+      # PS_DATABASE_DIRECT_URL (port 5432) or is skipped. Heroku has neither.
       def pooler_without_direct_url?
         return false if ENV["PS_DATABASE_DIRECT_URL"].present?
 
