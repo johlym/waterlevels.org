@@ -16,9 +16,13 @@ test:
 
 production:
   <<: *default
-  # PlanetScale pooler (port 6432). Unset PS_DATABASE_URL until cutover — while
-  # it is set, production uses it instead of the Heroku DATABASE_URL attachment.
-  # Release clears PS_DATABASE_URL and points DATABASE_URL at
-  # PS_DATABASE_DIRECT_URL so db:prepare does not run through PgBouncer.
+  # PS_DATABASE_URL is the lasting app connection (PlanetScale pooler, port
+  # 6432). It stays after cutover; do not copy it onto DATABASE_URL.
+  # DATABASE_URL is only the Heroku attachment, used while PS_DATABASE_URL is
+  # unset. Leave PS_DATABASE_URL unset until the mirror is ready to take
+  # traffic — a deploy with it set points the app at PlanetScale.
+  # The release process hides PS_DATABASE_URL for that one command and points
+  # DATABASE_URL at PS_DATABASE_DIRECT_URL so db:prepare does not use the pooler.
+  # That does not change the config var the dynos read.
   url: <%= ENV["PS_DATABASE_URL"].presence || ENV["DATABASE_URL"] %>
   prepared_statements: false
