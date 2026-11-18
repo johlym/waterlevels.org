@@ -522,6 +522,22 @@ class AdminDashboardStatsTest < ActiveSupport::TestCase
     AppConfig.reset!(:admin_dashboard_statement_timeout_ms)
   end
 
+  test "with_statement_timeout uses SET LOCAL inside a transaction" do
+    statements = []
+    callback = lambda { |_name, _start, _finish, _id, payload|
+      statements << payload[:sql].to_s
+    }
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      AdminDashboardStats.with_statement_timeout(1_500) do
+        MonitoringLocation.limit(1).pluck(:id)
+      end
+    end
+
+    assert statements.any? { |sql| sql.match?(/SET LOCAL statement_timeout/i) }
+    assert statements.any? { |sql| sql.match?(/\A(?:BEGIN|SAVEPOINT)\b/i) }
+    refute statements.any? { |sql| sql.match?(/\ASET statement_timeout/i) }
+  end
+
   test "section snapshots compose into the full snapshot" do
     create(:monitoring_location, state_code: "wa", latest_observed_at: 30.minutes.ago)
 

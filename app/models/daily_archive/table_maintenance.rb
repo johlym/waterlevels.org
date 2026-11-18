@@ -13,6 +13,12 @@ module DailyArchive
       continuous: "continuous_observations"
     }.freeze
 
+    # Dedicated connection for VACUUM. PgBouncer transaction pooling cannot
+    # run VACUUM, and VACUUM cannot run inside a transaction.
+    class DirectConnection < ActiveRecord::Base
+      self.abstract_class = true
+    end
+
     class << self
       def vacuum_enabled?
         AppConfig.boolean?(:daily_archive_vacuum)
@@ -67,10 +73,17 @@ module DailyArchive
         return skip_result("test") if Rails.env.test? && !force
         return skip_result("disabled") unless vacuum_enabled?
         return skip_result("empty") if tables.empty?
+        return skip_result("pooler") if pooler_without_direct_url?
 
         started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-        connection.execute("SET statement_timeout TO 0")
-        vacuum_allowlisted!(tables)
+        with_maintenance_connection do |conn|
+          conn.execute("SET statement_timeout TO 0")
+          begin
+            vacuum_allowlisted!(tables, conn)
+          ensure
+            conn.execute("SET statement_timeout TO DEFAULT")
+          end
+        end
         duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
         progress&.step("postgres vacuum tables=#{tables.join(",")} duration_ms=#{duration_ms}")
         Rails.logger.info(
@@ -81,8 +94,6 @@ module DailyArchive
         Rails.logger.warn("[DailyArchive::TableMaintenance] vacuum failed: #{e.class}: #{e.message}")
         Sentry.capture_exception(e) if defined?(Sentry)
         { vacuumed: false, tables: tables, duration_ms: 0, error: e.message }
-      ensure
-        connection.execute("SET statement_timeout TO DEFAULT")
       end
 
       private
@@ -101,17 +112,56 @@ module DailyArchive
 
       # Literal SQL only — Brakeman treats interpolated VACUUM as SQL injection
       # even after quote_table_name.
-      def vacuum_allowlisted!(tables)
+      def vacuum_allowlisted!(tables, conn = connection)
         tables.each do |name|
           case name
           when TABLES[:daily]
-            connection.execute("VACUUM (ANALYZE) daily_observations")
+            conn.execute("VACUUM (ANALYZE) daily_observations")
           when TABLES[:continuous]
-            connection.execute("VACUUM (ANALYZE) continuous_observations")
+            conn.execute("VACUUM (ANALYZE) continuous_observations")
           else
             raise ArgumentError, "refusing to vacuum #{name.inspect}"
           end
         end
+      end
+
+      # PS_DATABASE_URL stays the pooler. VACUUM cannot run there, so it uses
+      # PS_DATABASE_DIRECT_URL (port 5432) or is skipped. Heroku has neither.
+      def pooler_without_direct_url?
+        return false if ENV["PS_DATABASE_DIRECT_URL"].present?
+
+        pooler_database_url?(ENV["PS_DATABASE_URL"].presence || ENV["DATABASE_URL"])
+      end
+
+      def pooler_database_url?(url)
+        text = url.to_s
+        text.match?(/:6432(\/|\?|$)/) || text.include?("pgbouncer")
+      end
+
+      def with_maintenance_connection
+        if ENV["PS_DATABASE_DIRECT_URL"].present?
+          yield checkout_direct_connection
+        else
+          yield connection
+        end
+      ensure
+        release_direct_connection if ENV["PS_DATABASE_DIRECT_URL"].present?
+      end
+
+      def checkout_direct_connection
+        DirectConnection.establish_connection(
+          adapter: "postgresql",
+          url: ENV["PS_DATABASE_DIRECT_URL"],
+          prepared_statements: false,
+          pool: 1
+        )
+        DirectConnection.connection
+      end
+
+      def release_direct_connection
+        return unless DirectConnection.connected?
+
+        DirectConnection.connection_pool.disconnect!
       end
 
       def connection

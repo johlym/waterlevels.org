@@ -256,16 +256,18 @@ class AdminDashboardStats
       STATEMENT_TIMEOUT_MS
     end
 
+    # SET LOCAL only applies inside a transaction, and PgBouncer transaction
+    # pooling drops a session-level SET before the next statement.
     def with_statement_timeout(ms = nil)
       ms = statement_timeout_ms if ms.nil?
       connection = ActiveRecord::Base.connection
-      previous = connection.select_value("SHOW statement_timeout")
-      # Quote the coerced integer so Brakeman does not flag string interpolation.
-      connection.execute("SET statement_timeout TO #{connection.quote(Integer(ms))}")
-      yield
-    ensure
-      if previous
-        connection.execute("SET statement_timeout TO #{connection.quote(previous)}")
+      timeout_ms = Integer(ms)
+      connection.transaction do
+        # Quote the coerced integer so Brakeman does not flag string interpolation.
+        connection.execute(
+          "SET LOCAL statement_timeout TO #{connection.quote(timeout_ms)}"
+        )
+        yield
       end
     end
 
