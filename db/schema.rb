@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_08_213000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_18_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -194,6 +194,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_213000) do
     t.index ["state_code", "county_name", "name"], name: "idx_on_state_code_county_name_name_ac7d4d7687"
   end
 
+  create_table "observation_rollups", primary_key: ["dataset", "bucket", "shard"], force: :cascade do |t|
+    t.integer "dataset", limit: 2, null: false
+    t.datetime "bucket", null: false
+    t.integer "shard", limit: 2, null: false
+    t.bigint "point_count", null: false
+    t.bigint "selected_point_count", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
   create_table "peak_observations", force: :cascade do |t|
     t.string "approval_status"
     t.datetime "created_at", null: false
@@ -291,4 +301,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_213000) do
   add_foreign_key "station_watches", "subscribers"
   add_foreign_key "subscriber_tokens", "subscribers"
   add_foreign_key "time_series", "monitoring_locations"
+  execute File.read(File.expand_path("observation_rollups.sql", __dir__))
+
 end

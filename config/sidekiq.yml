@@ -69,6 +69,12 @@
       cron: "15 9 * * *"
       class: ContinuousPruneJob
       queue: default
+    observation_rollup_rebuild:
+      # Sunday, after the 09:15 prune. Triggers maintain the hourly counts
+      # the rest of the week; this rebuild repairs selection changes.
+      cron: "45 9 * * 0"
+      class: ObservationRollupRebuildJob
+      queue: default
     usbr_reservoir_sync:
       # Daily tip + recent archive window for curated USBR reservoirs (Mead).
       cron: "20 4 * * *"
