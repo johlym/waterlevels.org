@@ -5,4 +5,4 @@ iv_repair_worker: bundle exec sidekiq -C config/sidekiq_iv_repair.yml
 iv_repair_scar_worker: bundle exec sidekiq -C config/sidekiq_iv_repair_scar.yml
 historical_worker: bundle exec sidekiq -C config/sidekiq_historical.yml
 notifications_worker: bundle exec sidekiq -C config/sidekiq_notifications.yml
-release: echo "Skipping db:prepare. DATABASE_URL still points at detached Heroku Postgres, and a failing release rolls config changes back."
+release: env -u PS_DATABASE_URL DATABASE_URL="${PS_DATABASE_DIRECT_URL:-$DATABASE_URL}" bundle exec rails db:prepare
