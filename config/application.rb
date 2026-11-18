@@ -23,6 +23,14 @@ module Waterlevels
     # Initialize configuration defaults for originally generated Rails version.
     config.load_defaults 8.1
 
+    # PlanetScale Insights reads SQLCommenter comments. `release` is
+    # "Release <HEROKU_RELEASE_VERSION>" from Heroku runtime dyno metadata.
+    # A blank version leaves that tag off. Production turns the tags on.
+    config.active_record.query_log_tags_format = :sqlcommenter
+    config.active_record.query_log_tags += [
+      { release: -> { QueryReleaseTag.value } }
+    ]
+
     # No Active Storage variants in this app; silence boot warnings.
     config.active_storage.variant_processor = :disabled
 
