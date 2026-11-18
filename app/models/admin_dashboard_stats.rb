@@ -3,7 +3,7 @@
 # Counter-backed (Postgres AdminCounter, written by jobs / AdminDashboardCountersJob):
 #   - Job-finish / tip-refresh / IV candidate snapshots (record_job_finish!)
 #   - Inventory aggregates (backfill coverage, measurement totals, stale/NWPS)
-#   - Growth continuous 24h/7d window counts (COUNT on continuous_observations)
+#   - Growth continuous 24h/7d window counts (sums of observation_rollups)
 #
 # Live on each section request (not Counters):
 #   - Sidekiq health, USGS/DB circuit breakers
@@ -367,6 +367,7 @@ class AdminDashboardStats
       archive_daily_observation_count: archive_daily_count,
       daily_archive_shard_count: DailyArchive.shard_count,
       measurement_count: measurement_count,
+      updates_today: totals[:updates_today],
       continuous_last_24h: window_counts[:continuous_last_24h],
       continuous_last_7d: window_counts[:continuous_last_7d],
       continuous_last_24h_selected: window_counts[:continuous_last_24h_selected],
@@ -611,41 +612,17 @@ class AdminDashboardStats
     payload.merge(computed_at: row.computed_at)
   end
 
-  # One index range scan for both windows — 7d includes 24h. Selected-series
-  # totals are the numerator and denominator for the implied IV spacing.
+  # Hour sums from observation_rollups. The distinct selected-series count
+  # stays on time_series.continuous_newest_at so this does not scan
+  # continuous_observations. 7d includes 24h at hour precision.
   def continuous_window_counts
-    since_24h = 24.hours.ago
-    since_7d = 7.days.ago
-    row = connection.select_one(
-      ActiveRecord::Base.sanitize_sql_array(
-        [
-          <<~SQL.squish,
-            SELECT
-              COUNT(*) FILTER (WHERE co.observed_at >= ?) AS last_24h,
-              COUNT(*) AS last_7d,
-              COUNT(*) FILTER (
-                WHERE co.observed_at >= ? AND ts.selected_for_display
-              ) AS last_24h_selected,
-              COUNT(DISTINCT co.time_series_id) FILTER (
-                WHERE co.observed_at >= ? AND ts.selected_for_display
-              ) AS last_24h_selected_series
-            FROM continuous_observations co
-            LEFT JOIN time_series ts ON ts.id = co.time_series_id
-            WHERE co.observed_at >= ?
-          SQL
-          since_24h,
-          since_24h,
-          since_24h,
-          since_7d
-        ]
-      )
-    ) || {}
-
+    summary = ObservationRollup.summary
+    continuous = summary[:continuous]
     {
-      continuous_last_24h: row["last_24h"].to_i,
-      continuous_last_7d: row["last_7d"].to_i,
-      continuous_last_24h_selected: row["last_24h_selected"].to_i,
-      continuous_last_24h_selected_series: row["last_24h_selected_series"].to_i
+      continuous_last_24h: continuous[:last_24h],
+      continuous_last_7d: continuous[:last_7d],
+      continuous_last_24h_selected: continuous[:last_24h_selected],
+      continuous_last_24h_selected_series: TimeSeries.selected.where(continuous_newest_at: 24.hours.ago..).count
     }
   end
 
