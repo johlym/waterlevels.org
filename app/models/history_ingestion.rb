@@ -139,6 +139,7 @@ class HistoryIngestion
       end
 
       @continuous_incomplete = false
+      @continuous_tips = {}
       continuous_count = ingest_continuous_for(continuous_series)
       daily_count = ingest_daily_for(daily_series)
       peak_count = ingest_peaks_for(peak_series)
@@ -171,9 +172,9 @@ class HistoryIngestion
         incomplete: @continuous_incomplete
       )
 
-      # History may write fresher continuous points while hourly tip sync lagged.
-      # Advance LatestObservation + denormalized map columns so popups/cards match.
-      advance_latest_tips!(series_list)
+      # Copy tips this ingest actually wrote. A conditional upsert will not
+      # move latest_observations backward if tip sync landed something newer.
+      advance_latest_tips!
       DisplaySeriesSelection.denormalize!(monitoring_location)
       StationSnapshotCache.warm(monitoring_location)
       EdgeCacheInvalidation.after_station_history!(monitoring_location)
@@ -384,17 +385,6 @@ class HistoryIngestion
     (window_start.to_i - start_i).abs <= 2 && (ends.to_i - end_i).abs <= 2
   end
 
-  def self.latest_continuous_rows(ids)
-    ids = Array(ids).map(&:to_i).uniq
-    return {} if ids.empty?
-
-    ContinuousObservation
-      .select("DISTINCT ON (continuous_observations.time_series_id) continuous_observations.*")
-      .where(time_series_id: ids)
-      .order(Arel.sql("continuous_observations.time_series_id, continuous_observations.observed_at DESC"))
-      .index_by(&:time_series_id)
-  end
-
   def self.gap_ranges_from_times(times, window_start:, ends:)
     return [] if times.size < 2
 
@@ -572,35 +562,48 @@ class HistoryIngestion
     series_list.first if series_list.size == 1
   end
 
-  def advance_latest_tips!(series_list)
-    # series_list still has the pre-ingest continuous_newest_at. Coverage was
-    # flushed after continuous upserts, so the live MAX(observed_at) is the tip
-    # that map/gauge denorm must catch up to — not the stale in-memory denorm.
-    tips = self.class.latest_continuous_rows(series_list.map(&:id))
+  def remember_continuous_tip!(series, row)
+    @continuous_tips ||= {}
+    current = @continuous_tips[series.id]
+    return if current && current[:observed_at] > row[:observed_at]
 
-    series_list.each do |series|
-      tip = tips[series.id]
-      next unless tip
+    @continuous_tips[series.id] = row.merge(unit_of_measure: series.unit_of_measure)
+  end
 
-      latest = series.latest_observation
-      next if latest && latest.observed_at.to_i >= tip.observed_at.to_i
-      next if temperature_outlier?(series, tip.value)
+  # Rails appends this after "ON CONFLICT ... DO UPDATE SET".
+  LATEST_TIP_UPDATE_SQL = Arel.sql(<<~SQL.squish).freeze
+    observed_at = EXCLUDED.observed_at,
+    value = EXCLUDED.value,
+    unit_of_measure = EXCLUDED.unit_of_measure,
+    approval_status = EXCLUDED.approval_status,
+    qualifier = EXCLUDED.qualifier,
+    synced_at = EXCLUDED.synced_at,
+    updated_at = EXCLUDED.updated_at
+    WHERE latest_observations.observed_at < EXCLUDED.observed_at
+  SQL
 
-      LatestObservation.upsert(
+  def advance_latest_tips!
+    tips = Array(@continuous_tips&.values)
+    return if tips.empty?
+
+    now = Time.current
+    LatestObservation.upsert_all(
+      tips.map { |tip|
         {
-          time_series_id: series.id,
-          observed_at: tip.observed_at,
-          value: tip.value,
-          unit_of_measure: series.unit_of_measure,
-          approval_status: tip.approval_status,
-          qualifier: tip.qualifier,
-          synced_at: Time.current,
-          created_at: Time.current,
-          updated_at: Time.current
-        },
-        unique_by: :time_series_id
-      )
-    end
+          time_series_id: tip[:time_series_id],
+          observed_at: tip[:observed_at],
+          value: tip[:value],
+          unit_of_measure: tip[:unit_of_measure],
+          approval_status: tip[:approval_status],
+          qualifier: tip[:qualifier],
+          synced_at: now,
+          created_at: now,
+          updated_at: now
+        }
+      },
+      unique_by: :time_series_id,
+      on_duplicate: LATEST_TIP_UPDATE_SQL
+    )
   end
 
   # After a completed scar fetch, refresh the sliding-window max-gap denorm and
@@ -694,7 +697,7 @@ class HistoryIngestion
             next if temperature_outlier?(series, value)
 
             now = Time.current
-            buffer << {
+            row = {
               time_series_id: series.id,
               observed_at: observed_at,
               value: value,
@@ -703,6 +706,8 @@ class HistoryIngestion
               created_at: now,
               updated_at: now
             }
+            buffer << row
+            remember_continuous_tip!(series, row)
             if buffer.size >= continuous_upsert_batch
               flush_continuous_buffer!(buffer)
             end
