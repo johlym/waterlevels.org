@@ -23,6 +23,7 @@
 
     <% payload = related_map_payload(upstream: upstream, downstream: downstream, nearby: nearby, current: current_node) %>
     <% if payload %>
+      <% page_script "map" %>
       <% roles = payload[:stations].map { |station| station[:role] } %>
       <div
         class="related-map"

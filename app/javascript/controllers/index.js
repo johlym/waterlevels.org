@@ -1,7 +1,5 @@
 import { application } from "./application"
 
-import MapController from "./map_controller"
-import HydrographController from "./hydrograph_controller"
 import ParameterToggleController from "./parameter_toggle_controller"
 import TemperatureUnitController from "./temperature_unit_controller"
 import MobileNavController from "./mobile_nav_controller"
@@ -11,10 +9,7 @@ import FaqController from "./faq_controller"
 import DialogController from "./dialog_controller"
 import AdminSectionsController from "./admin_sections_controller"
 import SubscriptionTimezoneController from "./subscription_timezone_controller"
-import RelatedMapController from "./related_map_controller"
 
-application.register("map", MapController)
-application.register("hydrograph", HydrographController)
 application.register("parameter-toggle", ParameterToggleController)
 application.register("temperature-unit", TemperatureUnitController)
 application.register("mobile-nav", MobileNavController)
@@ -24,4 +19,3 @@ application.register("faq", FaqController)
 application.register("dialog", DialogController)
 application.register("admin-sections", AdminSectionsController)
 application.register("subscription-timezone", SubscriptionTimezoneController)
-application.register("related-map", RelatedMapController)

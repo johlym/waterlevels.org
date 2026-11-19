@@ -54,6 +54,10 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "cdn.usefathom.com"
     assert_includes response.body, "Loading…"
     assert_includes response.body, 'data-controller="admin-sections"'
+    assert_match(%r{src="/assets/application-[^"]+\.js"}, response.body)
+    assert_match(%r{data-turbo-track="reload"}, response.body)
+    assert_no_match(%r{src="/assets/map-[^"]+\.js"}, response.body)
+    assert_no_match(%r{src="/assets/hydrograph-[^"]+\.js"}, response.body)
 
     AdminDashboardStats::SECTIONS.each do |section|
       assert_includes response.body, "id=\"admin_section_#{section}\""

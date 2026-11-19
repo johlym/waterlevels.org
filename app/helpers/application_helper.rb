@@ -64,6 +64,13 @@ module ApplicationHelper
     "#{app_base_url}#{path}"
   end
 
+  # Page-specific esbuild entry. The layout always loads application.js.
+  # Packs stay untracked so Turbo appends the script on a visit; tracking
+  # them would change the head signature and force a full reload.
+  def page_script(name)
+    content_for :page_scripts, javascript_include_tag(name, type: "module")
+  end
+
   def json_ld_tag(data)
     tag.script(ERB::Util.json_escape(data.to_json).html_safe, type: "application/ld+json")
   end
