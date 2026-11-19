@@ -1,5 +1,26 @@
 import { Controller } from "@hotwired/stimulus"
-import Chart from "chart.js/auto"
+import {
+  Chart,
+  LineController,
+  LineElement,
+  PointElement,
+  CategoryScale,
+  LinearScale,
+  Filler,
+  Legend,
+  Tooltip
+} from "chart.js"
+
+Chart.register(
+  LineController,
+  LineElement,
+  PointElement,
+  CategoryScale,
+  LinearScale,
+  Filler,
+  Legend,
+  Tooltip
+)
 import { firstPartyApiFetch } from "../lib/api"
 import { formatGaugeValue } from "../lib/gauge_value"
 import { coalesceHourlyReadings } from "../lib/coalesce_hourly_readings"

@@ -32,7 +32,7 @@ These principles explain *why* the code is shaped the way it is. New work should
 - **Data:** PostgreSQL (no PostGIS — lat/lon B-tree indexes + haversine precompute), Redis (cache store, Sidekiq broker, locks, circuit breaker).
 - **Background:** Sidekiq 8 + sidekiq-scheduler.
 - **View layer:** ViewComponent (sidecar), Propshaft, Hotwired Turbo + Stimulus.
-- **Frontend build:** esbuild (JS, ESM bundle) + Tailwind CSS v4 CLI, output to `app/assets/builds`. The map build also emits a bundled `maplibre-gl-worker.js` so MapLibre can parse vector tiles (Propshaft-digested; URL passed via `data-map-maplibre-worker-url-value`).
+- **Frontend build:** esbuild (minified ESM) + Tailwind CSS v4 CLI, output to `app/assets/builds`. Entries are `application.js` (shared shell), `map.js` (Leaflet/MapLibre), and `hydrograph.js` (Chart.js line chart). The map build also emits a bundled `maplibre-gl-worker.js` so MapLibre can parse vector tiles (Propshaft-digested; URL passed via `data-map-maplibre-worker-url-value`).
 - **Client libraries:** Leaflet + markercluster + MapLibre GL via `@maplibre/maplibre-gl-leaflet` (CARTO Dark Matter vector basemap; `CARTO_API_KEY` stamped as `key` on style/tile requests), Chart.js (hydrographs).
 - **HTTP:** Faraday (+ faraday-retry) for USGS/NWPS/Turnstile.
 - **Mail/anti-spam:** bento-actionmailer + premailer-rails; invisible_captcha + Cloudflare Turnstile.
@@ -126,13 +126,13 @@ Caching is layered; keep all three layers consistent when adding a surface.
 
 ## 9. Frontend
 
-- **Build:** esbuild bundles `app/javascript/*.*` to an ESM bundle; Tailwind v4 CLI builds CSS. `Procfile.dev` runs both in `--watch` alongside Rails; production builds the assets ahead of Propshaft serving.
+- **Build:** `node esbuild.config.mjs` writes minified ESM bundles to `app/assets/builds`: `application.js`, `map.js`, and `hydrograph.js`, plus `maplibre-gl-worker.js`. Tailwind v4 CLI builds CSS. `Procfile.dev` runs both in `--watch` alongside Rails; production builds the assets ahead of Propshaft serving. Layouts include `application.js` with `data-turbo-track="reload"`. Map and gauge pages add their pack through `page_script`, which leaves the extra script untracked so Turbo can append it on a visit. Packs register controllers on `window.Stimulus` after the shell starts.
 - **Behavior:** progressive enhancement with Turbo + Stimulus. Notable controllers: `map` (Leaflet + MapLibre CARTO Dark Matter vector basemap + clustering + bbox fetch + search/geolocation + layer filters + stations-in-view list), `hydrograph` (Chart.js dual-axis chart, range tabs, history table, CSV export), `parameter-toggle`, `temperature-unit` (cookie + `PUT /temperature_unit`), `state-directory`, `station-search` (combobox), `mobile-nav`, `dialog`, `faq`.
 - **Chart data:** the gauge view passes an observations URL; `hydrograph_controller` fetches `/api/gauges/:id/observations` per measurement. `HydrographSeries` returns `{ kind, label, range, unit, parameter_code, points:[{t,v}], peaks:[…] }`, using continuous points for `24h/7d/30d` and daily points for `1y`.
 - **Units:** temperature converts to °F/°C client-side based on the `temperature_unit` cookie (default °F).
 - **Accessibility:** every public HTML surface keeps a skip link → `#main`, a `<main id="main">` landmark, visible `:focus-visible` outlines, and `prefers-reduced-motion` reductions. Interactive patterns (search combobox, measurement tabs, mobile nav, FAQ, dialogs, form errors) must preserve the ARIA wiring CI asserts. See §15 and [`doc/accessibility.md`](doc/accessibility.md).
 
-**Conventions:** one Stimulus controller per behavior, registered in `controllers/index.js`; keep server responses cache-friendly; UI chunks are ViewComponents (`component.rb` + `component.html.erb`); never ship under-contrast muted text tokens (see §15).
+**Conventions:** one Stimulus controller per behavior. Controllers used across pages register in `controllers/index.js`. `map`, `related-map`, and `hydrograph` register from `map.js` and `hydrograph.js` so other pages do not download those libraries. Keep server responses cache-friendly; UI chunks are ViewComponents (`component.rb` + `component.html.erb`); never ship under-contrast muted text tokens (see §15).
 
 ## 10. Contact form
 
