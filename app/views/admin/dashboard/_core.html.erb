@@ -34,7 +34,10 @@
       <% last = stats[:last_station_updated] %>
       <% if last %>
         <p class="value value-sm">
-          <%= link_to last[:display_name], gauge_path(last[:path_state], last[:to_param]), class: "station-link" %>
+          <%= link_to last[:display_name],
+                gauge_path(last[:path_state], last[:to_param]),
+                class: "station-link",
+                data: { turbo_frame: "_top" } %>
         </p>
         <p class="label">Last station updated</p>
         <p class="hint">

@@ -59,6 +59,15 @@ class SidekiqProcessQueuesTest < ActiveSupport::TestCase
     assert_equal "50 * * * 1-6", entry["cron"]
   end
 
+  test "scheduler rebuilds observation rollups weekly after prune" do
+    schedule = load_sidekiq_yaml("config/sidekiq.yml").dig(:scheduler, :schedule)
+    entry = schedule.fetch("observation_rollup_rebuild")
+
+    assert_equal "ObservationRollupRebuildJob", entry["class"]
+    assert_equal "default", entry["queue"]
+    assert_equal "45 9 * * 0", entry["cron"]
+  end
+
   test "scheduler runs daily archive export on the backfill queue" do
     schedule = load_sidekiq_yaml("config/sidekiq.yml").dig(:scheduler, :schedule)
     entry = schedule.fetch("daily_archive_export")

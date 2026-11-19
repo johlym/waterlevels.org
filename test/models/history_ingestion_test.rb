@@ -432,7 +432,7 @@ class HistoryIngestionTest < ActiveSupport::TestCase
     end
   end
 
-  test "advances latest tips and denormalized map columns from fresher continuous points" do
+  test "leaves a pre-existing continuous tip in place when this ingest did not write it" do
     older = 4.days.ago.utc.change(sec: 0)
     newer = 1.hour.ago.utc.change(sec: 0)
     @location.update!(
@@ -463,12 +463,12 @@ class HistoryIngestionTest < ActiveSupport::TestCase
     HistoryIngestion.new(monitoring_location: @location, range: "1y").perform
 
     latest = LatestObservation.find_by!(time_series_id: @series.id)
-    assert_equal newer, latest.observed_at
-    assert_in_delta 541.5, latest.value, 0.001
+    assert_equal older, latest.observed_at
+    assert_in_delta 500.0, latest.value, 0.001
 
     @location.reload
-    assert_in_delta 541.5, @location.latest_water_level_value, 0.001
-    assert_equal newer, @location.latest_observed_at
+    assert_in_delta 500.0, @location.latest_water_level_value, 0.001
+    assert_equal older, @location.latest_observed_at
   end
 
   test "advances latest tips when ingest writes points newer than loaded coverage" do
@@ -530,6 +530,65 @@ class HistoryIngestionTest < ActiveSupport::TestCase
       @location.reload
       assert_in_delta 541.5, @location.latest_water_level_value, 0.001
       assert_equal newer, @location.latest_observed_at
+    end
+  end
+
+  test "does not move latest_observations backward when the ingested point is older" do
+    travel_to Time.zone.parse("2026-08-03 12:00:00") do
+      current_tip = 1.hour.ago.utc.change(sec: 0)
+      older_point = 6.hours.ago.utc.change(sec: 0)
+      @location.update!(
+        latest_water_level_value: 541.5,
+        latest_water_level_parameter_code: "62614",
+        latest_water_level_unit: "ft",
+        latest_observed_at: current_tip
+      )
+      LatestObservation.create!(
+        time_series: @series,
+        value: 541.5,
+        unit_of_measure: "ft",
+        observed_at: current_tip,
+        synced_at: current_tip
+      )
+      seed_continuous_coverage!(
+        @series,
+        from: older_point,
+        to: older_point,
+        step: 1.hour,
+        value: 500.0
+      )
+
+      stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/continuous/items})
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/geo+json" },
+          body: {
+            features: [
+              {
+                id: "1",
+                properties: {
+                  time_series_id: @series.provider_series_id,
+                  parameter_code: "62614",
+                  time: older_point.iso8601,
+                  value: 480.0,
+                  approval_status: "Provisional"
+                }
+              }
+            ],
+            links: []
+          }.to_json
+        )
+      stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/peaks/items})
+        .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+      stub_request(:get, %r{api\.waterdata\.usgs\.gov/ogcapi/v0/collections/daily/items})
+        .to_return(status: 200, headers: { "Content-Type" => "application/geo+json" }, body: { features: [], links: [] }.to_json)
+
+      HistoryIngestion.new(monitoring_location: @location, range: "7d").perform
+
+      latest = LatestObservation.find_by!(time_series_id: @series.id)
+      assert_equal current_tip, latest.observed_at
+      assert_in_delta 541.5, latest.value, 0.001
+      assert_equal current_tip, @location.reload.latest_observed_at
     end
   end
 

@@ -98,6 +98,8 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Need ≤1y fill"
     assert_includes response.body, "Last station updated"
     assert_includes response.body, location.reload.display_name
+    assert_select "a.station-link[data-turbo-frame=?][href=?]", "_top",
+      gauge_path(location.path_state, location)
     assert_includes response.body, "Updated in last tip refresh"
     assert_includes response.body, ">7<"
     assert_includes response.body, "Total measurements"
@@ -139,6 +141,8 @@ class Admin::DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Have ~1y"
     assert_includes response.body, "Have ~3y"
     assert_includes response.body, "Have ~1y → need 3y"
+    assert_select "a.station-link[data-turbo-frame=?][href=?]", "_top", state_gauges_path("wa"),
+      text: "Washington (WA)"
 
     get admin_dashboard_section_path(section: :health)
     assert_response :success

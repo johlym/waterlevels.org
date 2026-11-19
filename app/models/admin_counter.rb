@@ -27,6 +27,18 @@ class AdminCounter < ApplicationRecord
       row
     end
 
+    # Keep value, source, and computed_at. Used when a measurement publish
+    # should not look like a fresh inventory rebuild.
+    def merge_payload!(name, **payload)
+      row = fetch(name)
+      return unless row
+
+      merged = (payload_for(name) || {}).merge(payload)
+      row.assign_attributes(payload: stringify_payload(merged))
+      row.save!
+      row
+    end
+
     def fetch(name)
       rows_by_name[name.to_s]
     end
