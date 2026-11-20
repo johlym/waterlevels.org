@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_18_190000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_20_032000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -39,7 +39,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_190000) do
     t.index ["alert_rule_id"], name: "index_alert_deliveries_on_alert_rule_id"
     t.index ["subscriber_id", "alert_event_id", "alert_rule_id"], name: "index_alert_deliveries_unique_event_rule", unique: true, where: "((alert_event_id IS NOT NULL) AND (alert_rule_id IS NOT NULL))"
     t.index ["subscriber_id", "created_at"], name: "index_alert_deliveries_on_subscriber_id_and_created_at"
-    t.index ["subscriber_id"], name: "index_alert_deliveries_on_subscriber_id"
   end
 
   create_table "alert_events", force: :cascade do |t|
@@ -52,7 +51,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_190000) do
     t.datetime "updated_at", null: false
     t.index ["dedupe_key"], name: "index_alert_events_on_dedupe_key", unique: true
     t.index ["monitoring_location_id", "occurred_at"], name: "index_alert_events_on_monitoring_location_id_and_occurred_at"
-    t.index ["monitoring_location_id"], name: "index_alert_events_on_monitoring_location_id"
   end
 
   create_table "alert_rules", force: :cascade do |t|
@@ -65,7 +63,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_190000) do
     t.bigint "station_watch_id", null: false
     t.datetime "updated_at", null: false
     t.index ["station_watch_id", "kind"], name: "index_alert_rules_on_station_watch_id_and_kind"
-    t.index ["station_watch_id"], name: "index_alert_rules_on_station_watch_id"
   end
 
   create_table "app_settings", force: :cascade do |t|
@@ -224,7 +221,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_190000) do
     t.datetime "updated_at", null: false
     t.index ["monitoring_location_id"], name: "index_station_watches_on_monitoring_location_id"
     t.index ["subscriber_id", "monitoring_location_id"], name: "index_station_watches_on_subscriber_and_location", unique: true
-    t.index ["subscriber_id"], name: "index_station_watches_on_subscriber_id"
   end
 
   create_table "subscriber_tokens", force: :cascade do |t|
@@ -236,7 +232,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_190000) do
     t.datetime "updated_at", null: false
     t.datetime "used_at"
     t.index ["subscriber_id", "purpose"], name: "index_subscriber_tokens_on_subscriber_id_and_purpose"
-    t.index ["subscriber_id"], name: "index_subscriber_tokens_on_subscriber_id"
     t.index ["token_digest"], name: "index_subscriber_tokens_on_token_digest", unique: true
   end
 
