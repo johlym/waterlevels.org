@@ -128,7 +128,9 @@ class TrendHighlights
     end
 
     def record_candidates
-      rows = select_candidates(<<~SQL.squish, MonitoringLocation::STALE_AFTER.ago, RECORD_MIN_WATER_YEARS)
+      # Aggregate annual peaks before joining stations. The unique key is one
+      # high peak per series and water year, so COUNT(*) is the year count.
+      rows = select_candidates(<<~SQL.squish, RECORD_MIN_WATER_YEARS, MonitoringLocation::STALE_AFTER.ago)
         SELECT ts.id AS time_series_id,
                ts.measurement_kind,
                ts.parameter_code,
@@ -142,15 +144,24 @@ class TrendHighlights
                lo.value AS current_value,
                lo.unit_of_measure,
                lo.observed_at,
-               MAX(po.value) AS peak_value,
-               MIN(po.water_year) AS year_min,
-               MAX(po.water_year) AS year_max,
-               COUNT(DISTINCT po.water_year) AS year_count
+               p.peak_value,
+               p.year_min,
+               p.year_max,
+               p.year_count
         FROM time_series ts
         INNER JOIN latest_observations lo ON lo.time_series_id = ts.id
         INNER JOIN monitoring_locations ml ON ml.id = ts.monitoring_location_id
-        INNER JOIN peak_observations po
-          ON po.time_series_id = ts.id AND po.peak_kind = 'high'
+        INNER JOIN (
+          SELECT time_series_id,
+                 MAX(value) AS peak_value,
+                 MIN(water_year) AS year_min,
+                 MAX(water_year) AS year_max,
+                 COUNT(*) AS year_count
+          FROM peak_observations
+          WHERE peak_kind = 'high'
+          GROUP BY time_series_id
+          HAVING COUNT(*) >= ?
+        ) p ON p.time_series_id = ts.id
         WHERE ts.selected_for_display = TRUE
           AND ml.active = TRUE
           AND lo.observed_at >= ?
@@ -159,11 +170,7 @@ class TrendHighlights
             ts.measurement_kind = 'discharge'
             OR ts.parameter_code = ml.latest_water_level_parameter_code
           )
-        GROUP BY ts.id, ts.measurement_kind, ts.parameter_code, ts.primary_series,
-                 ml.id, ml.site_number, ml.display_name, ml.slug, ml.state_code, ml.state_name,
-                 lo.value, lo.unit_of_measure, lo.observed_at
-        HAVING COUNT(DISTINCT po.water_year) >= ?
-           AND lo.value > MAX(po.value)
+          AND lo.value > p.peak_value
       SQL
       one_per_station_kind(rows)
     end
