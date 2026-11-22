@@ -48,6 +48,6 @@ group :development do
 end
 
 gem "aws-sdk-s3", "~> 1.242"
-gem "lograge", "~> 0.14"
+gem "lograge", "~> 0.16"
 
 gem "meta-tags", ">= 2.1"
