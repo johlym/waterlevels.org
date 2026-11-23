@@ -103,6 +103,13 @@ class GaugesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'method="post"'
     assert_includes response.body, 'name="subtitle"'
     assert_includes response.body, 'name="time_zone"'
+    hidden_at = response.body.index(/<input[^>]*type="hidden"[^>]*name="digest_enabled"[^>]*value="0"/)
+    checkbox_at = response.body.index('id="gauge-alert-digest"')
+    assert hidden_at, "expected an unchecked digest value ahead of the checkbox"
+    assert checkbox_at
+    assert_operator hidden_at, :<, checkbox_at
+    assert_includes response.body, 'id="gauge-alert-digest"'
+    assert_match(/id="gauge-alert-digest"[^>]*checked|checked[^>]*id="gauge-alert-digest"/, response.body)
     assert_not_includes response.body, "Time zone:"
     assert_not_includes response.body, 'id="gauge-alert-time-zone"'
     assert_not_includes response.body, 'name="spinner"'

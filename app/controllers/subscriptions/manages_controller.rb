@@ -71,14 +71,18 @@ module Subscriptions
 
     def sync_rule(watch, kind, enabled_param)
       rule = watch.alert_rules.find_or_initialize_by(kind: kind)
-      rule.enabled = ActiveModel::Type::Boolean.new.cast(enabled_param)
+      rule.enabled = checkbox_checked?(enabled_param)
       rule.params = default_params_for(kind) if rule.new_record? && rule.params.blank?
       rule.save!
     end
 
     def sync_threshold_rule(watch, attrs)
-      enabled = ActiveModel::Type::Boolean.new.cast(attrs[:threshold_enabled])
+      enabled = checkbox_checked?(attrs[:threshold_enabled])
       rule = watch.alert_rules.find_or_initialize_by(kind: "threshold")
+      # Leave an untouched threshold off the row. Saving "off" with a blank
+      # value used to insert 0, which then showed up in the Value field.
+      return if rule.new_record? && !enabled && attrs[:threshold_value].blank?
+
       rule.enabled = enabled
       rule.params = {
         "parameter" => attrs[:threshold_parameter].presence || rule.param("parameter", "water_level"),
@@ -89,6 +93,11 @@ module Subscriptions
         "hysteresis" => (attrs[:threshold_hysteresis].presence || rule.param("hysteresis", 0.2)).to_f
       }
       rule.save!
+    end
+
+    # An unchecked box is omitted. nil must become false, not NULL.
+    def checkbox_checked?(value)
+      ActiveModel::Type::Boolean.new.cast(value) == true
     end
 
     def default_params_for(kind)

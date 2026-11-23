@@ -84,16 +84,18 @@ class SubscriptionsController < ApplicationController
 
     email = params[:email].to_s.strip.downcase
     time_zone = SubscriberTimeZones.normalize(params[:time_zone])
-    digest_enabled = ActiveModel::Type::Boolean.new.cast(params.fetch(:digest_enabled, true))
+    # Browsers omit an unchecked box. Missing and "0" both mean this station
+    # stays out of the digest; only an explicit truthy value opts it in.
+    digest_enabled = ActiveModel::Type::Boolean.new.cast(params[:digest_enabled]) == true
 
     subscriber = Subscriber.find_or_initialize_by(email: email)
     # Always apply a provided zone so re-subscribe / second station signup keeps the user's choice.
     subscriber.time_zone = time_zone if params[:time_zone].present?
     subscriber.time_zone = SubscriberTimeZones::DEFAULT if subscriber.time_zone.blank?
-    subscriber.digest_enabled = digest_enabled if subscriber.new_record?
     # Re-subscribe soft-unsubscribed addresses and turn their default rules
     # back on. A subscriber who only disabled a rule while still subscribed
-    # keeps that choice.
+    # keeps that choice. This checkbox is per station, so a first signup does
+    # not clear the account-level digest switch.
     was_unsubscribed = subscriber.unsubscribed?
     if was_unsubscribed
       subscriber.unsubscribed_at = nil
@@ -106,7 +108,8 @@ class SubscriptionsController < ApplicationController
     end
 
     watch = subscriber.station_watches.find_by(monitoring_location: location)
-    if watch.nil?
+    new_watch = watch.nil?
+    if new_watch
       max_watches = ENV.fetch("ALERTS_MAX_WATCHES", "25").to_i
       if max_watches.positive? && subscriber.station_watches.count >= max_watches
         return redirect_to_gauge_signup(location, signup: "max")
@@ -117,6 +120,9 @@ class SubscriptionsController < ApplicationController
       watch.reactivate_defaults!(digest: digest_enabled)
     else
       watch.ensure_default_rules!
+      # Default rules opt the station in. Apply the checkbox only for a watch
+      # this request created so a repeat signup does not undo a saved choice.
+      watch.rule_for("digest")&.update!(enabled: digest_enabled) if new_watch
     end
 
     deliver_subscription_confirmation!(subscriber, watch, location)
