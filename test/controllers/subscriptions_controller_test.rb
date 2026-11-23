@@ -64,7 +64,10 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
     subscriber = Subscriber.find_by!(email: "new.watcher@example.com")
     assert_not subscriber.verified?
     assert_equal "America/Los_Angeles", subscriber.time_zone
-    assert subscriber.station_watches.exists?(monitoring_location_id: @location.id)
+    assert subscriber.digest_enabled?
+    watch = subscriber.station_watches.find_by!(monitoring_location_id: @location.id)
+    assert watch.rule_for("digest").enabled?
+    assert_equal [ @location.id ], digest_station_ids(subscriber)
     assert_equal 1, subscriber.subscriber_tokens.where(purpose: "verify").count
     assert subscriber.subscriber_tokens.exists?(purpose: "unsubscribe")
   end
@@ -101,6 +104,76 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
     assert watch.rule_for("flood_category_change").reload.enabled?
     assert watch.rule_for("digest").reload.enabled?
     assert subscriber.reload.digest_enabled?
+  end
+
+  test "create with digest unchecked leaves that station out of the digest" do
+    kept = create(:monitoring_location, name: "Kept Gauge", slug: "kept-gauge")
+    subscriber = create(:subscriber, :verified, email: "digest.opt.out@example.com")
+    create(:station_watch, subscriber: subscriber, monitoring_location: kept)
+
+    assert_enqueued_emails 1 do
+      post subscriptions_path, params: {
+        email: subscriber.email,
+        monitoring_location_id: @location.id,
+        time_zone: "America/Los_Angeles",
+        digest_enabled: "0"
+      }
+    end
+
+    assert_redirected_to gauge_signup_path("subscribed")
+    watch = subscriber.station_watches.find_by!(monitoring_location: @location)
+    refute watch.rule_for("digest").enabled?
+    assert watch.rule_for("flood_category_change").enabled?
+    assert subscriber.reload.digest_enabled?
+    assert_equal [ kept.id ], digest_station_ids(subscriber)
+  end
+
+  test "create treats a missing digest checkbox as unchecked" do
+    post subscriptions_path, params: {
+      email: "omitted.digest@example.com",
+      monitoring_location_id: @location.id,
+      time_zone: "America/Los_Angeles"
+    }
+
+    subscriber = Subscriber.find_by!(email: "omitted.digest@example.com")
+    refute subscriber.station_watches.find_by!(monitoring_location: @location).rule_for("digest").enabled?
+    assert subscriber.digest_enabled?
+    assert_empty digest_station_ids(subscriber)
+  end
+
+  test "create does not change digest inclusion for a station already watched" do
+    subscriber = create(:subscriber, :verified, email: "keep.digest@example.com")
+    watch = create(:station_watch, subscriber: subscriber, monitoring_location: @location)
+    watch.rule_for("digest").update!(enabled: false)
+
+    post subscriptions_path, params: {
+      email: subscriber.email,
+      monitoring_location_id: @location.id,
+      time_zone: "America/Los_Angeles",
+      digest_enabled: "1"
+    }
+
+    assert_redirected_to gauge_signup_path("subscribed")
+    refute watch.rule_for("digest").reload.enabled?
+  end
+
+  test "create after unsubscribe-all can leave the station out of the digest" do
+    subscriber = create(:subscriber, :verified, email: "again.off@example.com")
+    watch = create(:station_watch, subscriber: subscriber, monitoring_location: @location)
+    subscriber.unsubscribe_all!
+
+    post subscriptions_path, params: {
+      email: subscriber.email,
+      monitoring_location_id: @location.id,
+      time_zone: "America/Los_Angeles",
+      digest_enabled: "0"
+    }
+
+    assert_redirected_to gauge_signup_path("sent")
+    assert watch.rule_for("flood_category_change").reload.enabled?
+    refute watch.rule_for("digest").reload.enabled?
+    refute subscriber.reload.digest_enabled?
+    assert_empty digest_station_ids(subscriber)
   end
 
   test "create does not re-enable rules the subscriber turned off" do
@@ -262,6 +335,10 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def digest_station_ids(subscriber)
+    Alerts::DigestBuilder.new(subscriber).build[:stations].map { |station| station[:monitoring_location_id] }
+  end
 
   def gauge_signup_path(signup)
     gauge_path(state: @location.path_state, site_number_slug: @location.to_param, signup: signup)

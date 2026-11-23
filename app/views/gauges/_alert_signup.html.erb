@@ -38,6 +38,7 @@
     <div class="gauge-alert-extras">
       <div class="checkbox-field">
         <label class="checkbox-label">
+          <%= hidden_field_tag :digest_enabled, "0", id: nil %>
           <%= check_box_tag :digest_enabled, "1", true, id: "gauge-alert-digest" %>
           Include in daily digest
         </label>

@@ -37,6 +37,10 @@ module Subscriptions
       assert_select "form form", count: 0
       assert_includes response.body, "Remove station"
       assert_match(/data-turbo-method=["']delete["']/, response.body)
+      assert_match(
+        /<input[^>]*type="hidden"[^>]*name="watches\[#{@watch.id}\]\[digest_enabled\]"[^>]*value="0"/,
+        response.body
+      )
     end
 
     test "update preferences and rules" do
@@ -72,6 +76,59 @@ module Subscriptions
       assert threshold.enabled?
       assert_equal "discharge", threshold.param("parameter")
       assert_equal "1200", threshold.param("value").to_s
+    end
+
+    test "update treats omitted digest and threshold boxes as off" do
+      assert @watch.rule_for("digest").enabled?
+
+      patch subscriptions_manage_path(token: @raw), params: {
+        subscriber: {
+          time_zone: "America/Chicago",
+          digest_hour: 7,
+          digest_minute: 0,
+          digest_enabled: "1"
+        },
+        watches: {
+          @watch.id.to_s => {
+            flood_enabled: "1",
+            threshold_parameter: "water_level",
+            threshold_op: "above",
+            threshold_value: "10"
+          }
+        }
+      }
+
+      assert_redirected_to subscriptions_manage_path(token: @raw)
+      assert @watch.rule_for("flood_category_change").reload.enabled?
+      refute @watch.rule_for("digest").reload.enabled?
+      threshold = @watch.rule_for("threshold")
+      assert threshold
+      refute threshold.enabled?
+      assert_empty Alerts::DigestBuilder.new(@subscriber).build[:stations]
+    end
+
+    test "update does not invent a zero threshold when the value is blank" do
+      patch subscriptions_manage_path(token: @raw), params: {
+        subscriber: {
+          time_zone: @subscriber.time_zone,
+          digest_hour: @subscriber.digest_hour,
+          digest_minute: @subscriber.digest_minute,
+          digest_enabled: "1"
+        },
+        watches: {
+          @watch.id.to_s => {
+            flood_enabled: "1",
+            digest_enabled: "1",
+            threshold_parameter: "water_level",
+            threshold_op: "above",
+            threshold_value: ""
+          }
+        }
+      }
+
+      assert_redirected_to subscriptions_manage_path(token: @raw)
+      assert_nil @watch.rule_for("threshold")
+      assert @watch.rule_for("digest").reload.enabled?
     end
 
     test "destroy watch" do
