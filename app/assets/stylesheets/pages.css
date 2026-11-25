@@ -1,3 +1,7 @@
+.content-page {
+  @apply flex flex-1 flex-col;
+}
+
 /* —— Page heroes & prose —— */
 .page-hero {
   @apply relative overflow-hidden border-b border-zinc-800/30 py-16 md:py-24;

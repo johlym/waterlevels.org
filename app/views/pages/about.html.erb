@@ -5,6 +5,7 @@
 <div class="app-shell">
   <%= render Navigation::BarComponent.new %>
 
+  <main id="main" tabindex="-1" class="content-page">
   <section class="page-hero">
     <div class="glow" aria-hidden="true">
       <div class="blob-a"></div>
@@ -23,7 +24,7 @@
     </div>
   </section>
 
-  <main id="main" tabindex="-1" class="page-main narrow">
+  <div class="page-main narrow">
     <div class="prose-page">
       <section aria-labelledby="who-heading">
         <h2 id="who-heading">A personal project</h2>
@@ -53,6 +54,7 @@
         </p>
       </section>
     </div>
+  </div>
   </main>
 
   <%= render Footer::ThinComponent.new %>

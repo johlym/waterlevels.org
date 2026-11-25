@@ -1,6 +1,7 @@
 <%
   errors = @contact_message.errors
   field_error = ->(attr) { errors[attr].to_a.first }
+  first_invalid = %i[name email subject message].find { |attr| errors[attr].any? }
   field_aria = ->(attr, error_id) {
     return {} unless errors[attr].any?
 
@@ -8,7 +9,7 @@
   }
 %>
 <%= form_with model: @contact_message, url: contact_path, method: :post, id: "contact-form", class: "contact-form", data: { turbo: false } do |f| %>
-  <%= helpers.invisible_captcha :subtitle %>
+  <div hidden><%= helpers.invisible_captcha :subtitle %></div>
 
   <div class="field">
     <%= f.label :name %>
@@ -16,6 +17,7 @@
           required: true,
           autocomplete: "name",
           placeholder: "Your name",
+          autofocus: first_invalid == :name,
           aria: field_aria.call(:name, "contact-name-error") %>
     <% if (message = field_error.call(:name)) %>
       <p id="contact-name-error" class="field-error"><%= message %></p>
@@ -28,6 +30,7 @@
           required: true,
           autocomplete: "email",
           placeholder: "you@example.com",
+          autofocus: first_invalid == :email,
           aria: field_aria.call(:email, "contact-email-error") %>
     <% if (message = field_error.call(:email)) %>
       <p id="contact-email-error" class="field-error"><%= message %></p>
@@ -39,6 +42,7 @@
     <%= f.text_field :subject,
           required: true,
           placeholder: "Gauge question, feedback, partnership…",
+          autofocus: first_invalid == :subject,
           aria: field_aria.call(:subject, "contact-subject-error") %>
     <% if (message = field_error.call(:subject)) %>
       <p id="contact-subject-error" class="field-error"><%= message %></p>
@@ -51,6 +55,7 @@
           required: true,
           rows: 5,
           placeholder: "Share details so we can help…",
+          autofocus: first_invalid == :message,
           aria: field_aria.call(:message, "contact-message-error") %>
     <% if (message = field_error.call(:message)) %>
       <p id="contact-message-error" class="field-error"><%= message %></p>

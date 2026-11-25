@@ -13,10 +13,10 @@
   <main id="main" tabindex="-1" class="page-main narrow">
     <div class="subscriptions-box">
       <% if flash[:notice].present? %>
-        <div class="flash notice" role="status"><%= flash[:notice] %></div>
+        <div class="flash notice" role="status" tabindex="-1" autofocus><%= flash[:notice] %></div>
       <% end %>
       <% if flash[:alert].present? %>
-        <div class="flash alert" role="alert"><%= flash[:alert] %></div>
+        <div class="flash alert" role="alert" tabindex="-1" <%= "autofocus" unless flash[:notice].present? %>><%= flash[:alert] %></div>
       <% end %>
 
       <h1 class="subscriptions-form-title">Manage Your Email Subscriptions</h1>
@@ -26,7 +26,7 @@
       </p>
 
       <%= form_with url: subscriptions_path, method: :post, class: "contact-form", data: { turbo: false }, html: { id: "subscription-manage-link-form" } do %>
-        <%= invisible_captcha :subtitle %>
+        <div hidden><%= invisible_captcha :subtitle %></div>
         <%= hidden_field_tag :intent, "manage_link" %>
 
         <div class="field">
