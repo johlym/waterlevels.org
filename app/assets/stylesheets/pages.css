@@ -19,7 +19,7 @@
   }
 
   .inner {
-    @apply relative mx-auto max-w-7xl px-6;
+    @apply relative mx-auto w-full max-w-screen-2xl px-6;
   }
 
   .eyebrow {
@@ -51,7 +51,7 @@
   }
 
   .inner {
-    @apply relative mx-auto grid max-w-7xl gap-16 px-6 lg:grid-cols-12;
+    @apply relative mx-auto grid w-full max-w-screen-2xl gap-16 px-6 lg:grid-cols-12;
   }
 
   .intro {
