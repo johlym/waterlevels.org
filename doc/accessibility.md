@@ -32,7 +32,7 @@ Escape closes map popups, settings, and mobile search.
 
 ## Contact / Turnstile
 
-The contact form uses Cloudflare Turnstile. If the widget fails, users can email [hello@waterlevels.org](mailto:hello@waterlevels.org). Field errors use `aria-invalid` and `aria-describedby`.
+The contact form uses Cloudflare Turnstile. If the widget fails, users can email [contact@waterlevels.org](mailto:contact@waterlevels.org). Field errors use `aria-invalid` and `aria-describedby`.
 
 ## Automated checks
 

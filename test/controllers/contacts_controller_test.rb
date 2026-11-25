@@ -95,6 +95,6 @@ class ContactsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_content
     assert_includes response.body, 'aria-invalid="true"'
     assert_includes response.body, "contact-email-error"
-    assert_includes response.body, "Email hello@waterlevels.org"
+    assert_includes response.body, "Email contact@waterlevels.org"
   end
 end

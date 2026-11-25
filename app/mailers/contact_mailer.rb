@@ -12,7 +12,7 @@ class ContactMailer < ApplicationMailer
     @email = params[:email]
     @body = params[:message]
     mail(
-      to: ENV.fetch("CONTACT_TO_EMAIL", "hello@waterlevels.org"),
+      to: ENV.fetch("CONTACT_TO_EMAIL", "contact@waterlevels.org"),
       reply_to: @email,
       subject: "[WaterLevels.org] #{params[:subject]}"
     )

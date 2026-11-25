@@ -128,7 +128,7 @@ class AccessibilitySmokeTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'aria-invalid="true"'
     assert_includes response.body, 'id="contact-name-error"'
     assert_includes response.body, 'aria-describedby="contact-name-error"'
-    assert_includes response.body, "Email hello@waterlevels.org"
+    assert_includes response.body, "Email contact@waterlevels.org"
   end
 
   test "gauge measurement tabs keep tablist semantics" do

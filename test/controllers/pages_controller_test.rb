@@ -16,7 +16,7 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "WCAG 2.2 Level AA"
     assert_includes response.body, "not a claim that every page conforms"
     assert_includes response.body, "Stations in view"
-    assert_includes response.body, "hello@waterlevels.org"
+    assert_includes response.body, "contact@waterlevels.org"
     assert_includes response.body, contact_path
   end
 
