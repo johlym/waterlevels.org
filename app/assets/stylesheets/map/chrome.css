@@ -28,6 +28,18 @@
   }
 }
 
+.map-station-browser {
+  @apply map-panel pointer-events-auto absolute bottom-4 left-4 z-10 max-h-[min(18rem,40dvh)] w-[min(22rem,calc(100%-2rem))] overflow-y-auto p-3;
+
+  summary {
+    @apply cursor-pointer text-sm font-semibold text-zinc-200;
+  }
+
+  .aside {
+    @apply mt-1 text-xs text-zinc-400;
+  }
+}
+
 /* —— Map overlays —— */
 .map-settings {
   @apply pointer-events-auto absolute top-4 right-16 max-h-[min(36rem,calc(100dvh-6rem))] w-[min(22rem,calc(100%-5.5rem))] overflow-y-auto sm:top-6 sm:right-20;

@@ -24,11 +24,11 @@
   }
 
   .inner {
-    @apply mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-6 py-4;
+    @apply mx-auto flex min-w-0 max-w-screen-2xl items-center justify-between gap-4 px-6 py-4;
   }
 
   .brand {
-    @apply flex items-center gap-3 no-underline;
+    @apply flex min-w-0 items-center gap-3 no-underline;
 
     .mark {
       @apply flex size-9 items-center justify-center rounded-lg bg-linear-to-br from-cyan-400 to-blue-500 text-white;
@@ -39,7 +39,7 @@
     }
 
     .name {
-      @apply font-display text-lg font-semibold tracking-tight text-white;
+      @apply font-display text-lg font-semibold tracking-tight wrap-break-word text-white;
     }
   }
 
@@ -142,10 +142,7 @@
 }
 
 .site-header .nav-link[aria-current="page"],
-.site-footer a[aria-current="page"] {
-  @apply text-white;
-}
-
+.site-footer a[aria-current="page"],
 .nav-link[aria-current="page"] {
-  @apply text-white;
+  @apply text-white underline decoration-2 underline-offset-4;
 }

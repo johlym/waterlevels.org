@@ -8,9 +8,9 @@
       </div>
       <p>
         © <%= @year %> WaterLevels.org ·
-        A project by <%= link_to "Johnathan Lyman", "https://johnathan.org", rel: "noopener noreferrer", target: "_blank" %>
+        A project by <%= link_to "Johnathan Lyman (opens in new tab)", "https://johnathan.org", rel: "noopener noreferrer", target: "_blank" %>
         ·
-        <%= link_to "Disclosures", disclosures_path, **footer_link_attrs(disclosures_path) %>
+        <%= link_to "Data disclosures", disclosures_path, **footer_link_attrs(disclosures_path) %>
       </p>
     </div>
     <nav aria-label="Footer">
@@ -19,7 +19,7 @@
       <%= link_to "Contact", contact_path, **footer_link_attrs(contact_path) %>
       <%= link_to "Privacy", privacy_path, **footer_link_attrs(privacy_path) %>
       <%= link_to "Terms", terms_path, **footer_link_attrs(terms_path) %>
-      <%= link_to "AUP", aup_path, **footer_link_attrs(aup_path) %>
+      <%= link_to "Acceptable Use Policy", aup_path, **footer_link_attrs(aup_path) %>
     </nav>
   </div>
 </footer>

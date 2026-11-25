@@ -18,6 +18,7 @@ class AccessibilitySmokeTest < ActionDispatch::IntegrationTest
       assert_response :success, "expected success for #{path}"
       assert_includes response.body, 'href="#main"', "missing skip link on #{path}"
       assert_includes response.body, 'id="main"', "missing #main on #{path}"
+      assert_includes response.body, 'tabindex="-1"', "main is not a skip-link target on #{path}"
       assert_includes response.body, "<main", "missing main landmark on #{path}"
     end
   end
@@ -38,6 +39,9 @@ class AccessibilitySmokeTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'role="combobox"'
     assert_includes response.body, 'aria-controls="map-search-results"'
     assert_includes response.body, "Stations in view"
+    assert_includes response.body, "Water level map"
+    assert_includes response.body, 'id="map-station-list-status"'
+    assert_not_includes response.body, 'role="img"'
     assert_includes response.body, 'data-map-target="stationList"'
     assert_includes response.body, "Normal (circle)"
     assert_includes response.body, "Action (A / diamond)"
@@ -58,7 +62,8 @@ class AccessibilitySmokeTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'aria-controls="mobile-primary-nav"'
     assert_includes response.body, 'aria-expanded="false"'
     assert_includes response.body, 'id="mobile-primary-nav"'
-    assert_includes response.body, ">Data</a>"
+    assert_includes response.body, ">Data disclosures</a>"
+    assert_not_includes response.body, 'aria-label="Homepage"'
   end
 
   test "nav marks the current page" do
@@ -82,7 +87,7 @@ class AccessibilitySmokeTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, ">Manage Email Alerts</a>"
     assert_includes response.body, "href=\"#{subscriptions_path}\""
-    data_at = response.body.index(">Data</a>")
+    data_at = response.body.index(">Data disclosures</a>")
     manage_at = response.body.index(">Manage Email Alerts</a>")
     assert data_at
     assert manage_at

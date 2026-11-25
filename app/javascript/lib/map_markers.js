@@ -18,11 +18,15 @@ export function markerStyle(station) {
   return FLOOD_COLORS[station.flood_category] || NORMAL_STYLE
 }
 
-export function markerIcon(leaflet, station, style) {
+export function markerIcon(leaflet, station, style, label = "") {
   const size = station.flood_alert ? 18 : 14
+  const name = escapeHtml(label)
+  const named = name
+    ? `<span role="img" aria-label="${name}">${markerShapeHtml(style)}</span>`
+    : markerShapeHtml(style)
   return leaflet.divIcon({
     className: `map-marker map-marker--${style.shape}`,
-    html: markerShapeHtml(style),
+    html: named,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
     popupAnchor: [0, -size / 2]
