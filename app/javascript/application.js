@@ -6,6 +6,7 @@ import "./controllers"
 // Turbo drops a temporary tabindex after moving focus to #main, so the landmark
 // keeps tabindex="-1" in the templates. On a visit that did not already focus a
 // hash target, move focus to main so the next Tab enters the page content.
+// focusVisible stays false so the load itself does not draw the focus ring.
 document.addEventListener("turbo:load", () => {
   const hash = window.location.hash
   if (hash.length > 1) {
@@ -18,5 +19,5 @@ document.addEventListener("turbo:load", () => {
 
   const main = document.getElementById("main")
   if (!main) return
-  main.focus({ preventScroll: true })
+  main.focus({ preventScroll: true, focusVisible: false })
 })
