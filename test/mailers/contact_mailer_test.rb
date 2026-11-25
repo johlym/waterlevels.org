@@ -17,6 +17,9 @@ class ContactMailerTest < ActionMailer::TestCase
       email.deliver_now
     end
 
+    assert_equal [ "contact@waterlevels.org" ], email.to
+    assert_includes email[:from].decoded, "contact@waterlevels.org"
+
     html = email.html_part.body.to_s
     css = html[/<style\b[^>]*>(.*?)<\/style>/m, 1].to_s
     assert_self_contained_mailer_html!(html)
