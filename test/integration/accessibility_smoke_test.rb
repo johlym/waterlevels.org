@@ -47,6 +47,19 @@ class AccessibilitySmokeTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Action (A / diamond)"
   end
 
+  test "new-tab links use an icon and a screen-reader warning" do
+    get faq_path
+    assert_response :success
+    assert_includes response.body, 'class="fa-solid fa-up-right-from-square"'
+    assert_includes response.body, 'aria-hidden="true"'
+    assert_includes response.body, 'class="sr-only"> (opens in a new tab)</span>'
+    refute_includes response.body, "(opens in new tab)"
+
+    get about_path
+    assert_includes response.body, ">Johnathan Lyman<i"
+    refute_includes response.body, "Johnathan Lyman (opens in new tab)"
+  end
+
   test "faq categories are navigation buttons not incomplete tabs" do
     get faq_path
     assert_response :success
