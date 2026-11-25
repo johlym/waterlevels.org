@@ -125,8 +125,8 @@
 
             <%= render "pages/faq_item", question: "Is this an official USGS, USBR, USACE, or NWS website?", id: "official-usgs" do %>
               <p>
-                No. WaterLevels.org is a personal project by <a href="https://johnathan.org" rel="noopener noreferrer" target="_blank">Johnathan Lyman<i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i><span class="sr-only"> (opens in a new tab)</span></a>. It is not affiliated with, endorsed by, or operated by the USGS, the Bureau of Reclamation, the U.S. Army Corps of Engineers, the National Weather Service, NOAA, the Department of the Interior, or the Department of Defense. For the authoritative hydrologic record at any station, use the official agency page linked from each gauge. For official flood forecasts and watches/warnings, use
-                <a href="https://water.noaa.gov/" rel="noopener noreferrer" target="_blank">water.noaa.gov<i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i><span class="sr-only"> (opens in a new tab)</span></a>
+                No. WaterLevels.org is a personal project by <%= new_tab_link_to "Johnathan Lyman", "https://johnathan.org" %>. It is not affiliated with, endorsed by, or operated by the USGS, the Bureau of Reclamation, the U.S. Army Corps of Engineers, the National Weather Service, NOAA, the Department of the Interior, or the Department of Defense. For the authoritative hydrologic record at any station, use the official agency page linked from each gauge. For official flood forecasts and watches/warnings, use
+                <%= new_tab_link_to "water.noaa.gov", "https://water.noaa.gov/" %>
                 and local NWS products.
               </p>
             <% end %>
@@ -153,31 +153,31 @@
             <%= render "pages/faq_item", question: "Where does the data come from?", id: "data-source" do %>
               <p>
                 Nearly all stream and lake observation values come from the
-                <a href="https://api.waterdata.usgs.gov/" rel="noopener noreferrer" target="_blank">USGS Water Data APIs<i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i><span class="sr-only"> (opens in a new tab)</span></a>
+                <%= new_tab_link_to "USGS Water Data APIs", "https://api.waterdata.usgs.gov/" %>
                 (streamflow, gage height / stage, water temperature, and related site metadata).
               </p>
               <p>
                 Selected Bureau of Reclamation reservoirs (for example Lake Mead) use daily lake/reservoir elevation from
-                <a href="https://data.usbr.gov/" rel="noopener noreferrer" target="_blank">USBR RISE<i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i><span class="sr-only"> (opens in a new tab)</span></a>.
+                <%= new_tab_link_to "USBR RISE", "https://data.usbr.gov/" %>.
               </p>
               <p>
                 Selected U.S. Army Corps of Engineers projects (for example Raystown Lake) use lake/reservoir elevation from the
-                <a href="https://cwms-data.usace.army.mil/cwms-data/" rel="noopener noreferrer" target="_blank">CWMS Data API<i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i><span class="sr-only"> (opens in a new tab)</span></a>.
+                <%= new_tab_link_to "CWMS Data API", "https://cwms-data.usace.army.mil/cwms-data/" %>.
               </p>
               <p>
                 Selected NWPS gauges without a USGS site id publish observed stage from the
-                <a href="https://api.water.noaa.gov/nwps/v1/docs/" rel="noopener noreferrer" target="_blank">NWPS API<i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i><span class="sr-only"> (opens in a new tab)</span></a>
+                <%= new_tab_link_to "NWPS API", "https://api.water.noaa.gov/nwps/v1/docs/" %>
                 (for example Alpowa Creek at Mouth).
               </p>
               <p>
                 Selected California reservoirs (for example Lake Oroville) use daily lake/reservoir elevation from the
-                <a href="https://cdec.water.ca.gov/" rel="noopener noreferrer" target="_blank">California Data Exchange Center<i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i><span class="sr-only"> (opens in a new tab)</span></a>.
+                <%= new_tab_link_to "California Data Exchange Center", "https://cdec.water.ca.gov/" %>.
               </p>
               <p>
                 Flood categories (action, minor, moderate, major) and stage thresholds come from the National Weather Service
-                <a href="https://water.noaa.gov/" rel="noopener noreferrer" target="_blank">National Water Prediction Service (NWPS)<i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i><span class="sr-only"> (opens in a new tab)</span></a>
+                <%= new_tab_link_to "National Water Prediction Service (NWPS)", "https://water.noaa.gov/" %>
                 via the
-                <a href="https://api.water.noaa.gov/nwps/v1/docs/" rel="noopener noreferrer" target="_blank">NWPS API<i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i><span class="sr-only"> (opens in a new tab)</span></a>
+                <%= new_tab_link_to "NWPS API", "https://api.water.noaa.gov/nwps/v1/docs/" %>
                 when we can match an NWPS forecast point to a USGS site number.
               </p>
               <p>
@@ -193,7 +193,7 @@
               </p>
               <p>
                 WaterLevels.org is not a warning system. Confirm flood conditions against official NWS products on
-                <a href="https://water.noaa.gov/" rel="noopener noreferrer" target="_blank">water.noaa.gov<i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i><span class="sr-only"> (opens in a new tab)</span></a>
+                <%= new_tab_link_to "water.noaa.gov", "https://water.noaa.gov/" %>
                 and local emergency authorities when safety decisions matter.
               </p>
             <% end %>
@@ -231,9 +231,9 @@
             <%= render "pages/faq_item", question: "Can I export data?", id: "export" do %>
               <p>
                 Yes. Gauge detail pages include a measurements table with CSV export for the loaded history. We do not sell a third-party data API or resell raw USGS or NWS access. For bulk or programmatic use at scale, prefer the
-                <a href="https://api.waterdata.usgs.gov/" rel="noopener noreferrer" target="_blank">USGS Water Data APIs<i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i><span class="sr-only"> (opens in a new tab)</span></a>
+                <%= new_tab_link_to "USGS Water Data APIs", "https://api.waterdata.usgs.gov/" %>
                 and the
-                <a href="https://api.water.noaa.gov/nwps/v1/docs/" rel="noopener noreferrer" target="_blank">NWPS API<i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i><span class="sr-only"> (opens in a new tab)</span></a>
+                <%= new_tab_link_to "NWPS API", "https://api.water.noaa.gov/nwps/v1/docs/" %>
                 directly.
               </p>
             <% end %>
@@ -385,7 +385,7 @@
             <%= render "pages/faq_item", question: "Are these official flood warnings?", id: "email-warnings" do %>
               <p>
                 No. WaterLevels.org emails are informational only and are not watches, warnings, or emergency alerts. Confirm conditions against official NWS products on
-                <a href="https://water.noaa.gov/" rel="noopener noreferrer" target="_blank">water.noaa.gov<i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i><span class="sr-only"> (opens in a new tab)</span></a>
+                <%= new_tab_link_to "water.noaa.gov", "https://water.noaa.gov/" %>
                 and local emergency authorities when safety decisions matter. See also
                 <%= link_to "What flood data do you show?", "#{faq_path}#flood-data" %>.
               </p>
@@ -427,7 +427,7 @@
               </ul>
               <p>
                 Thresholds are location-specific stage heights (often in feet of gage height) published by NWS for each forecast point. On WaterLevels.org they appear as station badges, hydrograph markers, and map colors when an NWPS match exists. Exact definitions and impacts are on
-                <a href="https://water.noaa.gov/" rel="noopener noreferrer" target="_blank">water.noaa.gov<i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i><span class="sr-only"> (opens in a new tab)</span></a>.
+                <%= new_tab_link_to "water.noaa.gov", "https://water.noaa.gov/" %>.
               </p>
             <% end %>
 

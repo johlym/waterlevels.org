@@ -262,7 +262,7 @@
             Elevation is published daily by the U.S. Bureau of Reclamation (RISE).
             Vertical datum at Hoover Dam / Lake Mead is USGS 1912 (Power House Datum).
             See the
-            <%= link_to "official RISE location page", @location.agency_url, rel: "noopener noreferrer", target: "_blank" %>
+            <%= new_tab_link_to "official RISE location page", @location.agency_url %>
             for provenance.
           </p>
         </div>
@@ -275,7 +275,7 @@
               Vertical datum: <%= usace_entry.datum_note %>.
             <% end %>
             See the
-            <%= link_to "official CWMS location record", @location.agency_url, rel: "noopener noreferrer", target: "_blank" %>
+            <%= new_tab_link_to "official CWMS location record", @location.agency_url %>
             for provenance.
           </p>
         </div>
@@ -286,7 +286,7 @@
             National Water Prediction Service (NWPS). This gauge has no USGS
             site id in NWPS — WaterLevels.org shows it as an NWS monitoring point.
             See the
-            <%= link_to "official NWPS gauge page", @location.agency_url, rel: "noopener noreferrer", target: "_blank" %>
+            <%= new_tab_link_to "official NWPS gauge page", @location.agency_url %>
             for provenance.
           </p>
         </div>
@@ -299,7 +299,7 @@
               <%= cdec_entry.datum_note %>.
             <% end %>
             See the
-            <%= link_to "official CDEC station page", @location.agency_url, rel: "noopener noreferrer", target: "_blank" %>
+            <%= new_tab_link_to "official CDEC station page", @location.agency_url %>
             for provenance.
           </p>
         </div>
@@ -341,7 +341,7 @@
     <p class="usgs-note">
       <% agency_href = @snapshot[:agency_url].presence || @snapshot[:usgs_url] %>
       <% agency_name = @snapshot[:agency_label].presence || "U.S. Geological Survey" %>
-      Data courtesy of the <% if agency_href.present? %><%= link_to agency_name, agency_href, rel: "noopener noreferrer", target: "_blank" %><% else %><%= agency_name %><% end %><% if @snapshot[:agency_credit].present? && @snapshot[:agency_credit] != agency_name %> and <%= @snapshot[:agency_credit] %><% end %>.
+      Data courtesy of the <% if agency_href.present? %><%= new_tab_link_to agency_name, agency_href %><% else %><%= agency_name %><% end %><% if @snapshot[:agency_credit].present? && @snapshot[:agency_credit] != agency_name %> and <%= @snapshot[:agency_credit] %><% end %>.
     </p>
   </main>
   <%= render Footer::ThinComponent.new %>
