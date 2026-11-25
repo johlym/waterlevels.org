@@ -1,10 +1,12 @@
 /* —— App shell —— */
+/* Header, footer, and page columns share max-w-screen-2xl plus px-6.
+   .narrow and .form-width keep a shorter measure. The map stays full-bleed. */
 .app-shell {
   @apply isolate flex min-h-dvh flex-col;
 }
 
 .page-main {
-  @apply mx-auto w-full max-w-7xl flex-1 px-6 py-10;
+  @apply mx-auto w-full max-w-screen-2xl flex-1 px-6 py-10;
 
   &.narrow {
     @apply max-w-3xl py-12;
@@ -24,7 +26,7 @@
   }
 
   .inner {
-    @apply mx-auto flex min-w-0 max-w-screen-2xl items-center justify-between gap-4 px-6 py-4;
+    @apply mx-auto flex w-full min-w-0 max-w-screen-2xl items-center justify-between gap-4 px-6 py-4;
   }
 
   .brand {
@@ -106,10 +108,10 @@
 
 /* —— Site footer —— */
 .site-footer {
-  @apply border-t border-zinc-800/50 bg-zinc-950 px-6 py-6;
+  @apply border-t border-zinc-800/50 bg-zinc-950 py-6;
 
   .inner {
-    @apply mx-auto flex max-w-screen-2xl flex-col items-center justify-between gap-4 sm:flex-row;
+    @apply mx-auto flex w-full max-w-screen-2xl flex-col items-center justify-between gap-4 px-6 sm:flex-row;
   }
 
   .brand-row {

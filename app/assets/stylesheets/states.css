@@ -11,7 +11,7 @@
   }
 
   .inner {
-    @apply relative z-10 mx-auto flex max-w-7xl flex-col justify-between gap-6 px-6 md:flex-row md:items-end;
+    @apply relative z-10 mx-auto flex w-full max-w-screen-2xl flex-col justify-between gap-6 px-6 md:flex-row md:items-end;
   }
 
   .copy {
@@ -60,7 +60,7 @@
 }
 
 .page-main.state-main {
-  @apply max-w-7xl py-12;
+  @apply py-12;
 }
 
 .state-directory {
