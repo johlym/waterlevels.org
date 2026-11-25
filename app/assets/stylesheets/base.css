@@ -50,6 +50,14 @@
   }
 }
 
+a .fa-up-right-from-square {
+  color: currentColor;
+  fill: currentColor;
+  font-size: 0.85em;
+  margin-inline-start: 0.3em;
+  vertical-align: 0.05em;
+}
+
 .sr-only {
   @apply absolute size-px overflow-hidden whitespace-nowrap border-0 p-0;
   clip: rect(0, 0, 0, 0);

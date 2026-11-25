@@ -75,6 +75,21 @@ module ApplicationHelper
     tag.script(ERB::Util.json_escape(data.to_json).html_safe, type: "application/ld+json")
   end
 
+  # Visible new-tab cue is the icon. The words stay in the link name for
+  # screen readers and speech input, and the icon inherits the link color.
+  def new_tab_link_to(name, url, **options)
+    link_to(url, **options, rel: "noopener noreferrer", target: "_blank") do
+      safe_join([ name, new_tab_indicator ])
+    end
+  end
+
+  def new_tab_indicator
+    safe_join([
+      tag.i(class: "fa-solid fa-up-right-from-square", aria: { hidden: true }),
+      tag.span(" (opens in a new tab)", class: "sr-only")
+    ])
+  end
+
   def breadcrumb_json_ld(crumbs)
     Seo.breadcrumb_list(crumbs.map { |name, path| [ name, absolute_url(path) ] })
   end

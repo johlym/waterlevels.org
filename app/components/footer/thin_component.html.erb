@@ -8,7 +8,7 @@
       </div>
       <p>
         © <%= @year %> WaterLevels.org ·
-        A project by <%= link_to "Johnathan Lyman (opens in new tab)", "https://johnathan.org", rel: "noopener noreferrer", target: "_blank" %>
+        A project by <%= helpers.new_tab_link_to "Johnathan Lyman", "https://johnathan.org" %>
         ·
         <%= link_to "Data disclosures", disclosures_path, **footer_link_attrs(disclosures_path) %>
       </p>
