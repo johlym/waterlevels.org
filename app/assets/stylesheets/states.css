@@ -82,6 +82,38 @@
     @apply block text-xs font-semibold tracking-wider text-zinc-400 uppercase;
   }
 
+  fieldset.filter-block {
+    margin-inline: 0;
+    min-inline-size: 0;
+    border: 0;
+    padding: 1.25rem 0 0;
+    background-image: linear-gradient(
+      color-mix(in oklab, var(--color-zinc-800) 80%, transparent),
+      color-mix(in oklab, var(--color-zinc-800) 80%, transparent)
+    );
+    background-repeat: no-repeat;
+    background-position: top;
+    background-size: 100% 1px;
+  }
+
+  fieldset.filter-block > legend {
+    float: left;
+    width: 100%;
+    margin: 0 0 0.75rem;
+    padding: 0;
+  }
+
+  fieldset.filter-block > .type-filters {
+    clear: both;
+    margin-top: 0;
+  }
+
+  fieldset.filter-block::after {
+    content: "";
+    display: table;
+    clear: both;
+  }
+
   .search-field {
     @apply relative;
 

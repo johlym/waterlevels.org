@@ -36,6 +36,21 @@
   .turnstile {
     @apply pt-1;
   }
+
+  .turnstile-field {
+    margin: 0;
+    min-inline-size: 0;
+    border: 0;
+    padding: 0;
+
+    legend {
+      @apply mb-2 block px-0 text-sm font-semibold tracking-wide text-zinc-400;
+    }
+  }
+
+  .required-note {
+    @apply font-medium tracking-normal normal-case;
+  }
 }
 
 .contact-form .field-error {

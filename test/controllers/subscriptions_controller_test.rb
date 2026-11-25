@@ -31,6 +31,7 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
     get subscriptions_path
     assert_response :success
     assert_includes response.body, "Manage Your Email Subscriptions"
+    assert_includes response.body, "(required)"
     assert_includes response.body, 'name="robots" content="noindex, nofollow"'
     assert_includes response.body, ">Manage Email Alerts</a>"
     assert_not_includes response.body, "Watch a gauge by"
@@ -221,6 +222,9 @@ class SubscriptionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "challenges.cloudflare.com/turnstile"
     assert_includes response.body, "test-site-key"
     assert_includes response.body, %(data-action="#{TurnstileVerification::EMAIL_NOTIFICATIONS}")
+    assert_includes response.body, "<legend>Bot check</legend>"
+    assert_includes response.body, "(required)"
+    assert_not_includes response.body, 'aria-label="Bot check"'
   ensure
     if previous_secret
       ENV["TURNSTILE_SECRET"] = previous_secret

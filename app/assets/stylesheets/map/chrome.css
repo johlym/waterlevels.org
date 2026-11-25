@@ -69,7 +69,34 @@
   }
 
   .layers + .layers {
-    @apply mt-3 border-t border-zinc-800 pt-3;
+    @apply mt-3 pt-3;
+    background-image: linear-gradient(var(--color-zinc-800), var(--color-zinc-800));
+    background-repeat: no-repeat;
+    background-position: top;
+    background-size: 100% 1px;
+  }
+
+  fieldset.layers {
+    margin: 0;
+    min-inline-size: 0;
+    border: 0;
+    padding: 0;
+
+    legend {
+      float: left;
+      width: 100%;
+      @apply mb-1 px-2 text-xs font-semibold tracking-wider text-zinc-400 uppercase;
+    }
+
+    > label {
+      clear: both;
+    }
+  }
+
+  fieldset.layers::after {
+    content: "";
+    display: table;
+    clear: both;
   }
 
   label {

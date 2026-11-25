@@ -160,13 +160,29 @@ export default class extends Controller {
     const requestId = ++this.requestId
     const query = this.query
     const url = `${this.searchUrlValue}?q=${encodeURIComponent(query)}`
-    const response = await firstPartyApiFetch(url)
-    if (!response.ok) return
-    if (requestId !== this.requestId || query !== this.query) return
 
-    const data = await response.json()
-    this.results = data.stations || []
-    this.renderResults()
+    try {
+      const response = await firstPartyApiFetch(url)
+      if (requestId !== this.requestId || query !== this.query) return
+      if (!response.ok) {
+        this.failSearch()
+        return
+      }
+
+      const data = await response.json()
+      if (requestId !== this.requestId || query !== this.query) return
+      this.results = data.stations || []
+      this.renderResults()
+    } catch {
+      if (requestId !== this.requestId || query !== this.query) return
+      this.failSearch()
+    }
+  }
+
+  failSearch() {
+    this.results = []
+    this.hideResults()
+    this.announce("Couldn't search stations. Try again.")
   }
 
   renderResults({ waiting = false } = {}) {

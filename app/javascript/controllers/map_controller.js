@@ -458,13 +458,29 @@ export default class extends Controller {
     const requestId = ++this.searchRequestId
     const query = this.query
     const url = `${this.searchUrlValue}?q=${encodeURIComponent(query)}`
-    const response = await firstPartyApiFetch(url)
-    if (!response.ok) return
-    if (requestId !== this.searchRequestId || query !== this.query) return
 
-    const data = await response.json()
-    this.searchResults = data.stations || []
-    this.renderSearchResults()
+    try {
+      const response = await firstPartyApiFetch(url)
+      if (requestId !== this.searchRequestId || query !== this.query) return
+      if (!response.ok) {
+        this.failSearch()
+        return
+      }
+
+      const data = await response.json()
+      if (requestId !== this.searchRequestId || query !== this.query) return
+      this.searchResults = data.stations || []
+      this.renderSearchResults()
+    } catch {
+      if (requestId !== this.searchRequestId || query !== this.query) return
+      this.failSearch()
+    }
+  }
+
+  failSearch() {
+    this.searchResults = []
+    this.renderSearchResults({ waiting: true })
+    this.announceSearch("Couldn't search stations. Try again.")
   }
 
   async loadStations() {

@@ -12,7 +12,9 @@
   <div hidden><%= helpers.invisible_captcha :subtitle %></div>
 
   <div class="field">
-    <%= f.label :name %>
+    <%= f.label :name do %>
+      Name <span class="required-note">(required)</span>
+    <% end %>
     <%= f.text_field :name,
           required: true,
           autocomplete: "name",
@@ -25,7 +27,9 @@
   </div>
 
   <div class="field">
-    <%= f.label :email, "Email address" %>
+    <%= f.label :email do %>
+      Email address <span class="required-note">(required)</span>
+    <% end %>
     <%= f.email_field :email,
           required: true,
           autocomplete: "email",
@@ -38,7 +42,9 @@
   </div>
 
   <div class="field">
-    <%= f.label :subject %>
+    <%= f.label :subject do %>
+      Subject <span class="required-note">(required)</span>
+    <% end %>
     <%= f.text_field :subject,
           required: true,
           placeholder: "Gauge question, feedback, partnership…",
@@ -50,7 +56,9 @@
   </div>
 
   <div class="field">
-    <%= f.label :message, "Your message" %>
+    <%= f.label :message do %>
+      Your message <span class="required-note">(required)</span>
+    <% end %>
     <%= f.text_area :message,
           required: true,
           rows: 5,
@@ -62,20 +70,22 @@
     <% end %>
   </div>
 
-  <div
-    class="cf-turnstile turnstile"
-    data-sitekey="<%= site_key %>"
-    data-theme="dark"
-    data-action="<%= TurnstileVerification::CONTACT %>"
-    aria-label="Bot check"
-  ></div>
-  <% if errors[:base].any? %>
-    <p id="contact-turnstile-error" class="field-error" role="alert"><%= errors[:base].to_sentence %></p>
-  <% end %>
-  <p class="aside turnstile-fallback">
-    Having trouble with the bot check?
-    <%= mail_to "contact@waterlevels.org", "Email contact@waterlevels.org" %> instead.
-  </p>
+  <fieldset class="turnstile-field" <% if errors[:base].any? %>aria-describedby="contact-turnstile-error"<% end %>>
+    <legend>Bot check</legend>
+    <div
+      class="cf-turnstile turnstile"
+      data-sitekey="<%= site_key %>"
+      data-theme="dark"
+      data-action="<%= TurnstileVerification::CONTACT %>"
+    ></div>
+    <% if errors[:base].any? %>
+      <p id="contact-turnstile-error" class="field-error" role="alert"><%= errors[:base].to_sentence %></p>
+    <% end %>
+    <p class="aside turnstile-fallback">
+      Having trouble with the bot check?
+      <%= mail_to "contact@waterlevels.org", "Email contact@waterlevels.org" %> instead.
+    </p>
+  </fieldset>
 
   <%= f.submit "Send message", class: "submit" %>
 <% end %>
