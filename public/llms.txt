@@ -14,7 +14,7 @@ This is not an official USGS, USBR, USACE, NWS, or CDEC website. WaterLevels.org
 - /about — project mission
 - /disclosures — data sources, caching, and limitations
 - /faq — frequently asked questions
-- /privacy, /terms, /aup, /contact
+- /privacy, /terms, /aup, /accessibility, /contact
 
 ## Data and APIs
 

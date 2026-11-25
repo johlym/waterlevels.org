@@ -1,0 +1,89 @@
+<% set_meta_tags(
+  title: "Accessibility",
+  description: "How to use WaterLevels.org with a keyboard or screen reader, the WCAG 2.2 AA target, known limits, and how to report a barrier."
+) %>
+
+<div class="app-shell">
+  <%= render Navigation::BarComponent.new %>
+  <main id="main" tabindex="-1" class="page-main narrow">
+    <div class="state-intro">
+      <h1>Accessibility</h1>
+      <p>Last updated November 25, 2026</p>
+    </div>
+    <div class="prose-page">
+      <section>
+        <p>
+          WaterLevels.org is a personal project by Johnathan Lyman. The public site is built so people can reach station data with a keyboard and a screen reader, and without relying on color alone.
+        </p>
+        <p>
+          The target is <strong>WCAG 2.2 Level AA</strong>. This page describes that target, the paths that work today, and the limits that remain. It is not a claim that every page conforms.
+        </p>
+      </section>
+
+      <section>
+        <h2>What this covers</h2>
+        <p>
+          This statement covers the public WaterLevels.org website: the home page, map, Flood Alerts, state directories, gauge pages, and these legal pages.
+        </p>
+        <p>
+          It does not cover the admin area, email that alert messages travel through, or the official USGS, NWS, USBR, USACE, and CDEC websites. Those agencies publish the records. WaterLevels.org presents a subset of them.
+        </p>
+      </section>
+
+      <section>
+        <h2>Using the site without a mouse</h2>
+        <p>
+          A skip link is the first control on every page. It moves focus to the main content. Pages use headings, landmarks, and visible keyboard focus.
+        </p>
+        <p>
+          Map markers are not individual keyboard stops. The same stations are available through these paths:
+        </p>
+        <ul>
+          <li><%= link_to "Station search", root_path %> on the home page, and search on the map at narrow widths.</li>
+          <li><strong>Stations in view</strong> on the <%= link_to "map", map_path %>, which lists the gauges in the current view.</li>
+          <li>The <%= link_to "state directory", state_gauges_path("wa") %> for any state, and <%= link_to "Flood Alerts", alerts_path %> for gauges at or above flood stage.</li>
+          <li>Each gauge page, with the reading in text and a table of recent history beside the chart.</li>
+        </ul>
+        <p>
+          Flood stage is written out (Action, Minor, Moderate, Major, or Nominal), not shown by color alone. Map zoom, locate, and settings are buttons. Escape closes map search, map settings, and the location dialog.
+        </p>
+      </section>
+
+      <section>
+        <h2>Known limits</h2>
+        <ul>
+          <li>
+            The contact form and the email-alert signup use Cloudflare Turnstile. If the check fails, email
+            <a href="mailto:hello@waterlevels.org">hello@waterlevels.org</a>.
+          </li>
+          <li>
+            Some links leave this site and open in a new tab. Those links include an icon in the same color as the link text, and the words “opens in a new tab” for screen readers.
+          </li>
+          <li>
+            The map tiles and the bot-check widget are provided by other companies. Their accessible names and keyboard behavior are not fully under our control.
+          </li>
+          <li>
+            A full screen-reader pass of every page is still to be done. If a control is silent or a reading is missing, use the contact path below.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Report a barrier</h2>
+        <p>
+          If you cannot complete a task, <%= link_to "send a message", contact_path %> or email
+          <a href="mailto:hello@waterlevels.org">hello@waterlevels.org</a>.
+          Include the page address, what you were trying to do, and the browser and assistive technology you used. We will reply with the data or a correction.
+        </p>
+      </section>
+
+      <section>
+        <h2>How this was checked</h2>
+        <p>
+          The public pages were reviewed against WCAG 2.2 Level AA in November 2026, including keyboard behavior, names of controls, contrast, and the structure of headings and landmarks. Automated checks in the test suite guard skip links, landmarks, and contrast tokens. That review is a floor. It is not a certification, and it is not a finished screen-reader evaluation.
+        </p>
+      </section>
+    </div>
+  </main>
+  <%= render Footer::ThinComponent.new %>
+</div>
