@@ -18,9 +18,10 @@
 >
   <%= render Navigation::BarComponent.new(map_controls: true) %>
 
-  <main id="main" class="map-main">
-    <div class="map-surface">
-      <div data-map-target="canvas" class="map-canvas" aria-label="Water gauges map"></div>
+  <main id="main" tabindex="-1" class="map-main">
+    <h1 class="sr-only">Water level map</h1>
+    <div class="map-surface" role="region" aria-label="Water gauges map" aria-describedby="map-station-list-status">
+      <div data-map-target="canvas" class="map-canvas"></div>
     </div>
 
     <div class="map-chrome">
@@ -123,16 +124,17 @@
             </label>
           </div>
 
-          <div class="map-station-panel">
-            <h3>Stations in view</h3>
-            <p class="aside">Keyboard-accessible list of stations currently shown on the map. Search or browse state pages for a fuller directory.</p>
-            <div class="sr-only" data-map-target="stationListStatus" role="status" aria-live="polite" aria-atomic="true"></div>
-            <div data-map-target="stationList">
-              <p class="empty">Move or zoom the map to load stations.</p>
-            </div>
-          </div>
         </div>
       </aside>
+
+      <div id="map-station-list-status" class="sr-only" data-map-target="stationListStatus" role="status" aria-live="polite" aria-atomic="true"></div>
+      <details class="map-station-browser">
+        <summary>Stations in view</summary>
+        <p class="aside">Keyboard-accessible list of stations currently shown on the map. Search or browse state pages for a fuller directory.</p>
+        <div data-map-target="stationList">
+          <p class="empty">Move or zoom the map to load stations.</p>
+        </div>
+      </details>
 
       <details class="map-legend">
         <summary>
@@ -230,7 +232,7 @@
                 aria-autocomplete="list"
                 aria-controls="map-search-results"
                 data-map-target="search"
-                data-action="input->map#search keydown.enter->map#submitSearch"
+                data-action="input->map#search"
                 aria-label="Search stations"
               >
             </div>

@@ -73,11 +73,6 @@ export default class extends Controller {
       maxBounds: [[-85.05112878, -180], [85.05112878, 180]],
       maxBoundsViscosity: 1
     }).setView(initial.center, initial.zoom)
-    this.canvasTarget.setAttribute("role", "img")
-    this.canvasTarget.setAttribute(
-      "aria-label",
-      "Water gauges map. Use Search stations or the Stations in view list for keyboard access."
-    )
     L.control.attribution({
       position: "bottomleft",
       prefix: this.attributionPrefix()
@@ -322,18 +317,33 @@ export default class extends Controller {
     if (!this.hasMobileSearchTarget) return
     this.mobileSearchTarget.hidden = false
     this.element.setAttribute("data-search-open", "")
+    this.setMobileSearchInert(true)
     this.closeSettings()
     requestAnimationFrame(() => this.searchTarget?.focus())
   }
 
   closeMobileSearch() {
     if (!this.hasMobileSearchTarget) return
+    const returnFocus = this.mobileSearchTarget.contains(document.activeElement)
     this.mobileSearchTarget.hidden = true
     this.element.removeAttribute("data-search-open")
+    this.setMobileSearchInert(false)
     this.query = ""
     this.searchResults = []
     if (this.hasSearchTarget) this.searchTarget.value = ""
     this.renderSearchResults()
+    if (returnFocus) this.searchToggle()?.focus()
+  }
+
+  searchToggle() {
+    return this.element.querySelector(".map-search-toggle")
+  }
+
+  setMobileSearchInert(inert) {
+    this.element.querySelectorAll(".site-header, .map-surface, .map-chrome").forEach((node) => {
+      if (inert) node.setAttribute("inert", "")
+      else node.removeAttribute("inert")
+    })
   }
 
   onKeydown(event) {
@@ -344,8 +354,20 @@ export default class extends Controller {
       return
     }
 
+    const searchFocused = this.hasSearchTarget && document.activeElement === this.searchTarget
+    if (event.key === "Enter" && searchFocused) {
+      event.preventDefault()
+      const items = this.searchResultItems()
+      if (this.searchActiveIndex >= 0 && items[this.searchActiveIndex]) {
+        items[this.searchActiveIndex].click()
+        return
+      }
+      this.submitSearch()
+      return
+    }
+
     if (!this.hasResultsTarget || this.resultsTarget.hidden) return
-    if (!this.hasSearchTarget || document.activeElement !== this.searchTarget) return
+    if (!searchFocused) return
 
     const items = this.searchResultItems()
     if (event.key === "ArrowDown") {
@@ -356,9 +378,6 @@ export default class extends Controller {
       event.preventDefault()
       this.searchActiveIndex = Math.max(this.searchActiveIndex - 1, 0)
       this.syncSearchActiveItem(items)
-    } else if (event.key === "Enter" && this.searchActiveIndex >= 0 && items[this.searchActiveIndex]) {
-      event.preventDefault()
-      items[this.searchActiveIndex].click()
     }
   }
 
@@ -504,10 +523,11 @@ export default class extends Controller {
     const visible = this.visibleStations()
     visible.forEach((station) => {
       const style = markerStyle(station)
+      const status = this.stationStatusLabel(station)
       const marker = L.marker([station.lat, station.lon], {
-        icon: markerIcon(L, station, style),
+        icon: markerIcon(L, station, style, `${station.name}, ${status}`),
         keyboard: false,
-        title: `${station.name} — ${this.stationStatusLabel(station)}`
+        title: `${station.name} — ${status}`
       })
       marker.bindPopup(this.popupHtml(station))
       this.markersById.set(station.id, marker)
@@ -525,22 +545,16 @@ export default class extends Controller {
     if (!this.hasStationListTarget) return
 
     const sorted = [...stations].sort((a, b) => String(a.name).localeCompare(String(b.name)))
-    const limit = 40
-    const shown = sorted.slice(0, limit)
 
-    if (!shown.length) {
+    if (!sorted.length) {
       this.stationListTarget.innerHTML = `<p class="empty">No stations match the current filters in this view.</p>`
       this.announceStationList("No stations in view")
       return
     }
 
-    const more = sorted.length > limit
-      ? `<p class="aside">Showing ${limit} of ${sorted.length}. Zoom in or search to narrow results.</p>`
-      : ""
-
     this.stationListTarget.innerHTML = `
       <ul class="map-station-list">
-        ${shown.map((station) => {
+        ${sorted.map((station) => {
           const status = this.stationStatusLabel(station)
           const path = this.escapeHtml(station.path || `/gauges/${station.id}`)
           return `
@@ -553,7 +567,6 @@ export default class extends Controller {
           `
         }).join("")}
       </ul>
-      ${more}
     `
     this.announceStationList(`${sorted.length} ${sorted.length === 1 ? "station" : "stations"} in view`)
   }

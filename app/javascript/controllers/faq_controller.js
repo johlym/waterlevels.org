@@ -30,19 +30,27 @@ export default class extends Controller {
     if (opening) this.openItem(item)
   }
 
-  showCategory(category) {
+  showCategory(category, { restoreFocus = true } = {}) {
+    const activeElement = document.activeElement
+
     this.categoryTargets.forEach((button) => {
       const active = button.dataset.faqCategoryParam === category
       button.toggleAttribute("data-active", active)
       button.setAttribute("aria-current", active ? "true" : "false")
     })
 
+    let displaced = false
     this.sectionTargets.forEach((section) => {
       const match = section.dataset.faqCategoryParam === category
+      if (!match && activeElement && section.contains(activeElement)) displaced = true
       section.toggleAttribute("hidden", !match)
     })
 
     this.closeAllItems()
+
+    if (restoreFocus && displaced) {
+      this.categoryTargets.find((button) => button.dataset.faqCategoryParam === category)?.focus()
+    }
   }
 
   activeCategory() {
@@ -59,9 +67,10 @@ export default class extends Controller {
 
     const section = item.closest("[data-faq-target='section']")
     const category = section?.dataset.faqCategoryParam
-    if (category) this.showCategory(category)
+    if (category) this.showCategory(category, { restoreFocus: false })
 
     this.openItem(item)
+    item.querySelector("[data-faq-target='trigger']")?.focus()
     item.scrollIntoView({ block: "start" })
   }
 

@@ -180,7 +180,7 @@
   }
 
   .station-card {
-    @apply block rounded-xl border border-zinc-800 bg-zinc-900/20 p-5 no-underline transition-all hover:border-zinc-700;
+    @apply relative block rounded-xl border border-zinc-800 bg-zinc-900/20 p-5 transition-all hover:border-zinc-700;
 
     &.is-alert {
       @apply border-rose-500/40 bg-rose-500/5 hover:border-rose-400/50;
@@ -197,6 +197,15 @@
 
   .station-card h3 {
     @apply mt-1 font-display text-lg font-bold text-white;
+
+    a {
+      @apply text-inherit no-underline;
+
+      &::after {
+        content: "";
+        @apply absolute inset-0;
+      }
+    }
   }
 
   .updated-at {

@@ -1,6 +1,6 @@
 <% set_meta_tags title: "Admin" %>
 
-<main id="main" class="page-main admin-dashboard"
+<main id="main" tabindex="-1" class="page-main admin-dashboard"
       data-controller="admin-sections"
       data-admin-sections-order-value="<%= AdminDashboardStats.section_load_order.to_json %>">
   <div class="admin-dashboard-chrome">

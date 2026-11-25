@@ -12,6 +12,7 @@ export default class extends Controller {
   }
 
   disconnect() {
+    window.clearTimeout(this.statusTimer)
     this.mediaQuery?.removeEventListener("change", this.syncCountyJump)
   }
 
@@ -20,7 +21,7 @@ export default class extends Controller {
     this.countyJumpTarget.open = this.mediaQuery.matches
   }
 
-  filter() {
+  filter(event) {
     const query = (this.hasSearchTarget ? this.searchTarget.value : "").trim().toLowerCase()
     const activeTypes = this.typeTargets
       .filter((input) => input.checked)
@@ -75,10 +76,26 @@ export default class extends Controller {
       this.emptyTarget.hidden = visibleCards > 0
     }
 
-    if (this.hasStatusTarget) {
-      this.statusTarget.textContent = visibleCards === 0
-        ? "No stations match these filters."
-        : `${visibleCards} ${visibleCards === 1 ? "station" : "stations"} shown`
+    this.writeStatus(visibleCards, event)
+  }
+
+  writeStatus(visibleCards, event) {
+    if (!this.hasStatusTarget) return
+
+    const message = visibleCards === 0
+      ? "No stations match these filters."
+      : `${visibleCards} ${visibleCards === 1 ? "station" : "stations"} shown`
+    const fromUser = event?.type === "input" || event?.type === "change"
+    window.clearTimeout(this.statusTimer)
+    if (!fromUser) return
+
+    if (event.type === "change") {
+      this.statusTarget.textContent = message
+      return
     }
+
+    this.statusTimer = window.setTimeout(() => {
+      this.statusTarget.textContent = message
+    }, 500)
   }
 }

@@ -189,7 +189,7 @@
                 county_name
               ].compact.map { |value| value.to_s.downcase }.uniq.join(" ")
             %>
-            <%= link_to path,
+            <%= tag.article(
                   class: "station-card#{" is-alert" if flood_alert && !offline}",
                   data: {
                     state_directory_target: "card",
@@ -198,11 +198,12 @@
                     flood_stage: flood_stage,
                     alert: flood_alert ? "true" : "false",
                     offline: offline ? "true" : "false"
-                  } do %>
+                  }
+                ) do %>
               <div class="card-head">
                 <div>
                   <span class="site-id">ID: <%= site %></span>
-                  <h3><%= name %></h3>
+                  <h3><%= link_to name, path %></h3>
                   <% if observed_at.present? %>
                     <p class="updated-at"><%= helpers.display_timestamp(observed_at, time_zone: time_zone, state_code: state_code) %></p>
                   <% end %>
