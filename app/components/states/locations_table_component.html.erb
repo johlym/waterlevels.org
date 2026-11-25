@@ -145,7 +145,7 @@
         data-county-name="<%= group_name %>"
         <%= "hidden" if live_count(locations).zero? %>
       >
-        <div class="county-head" id="<%= group_anchor %>">
+        <div class="county-head" id="<%= group_anchor %>" tabindex="-1">
           <h2>
             <a href="#<%= group_anchor %>"><%= group_name %></a>
           </h2>

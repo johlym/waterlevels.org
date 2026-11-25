@@ -1,33 +1,28 @@
 import { Controller } from "@hotwired/stimulus"
 
-const FOCUSABLE_SELECTOR = [
-  "a[href]",
-  "button:not([disabled])",
-  "textarea:not([disabled])",
-  "input:not([disabled]):not([type='hidden'])",
-  "select:not([disabled])",
-  "[tabindex]:not([tabindex='-1'])"
-].join(", ")
-
 export default class extends Controller {
   static targets = ["title", "body", "closeButton"]
 
   connect() {
-    this.onKeydown = this.onKeydown.bind(this)
+    this.onCancel = this.onCancel.bind(this)
+    this.onClick = this.onClick.bind(this)
     this.previouslyFocused = null
+    this.element.addEventListener("cancel", this.onCancel)
+    this.element.addEventListener("click", this.onClick)
   }
 
   disconnect() {
-    document.removeEventListener("keydown", this.onKeydown)
+    this.element.removeEventListener("cancel", this.onCancel)
+    this.element.removeEventListener("click", this.onClick)
+    if (this.element.open) this.element.close()
   }
 
-  show({ title, body } = {}) {
+  show({ title, body, returnFocus } = {}) {
     if (title && this.hasTitleTarget) this.titleTarget.textContent = title
     if (body && this.hasBodyTarget) this.bodyTarget.textContent = body
 
-    this.previouslyFocused = document.activeElement
-    this.element.hidden = false
-    document.addEventListener("keydown", this.onKeydown)
+    this.previouslyFocused = returnFocus || document.activeElement
+    if (!this.element.open) this.element.showModal()
     document.body.classList.add("dialog-open")
 
     requestAnimationFrame(() => {
@@ -36,10 +31,9 @@ export default class extends Controller {
   }
 
   close() {
-    if (this.element.hidden) return
+    if (!this.element.open) return
 
-    this.element.hidden = true
-    document.removeEventListener("keydown", this.onKeydown)
+    this.element.close()
     document.body.classList.remove("dialog-open")
 
     if (this.previouslyFocused?.focus) {
@@ -48,39 +42,12 @@ export default class extends Controller {
     this.previouslyFocused = null
   }
 
-  onKeydown(event) {
-    if (event.key === "Escape") {
-      event.preventDefault()
-      this.close()
-      return
-    }
-
-    if (event.key !== "Tab" || this.element.hidden) return
-
-    const focusable = this.focusableElements()
-    if (!focusable.length) {
-      event.preventDefault()
-      return
-    }
-
-    const first = focusable[0]
-    const last = focusable[focusable.length - 1]
-    const active = document.activeElement
-
-    if (event.shiftKey && active === first) {
-      event.preventDefault()
-      last.focus()
-    } else if (!event.shiftKey && active === last) {
-      event.preventDefault()
-      first.focus()
-    } else if (!this.element.contains(active)) {
-      event.preventDefault()
-      first.focus()
-    }
+  onCancel(event) {
+    event.preventDefault()
+    this.close()
   }
 
-  focusableElements() {
-    return Array.from(this.element.querySelectorAll(FOCUSABLE_SELECTOR))
-      .filter((el) => !el.hasAttribute("disabled") && el.offsetParent !== null)
+  onClick(event) {
+    if (event.target === this.element) this.close()
   }
 }

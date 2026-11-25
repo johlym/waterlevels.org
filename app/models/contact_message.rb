@@ -10,7 +10,10 @@ class ContactMessage
   attribute :remote_ip, :string
 
   validates :name, :email, :subject, :message, presence: true
-  validates :email, format: { with: URI::MailTo::EMAIL_REGEXP }
+  validates :email, format: {
+    with: URI::MailTo::EMAIL_REGEXP,
+    message: "Enter an email address in the format name@example.com."
+  }
   validates :name, length: { maximum: 120 }
   validates :subject, length: { maximum: 200 }
   validates :message, length: { maximum: 5000 }

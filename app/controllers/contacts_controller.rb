@@ -1,5 +1,8 @@
 class ContactsController < ApplicationController
-  invisible_captcha only: :create, honeypot: :subtitle, on_spam: :spam_detected
+  invisible_captcha only: :create,
+                    honeypot: :subtitle,
+                    on_spam: :spam_detected,
+                    on_timestamp_spam: :timestamp_spam
 
   def create
     @contact_message = ContactMessage.new(contact_params)
@@ -26,5 +29,11 @@ class ContactsController < ApplicationController
 
   def spam_detected
     redirect_to contact_path, notice: "Thanks — your message has been sent."
+  end
+
+  def timestamp_spam
+    @contact_message = ContactMessage.new(contact_params)
+    flash.now[:alert] = "Sorry, that was too quick! Please resubmit."
+    render template: "pages/contact", status: :unprocessable_content
   end
 end

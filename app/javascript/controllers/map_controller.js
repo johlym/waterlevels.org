@@ -306,10 +306,12 @@ export default class extends Controller {
 
   closeSettings() {
     if (!this.hasSettingsPanelTarget) return
+    const returnFocus = this.settingsPanelTarget.contains(document.activeElement)
     this.settingsPanelTarget.hidden = true
     if (this.hasSettingsButtonTarget) {
       this.settingsButtonTarget.setAttribute("aria-expanded", "false")
       this.settingsButtonTarget.classList.remove("is-active")
+      if (returnFocus) this.settingsButtonTarget.focus()
     }
   }
 
@@ -317,6 +319,7 @@ export default class extends Controller {
     if (!this.hasMobileSearchTarget) return
     this.mobileSearchTarget.hidden = false
     this.element.setAttribute("data-search-open", "")
+    this.searchToggle()?.setAttribute("aria-expanded", "true")
     this.setMobileSearchInert(true)
     this.closeSettings()
     requestAnimationFrame(() => this.searchTarget?.focus())
@@ -327,6 +330,7 @@ export default class extends Controller {
     const returnFocus = this.mobileSearchTarget.contains(document.activeElement)
     this.mobileSearchTarget.hidden = true
     this.element.removeAttribute("data-search-open")
+    this.searchToggle()?.setAttribute("aria-expanded", "false")
     this.setMobileSearchInert(false)
     this.query = ""
     this.searchResults = []
@@ -355,6 +359,11 @@ export default class extends Controller {
     }
 
     const searchFocused = this.hasSearchTarget && document.activeElement === this.searchTarget
+    if (event.key === "Tab" && searchFocused) {
+      this.renderSearchResults({ waiting: true })
+      return
+    }
+
     if (event.key === "Enter" && searchFocused) {
       event.preventDefault()
       const items = this.searchResultItems()
@@ -464,7 +473,7 @@ export default class extends Controller {
     const response = await firstPartyApiFetch(url)
     if (requestId !== this.stationsRequestId) return
     if (!response.ok) {
-      if (this.hasStatusTarget) this.statusTarget.textContent = "Couldn't refresh stations in view."
+      this.announceStationList("Couldn't refresh stations in view.")
       return
     }
     const data = await response.json()
@@ -577,6 +586,7 @@ export default class extends Controller {
   }
 
   renderSearchResults({ waiting = false } = {}) {
+    if (this.hasSearchTarget) this.searchTarget.removeAttribute("aria-activedescendant")
     if (!this.hasResultsTarget) return
 
     if (!this.query || waiting) {
@@ -606,7 +616,7 @@ export default class extends Controller {
     const optionId = `map-search-option-${index}`
     if (result.type === "state") {
       return `
-        <a href="${this.escapeHtml(result.path)}" class="item" role="option" id="${optionId}">
+        <a href="${this.escapeHtml(result.path)}" class="item" role="option" tabindex="-1" id="${optionId}">
           <div class="icon" aria-hidden="true">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
@@ -623,7 +633,7 @@ export default class extends Controller {
 
     if (result.type === "zip") {
       return `
-        <a href="${this.escapeHtml(result.path)}" class="item" role="option" id="${optionId}" data-action="click->map#selectSearchResult">
+        <a href="${this.escapeHtml(result.path)}" class="item" role="option" tabindex="-1" id="${optionId}" data-action="click->map#selectSearchResult">
           <div class="icon" aria-hidden="true">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
@@ -642,7 +652,7 @@ export default class extends Controller {
     const status = result.stale ? "Inactive" : "Active"
     const statusClass = result.stale ? "inactive" : "active"
     return `
-      <a href="${this.escapeHtml(result.path)}" class="item" role="option" id="${optionId}">
+      <a href="${this.escapeHtml(result.path)}" class="item" role="option" tabindex="-1" id="${optionId}">
         <div class="icon" aria-hidden="true">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
@@ -708,7 +718,7 @@ export default class extends Controller {
     if (station.observed_at) {
       rows.push(`<div class="popup-meta">Updated: ${this.formatTimestamp(station.observed_at, station)}</div>`)
     }
-    rows.push(`<div class="popup-link"><a href="${station.path}">View station</a></div>`)
+    rows.push(`<div class="popup-link"><a href="${this.escapeHtml(station.path)}">View ${this.escapeHtml(station.name)}</a></div>`)
     return `<div class="popup-title">${this.escapeHtml(station.name)}</div>${rows.join("")}`
   }
 

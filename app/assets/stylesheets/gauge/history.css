@@ -39,7 +39,7 @@
 }
 
 .day-select {
-  @apply h-10 rounded-lg border border-zinc-800 bg-zinc-900/80 px-4 text-base leading-none text-white outline-none focus:border-cyan-500/50 sm:text-sm;
+  @apply h-10 rounded-lg border border-zinc-500 bg-zinc-900/80 px-4 text-base leading-none text-white sm:text-sm;
 }
 
 .toolbar-btn {

@@ -6,7 +6,7 @@
   }
 
   .search-shell {
-    @apply rounded-2xl border border-zinc-700/50 bg-zinc-900/80 p-2 shadow-2xl shadow-black/40 backdrop-blur-xl;
+    @apply rounded-2xl border border-zinc-500 bg-zinc-900/80 p-2 shadow-2xl shadow-black/40 backdrop-blur-xl;
   }
 
   .search-row {
@@ -22,7 +22,7 @@
   }
 
   input {
-    @apply w-full min-w-0 bg-transparent py-3 text-base text-white outline-none placeholder:text-zinc-400;
+    @apply w-full min-w-0 bg-transparent py-3 text-base text-white placeholder:text-zinc-400;
   }
 
   .locate-btn {
