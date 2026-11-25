@@ -6,6 +6,7 @@
 <div class="app-shell">
   <%= render Navigation::BarComponent.new %>
 
+  <main id="main" tabindex="-1" class="content-page">
   <section class="page-hero">
     <div class="glow" aria-hidden="true">
       <div class="blob-a"></div>
@@ -28,7 +29,7 @@
     </div>
   </section>
 
-  <main id="main" tabindex="-1" class="page-main faq-main">
+  <div class="page-main faq-main">
     <div class="faq-page" data-controller="faq">
       <aside class="faq-sidebar">
         <div class="sidebar-sticky">
@@ -453,6 +454,7 @@
         </section>
       </div>
     </div>
+  </div>
   </main>
 
   <section class="faq-cta">

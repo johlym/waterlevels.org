@@ -108,6 +108,7 @@ export default class extends Controller {
     }
 
     this.locateReturnFocus = this.hasLocateButtonTarget ? this.locateButtonTarget : document.activeElement
+    this.announce("Finding the nearest station")
     this.setLocateBusy(true)
     navigator.geolocation.getCurrentPosition(
       async (pos) => {

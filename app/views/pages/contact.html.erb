@@ -48,11 +48,12 @@
 
       <div class="form-panel">
         <div class="card">
+          <% focus_flash = @contact_message.errors.empty? %>
           <% if flash[:notice].present? %>
-            <div class="flash notice" role="status"><%= flash[:notice] %></div>
+            <div class="flash notice" role="status" tabindex="-1" <%= "autofocus" if focus_flash %>><%= flash[:notice] %></div>
           <% end %>
           <% if flash[:alert].present? %>
-            <div class="flash alert" role="alert"><%= flash[:alert] %></div>
+            <div class="flash alert" role="alert" tabindex="-1" <%= "autofocus" if focus_flash %>><%= flash[:alert] %></div>
           <% end %>
 
           <%= render Contact::FormComponent.new(contact_message: @contact_message) %>

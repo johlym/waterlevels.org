@@ -266,10 +266,12 @@ export default class extends Controller {
       return
     }
 
+    this.announceStationList("Finding your location")
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords
         this.map.setView([latitude, longitude], 12)
+        this.announceStationList("Map centered on your location")
         if (this.locationMarker) this.map.removeLayer(this.locationMarker)
         this.locationMarker = L.circleMarker([latitude, longitude], {
           radius: 7,
