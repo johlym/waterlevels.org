@@ -131,6 +131,10 @@
   box-shadow: 0 0 0 1px rgb(9 9 11 / 0.55);
 }
 
+.map-marker--triangle .map-marker-shape {
+  color: #ffffff;
+}
+
 .map-marker--circle .map-marker-shape {
   border-radius: 9999px;
 }

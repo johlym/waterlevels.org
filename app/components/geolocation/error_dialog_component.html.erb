@@ -1,14 +1,10 @@
-<div
+<dialog
   id="<%= @id %>"
   class="app-dialog"
   data-controller="dialog"
-  role="dialog"
-  aria-modal="true"
   aria-labelledby="<%= @id %>-title"
   aria-describedby="<%= @id %>-body"
-  hidden
 >
-  <div class="app-dialog-backdrop" data-action="click->dialog#close" aria-hidden="true"></div>
   <div class="app-dialog-panel">
     <div class="app-dialog-header">
       <h2 id="<%= @id %>-title" data-dialog-target="title">Couldn’t get your location</h2>
@@ -37,4 +33,4 @@
       </button>
     </div>
   </div>
-</div>
+</dialog>

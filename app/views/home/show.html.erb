@@ -177,7 +177,7 @@
       </div>
 
       <div class="trends-grid">
-        <article id="rising-fastest">
+        <article id="rising-fastest" tabindex="-1">
           <h3>Rising fastest</h3>
           <p>
             Prior reading from <%= 24 - band_hours %> to <%= 24 + band_hours %> hours before the latest tip.
@@ -194,7 +194,7 @@
                 empty_message: "No streamflow rises in the last 24 hours. Rises count when the earlier reading was at least #{TrendHighlights::DISCHARGE_PRIOR_FLOOR} ft³/s." %>
         </article>
 
-        <article id="new-highs">
+        <article id="new-highs" tabindex="-1">
           <h3>New highs</h3>
           <p>
             Latest reading above every annual peak we have on file, for series with at least
@@ -223,7 +223,7 @@
               .map { |station| [ station.state_code.to_s.downcase, station.state_name.presence || station.state_code.to_s.upcase ] }
               .uniq(&:first)
           %>
-          <article id="<%= region.key %>">
+          <article id="<%= region.key %>" tabindex="-1">
             <h3><%= region.name %></h3>
             <p><%= region.blurb %></p>
             <% if region.stations.any? %>

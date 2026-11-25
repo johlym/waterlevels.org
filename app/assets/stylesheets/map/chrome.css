@@ -1,5 +1,5 @@
 .map-shell {
-  @apply relative flex h-dvh flex-col;
+  @apply relative isolate flex h-dvh flex-col;
 
   .map-main {
     @apply relative min-h-0 flex-1 overflow-hidden bg-zinc-900;

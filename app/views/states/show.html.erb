@@ -17,7 +17,8 @@
 <div class="app-shell" data-controller="temperature-unit" data-temperature-unit-url-value="<%= temperature_unit_path %>">
   <%= render Navigation::BarComponent.new %>
 
-  <header class="state-hero">
+  <main id="main" tabindex="-1" class="state-page">
+  <div class="state-hero">
     <div class="glow" aria-hidden="true"></div>
     <div class="inner">
       <div class="copy">
@@ -47,9 +48,9 @@
         </div>
       </div>
     </div>
-  </header>
+  </div>
 
-  <main id="main" tabindex="-1" class="page-main state-main">
+  <div class="page-main state-main">
     <% if locations.blank? %>
       <div class="empty-state">
         <p>No locations loaded for this state yet. Check back as catalog sync fills in.</p>
@@ -57,6 +58,7 @@
     <% else %>
       <%= render States::LocationsTableComponent.new(locations: locations, state_label: state_label) %>
     <% end %>
+  </div>
   </main>
 
   <%= render Footer::ThinComponent.new %>

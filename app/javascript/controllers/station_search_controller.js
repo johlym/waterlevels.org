@@ -42,6 +42,11 @@ export default class extends Controller {
   }
 
   keydown(event) {
+    if (event.key === "Tab") {
+      this.hideResults()
+      return
+    }
+
     if (!this.hasResultsTarget || this.resultsTarget.hidden) {
       if (event.key === "Enter") {
         event.preventDefault()
@@ -102,6 +107,7 @@ export default class extends Controller {
       return
     }
 
+    this.locateReturnFocus = this.hasLocateButtonTarget ? this.locateButtonTarget : document.activeElement
     this.setLocateBusy(true)
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
@@ -132,14 +138,18 @@ export default class extends Controller {
 
   showGeolocationError(error) {
     if (!this.hasDialogOutlet) return
-    this.dialogOutlet.show(geolocationErrorMessage(error))
+    this.dialogOutlet.show({
+      ...geolocationErrorMessage(error),
+      returnFocus: this.locateReturnFocus
+    })
   }
 
   showLocateError(message) {
     if (!this.hasDialogOutlet) return
     this.dialogOutlet.show({
       title: "Couldn't find a nearby station",
-      body: message
+      body: message,
+      returnFocus: this.locateReturnFocus
     })
   }
 
@@ -177,19 +187,15 @@ export default class extends Controller {
     }
 
     const items = this.results.map((result, index) => this.resultItemHtml(result, index)).join("")
-
-    const browse = this.hasMapUrlValue
-      ? `<div class="footer">
-          <a href="${this.escapeHtml(this.mapUrlValue)}">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
-            </svg>
-            Browse all stations on map
-          </a>
-        </div>`
-      : ""
-
-    this.resultsTarget.innerHTML = items + browse
+    this.resultsTarget.innerHTML = items
+    this.clearBrowseLink()
+    if (this.hasMapUrlValue && this.mapUrlValue) {
+      this.resultsTarget.insertAdjacentHTML("afterend", `
+        <div class="search-browse">
+          <a href="${this.escapeHtml(this.mapUrlValue)}">Browse all stations on map</a>
+        </div>
+      `)
+    }
     const count = this.results.length
     this.announce(`${count} ${count === 1 ? "result" : "results"} available`)
     this.clearActiveDescendant()
@@ -200,7 +206,7 @@ export default class extends Controller {
 
     if (result.type === "state") {
       return `
-        <a href="${this.escapeHtml(result.path)}" class="item" role="option" id="${optionId}">
+        <a href="${this.escapeHtml(result.path)}" class="item" role="option" tabindex="-1" id="${optionId}">
           <div class="icon" aria-hidden="true">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
@@ -217,7 +223,7 @@ export default class extends Controller {
 
     if (result.type === "zip") {
       return `
-        <a href="${this.escapeHtml(result.path)}" class="item" role="option" id="${optionId}">
+        <a href="${this.escapeHtml(result.path)}" class="item" role="option" tabindex="-1" id="${optionId}">
           <div class="icon" aria-hidden="true">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
@@ -236,7 +242,7 @@ export default class extends Controller {
     const status = result.stale ? "Inactive" : "Active"
     const statusClass = result.stale ? "inactive" : "active"
     return `
-      <a href="${this.escapeHtml(result.path)}" class="item" role="option" id="${optionId}">
+      <a href="${this.escapeHtml(result.path)}" class="item" role="option" tabindex="-1" id="${optionId}">
         <div class="icon" aria-hidden="true">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
@@ -253,6 +259,7 @@ export default class extends Controller {
 
   hideResults() {
     if (!this.hasResultsTarget) return
+    this.clearBrowseLink()
     this.resultsTarget.innerHTML = ""
     this.resultsTarget.hidden = true
     this.activeIndex = -1
@@ -263,6 +270,10 @@ export default class extends Controller {
 
   onDocumentClick(event) {
     if (!this.element.contains(event.target)) this.hideResults()
+  }
+
+  clearBrowseLink() {
+    this.resultsTarget?.parentElement?.querySelector(":scope > .search-browse")?.remove()
   }
 
   resultItems() {

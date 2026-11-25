@@ -27,10 +27,11 @@ body.dialog-open {
 }
 
 .app-dialog {
-  @apply fixed inset-0 z-50 flex items-center justify-center p-4;
+  @apply w-[min(28rem,calc(100vw-2rem))] border-0 bg-transparent p-0 text-inherit;
 
-  .app-dialog-backdrop {
-    @apply absolute inset-0 bg-zinc-950/80 backdrop-blur-sm;
+  &::backdrop {
+    background: rgb(9 9 11 / 0.8);
+    backdrop-filter: blur(4px);
   }
 
   .app-dialog-panel {
