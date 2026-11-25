@@ -1,12 +1,23 @@
 require "test_helper"
 
 class PagesControllerTest < ActionDispatch::IntegrationTest
-  %w[about aup disclosures faq privacy terms].each do |page|
+  %w[about accessibility aup disclosures faq privacy terms].each do |page|
     test "renders #{page}" do
       get "/#{page}"
       assert_response :success
       assert_includes response.headers["Cache-Control"], "public"
     end
+  end
+
+  test "accessibility page states the target and the map workaround" do
+    get accessibility_path
+    assert_response :success
+    assert_includes response.body, "Accessibility"
+    assert_includes response.body, "WCAG 2.2 Level AA"
+    assert_includes response.body, "not a claim that every page conforms"
+    assert_includes response.body, "Stations in view"
+    assert_includes response.body, "hello@waterlevels.org"
+    assert_includes response.body, contact_path
   end
 
   test "aup page publishes the current acceptable use policy" do
@@ -59,6 +70,7 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "mpkwali0-x9idrhsjr8a"
     assert_includes response.body, privacy_path
     assert_includes response.body, aup_path
+    assert_includes response.body, accessibility_path
     assert_includes response.body, contact_path
   end
 

@@ -25,6 +25,7 @@ class SitemapsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "<loc>http://www.example.com/map</loc>"
     assert_includes response.body, "<loc>http://www.example.com/alerts</loc>"
     assert_includes response.body, "<loc>http://www.example.com/about</loc>"
+    assert_includes response.body, "<loc>http://www.example.com/accessibility</loc>"
     assert_includes response.body, "<loc>http://www.example.com/faq</loc>"
     assert_includes response.body, "<loc>http://www.example.com/aup</loc>"
     refute_includes response.body, "/contact"
