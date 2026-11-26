@@ -86,7 +86,7 @@
       <section aria-labelledby="what-we-show-heading">
         <h2 id="what-we-show-heading">What we show</h2>
         <p>We focus on surface-water sites that currently report at least one of:</p>
-        <ul role="list">
+        <ul>
           <li><span class="emphasis">Water level / stage</span> — including gage height (USGS parameter code 00065) and, where available, lake or reservoir elevation relative to a vertical datum such as NGVD 1929 (62614) or NAVD 1988 (62615), or height above a local datum (00062).</li>
           <li><span class="emphasis">Streamflow / discharge</span> — USGS parameter code 00060, typically in cubic feet per second.</li>
           <li><span class="emphasis">Water temperature</span> — USGS parameter code 00010, stored in Celsius and convertible to Fahrenheit in the interface.</li>
@@ -103,7 +103,7 @@
       <section aria-labelledby="how-used-heading">
         <h2 id="how-used-heading">How the data is used</h2>
         <p>In practical terms, WaterLevels.org:</p>
-        <ul role="list">
+        <ul>
           <li>Discovers active USGS sites from <code>latest-continuous</code> feeds for the parameter codes above, and stores monitoring-location metadata (name, site number, coordinates, state and county, and drainage area or hydrologic unit when the feed includes them) plus selected time-series metadata.</li>
           <li>Refreshes a curated allowlist of USBR, USACE, CDEC, and NWPS-only gauges from those agencies’ APIs. Stations outside the allowlist are not added.</li>
           <li>Caches the latest observation for map popups, station current conditions, the Flood Alerts list, and optional email alerts.</li>
@@ -189,7 +189,7 @@
         <p>
           Browsing the map, directories, and station pages does not require an account. We still handle a few kinds of information so search, location, and optional email alerts work:
         </p>
-        <ul role="list">
+        <ul>
           <li><span class="emphasis">ZIP code search</span> — if you search with a U.S. ZIP code, we send that ZIP to Zippopotam.us, cache the returned place and centroid for about 30 days, and use it only to open the map near that place. We do not attach the ZIP to an account.</li>
           <li><span class="emphasis">Device location</span> — “Use my location” runs only after you choose it. The browser sends coordinates to our nearest-station lookup so we can center the map or open a nearby gauge. We do not store those coordinates as a profile.</li>
           <li><span class="emphasis">Email alerts</span> — if you subscribe, we store your email address, time zone, digest schedule, quiet hours, the stations you watch, and the alert rules you set. We use the cached water readings and flood categories described above to send confirmation, threshold, flood, and digest messages. Delivery goes through our email provider. You can pause or unsubscribe from any alert email or the manage page.</li>

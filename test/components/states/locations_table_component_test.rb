@@ -123,7 +123,8 @@ class States::LocationsTableComponentTest < ViewComponent::TestCase
       )
     ).to_html
 
-    assert_includes html, "Flood stages"
+    assert_includes html, "<legend class=\"filter-label\">Flood stages</legend>"
+    assert_not_includes html, 'role="group"'
     assert_includes html, 'data-state-directory-target="floodStage"'
     assert_includes html, "Action Stage"
     assert_includes html, "Minor Flooding"

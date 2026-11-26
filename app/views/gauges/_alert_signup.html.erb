@@ -29,7 +29,7 @@
 
     <div class="gauge-alert-row">
       <div class="field">
-        <label for="gauge-alert-email">Email address</label>
+        <label for="gauge-alert-email">Email address <span class="required-note">(required)</span></label>
         <%= email_field_tag :email, nil, id: "gauge-alert-email", required: true, autocomplete: "email", placeholder: "you@example.com" %>
       </div>
       <%= submit_tag "Subscribe", class: "submit" %>
@@ -46,13 +46,15 @@
     </div>
 
     <% if turnstile_required %>
-      <div
-        class="cf-turnstile turnstile"
-        data-sitekey="<%= site_key %>"
-        data-theme="dark"
-        data-action="<%= TurnstileVerification::EMAIL_NOTIFICATIONS %>"
-        aria-label="Bot check"
-      ></div>
+      <fieldset class="turnstile-field">
+        <legend>Bot check</legend>
+        <div
+          class="cf-turnstile turnstile"
+          data-sitekey="<%= site_key %>"
+          data-theme="dark"
+          data-action="<%= TurnstileVerification::EMAIL_NOTIFICATIONS %>"
+        ></div>
+      </fieldset>
     <% end %>
 
     <p class="aside">

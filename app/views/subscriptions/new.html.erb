@@ -30,18 +30,20 @@
         <%= hidden_field_tag :intent, "manage_link" %>
 
         <div class="field">
-          <label for="manage-link-email">Email address</label>
+          <label for="manage-link-email">Email address <span class="required-note">(required)</span></label>
           <%= email_field_tag :email, @email, id: "manage-link-email", required: true, autocomplete: "email", placeholder: "you@example.com" %>
         </div>
 
         <% if turnstile_required %>
-          <div
-            class="cf-turnstile turnstile"
-            data-sitekey="<%= site_key %>"
-            data-theme="dark"
-            data-action="<%= TurnstileVerification::MANAGE_LINK %>"
-            aria-label="Bot check"
-          ></div>
+          <fieldset class="turnstile-field">
+            <legend>Bot check</legend>
+            <div
+              class="cf-turnstile turnstile"
+              data-sitekey="<%= site_key %>"
+              data-theme="dark"
+              data-action="<%= TurnstileVerification::MANAGE_LINK %>"
+            ></div>
+          </fieldset>
         <% end %>
 
         <%= submit_tag "Email me a manage link", class: "submit" %>

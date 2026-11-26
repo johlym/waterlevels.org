@@ -46,6 +46,9 @@ class AccessibilitySmokeTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'data-map-target="stationList"'
     assert_includes response.body, "Normal (circle)"
     assert_includes response.body, "Action (A / diamond)"
+    assert_includes response.body, "<legend>Measurement filters</legend>"
+    assert_includes response.body, "<legend>Station status</legend>"
+    assert_not_includes response.body, 'aria-label="Measurement filters"'
   end
 
   test "new-tab links use an icon and a screen-reader warning" do
@@ -129,6 +132,16 @@ class AccessibilitySmokeTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'id="contact-name-error"'
     assert_includes response.body, 'aria-describedby="contact-name-error"'
     assert_includes response.body, "Email contact@waterlevels.org"
+    assert_includes response.body, "<legend>Bot check</legend>"
+    assert_includes response.body, "(required)"
+    assert_not_includes response.body, 'aria-label="Bot check"'
+  end
+
+  test "bulleted policy lists rely on markers instead of role=list" do
+    get privacy_path
+    assert_response :success
+    assert_includes response.body, "<ul>"
+    assert_not_includes response.body, 'role="list"'
   end
 
   test "gauge measurement tabs keep tablist semantics" do

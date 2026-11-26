@@ -19,9 +19,9 @@
       </div>
 
       <% if show_flood_stages_filter? %>
-        <div class="filter-block">
-          <span class="filter-label">Flood stages</span>
-          <div class="type-filters" role="group" aria-label="Flood stages">
+        <fieldset class="filter-block">
+          <legend class="filter-label">Flood stages</legend>
+          <div class="type-filters">
             <% flood_stage_filters.each do |value, label| %>
               <label class="filter-check">
                 <input
@@ -35,12 +35,12 @@
               </label>
             <% end %>
           </div>
-        </div>
+        </fieldset>
       <% end %>
 
-      <div class="filter-block">
-        <span class="filter-label">Measurement types</span>
-        <div class="type-filters" role="group" aria-label="Measurement types">
+      <fieldset class="filter-block">
+        <legend class="filter-label">Measurement types</legend>
+        <div class="type-filters">
           <label class="filter-check">
             <input
               type="checkbox"
@@ -71,13 +71,13 @@
             >
             <span>Water Quality &amp; Temp</span>
           </label>
-        </div>
-      </div>
+          </div>
+        </fieldset>
 
-      <% if show_offline_filter? %>
-        <div class="filter-block">
-          <span class="filter-label">Station status</span>
-          <div class="type-filters" role="group" aria-label="Station status">
+        <% if show_offline_filter? %>
+        <fieldset class="filter-block">
+          <legend class="filter-label">Station status</legend>
+          <div class="type-filters">
             <label class="filter-check">
               <input
                 type="checkbox"
@@ -88,13 +88,13 @@
               <span>Show offline / stale (<%= offline_count %>)</span>
             </label>
           </div>
-        </div>
+        </fieldset>
       <% end %>
 
       <% if show_alerts_filter? %>
-        <div class="filter-block">
-          <span class="filter-label">Flood alerts</span>
-          <div class="type-filters" role="group" aria-label="Alert filters">
+        <fieldset class="filter-block">
+          <legend class="filter-label">Flood alerts</legend>
+          <div class="type-filters">
             <label class="filter-check filter-check-alert">
               <input
                 type="checkbox"
@@ -105,7 +105,7 @@
               <span>Stations with alerts (<%= alert_count %>)</span>
             </label>
           </div>
-        </div>
+        </fieldset>
       <% end %>
 
       <% if group_jump_links.any? %>
